@@ -1,0 +1,17 @@
+url: https://jameshwade.github.io/rill/
+
+template:
+  bootstrap: 5
+
+reference:
+  - title: Run Rill
+    desc: Launch the reader or refresh its subscriptions.
+    contents:
+      - rill_app
+      - poll_feeds
+
+  - title: Subscription interchange
+    desc: Move feed subscriptions into and out of Rill with OPML.
+    contents:
+      - read_opml
+      - write_opml

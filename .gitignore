@@ -1,0 +1,12 @@
+.env
+.DS_Store
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+.scratch/
+renv/library/
+renv/staging/
+rsconnect/

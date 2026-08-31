@@ -1,0 +1,12 @@
+^\.env\.example$
+^\.github$
+^\.scratch$
+^\.vscode$
+^_pkgdown\.yml$
+^app\.R$
+^artifacts$
+^design-qa\.md$
+^LICENSE\.md$
+^rill\.Rproj$
+^scripts$
+^[.]?air[.]toml$

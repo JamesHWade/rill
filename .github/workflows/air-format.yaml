@@ -1,0 +1,17 @@
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+name: Air format
+
+permissions:
+  contents: read
+
+jobs:
+  air-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: posit-dev/setup-air@v1
+      - run: air format . --check

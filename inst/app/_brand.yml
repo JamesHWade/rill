@@ -1,0 +1,57 @@
+meta:
+  name: Rill
+
+logo:
+  images:
+    duck:
+      path: www/rill-duck.png
+      alt: Rill duck resting on a water ripple
+    duck-dark:
+      path: www/rill-duck-dark.png
+      alt: Rill duck resting on a water ripple
+  small: duck
+  medium: duck
+
+color:
+  palette:
+    duck-egg: "#DEECEB"
+    reed: "#587B69"
+    reed-deep: "#2D5045"
+    paper: "#FFFDF7"
+    sand: "#F4EEDC"
+    ink: "#243936"
+    ochre: "#C08A32"
+    night: "#0E0F0D"
+    night-queue: "#11130F"
+    night-sidebar: "#151D14"
+    parchment: "#E6D7C3"
+    celadon: "#9EAF87"
+    moon-ochre: "#E1A23A"
+  foreground: ink
+  background: paper
+  primary: reed
+  secondary: ochre
+
+typography:
+  fonts:
+    - family: Atkinson Hyperlegible
+      source: google
+      weight: [400, 700]
+      style: [normal, italic]
+      display: swap
+    - family: Literata
+      source: google
+      weight: [400, 500, 600]
+      style: [normal, italic]
+      display: swap
+  base:
+    family: Atkinson Hyperlegible
+    size: 15px
+    line-height: 1.5
+  headings:
+    family: Literata
+    weight: 500
+    line-height: 1.14
+  link:
+    color: reed-deep
+    decoration: underline

@@ -1,0 +1,238 @@
+# Rill
+
+Rill is a fast, personal Google Reader-style app delivered as an R package and
+Shiny application. It keeps the feed reader small while leaving useful seams
+for later analysis:
+
+- RSS and Atom ingestion with HTML feed autodiscovery
+- OPML import and export with folder preservation
+- conditional refreshes using ETag and Last-Modified
+- clean reading copies from Defuddle or a local browser capture, cached in Postgres
+- read, star, and save state
+- an append-only interaction ledger for impressions, opens, scroll milestones, dwell heartbeats, and outbound clicks
+- vendor-neutral OpenTelemetry traces and logs, ready for Logfire
+- a bundled in-memory demo when no database is configured
+
+The working title is **Rill**. Rename it freely.
+
+## Architecture
+
+| Concern | Owner | Why |
+|---|---|---|
+| Feed discovery and parsing | R (`httr2`, `xml2`) | Small enough to keep inside the app initially |
+| Clean article document | Defuddle or authenticated browser capture | Keeps exact Markdown and producer provenance behind one document boundary |
+| Reader UI | Shiny + `bslib` | Keeps the product fully in R |
+| Durable state | Neon Postgres | Connect Cloud instances should not be treated as durable filesystems |
+| Product behavior | `events` table in Neon | Interaction data remains queryable application data |
+| Operations | OpenTelemetry → Logfire | Errors and latency stay separate from reading history |
+
+The package exposes four focused entry points: `rill_app()` creates the Shiny
+application, `poll_feeds()` runs a durable scheduled refresh, and `read_opml()`
+and `write_opml()` provide a small interchange boundary for subscription lists.
+Feed parsing, storage, telemetry, and UI helpers remain internal. Defuddle
+remains behind a narrow adapter rather than becoming its own package.
+
+## Run in demo mode
+
+You need a current R installation. From the project directory:
+
+```r
+source("scripts/bootstrap.R")
+devtools::test()
+shiny::runApp()
+```
+
+The bootstrap reads development dependencies from `DESCRIPTION` with pak and
+records them in `renv.lock`. When R is not available,
+`node --check inst/app/www/app.js && node scripts/static-check.mjs` still catches
+JavaScript syntax errors, missing app files, and unbalanced R delimiters. It is
+not a substitute for the R tests.
+
+With no `DATABASE_URL`, Rill loads six bundled stories and exercises the UI and interaction model in memory. Restarting the R process resets that demo state.
+
+On desktop, press `J` or `K` to move to the next or previous visible story, `O` to open the selected story's original page in a new tab, `S` to toggle Saved, and `F` to toggle Starred. Shortcuts are disabled while typing in a form field.
+
+## Move subscriptions with OPML
+
+Open **Manage feeds** in the sidebar to import an OPML file from another feed
+reader or export the current subscriptions. Rill preserves nested OPML groups
+as slash-separated folder paths and restores those paths when exporting. An
+import registers subscriptions immediately; use **Refresh feeds** to fetch
+their first stories. In demo mode, imported subscriptions last until the R
+process restarts.
+
+The same interchange is available from R:
+
+```r
+subscriptions <- read_opml("subscriptions.opml")
+write_opml(subscriptions, "rill-subscriptions.opml")
+```
+
+## Add Neon
+
+Create a Neon project and copy its pooled Postgres connection string. Set it as
+`DATABASE_URL`; include `sslmode=require`. Rill applies the installed,
+idempotent schema when the app starts.
+
+For local development, put variables in your normal secret-management flow or load an uncommitted `.env`. The repository includes `.env.example` only as a field reference. Do not commit a real Neon password.
+
+Required for persistence:
+
+```text
+DATABASE_URL=postgresql://user:password@host.neon.tech/neondb?sslmode=require
+RILL_ACTOR_ID=reader
+```
+
+Set `RILL_CAPTURE_TOKEN` to enable local browser capture. Use a long random
+value and keep it in the same secret-management flow as `DATABASE_URL`.
+
+Neon is a good fit for this first version. Alternatives become attractive only for a specific reason: Supabase if bundled auth/storage is important, or a conventional managed Postgres instance if predictable always-on latency matters more than serverless scale-to-zero.
+
+## Defuddle
+
+Selecting an uncached article runs the configured Defuddle backend, separates
+its YAML metadata from the Markdown body, stores that document in
+`documents`, and renders the Markdown with reader typography. If
+extraction fails, Rill stores a plain-text fallback from the feed so the reading
+action still succeeds.
+
+The hosted API remains the default. Set `DEFUDDLE_API_KEY` if you have one:
+
+```text
+DEFUDDLE_BACKEND=hosted
+DEFUDDLE_API_KEY=your-key
+```
+
+To keep extraction on the machine running Rill, install the Defuddle CLI with
+`npm install -g defuddle`, then configure the local backend:
+
+```text
+DEFUDDLE_BACKEND=local
+DEFUDDLE_COMMAND=defuddle
+```
+
+`DEFUDDLE_COMMAND` may also be an explicit executable path. Rill invokes
+`defuddle parse <url> --md --frontmatter`, applies the same public-URL safety
+check as the hosted adapter, and records `defuddle-local` as the extraction
+engine. The executable must be installed in the runtime environment, so the
+hosted backend is usually simpler for Connect deployments.
+
+Both backends fetch public pages without an authenticated browser session.
+Paywalled or browser-only pages can instead be extracted on the reader's machine
+and sent through the local capture endpoint described below. Rill accepts the
+supplied document; it does not fetch with or store browser credentials.
+
+## Local browser capture
+
+When `RILL_CAPTURE_TOKEN` is set, the same application serves
+`POST /api/v1/captures`. A browser extension or local clipper sends already
+extracted Markdown with a stable capture ID and producer identity:
+
+```json
+{
+  "capture_id": "3f87de90-4302-4f3e-9e84-2f5d4c966abd",
+  "source_url": "https://example.com/article",
+  "canonical_url": "https://example.com/article",
+  "title": "An article worth keeping",
+  "author": "Ada Lovelace",
+  "site": "Example",
+  "published_at": "2026-08-29T12:30:00Z",
+  "markdown": "# An article worth keeping\n\nExact captured text.",
+  "captured_at": "2026-08-30T22:15:00Z",
+  "producer": "my-rill-clipper",
+  "producer_version": "1.0.0",
+  "metadata": {
+    "extraction_mode": "article"
+  }
+}
+```
+
+Send it as authenticated JSON:
+
+```sh
+curl --request POST "https://your-rill.example/api/v1/captures" \
+  --header "Authorization: Bearer $RILL_CAPTURE_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data @capture.json
+```
+
+`capture_id`, `source_url`, `title`, `markdown`, `captured_at`, and `producer`
+are required. Source URLs must be public HTTP or HTTPS URLs, and request bodies
+are limited to 5 MiB. An exact retry returns the original entry and document
+IDs; reusing a capture ID for different evidence returns `409 Conflict`.
+
+Rill attaches a capture to an existing feed entry when the canonical or source
+URL matches. Otherwise it creates an unread entry under **Local captures**.
+Documents are immutable: exact content, producer version and metadata, source
+URLs, producer record ID, capture time, receipt time, and hashes remain
+available while a separate head record selects the reading copy. That document
+interface is also the input seam reserved for the future Orientation agent.
+Demo-mode captures work but disappear when the R process restarts.
+
+## Logfire and telemetry
+
+Logfire is useful here, but only for operational telemetry. The code emits low-cardinality spans/logs around database setup, feed HTTP work, and document extraction. It never intentionally sends article titles, article bodies, or full URLs to the telemetry backend.
+
+Set the standard OTLP variables:
+
+```text
+OTEL_SERVICE_NAME=rill
+OTEL_RESOURCE_ATTRIBUTES=service.namespace=personal-reader,deployment.environment=production
+OTEL_TRACES_EXPORTER=http
+OTEL_LOGS_EXPORTER=http
+OTEL_METRICS_EXPORTER=none
+OTEL_R_SUPPRESS_SCOPES=httr2
+OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+OTEL_EXPORTER_OTLP_ENDPOINT=https://logfire-us.pydantic.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=your-logfire-write-token
+```
+
+`OTEL_R_SUPPRESS_SCOPES=httr2` matters: automatic HTTP semantic spans may contain complete request URLs, which would leak part of the reading history. Rill's own enclosing spans identify only the operation and extractor, not the destination.
+
+Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honeycomb, or another collector can replace Logfire without changing the app's instrumentation. The `events` table is deliberately separate: those records are the material for later ranking, daily review, and behavioral analysis.
+
+## Deploy to Posit Connect Cloud
+
+1. Run `source("scripts/bootstrap.R")` once on a machine with R to create `renv.lock`.
+2. Run the tests and launch the app locally.
+3. Push the project to the Git repository used by Connect Cloud, or publish it from Positron/RStudio.
+4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
+5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
+
+The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably.
+
+## Package development
+
+The repository follows the standard devtools, testthat, roxygen2, pkgdown, and
+Air workflow:
+
+```r
+devtools::document()
+devtools::test()
+pkgdown::check_pkgdown()
+devtools::check()
+```
+
+Run `air format .` before the checks. `R CMD check` is also exercised across
+R release, devel, and oldrel on Linux, macOS, and Windows with r-lib/actions.
+
+## Event contract
+
+Each event has an id, actor, session, optional entry, timestamp, surface, list position, JSON payload, and schema version. Current event types are:
+
+- `feed_filter`, `feed_added`, `feeds_refreshed`, `opml_imported`, `opml_exported`
+- `entry_opened`, `article_impression`, `open_original`
+- `document_captured`
+- `star_changed`, `save_changed`
+- `scroll_milestone`, `dwell_heartbeat`, `page_hidden`
+
+This is enough to derive useful daily features without pretending every signal means the same thing. For example: opened but bounced, read deeply, saved but never reopened, repeatedly revisited, or discovered through a particular feed position.
+
+## Immediate next cuts
+
+Build the small browser-side capture adapter against the documented endpoint,
+then collect real reading and capture behavior. The future Orientation agent can
+consume current immutable documents without learning whether Defuddle, a feed
+fallback, or a browser capture produced them. Search, embeddings, and summaries
+should still enter only through an accepted reading workflow rather than as
+standalone features.
