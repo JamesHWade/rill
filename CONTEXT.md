@@ -5,6 +5,25 @@ while helping its reader decide what deserves attention and engage with it.
 
 ## Language
 
+**Reader**:
+An authenticated person with a private Library and reading history in Rill.
+_Avoid_: User, actor, account
+
+**Feed**:
+A syndicated source of reading material that exists independently of any
+Reader's decision to follow it.
+_Avoid_: Subscription
+
+**Subscription**:
+A Reader's decision to include a Feed in their Library, including their own
+organization and preferences for that Feed.
+_Avoid_: Feed
+
+**Library**:
+A Reader's private collection of Subscriptions and the reading state associated
+with them.
+_Avoid_: Tenant, workspace, account
+
 **Orientation**:
 The opening agent outcome that identifies which unread stories deserve the
 reader's attention and explains why before the reader chooses what to open.

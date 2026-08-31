@@ -191,15 +191,27 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=your-logfire-write-token
 
 Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honeycomb, or another collector can replace Logfire without changing the app's instrumentation. The `events` table is deliberately separate: those records are the material for later ranking, daily review, and behavioral analysis.
 
-## Deploy to Posit Connect Cloud
+## Deploy a personal instance to Posit Connect Cloud
 
-1. Run `source("scripts/bootstrap.R")` once on a machine with R to create `renv.lock`.
+1. Run `rsconnect::writeManifest()` and commit the resulting `manifest.json`.
 2. Run the tests and launch the app locally.
 3. Push the project to the Git repository used by Connect Cloud, or publish it from Positron/RStudio.
 4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
 5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
 
 The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably.
+
+## Hosted Rill direction
+
+The current schema is not safe for multiple Readers: Subscriptions, folders,
+and selected captured Documents are still global. The proposed invited-beta
+deployment uses a single Render Docker web process behind an OpenID Connect
+proxy, Auth0 as the first identity adapter, Neon PostgreSQL, and a separate
+Render cron process for feed polling. See the
+[proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
+[hosting research](docs/research/hosted-rill-platforms.md). Do not enable a
+shared deployment until Reader ownership and cross-Reader isolation are
+implemented and verified.
 
 ## Package development
 

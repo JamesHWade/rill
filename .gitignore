@@ -1,4 +1,5 @@
 .env
+.Renviron
 .DS_Store
 .Rhistory
 .RData
