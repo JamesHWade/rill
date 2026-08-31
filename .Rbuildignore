@@ -6,7 +6,10 @@
 ^app\.R$
 ^artifacts$
 ^design-qa\.md$
+^docs$
 ^LICENSE\.md$
 ^rill\.Rproj$
 ^scripts$
 ^[.]?air[.]toml$
+^AGENTS[.]md$
+^[.]claude$
