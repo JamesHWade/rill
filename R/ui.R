@@ -2,7 +2,9 @@ rill_ui <- function(config) {
   bslib::page_fillable(
     theme = bslib::bs_theme(
       version = 5,
-      brand = rill_package_file("app", "_brand.yml")
+      brand = brand.yml::read_brand_yml(
+        rill_package_file("app", "_brand.yml")
+      )
     ),
     fillable_mobile = TRUE,
     shiny::tags$head(
