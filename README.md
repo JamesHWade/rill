@@ -256,7 +256,7 @@ This is enough to derive useful daily features without pretending every signal m
 
 Build the small browser-side capture adapter against the documented endpoint,
 then collect real reading and capture behavior. The future Orientation agent can
-consume current immutable documents without learning whether Defuddle, a feed
-fallback, or a browser capture produced them. Search, embeddings, and summaries
-should still enter only through an accepted reading workflow rather than as
-standalone features.
+consume current immutable Documents through one interface while retaining each
+Document's acquisition provenance and limitations for citation inspection.
+Search, embeddings, and summaries should still enter only through an accepted
+reading workflow rather than as standalone features.
