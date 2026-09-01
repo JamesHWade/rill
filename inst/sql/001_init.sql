@@ -128,12 +128,29 @@ CREATE TABLE IF NOT EXISTS entry_state (
   actor_id text NOT NULL,
   entry_id text NOT NULL REFERENCES entries(entry_id) ON DELETE CASCADE,
   read_at timestamptz,
+  read_reason text,
   starred boolean NOT NULL DEFAULT false,
   saved boolean NOT NULL DEFAULT false,
   hidden boolean NOT NULL DEFAULT false,
   last_opened_at timestamptz,
   PRIMARY KEY (actor_id, entry_id)
 );
+
+CREATE TABLE IF NOT EXISTS subscription_preferences (
+  reader_id text NOT NULL,
+  feed_id text NOT NULL REFERENCES feeds(feed_id) ON DELETE CASCADE,
+  display_title text,
+  PRIMARY KEY (reader_id, feed_id)
+);
+
+ALTER TABLE entry_state
+  ADD COLUMN IF NOT EXISTS read_reason text;
+
+UPDATE entry_state
+SET read_reason = 'opened'
+WHERE read_at IS NOT NULL
+  AND last_opened_at IS NOT NULL
+  AND read_reason IS NULL;
 
 CREATE TABLE IF NOT EXISTS events (
   event_id text PRIMARY KEY,

@@ -25,7 +25,8 @@ rill_server <- function(config, store) {
     current_context <- function() {
       list(
         view = input$view %||% "unread",
-        feed_id = selected_feed()
+        feed_id = selected_feed(),
+        sort = input$story_sort %||% "newest"
       )
     }
 
@@ -89,12 +90,17 @@ rill_server <- function(config, store) {
 
     queue_entries <- shiny::reactive({
       refresh_tick()
+      view <- input$view %||% "unread"
+      if (view %in% c("today", "week", "month")) {
+        shiny::invalidateLater(60 * 1000, session)
+      }
       store_list_entries(
         store,
         actor_id,
-        view = input$view %||% "unread",
+        view = view,
         feed_id = selected_feed(),
-        limit = 150L
+        limit = 150L,
+        sort = input$story_sort %||% "newest"
       )
     })
 
@@ -113,7 +119,8 @@ rill_server <- function(config, store) {
         actor_id,
         view = "all",
         feed_id = selected_feed(),
-        limit = 500L
+        limit = 500L,
+        sort = input$story_sort %||% "newest"
       )
       visible_ids <- unique(c(as.character(rows$entry_id), ids))
       all_rows[all_rows$entry_id %in% visible_ids, , drop = FALSE]
@@ -245,13 +252,29 @@ rill_server <- function(config, store) {
       shiny::tagList(links)
     })
 
+    output$rename_feed_control <- shiny::renderUI({
+      feed_id <- selected_feed()
+      if (is.null(feed_id)) {
+        return(rename_feed_control_ui())
+      }
+      feed_rows <- feeds()
+      selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
+      if (!nrow(selected)) {
+        return(rename_feed_control_ui())
+      }
+      rename_feed_control_ui(as.list(selected[1, , drop = FALSE]))
+    })
+
     output$list_title <- shiny::renderUI({
       label <- switch(
         input$view %||% "unread",
         unread = "Unread",
         all = "All stories",
         starred = "Starred",
-        saved = "Saved"
+        saved = "Saved",
+        today = "Today",
+        week = "This week",
+        month = "This month"
       )
       feed_title <- selected_feed_title()
       if (!is.null(feed_title)) {
@@ -269,6 +292,17 @@ rill_server <- function(config, store) {
         `aria-label` = paste(count, noun),
         count
       )
+    })
+
+    output$prepare_today_control <- shiny::renderUI({
+      if (!identical(input$view, "today")) {
+        return(NULL)
+      }
+      prepare_today_button()
+    })
+
+    output$read_actions <- shiny::renderUI({
+      read_actions_ui(selected_feed_title())
     })
 
     output$story_list <- shiny::renderUI({
@@ -322,6 +356,14 @@ rill_server <- function(config, store) {
             bsicons::bs_icon("arrow-left"),
             "Stories"
           ),
+          if (
+            !is.na(entry$read_at %||% NA_character_) &&
+              nzchar(as.character(entry$read_at %||% ""))
+          ) {
+            mark_unread_button()
+          } else {
+            NULL
+          },
           shiny::actionButton(
             "toggle_star",
             shiny::tagList(
@@ -457,6 +499,15 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$story_sort,
+      {
+        clear_selection()
+      },
+      ignoreInit = TRUE,
+      priority = 100
+    )
+
+    shiny::observeEvent(
       input$select_feed,
       {
         clear_selection()
@@ -511,6 +562,25 @@ rill_server <- function(config, store) {
           entry$entry_id,
           payload = list(value = value)
         )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$mark_unread,
+      {
+        entry <- selected_entry()
+        changed <- store_mark_unread(store, actor_id, entry$entry_id)
+        if (changed) {
+          record_event(
+            "read_state_changed",
+            entry$entry_id,
+            payload = list(read = FALSE, reason = "manual_unread")
+          )
+        }
+        status_kind("success")
+        status_text("Marked story as unread")
         bump_refresh()
       },
       ignoreInit = TRUE
@@ -623,6 +693,47 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$rename_feed,
+      {
+        feed_id <- selected_feed()
+        title <- trimws(input$feed_title %||% "")
+        if (is.null(feed_id) || !nzchar(title)) {
+          status_kind("error")
+          status_text("Select a feed and enter a name.")
+          shiny::showNotification(
+            "Select a feed and enter a name.",
+            type = "warning"
+          )
+          return()
+        }
+
+        result <- tryCatch(
+          store_rename_feed(store, actor_id, feed_id, title),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text(conditionMessage(result))
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error"
+          )
+          return()
+        }
+
+        status_kind("success")
+        status_text(paste("Renamed feed to", title))
+        record_event(
+          "feed_renamed",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id, title = title)
+        )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
       input$import_opml,
       {
         upload <- input$import_opml
@@ -715,6 +826,133 @@ rill_server <- function(config, store) {
       input$refresh_feeds,
       {
         refresh_feeds_now()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$prepare_today,
+      {
+        shiny::req(identical(input$view, "today"))
+        result <- tryCatch(
+          shiny::withProgress(
+            message = "Preparing today's reading copies",
+            value = 0,
+            {
+              prepare_today_documents(
+                store,
+                config,
+                progress = function(index, total, title) {
+                  shiny::setProgress(
+                    value = index / total,
+                    detail = title
+                  )
+                }
+              )
+            }
+          ),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text("Today's reading copies couldn't be prepared")
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error",
+            duration = 8
+          )
+          return()
+        }
+
+        status <- format_prepare_today_status(result)
+        status_kind(if (result$failed > 0L) "warning" else "success")
+        status_text(status)
+        shiny::showNotification(
+          status,
+          type = if (result$failed > 0L) "warning" else "message",
+          duration = 8
+        )
+        record_event(
+          "today_prepared",
+          surface = "reading_queue",
+          payload = result[c("total", "cached", "prepared", "failed")]
+        )
+      },
+      ignoreInit = TRUE
+    )
+
+    mark_scope_read <- function(before = NULL, reason) {
+      marked <- store_mark_entries_read(
+        store,
+        actor_id,
+        feed_id = selected_feed(),
+        before = before,
+        reason = reason
+      )
+      count <- length(marked)
+      if (count) {
+        retained_ids(setdiff(retained_ids(), marked))
+        if (!is.null(selected_id()) && selected_id() %in% marked) {
+          clear_selection(clear_retained = FALSE)
+        }
+        payload <- list(
+          count = count,
+          feed_id = selected_feed(),
+          reason = reason
+        )
+        if (!is.null(before)) {
+          payload$before <- format(before, tz = "UTC", usetz = TRUE)
+        }
+        record_event(
+          "read_state_bulk_changed",
+          surface = "reading_queue",
+          payload = payload
+        )
+      }
+
+      status <- if (identical(reason, "bulk_older_than_day")) {
+        if (count) {
+          paste(
+            "Marked",
+            count,
+            if (count == 1L) "story" else "stories",
+            "older than a day as read"
+          )
+        } else {
+          "No unread stories older than a day"
+        }
+      } else if (count) {
+        paste(
+          "Marked",
+          count,
+          if (count == 1L) "story" else "stories",
+          "as read"
+        )
+      } else {
+        "No unread stories to mark"
+      }
+      status_kind("success")
+      status_text(status)
+      shiny::showNotification(status, type = "message")
+      bump_refresh()
+      invisible(marked)
+    }
+
+    shiny::observeEvent(
+      input$mark_all_read,
+      {
+        mark_scope_read(reason = "bulk_all")
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$mark_older_read,
+      {
+        mark_scope_read(
+          before = Sys.time() - 24 * 60 * 60,
+          reason = "bulk_older_than_day"
+        )
       },
       ignoreInit = TRUE
     )

@@ -10,6 +10,13 @@ rill is a small, personal feed reader built with Shiny. It keeps feed
 ingestion, clean reading copies, durable state, and operational telemetry
 behind a focused application interface.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://jameshwade.github.io/rill/}
+}
+
+}
 \author{
 \strong{Maintainer}: James Wade \email{github@jameshwade.com}
 

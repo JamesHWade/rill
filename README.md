@@ -26,11 +26,13 @@ The working title is **Rill**. Rename it freely.
 | Product behavior | `events` table in Neon | Interaction data remains queryable application data |
 | Operations | OpenTelemetry → Logfire | Errors and latency stay separate from reading history |
 
-The package exposes four focused entry points: `rill_app()` creates the Shiny
-application, `poll_feeds()` runs a durable scheduled refresh, and `read_opml()`
-and `write_opml()` provide a small interchange boundary for subscription lists.
-Feed parsing, storage, telemetry, and UI helpers remain internal. Defuddle
-remains behind a narrow adapter rather than becoming its own package.
+The package exposes five focused entry points: `rill_app()` creates the Shiny
+application, `poll_feeds()` runs a durable scheduled refresh,
+`prepare_today()` pre-builds the current day's reading copies, and
+`read_opml()` and `write_opml()` provide a small interchange boundary for
+Subscription lists. Feed parsing, storage, telemetry, and UI helpers remain
+internal. Defuddle remains behind a narrow adapter rather than becoming its
+own package.
 
 ## Run in demo mode
 
@@ -51,6 +53,11 @@ not a substitute for the R tests.
 With no `DATABASE_URL`, Rill loads six bundled stories and exercises the UI and interaction model in memory. Restarting the R process resets that demo state.
 
 On desktop, press `J` or `K` to move to the next or previous visible story, `O` to open the selected story's original page in a new tab, `S` to toggle Saved, and `F` to toggle Starred. Shortcuts are disabled while typing in a form field.
+
+The Today view includes **Prepare**, which extracts and persistently caches any
+missing clean reading copies. Existing captured or extracted documents are
+preserved, and failures remain available for a later retry. The same operation
+can run outside the app with `rill::prepare_today()`.
 
 ## Move subscriptions with OPML
 
@@ -95,6 +102,10 @@ its YAML metadata from the Markdown body, stores that document in
 `documents`, and renders the Markdown with reader typography. If
 extraction fails, Rill stores a plain-text fallback from the feed so the reading
 action still succeeds.
+
+Recognized YouTube and Vimeo video references render as privacy-enhanced,
+sandboxed embeds. Rill removes arbitrary embedded frames and executable markup
+from clean reading copies.
 
 The hosted API remains the default. Set `DEFUDDLE_API_KEY` if you have one:
 
@@ -199,7 +210,7 @@ Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honey
 4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
 5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
 
-The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably.
+The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably. A scheduler can run `rill::prepare_today()` afterward to pre-build clean reading copies for the current local day.
 
 ## Hosted Rill direction
 
@@ -232,10 +243,11 @@ R release, devel, and oldrel on Linux, macOS, and Windows with r-lib/actions.
 
 Each event has an id, actor, session, optional entry, timestamp, surface, list position, JSON payload, and schema version. Current event types are:
 
-- `feed_filter`, `feed_added`, `feeds_refreshed`, `opml_imported`, `opml_exported`
+- `feed_filter`, `feed_added`, `feed_renamed`, `feeds_refreshed`, `opml_imported`, `opml_exported`
 - `entry_opened`, `article_impression`, `open_original`
 - `document_captured`
-- `star_changed`, `save_changed`
+- `star_changed`, `save_changed`, `read_state_changed`, `read_state_bulk_changed`
+- `today_prepared`
 - `scroll_milestone`, `dwell_heartbeat`, `page_hidden`
 
 This is enough to derive useful daily features without pretending every signal means the same thing. For example: opened but bounced, read deeply, saved but never reopened, repeatedly revisited, or discovered through a particular feed position.

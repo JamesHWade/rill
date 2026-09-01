@@ -71,3 +71,59 @@ poll_feeds <- function() {
   ))
   invisible(results)
 }
+
+#' Prepare today's reading copies
+#'
+#' `prepare_today()` extracts and caches clean reading copies for articles
+#' published during the current local calendar day. Existing documents are
+#' preserved, and failed extractions remain uncached so a later run can retry.
+#' It is intended for interactive use or scheduled jobs.
+#'
+#' @return Invisibly, a list with counts for total, cached, prepared, and failed
+#'   articles, plus named extraction errors.
+#' @export
+prepare_today <- function() {
+  config <- rill_config()
+  if (config$demo_mode) {
+    cli::cli_abort(c(
+      "Can't prepare today's articles without a durable store.",
+      "i" = "Set {.envvar DATABASE_URL} to a PostgreSQL connection string."
+    ))
+  }
+
+  init_telemetry(config)
+  store <- rill_store(config)
+  on.exit(rill_store_close(store), add = TRUE)
+  progress_id <- NULL
+  result <- prepare_today_documents(
+    store,
+    config,
+    progress = function(index, total, title) {
+      if (is.null(progress_id)) {
+        progress_id <<- cli::cli_progress_bar(
+          "Preparing today's reading copies",
+          total = total,
+          clear = FALSE,
+          auto_terminate = FALSE,
+          .auto_close = FALSE
+        )
+      }
+      cli::cli_progress_update(
+        id = progress_id,
+        set = index,
+        status = title
+      )
+    }
+  )
+  if (!is.null(progress_id)) {
+    cli::cli_progress_done(id = progress_id)
+  }
+
+  status <- format_prepare_today_status(result)
+  if (result$failed > 0L) {
+    cli::cli_warn(status)
+  } else {
+    cli::cli_inform(c("v" = status))
+  }
+  invisible(result)
+}

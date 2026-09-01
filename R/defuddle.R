@@ -144,6 +144,34 @@ word_count <- function(markdown) {
   as.integer(sum(nzchar(words)))
 }
 
+first_metadata_value <- function(value, fallback = NA_character_) {
+  as_values <- function(item) {
+    if (is.null(item)) {
+      return(character())
+    }
+    if (is.list(item)) {
+      return(unlist(lapply(item, as_values), use.names = FALSE))
+    }
+    as.character(item)
+  }
+
+  values <- c(as_values(value), as_values(fallback))
+  values <- values[!is.na(values) & nzchar(trimws(values))]
+  if (length(values)) values[[1]] else NA_character_
+}
+
+first_publication_value <- function(value, fallback = NA_character_) {
+  published <- first_metadata_value(value, fallback)
+  if (is.na(published)) {
+    return(published)
+  }
+  strsplit(
+    published,
+    ",\\s*(?=\\d{4}-\\d{2}-\\d{2}[T ])",
+    perl = TRUE
+  )[[1]][[1]]
+}
+
 document_from_defuddle <- function(entry, config) {
   raw <- fetch_defuddled_markdown(entry$url, config)
   parsed <- parse_markdown_frontmatter(raw)
@@ -157,19 +185,20 @@ document_from_defuddle <- function(entry, config) {
     canonical_url = entry$canonical_url %||% NA_character_,
     acquisition_method = "web_extraction",
     producer = paste0("defuddle-", backend),
-    producer_version = as.character(
-      metadata$defuddle_version %||% metadata$version %||% NA_character_
+    producer_version = first_metadata_value(
+      metadata$defuddle_version,
+      metadata$version
     ),
-    title = as.character(metadata$title %||% entry$title),
-    author = as.character(metadata$author %||% entry$author %||% NA_character_),
-    site = as.character(
-      metadata$site %||% metadata$domain %||% entry$feed_title
+    title = first_metadata_value(metadata$title, entry$title),
+    author = first_metadata_value(metadata$author, entry$author),
+    site = first_metadata_value(
+      metadata$site,
+      metadata$domain %||%
+        first_metadata_value(entry$source_feed_title, entry$feed_title)
     ),
-    published_at = as.character(
-      metadata$published %||%
-        metadata$date %||%
-        entry$published_at %||%
-        NA_character_
+    published_at = first_publication_value(
+      metadata$published,
+      metadata$date %||% entry$published_at
     ),
     markdown = parsed$markdown,
     captured_at = captured_at,
@@ -196,7 +225,7 @@ document_fallback <- function(entry, reason = "feed-content") {
     producer = reason,
     title = entry$title,
     author = entry$author %||% NA_character_,
-    site = entry$feed_title,
+    site = first_metadata_value(entry$source_feed_title, entry$feed_title),
     published_at = entry$published_at %||% NA_character_,
     markdown = content,
     captured_at = captured_at,
@@ -228,9 +257,99 @@ get_or_extract_document <- function(store, entry, config) {
   document
 }
 
+prepare_today_documents <- function(
+  store,
+  config,
+  progress = function(index, total, title) invisible(NULL),
+  now = Sys.time(),
+  timezone = Sys.timezone()
+) {
+  entries <- store_list_entries(
+    store,
+    config$actor_id,
+    view = "today",
+    limit = 500L,
+    now = now,
+    timezone = timezone
+  )
+  documents <- store_list_documents(store, entries$entry_id)
+  ready <- vapply(
+    documents,
+    \(document) !identical(document$acquisition_method, "feed_fallback"),
+    logical(1)
+  )
+  cached_ids <- names(documents)[ready]
+  pending <- entries[
+    !as.character(entries$entry_id) %in% cached_ids,
+    ,
+    drop = FALSE
+  ]
+  errors <- character()
+  prepared <- 0L
+
+  for (index in seq_len(nrow(pending))) {
+    entry <- as.list(pending[index, , drop = FALSE])
+    progress(index, nrow(pending), entry$title)
+    result <- tryCatch(
+      {
+        document <- document_from_defuddle(entry, config)
+        store_save_document(store, document)
+        document
+      },
+      error = function(error) error
+    )
+    if (inherits(result, "error")) {
+      telemetry_log(
+        "warn",
+        "article.prepare_failed",
+        list(
+          "entry.id" = entry$entry_id,
+          "error.type" = class(result)[[1]]
+        )
+      )
+      errors[[entry$entry_id]] <- conditionMessage(result)
+    } else {
+      prepared <- prepared + 1L
+    }
+  }
+
+  list(
+    total = nrow(entries),
+    cached = length(cached_ids),
+    prepared = prepared,
+    failed = length(errors),
+    errors = errors
+  )
+}
+
+format_prepare_today_status <- function(result) {
+  parts <- character()
+  if (result$prepared > 0L) {
+    parts <- c(
+      parts,
+      paste(
+        "Prepared",
+        result$prepared,
+        if (result$prepared == 1L) "reading copy" else "reading copies"
+      )
+    )
+  }
+  if (result$cached > 0L) {
+    parts <- c(parts, paste(result$cached, "already ready"))
+  }
+  if (result$failed > 0L) {
+    parts <- c(parts, paste(result$failed, "couldn't be prepared"))
+  }
+  if (!length(parts)) {
+    return("No stories were published today")
+  }
+  paste(parts, collapse = " \u00b7 ")
+}
+
 render_document <- function(document) {
+  markdown <- normalize_video_embeds(document$markdown %||% "")
   html <- commonmark::markdown_html(
-    document$markdown %||% "",
+    markdown,
     footnotes = TRUE,
     extensions = c(
       "table",
@@ -243,6 +362,139 @@ render_document <- function(document) {
   htmltools::HTML(sanitize_rendered_html(html))
 }
 
+normalize_video_embeds <- function(markdown) {
+  pattern <- paste0(
+    "(?is)<iframe\\b[^>]*>.*?</iframe\\s*>",
+    "|<iframe\\b[^>]*/\\s*>"
+  )
+  locations <- gregexpr(pattern, markdown, perl = TRUE)[[1]]
+  if (identical(locations[[1]], -1L)) {
+    return(markdown)
+  }
+
+  matches <- regmatches(markdown, list(locations))[[1]]
+  replacements <- vapply(
+    matches,
+    function(value) {
+      parsed <- xml2::read_html(value)
+      iframe <- xml2::xml_find_first(parsed, ".//iframe")
+      embed_url <- video_embed_url(xml2::xml_attr(iframe, "src") %||% "")
+      if (is.na(embed_url)) "" else paste0("![](", embed_url, ")")
+    },
+    character(1)
+  )
+  regmatches(markdown, list(locations)) <- list(replacements)
+  markdown
+}
+
+video_embed_url <- function(value) {
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = function(error) NULL
+  )
+  if (
+    is.null(parsed) ||
+      !identical(tolower(parsed$scheme %||% ""), "https") ||
+      !nzchar(parsed$hostname %||% "")
+  ) {
+    return(NA_character_)
+  }
+
+  host <- tolower(parsed$hostname)
+  path <- parsed$path %||% ""
+  video_id <- NA_character_
+  provider <- NA_character_
+
+  if (
+    host %in%
+      c(
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtube-nocookie.com",
+        "www.youtube-nocookie.com"
+      )
+  ) {
+    provider <- "youtube"
+    if (identical(path, "/watch")) {
+      video_id <- first_metadata_value(parsed$query$v)
+    } else {
+      matched <- regmatches(
+        path,
+        regexec(
+          "^/(?:embed|shorts)/([A-Za-z0-9_-]{11})(?:/|$)",
+          path
+        )
+      )[[1]]
+      if (length(matched) == 2L) {
+        video_id <- matched[[2]]
+      }
+    }
+  } else if (identical(host, "youtu.be")) {
+    provider <- "youtube"
+    video_id <- sub("^/([^/]+).*$", "\\1", path)
+  } else if (identical(host, "i.ytimg.com")) {
+    provider <- "youtube"
+    matched <- regmatches(
+      path,
+      regexec(
+        "^/vi(?:_webp)?/([A-Za-z0-9_-]{11})(?:/|$)",
+        path
+      )
+    )[[1]]
+    if (length(matched) == 2L) {
+      video_id <- matched[[2]]
+    }
+  } else if (host %in% c("vimeo.com", "www.vimeo.com", "player.vimeo.com")) {
+    provider <- "vimeo"
+    matched <- regmatches(path, regexec("^/(?:video/)?([0-9]+)(?:/|$)", path))[[
+      1
+    ]]
+    if (length(matched) == 2L) {
+      video_id <- matched[[2]]
+    }
+  }
+
+  if (
+    identical(provider, "youtube") &&
+      !is.na(video_id) &&
+      grepl("^[A-Za-z0-9_-]{11}$", video_id)
+  ) {
+    return(paste0("https://www.youtube-nocookie.com/embed/", video_id))
+  }
+  if (
+    identical(provider, "vimeo") &&
+      !is.na(video_id) &&
+      grepl("^[0-9]+$", video_id)
+  ) {
+    return(paste0("https://player.vimeo.com/video/", video_id))
+  }
+  NA_character_
+}
+
+standardize_video_iframe <- function(node, source_url) {
+  attributes <- names(xml2::xml_attrs(node))
+  for (attribute in attributes) {
+    xml2::xml_attr(node, attribute) <- NULL
+  }
+  xml2::xml_attr(node, "class") <- "video-embed"
+  xml2::xml_attr(node, "src") <- source_url
+  xml2::xml_attr(node, "title") <- "Embedded video"
+  xml2::xml_attr(node, "loading") <- "lazy"
+  xml2::xml_attr(node, "sandbox") <- paste(
+    "allow-scripts",
+    "allow-same-origin",
+    "allow-presentation"
+  )
+  xml2::xml_attr(node, "allow") <- paste(
+    "accelerometer; autoplay; encrypted-media; gyroscope;",
+    "picture-in-picture; web-share"
+  )
+  xml2::xml_attr(node, "allowfullscreen") <- "allowfullscreen"
+  xml2::xml_attr(node, "referrerpolicy") <- "strict-origin-when-cross-origin"
+  invisible(node)
+}
+
 sanitize_rendered_html <- function(html) {
   parsed <- xml2::read_html(paste0(
     "<div id='rill-sanitizer-root'>",
@@ -250,9 +502,37 @@ sanitize_rendered_html <- function(html) {
     "</div>"
   ))
   root <- xml2::xml_find_first(parsed, "//*[@id='rill-sanitizer-root']")
+
+  video_images <- xml2::xml_find_all(root, ".//img[@src]")
+  for (node in video_images) {
+    embed_url <- video_embed_url(xml2::xml_attr(node, "src"))
+    if (!is.na(embed_url)) {
+      iframe <- xml2::xml_add_sibling(
+        node,
+        xml2::xml_new_root("iframe"),
+        .where = "before"
+      )
+      standardize_video_iframe(iframe, embed_url)
+      xml2::xml_remove(node)
+    }
+  }
+
+  iframes <- xml2::xml_find_all(root, ".//iframe")
+  for (node in iframes) {
+    embed_url <- video_embed_url(xml2::xml_attr(node, "src") %||% "")
+    if (is.na(embed_url)) {
+      xml2::xml_remove(node)
+    } else {
+      standardize_video_iframe(node, embed_url)
+    }
+  }
+
   blocked <- xml2::xml_find_all(
     root,
-    ".//script | .//style | .//iframe | .//object | .//embed | .//form | .//input | .//button | .//svg | .//math | .//link | .//meta"
+    paste(
+      ".//script | .//style | .//object | .//embed | .//form | .//input |",
+      ".//button | .//svg | .//math | .//link | .//meta"
+    )
   )
   if (length(blocked)) {
     xml2::xml_remove(blocked)

@@ -86,9 +86,32 @@ navigation_sidebar_ui <- function(config) {
           class = "nav-choice",
           bsicons::bs_icon("bookmark"),
           "Saved"
+        ),
+        shiny::tags$span(
+          class = "nav-choice nav-choice-temporal-first",
+          bsicons::bs_icon("calendar-day"),
+          "Today"
+        ),
+        shiny::tags$span(
+          class = "nav-choice",
+          bsicons::bs_icon("calendar-week"),
+          "This week"
+        ),
+        shiny::tags$span(
+          class = "nav-choice",
+          bsicons::bs_icon("calendar-month"),
+          "This month"
         )
       ),
-      choiceValues = c("unread", "all", "starred", "saved"),
+      choiceValues = c(
+        "unread",
+        "all",
+        "starred",
+        "saved",
+        "today",
+        "week",
+        "month"
+      ),
       selected = "unread"
     ),
     shiny::tags$div(
@@ -133,7 +156,40 @@ story_sidebar_ui <- function() {
         shiny::tags$p(class = "eyebrow", "Reading queue"),
         shiny::uiOutput("list_title", container = shiny::tags$div)
       ),
-      shiny::uiOutput("story_count", container = shiny::tags$div)
+      shiny::tags$div(
+        class = "queue-controls",
+        shiny::uiOutput(
+          "prepare_today_control",
+          container = shiny::tags$div,
+          class = "prepare-today-control"
+        ),
+        shiny::uiOutput(
+          "read_actions",
+          container = shiny::tags$div,
+          class = "read-actions"
+        ),
+        shiny::tags$div(
+          class = "story-sort",
+          shiny::selectInput(
+            "story_sort",
+            label = shiny::tags$span(
+              class = "visually-hidden",
+              "Sort stories"
+            ),
+            choices = c(
+              "Newest" = "newest",
+              "Oldest" = "oldest",
+              "Recently added" = "recently_added",
+              "Feed A\u2013Z" = "feed",
+              "Title A\u2013Z" = "title"
+            ),
+            selected = "newest",
+            selectize = FALSE,
+            width = "126px"
+          )
+        ),
+        shiny::uiOutput("story_count", container = shiny::tags$div)
+      )
     ),
     shiny::uiOutput(
       "story_list",
@@ -149,6 +205,62 @@ story_sidebar_ui <- function() {
     fillable = TRUE,
     padding = 0,
     gap = 0
+  )
+}
+
+prepare_today_button <- function() {
+  shiny::actionButton(
+    "prepare_today",
+    "Prepare",
+    icon = bsicons::bs_icon("cloud-arrow-down"),
+    class = "btn-prepare-today",
+    title = "Prepare today\u2019s reading copies",
+    `aria-label` = "Prepare today\u2019s reading copies"
+  )
+}
+
+read_actions_ui <- function(feed_title = NULL) {
+  scope <- if (is.null(feed_title)) "all feeds" else feed_title
+
+  bslib::popover(
+    shiny::tags$button(
+      type = "button",
+      class = "read-actions-trigger",
+      title = "Manage reading status",
+      `aria-label` = "Manage reading status",
+      bsicons::bs_icon("check2-all")
+    ),
+    title = "Reading status",
+    placement = "bottom",
+    shiny::tags$div(
+      class = "read-actions-menu",
+      shiny::tags$p(
+        class = "read-actions-scope",
+        paste("Applies to", scope, "across all views.")
+      ),
+      shiny::actionButton(
+        "mark_all_read",
+        "Mark all as read",
+        class = "btn-read-action"
+      ),
+      shiny::actionButton(
+        "mark_older_read",
+        "Mark older than a day as read",
+        class = "btn-read-action"
+      ),
+      shiny::tags$p(
+        class = "read-actions-help",
+        "Open history stays unchanged."
+      )
+    )
+  )
+}
+
+mark_unread_button <- function() {
+  shiny::actionButton(
+    "mark_unread",
+    shiny::tagList(bsicons::bs_icon("circle"), "Mark unread"),
+    class = "reader-action"
   )
 }
 
@@ -213,6 +325,11 @@ feed_tools_ui <- function() {
     class = "add-feed feed-tools",
     shiny::tags$summary("Manage feeds"),
     shiny::tags$div(
+      class = "feed-tool-section rename-feed-tools",
+      shiny::tags$p(class = "feed-tool-label", "Rename selected feed"),
+      shiny::uiOutput("rename_feed_control")
+    ),
+    shiny::tags$div(
       class = "feed-tool-section",
       shiny::tags$p(class = "feed-tool-label", "Add one feed"),
       shiny::tags$label(
@@ -252,6 +369,37 @@ feed_tools_ui <- function() {
         class = "feed-tool-help",
         "Folders are preserved when moving between readers."
       )
+    )
+  )
+}
+
+rename_feed_control_ui <- function(feed = NULL) {
+  if (is.null(feed)) {
+    return(shiny::tags$p(
+      class = "feed-tool-help",
+      "Select a feed above to give it a different name."
+    ))
+  }
+
+  shiny::tagList(
+    shiny::tags$label(
+      class = "visually-hidden",
+      `for` = "feed_title",
+      "Feed name"
+    ),
+    shiny::textInput(
+      "feed_title",
+      label = NULL,
+      value = feed$title
+    ),
+    shiny::actionButton(
+      "rename_feed",
+      "Rename feed",
+      class = "btn-rename-feed"
+    ),
+    shiny::tags$p(
+      class = "feed-tool-help",
+      "The source title and feed URL stay unchanged."
     )
   )
 }
@@ -345,6 +493,30 @@ empty_story_list <- function(view, feed_title = NULL) {
     saved = list(
       title = "Nothing saved yet",
       body = "Press S while reading to build a return-later list."
+    ),
+    today = list(
+      title = "Nothing published today",
+      body = if (scoped_feed) {
+        paste0("No stories from ", feed_title, " were published today.")
+      } else {
+        "Stories published today will appear here."
+      }
+    ),
+    week = list(
+      title = "Nothing published this week",
+      body = if (scoped_feed) {
+        paste0("No stories from ", feed_title, " were published this week.")
+      } else {
+        "Stories published since Monday will appear here."
+      }
+    ),
+    month = list(
+      title = "Nothing published this month",
+      body = if (scoped_feed) {
+        paste0("No stories from ", feed_title, " were published this month.")
+      } else {
+        "Stories published this calendar month will appear here."
+      }
     ),
     list(
       title = "No stories yet",

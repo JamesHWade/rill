@@ -1,7 +1,13 @@
 testthat::test_that("the package exposes a focused application API", {
   testthat::expect_setequal(
     getNamespaceExports("rill"),
-    c("poll_feeds", "read_opml", "rill_app", "write_opml")
+    c(
+      "poll_feeds",
+      "prepare_today",
+      "read_opml",
+      "rill_app",
+      "write_opml"
+    )
   )
 })
 
@@ -52,4 +58,10 @@ testthat::test_that("polling requires durable configuration", {
   withr::local_envvar(DATABASE_URL = "")
 
   testthat::expect_snapshot(poll_feeds(), error = TRUE)
+})
+
+testthat::test_that("preparing today requires durable configuration", {
+  withr::local_envvar(DATABASE_URL = "")
+
+  testthat::expect_snapshot(prepare_today(), error = TRUE)
 })

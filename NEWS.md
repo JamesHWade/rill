@@ -4,6 +4,10 @@
 
 * Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that can be resized or collapsed on desktop and stack above content on mobile.
 
+* Feed navigation and the reading queue now remain independently scrollable when their contents exceed the viewport (#28).
+
+* Feeds can now be given a reader-defined name under **Manage feeds**; the Reader's label is stored separately from source metadata and persists when the Feed is refreshed (#28).
+
 * Defuddle extraction can now run through a locally installed CLI by setting `DEFUDDLE_BACKEND=local`; the hosted API remains the default.
 
 * `DATABASE_URL` is now parsed into explicit PostgreSQL connection fields, including Neon SSL parameters, instead of being treated as a literal database name.
@@ -13,6 +17,16 @@
 * Local browser captures can now be posted to the authenticated `/api/v1/captures` endpoint. Captured and Defuddle-produced content share an immutable, provenance-preserving document boundary for reading and future agent use.
 
 * The reading queue now keeps opened stories in place until the view changes, uses contextual empty states, and has clearer keyboard focus and accessible labels.
+
+* Reading-status controls can mark the current story unread, mark all stories in the current Feed scope as read, or mark stories older than 24 hours as read; bulk changes remain distinct from open history (#28).
+
+* The reading queue can now sort stories by newest, oldest, recently added, Feed name, or story title (#28).
+
+* The reading queue now includes Today, This Week, and This Month views based on local calendar boundaries and excludes future-dated stories (#28).
+
+* The Today view and `prepare_today()` can now pre-build missing clean reading copies without overwriting successful documents; extraction failures and feed fallbacks remain retryable (#28).
+
+* Trusted YouTube and Vimeo embeds now appear in clean reading copies through privacy-enhanced, sandboxed frames; arbitrary embedded frames remain blocked (#28).
 
 * The reader now supports `J`/`K` navigation, `O` to open the original, `S` to save, and `F` to star.
 
