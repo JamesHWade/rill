@@ -89,6 +89,37 @@ source disagreement, capture limitations, or inferential distance.
 _Avoid_: Confidence score
 
 **Reader Context**:
-Reading history or preferences used to explain why something was surfaced. It
-does not support claims about a source or authorize Carry-forward.
+Reading History or Reader Memory used to explain why something was surfaced.
+It does not support claims about a source or authorize Carry-forward.
 _Avoid_: Source Evidence, passive authorization
+
+### Memory
+
+**Reading History**:
+A record of observable reading activity. It may contribute Reader Context but
+is neither User Engagement nor Reader Memory.
+_Avoid_: Engagement, preference, Reader Memory
+
+**Reader Memory**:
+A Reader-confirmed preference, intention, or accepted outcome preserved across
+sessions for future use. It is created only by direct request or acceptance.
+_Avoid_: Reading History, profile, training data
+
+**Session Context**:
+Conversation and working context available within the current Reading Loop. It
+does not become Reader Memory without direct request or acceptance.
+_Avoid_: Reader Memory, Reading History
+
+**Memory Proposal**:
+An occasional, non-blocking invitation for the Reader to create or revisit
+Reader Memory. It is not memory until accepted.
+_Avoid_: Inferred preference, automatic memory
+
+**Archive**:
+A Reader's choice to keep Reader Memory readable and restorable while excluding
+it from automatic agent use.
+_Avoid_: Forget, hide
+
+**Forget**:
+A Reader's choice to permanently remove Reader Memory and its derived copies.
+_Avoid_: Archive, hide

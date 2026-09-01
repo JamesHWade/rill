@@ -332,7 +332,7 @@ rill_server <- function(config, store) {
           rill_duck_mark("reader-monogram"),
           shiny::tags$h1("Choose something worth reading"),
           shiny::tags$p(
-            "Rill will make a clean copy and remember how you engaged with it."
+            "Rill will make a clean copy and keep track of what you've read."
           )
         ))
       }
