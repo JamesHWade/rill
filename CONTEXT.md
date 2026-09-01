@@ -37,6 +37,11 @@ An explicit conversation, request, or acceptance from the reader. Opening,
 saving, revisiting, or scrolling through a story does not count by itself.
 _Avoid_: Passive engagement, behavioral signal
 
+**Conversation**:
+A durable, reader-visible history of User Engagement and agent responses. It is
+not hidden working context, an execution trace, or accepted knowledge.
+_Avoid_: Session Context, trace, Reader Memory
+
 **Connection Cue**:
 A brief, source-linked suggestion that the current story relates to earlier
 reading. It may invite engagement but does not itself create a durable outcome.
@@ -46,6 +51,12 @@ _Avoid_: Conclusion, synthesis
 The transition from reading into a durable conclusion or follow-up after User
 Engagement. It never occurs from passive behavior alone.
 _Avoid_: Automatic follow-up, inferred conclusion
+
+**Reading Artifact**:
+A Reader-accepted Carry-forward outcome, such as a conclusion, briefing, open
+question, or follow-up. It remains inspectable but does not become Reader
+Memory or automatic Reader Context unless the Reader explicitly promotes it.
+_Avoid_: Draft, Conversation, Reader Memory
 
 **Reading Loop**:
 Orientation followed by selection and reading, optional User Engagement for
@@ -121,9 +132,10 @@ sessions for future use. It is created only by direct request or acceptance.
 _Avoid_: Reading History, profile, training data
 
 **Session Context**:
-Conversation and working context available within the current Reading Loop. It
+Task-scoped instructions, evidence, and working synthesis available within the
+current Reading Loop. A Conversation may persist, but hidden Session Context
 does not become Reader Memory without direct request or acceptance.
-_Avoid_: Reader Memory, Reading History
+_Avoid_: Conversation, Reader Memory, Reading History
 
 **Memory Proposal**:
 An occasional, non-blocking invitation for the Reader to create or revisit
@@ -131,8 +143,8 @@ Reader Memory. It is not memory until accepted.
 _Avoid_: Inferred preference, automatic memory
 
 **Archive**:
-A Reader's choice to keep Reader Memory readable and restorable while excluding
-it from automatic agent use.
+A Reader's choice to keep Reader Memory or a Reading Artifact readable and
+restorable while excluding it from automatic agent use.
 _Avoid_: Forget, hide
 
 **Forget**:

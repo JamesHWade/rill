@@ -24,7 +24,7 @@ The working title is **Rill**. Rename it freely.
 | Reader UI | Shiny + `bslib` | Keeps the product fully in R |
 | Durable state | Neon Postgres | Connect Cloud instances should not be treated as durable filesystems |
 | Product behavior | `events` table in Neon | Interaction data remains queryable application data |
-| Operations | OpenTelemetry → Logfire | Errors and latency stay separate from reading history |
+| Operations and diagnostics | OpenTelemetry → Logfire | Disclosed, opt-out traces remain non-authoritative diagnostic data |
 
 The package exposes five focused entry points: `rill_app()` creates the Shiny
 application, `poll_feeds()` runs a durable scheduled refresh,
@@ -185,7 +185,18 @@ Demo-mode captures work but disappear when the R process restarts.
 
 ## Logfire and telemetry
 
-Logfire is useful here, but only for operational telemetry. The code emits low-cardinality spans/logs around database setup, feed HTTP work, and document extraction. It never intentionally sends article titles, article bodies, or full URLs to the telemetry backend.
+The current code emits low-cardinality, content-free spans and logs around
+database setup, feed HTTP work, and document extraction. It never intentionally
+sends article titles, article bodies, or full URLs to the telemetry backend.
+
+The agent-native v1 design also permits opt-out Conversation tracing after the
+Reader confirms Logfire as a content-bearing Data Destination. shinychat history
+remains the canonical reader-visible record. The diagnostic OpenTelemetry copy
+may contain those visible messages and sanitized structural spans, but not
+hidden instructions, credentials, raw Documents, tool payloads, or unsanitized
+exceptions. Deleting shinychat history cannot promise earlier deletion than
+Logfire's disclosed retention period. This path is planned but not yet
+implemented.
 
 Set the standard OTLP variables:
 
