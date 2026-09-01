@@ -107,15 +107,17 @@ Recognized YouTube and Vimeo video references render as privacy-enhanced,
 sandboxed embeds. Rill removes arbitrary embedded frames and executable markup
 from clean reading copies.
 
-The hosted API remains the default. Set `DEFUDDLE_API_KEY` if you have one:
+The default hosted API is an external Data Destination. Rill sends it the public
+page URL so it can fetch and extract the page. Set `DEFUDDLE_API_KEY` if you
+have one:
 
 ```text
 DEFUDDLE_BACKEND=hosted
 DEFUDDLE_API_KEY=your-key
 ```
 
-To keep extraction on the machine running Rill, install the Defuddle CLI with
-`npm install -g defuddle`, then configure the local backend:
+To keep extraction within the Rill installation, install the Defuddle CLI with
+`npm install -g defuddle`, then configure that backend:
 
 ```text
 DEFUDDLE_BACKEND=local
@@ -129,11 +131,12 @@ engine. The executable must be installed in the runtime environment, so the
 hosted backend is usually simpler for Connect deployments.
 
 Both backends fetch public pages without an authenticated browser session.
-Paywalled or browser-only pages can instead be extracted on the reader's machine
-and sent through the local capture endpoint described below. Rill accepts the
-supplied document; it does not fetch with or store browser credentials.
+Paywalled or browser-only pages can instead be extracted in the reader's
+authenticated browser and sent through the Rill capture endpoint described
+below. Rill accepts the supplied document; it does not fetch with or store
+browser credentials.
 
-## Local browser capture
+## Browser capture
 
 When `RILL_CAPTURE_TOKEN` is set, the same application serves
 `POST /api/v1/captures`. A browser extension or local clipper sends already

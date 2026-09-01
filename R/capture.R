@@ -51,7 +51,7 @@ capture_timestamp <- function(payload, name, required = FALSE) {
 
 normalize_capture_payload <- function(payload) {
   if (
-    !is.list(payload) || is.null(names(payload)) || any(!nzchar(names(payload)))
+    !is.list(payload) || is.null(names(payload)) || !all(nzchar(names(payload)))
   ) {
     capture_abort("The request body must be a JSON object.")
   }

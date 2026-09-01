@@ -27,9 +27,10 @@ with them.
 _Avoid_: Tenant, workspace, account
 
 **Orientation**:
-The opening agent outcome that identifies which unread stories deserve the
-reader's attention and explains why before the reader chooses what to open.
-_Avoid_: Ranking, recommendation feed
+A maintained editorial selection that identifies unread stories deserving the
+Reader's attention and gives an inspectable reason for each. It changes only
+when available evidence or reading state materially changes.
+_Avoid_: Ranking, recommendation feed, daily summary
 
 **User Engagement**:
 An explicit conversation, request, or acceptance from the reader. Opening,
@@ -92,6 +93,20 @@ _Avoid_: Confidence score
 Reading History or Reader Memory used to explain why something was surfaced.
 It does not support claims about a source or authorize Carry-forward.
 _Avoid_: Source Evidence, passive authorization
+
+### Knowledge and privacy
+
+**Research Scope**:
+The boundary of material an agent may consult for one outcome. It is limited to
+the Library and its Documents unless User Engagement explicitly opens public
+web research.
+_Avoid_: Corpus, ambient web access
+
+**Data Destination**:
+A named runtime or service that receives task-relevant Rill content. It
+distinguishes processing within the Rill installation from delivery to an
+external provider.
+_Avoid_: Local, backend
 
 ### Memory
 
