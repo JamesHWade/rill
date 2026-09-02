@@ -52,6 +52,30 @@ rill_question_cancellation_confirmed <- function(
     reason %in% unique(c("cancelled", "reader_cancelled", requested_reason))
 }
 
+rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
+  if (is.null(pinned_inputs)) {
+    return(invisible(runtime))
+  }
+  expected <- list(
+    model = pinned_inputs$model %||% NULL,
+    data_destination = pinned_inputs$data_destination %||% NULL
+  )
+  actual <- list(
+    model = runtime$model %||% NULL,
+    data_destination = runtime$data_destination %||% NULL
+  )
+  if (!identical(expected, actual)) {
+    cli::cli_abort(
+      c(
+        "The configured model destination changed before Rill could answer.",
+        "i" = "Ask the question again to confirm the current destination."
+      ),
+      class = "rill_agent_runtime_identity_changed"
+    )
+  }
+  invisible(runtime)
+}
+
 rill_server <- function(config, store) {
   force(config)
   force(store)
@@ -886,6 +910,21 @@ rill_server <- function(config, store) {
           )
         )
       }
+      preserved_inputs <- pinned_inputs %||% retry_of$pinned_inputs %||% NULL
+      identity_error <- tryCatch(
+        {
+          rill_assert_question_runtime_identity(
+            preserved_inputs,
+            runtime_identity
+          )
+          NULL
+        },
+        error = \(error) error
+      )
+      if (inherits(identity_error, "error")) {
+        store_delete_deferred_reader_question(store, actor_id, request_key)
+        stop(identity_error)
+      }
       requested_at <- requested_at %||% Sys.time()
       pinned_inputs <- pinned_inputs %||%
         if (is.null(retry_of)) {
@@ -1189,15 +1228,34 @@ rill_server <- function(config, store) {
       }
       selected_id(document$entry_id)
       selected_document_id(document$document_id)
-      run_prioritized_reader_question(
-        deferred$pinned_inputs$question,
-        document,
-        retry_of = retry_of,
-        request_key = deferred$request_key,
-        pinned_inputs = deferred$pinned_inputs,
-        requested_at = deferred$requested_at,
-        transition_at = Sys.time()
+      resumed <- tryCatch(
+        run_prioritized_reader_question(
+          deferred$pinned_inputs$question,
+          document,
+          retry_of = retry_of,
+          request_key = deferred$request_key,
+          pinned_inputs = deferred$pinned_inputs,
+          requested_at = deferred$requested_at,
+          transition_at = Sys.time()
+        ),
+        error = \(error) error
       )
+      if (inherits(resumed, "error") && !session$isClosed()) {
+        shiny::showNotification(
+          conditionMessage(resumed),
+          type = "error",
+          duration = 8
+        )
+        append_reader_chat(
+          paste(
+            "Rill didn't send the preserved question because its configured",
+            "model destination changed. Ask it again to confirm the current",
+            "destination."
+          ),
+          session
+        )
+      }
+      invisible(resumed)
     }
 
     session$onFlushed(resume_deferred_reader_question, once = TRUE)

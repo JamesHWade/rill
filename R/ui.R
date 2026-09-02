@@ -335,6 +335,7 @@ orientation_destination_confirmation_ui <- function(state) {
     )
   )
   htmltools::tagQuery(modal)$addAttrs(
+    role = "dialog",
     `aria-labelledby` = title_id,
     `data-rill-orientation-confirmation` = ""
   )$allTags()

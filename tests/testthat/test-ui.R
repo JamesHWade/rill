@@ -162,7 +162,9 @@ testthat::test_that("Orientation settings disclose their Data Destination", {
     confirmation$attribs$`data-rill-orientation-confirmation`,
     ""
   )
-  testthat::expect_no_match(confirmation_html, 'role="dialog"', fixed = TRUE)
+  testthat::expect_identical(confirmation$attribs$role, "dialog")
+  dialog_roles <- gregexpr('role="dialog"', confirmation_html, fixed = TRUE)
+  testthat::expect_identical(sum(dialog_roles[[1L]] > 0L), 1L)
   testthat::expect_match(
     confirmation_html,
     "https://provider.example/privacy",

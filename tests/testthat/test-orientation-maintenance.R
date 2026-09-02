@@ -1086,6 +1086,7 @@ testthat::test_that("Orientation exposes cancellation and wall-time boundaries",
   reject_output <- NULL
   last_result <- NULL
   interrupted <- character()
+  interrupt_result <- FALSE
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -1104,7 +1105,7 @@ testthat::test_that("Orientation exposes cancellation and wall-time boundaries",
     agent$last_run <- \() last_result
     agent$interrupt <- function(reason) {
       interrupted <<- c(interrupted, reason)
-      FALSE
+      interrupt_result
     }
     agent
   }
@@ -1250,7 +1251,56 @@ testthat::test_that("Orientation exposes cancellation and wall-time boundaries",
     "rill_orientation"
   )
 
+  acknowledged_store <- rill_store(list(demo_mode = TRUE))
+  interrupt_result <- TRUE
+  last_result <- NULL
+  acknowledged <- maintain_orientation_async(
+    store = acknowledged_store,
+    reader_id = reader_id,
+    worker_id = "orientation-worker-acknowledged",
+    model = "openai/gpt-test",
+    candidate_limit = 3L,
+    destination_check = orientation_test_destination_check(
+      acknowledged_store,
+      reader_id
+    ),
+    agent_factory = agent_factory,
+    schedule_timeout = FALSE
+  )
+  acknowledged_cancel <- acknowledged$interrupt("orientation_disabled")
+  testthat::expect_identical(acknowledged_cancel$interrupted, TRUE)
+  last_result <- list(
+    stop_reason = "complete",
+    usage = deputy::AgentUsage(requests = 1L, tool_calls = 1L),
+    run_id = "deputy-orientation-acknowledged"
+  )
+  resolve_output(list(
+    status = "This result arrived after cancellation.",
+    cards = list()
+  ))
+  deadline <- Sys.time() + 2
+  acknowledged_run <- NULL
+  while (
+    (is.null(acknowledged_run) ||
+      !identical(acknowledged_run$status, "cancelled")) &&
+      Sys.time() < deadline
+  ) {
+    later::run_now(0.01)
+    acknowledged_run <- store_get_agent_run(
+      acknowledged_store,
+      reader_id,
+      acknowledged$run$run_id
+    )
+  }
+  testthat::expect_identical(acknowledged_run$status, "cancelled")
+  testthat::expect_identical(
+    acknowledged_run$terminal_reason,
+    "orientation_disabled"
+  )
+  testthat::expect_null(store_get_orientation(acknowledged_store, reader_id))
+
   failed_store <- rill_store(list(demo_mode = TRUE))
+  interrupt_result <- FALSE
   last_result <- list(
     stop_reason = "provider_error",
     usage = deputy::AgentUsage(requests = 1L, tool_calls = 1L),

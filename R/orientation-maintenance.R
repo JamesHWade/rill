@@ -469,6 +469,7 @@ maintain_orientation_async <- function(
   cancel_interrupt_retry <- NULL
   cancel_interrupt_confirmation <- NULL
   settled_result <- NULL
+  result_preceded_interrupt <- FALSE
   clear_deadline <- function() {
     if (is.function(cancel_deadline)) {
       try(cancel_deadline(), silent = TRUE)
@@ -686,6 +687,9 @@ maintain_orientation_async <- function(
     }
     if (identical(interrupted, FALSE)) {
       result <- agent_result()
+      if (!is.null(result)) {
+        result_preceded_interrupt <<- TRUE
+      }
       if (
         is.null(result) ||
           orientation_cancellation_confirmed(result, interrupt_reason)
@@ -808,11 +812,7 @@ maintain_orientation_async <- function(
         return(finish_timed_out_run(result))
       }
       if (identical(terminal_intent, "cancelled")) {
-        current <- store_get_agent_run(store, reader_id, run$run_id)
-        if (!is.null(current) && identical(current$status, "interrupted")) {
-          return(cancel_run(result))
-        }
-        if (orientation_cancellation_confirmed(result, cancellation_reason)) {
+        if (!isTRUE(result_preceded_interrupt)) {
           return(cancel_run(result))
         }
       }

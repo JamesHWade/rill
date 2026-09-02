@@ -1210,6 +1210,129 @@ testthat::test_that("a replacement session resumes a deferred question", {
   })
 })
 
+testthat::test_that("preserved questions require their runtime identity", {
+  pinned <- list(
+    model = "gpt-accepted",
+    data_destination = "Provider at accepted.example"
+  )
+  testthat::expect_no_error(rill_assert_question_runtime_identity(
+    pinned,
+    pinned
+  ))
+  testthat::expect_error(
+    rill_assert_question_runtime_identity(
+      pinned,
+      list(
+        model = "gpt-changed",
+        data_destination = pinned$data_destination
+      )
+    ),
+    class = "rill_agent_runtime_identity_changed"
+  )
+  testthat::expect_error(
+    rill_assert_question_runtime_identity(
+      pinned,
+      list(
+        model = pinned$model,
+        data_destination = "Provider at changed.example"
+      )
+    ),
+    class = "rill_agent_runtime_identity_changed"
+  )
+})
+
+testthat::test_that("a deferred question rejects a changed destination", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  orientation <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "orientation",
+    request_key = "orientation-before-destination-change",
+    pinned_inputs = list(boundary_hash = "boundary-before-destination-change"),
+    worker_id = "orientation-worker"
+  )
+  orientation <- store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    lease_expires_at = Sys.time() + 120
+  )
+  request_key <- "deferred-destination-change"
+  pinned_inputs <- list(
+    submission_id = request_key,
+    entry_id = document$entry_id,
+    document_id = document$document_id,
+    document_content_hash = document$content_hash,
+    document_record_hash = document$record_hash,
+    research_scope = list(
+      kind = "selected_document",
+      document_ids = document$document_id
+    ),
+    data_destination = "OpenAI at old.example",
+    question = "What changed?",
+    model = config$agent_model,
+    policy_version = "ask-rill-v1",
+    limits = rill_agent_run_limits()
+  )
+  store_start_prioritized_reader_question(
+    store,
+    reader_id = config$actor_id,
+    request_key = request_key,
+    pinned_inputs = pinned_inputs,
+    worker_id = "departed-session"
+  )
+  store_finish_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    status = "cancelled",
+    terminal_reason = "reader_question"
+  )
+  stream_calls <- 0L
+  appended <- character()
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(...) {
+      list(
+        get_model = \() config$agent_model,
+        stream_async = function(...) {
+          stream_calls <<- stream_calls + 1L
+          stop("The changed destination must not receive the question.")
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+
+    testthat::expect_identical(stream_calls, 0L)
+    testthat::expect_null(
+      store_get_agent_run_by_request_key(
+        store,
+        config$actor_id,
+        request_key
+      )
+    )
+    testthat::expect_null(
+      store_get_deferred_reader_question(store, config$actor_id)
+    )
+    testthat::expect_match(
+      appended,
+      "didn't send the preserved question",
+      fixed = TRUE
+    )
+  })
+})
+
 testthat::test_that("a replacement session cancels a deferred question", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
