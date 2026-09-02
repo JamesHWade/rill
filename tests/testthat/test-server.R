@@ -1907,7 +1907,7 @@ testthat::test_that("a Reader cancellation remains the first terminal intent", {
   stream_context <- NULL
   interruptions <- character()
   testthat::local_mocked_bindings(
-    rill_agent_wall_time_seconds = \() 0.02,
+    rill_agent_wall_time_seconds = \() 1,
     rill_reader_agent = function(on_stop, ...) {
       stop_callback <<- on_stop
       list(
@@ -1943,8 +1943,11 @@ testthat::test_that("a Reader cancellation remains the first terminal intent", {
     session$setInputs(reader_chat_cancel = 1L)
     session$flushReact()
     testthat::expect_identical(interruptions, "reader_cancelled")
-    later::run_now(0.05)
-    session$flushReact()
+    deadline <- Sys.time() + 1.2
+    while (Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
     testthat::expect_identical(interruptions, "reader_cancelled")
 
     stop_callback(
@@ -2265,7 +2268,7 @@ testthat::test_that("a replacement session follows a running question", {
   interrupted <- NULL
   run_id <- NULL
   testthat::local_mocked_bindings(
-    rill_agent_wall_time_seconds = \() 0.5,
+    rill_agent_wall_time_seconds = \() 1.5,
     rill_reader_agent = function(on_stop, ...) {
       stop_callback <<- on_stop
       list(
@@ -2306,9 +2309,7 @@ testthat::test_that("a replacement session follows a running question", {
     testthat::expect_identical(active_agent_run()$run_id, run_id)
     testthat::expect_identical(active_agent_run()$status, "running")
 
-    later::run_now(2.1)
-    session$flushReact()
-    deadline <- Sys.time() + 2
+    deadline <- Sys.time() + 3
     while (
       !identical(active_agent_run()$status, "cancelling") &&
         Sys.time() < deadline
