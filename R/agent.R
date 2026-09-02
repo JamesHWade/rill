@@ -111,7 +111,15 @@ rill_agent_endpoint_is_installation <- function(provider, endpoint) {
   hostname <- tolower(httr2::url_parse(endpoint)$hostname %||% "")
   identical(hostname, "localhost") ||
     identical(hostname, "::1") ||
-    grepl("^127\\.", hostname)
+    rill_agent_ipv4_loopback(hostname)
+}
+
+rill_agent_ipv4_loopback <- function(hostname) {
+  octets <- strsplit(hostname, ".", fixed = TRUE)[[1L]]
+  length(octets) == 4L &&
+    identical(octets[[1L]], "127") &&
+    all(grepl("^(0|[1-9][0-9]{0,2})$", octets)) &&
+    all(as.integer(octets) <= 255L)
 }
 
 rill_agent_data_destination_details <- function(

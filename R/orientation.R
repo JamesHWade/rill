@@ -96,11 +96,20 @@ prepare_orientation_documents <- function(store, reader_id, limit = 12L) {
     ,
     drop = FALSE
   ]
-  pending <- utils::head(pending, as.integer(limit))
+  limit <- as.integer(limit)
   prepared <- character()
   for (index in seq_len(nrow(pending))) {
+    if (length(prepared) >= limit) {
+      break
+    }
     entry <- as.list(pending[index, , drop = FALSE])
-    document <- document_fallback(entry, reason = "orientation-feed-copy")
+    document <- tryCatch(
+      document_fallback(entry, reason = "orientation-feed-copy"),
+      rill_document_invalid = \(error) NULL
+    )
+    if (is.null(document)) {
+      next
+    }
     saved <- store_save_document_if_missing_head(store, document)
     if (isTRUE(saved$created)) {
       prepared <- c(prepared, document$document_id)

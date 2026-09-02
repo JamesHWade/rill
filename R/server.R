@@ -1001,6 +1001,9 @@ rill_server <- function(config, store) {
       }
       if (!identical(run$status, "pending")) {
         active_agent_run(run)
+        if (!run$status %in% terminal_agent_run_statuses) {
+          schedule_visible_agent_run_poll(run$run_id)
+        }
         return(invisible(run))
       }
 

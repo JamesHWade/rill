@@ -59,6 +59,14 @@ testthat::test_that("Agent destinations have stable consent identities", {
     "openai/gpt-5",
     base_url = "https://gateway.example:9443/provider-a"
   )
+  loopback <- rill_agent_data_destination_details(
+    "ollama/llama3.3",
+    base_url = "http://127.24.1.9:11434"
+  )
+  loopback_spoof <- rill_agent_data_destination_details(
+    "ollama/llama3.3",
+    base_url = "http://127.attacker.example:11434"
+  )
 
   testthat::expect_identical(openai$id, upgraded$id)
   testthat::expect_identical(identical(openai$id, changed_policy$id), FALSE)
@@ -71,6 +79,8 @@ testthat::test_that("Agent destinations have stable consent identities", {
   testthat::expect_identical(gateway_a$label, gateway_b$label)
   testthat::expect_identical(identical(gateway_a$id, gateway_b$id), FALSE)
   testthat::expect_identical(identical(gateway_a$id, gateway_port$id), FALSE)
+  testthat::expect_identical(loopback$kind, "installation")
+  testthat::expect_identical(loopback_spoof$kind, "external")
 })
 
 testthat::test_that("the provider projection removes source credentials", {

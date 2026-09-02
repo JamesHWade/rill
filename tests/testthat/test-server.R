@@ -1211,6 +1211,105 @@ testthat::test_that("a replacement session resumes a deferred question", {
   })
 })
 
+testthat::test_that("a replacement session polls an adopted question", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  orientation <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "orientation",
+    request_key = "orientation-before-adopted-question",
+    pinned_inputs = list(boundary_hash = "boundary-before-adopted-question"),
+    worker_id = "orientation-worker"
+  )
+  store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    lease_expires_at = Sys.time() + 120
+  )
+  request_key <- "adopted-question"
+  pinned_inputs <- list(
+    submission_id = request_key,
+    entry_id = document$entry_id,
+    document_id = document$document_id,
+    document_content_hash = document$content_hash,
+    document_record_hash = document$record_hash,
+    research_scope = list(
+      kind = "selected_document",
+      document_ids = document$document_id
+    ),
+    data_destination = "OpenAI at api.openai.com",
+    data_destination_id = rill_agent_data_destination_details("openai")$id,
+    question = "What changed?",
+    model = config$agent_model,
+    policy_version = "ask-rill-v1",
+    limits = rill_agent_run_limits()
+  )
+  store_start_prioritized_reader_question(
+    store,
+    reader_id = config$actor_id,
+    request_key = request_key,
+    pinned_inputs = pinned_inputs,
+    worker_id = "departed-session"
+  )
+  adopted <- list(
+    run_id = rill_id("agent-run", config$actor_id, request_key),
+    reader_id = config$actor_id,
+    kind = "question",
+    request_key = request_key,
+    status = "running",
+    pinned_inputs = pinned_inputs
+  )
+  completed <- adopted
+  completed$status <- "completed"
+  poll_reads <- 0L
+  real_get_agent_run <- store_get_agent_run
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(...) {
+      list(get_model = \() config$agent_model)
+    },
+    store_start_prioritized_reader_question = function(...) {
+      store_delete_deferred_reader_question(
+        store,
+        config$actor_id,
+        request_key
+      )
+      list(
+        run = adopted,
+        preempted = NULL,
+        deferred = NULL,
+        orientation_signalled = FALSE
+      )
+    },
+    store_get_agent_run = function(store, reader_id, run_id) {
+      if (!identical(run_id, adopted$run_id)) {
+        return(real_get_agent_run(store, reader_id, run_id))
+      }
+      poll_reads <<- poll_reads + 1L
+      if (poll_reads < 2L) adopted else completed
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    deadline <- Sys.time() + 2
+    while (
+      !identical(active_agent_run()$status, "completed") &&
+        Sys.time() < deadline
+    ) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+
+    testthat::expect_gte(poll_reads, 2L)
+    testthat::expect_identical(active_agent_run()$status, "completed")
+  })
+})
+
 testthat::test_that("preserved questions require their runtime identity", {
   pinned <- list(
     model = "gpt-accepted",

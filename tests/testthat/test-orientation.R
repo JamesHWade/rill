@@ -234,6 +234,27 @@ testthat::test_that("Orientation prepares bounded feed copies without extraction
   )
 })
 
+testthat::test_that("Orientation skips unusable feed copies within its bound", {
+  store <- rill_store(list(demo_mode = TRUE))
+  reader_id <- "reader-1"
+  entry_ids <- store$memory$entries$entry_id[1:2]
+  document_ids <- unname(store$memory$document_heads[entry_ids])
+  store$memory$document_heads <- store$memory$document_heads[
+    !names(store$memory$document_heads) %in% entry_ids
+  ]
+  store$memory$documents[document_ids] <- NULL
+  store$memory$entries$feed_content[[1L]] <- "<img src='cover.jpg'>"
+
+  prepared <- prepare_orientation_documents(store, reader_id, limit = 1L)
+
+  testthat::expect_identical(prepared$prepared, 1L)
+  testthat::expect_null(store_get_document(store, entry_ids[[1L]]))
+  testthat::expect_s3_class(
+    store_get_document(store, entry_ids[[2L]]),
+    "rill_document"
+  )
+})
+
 testthat::test_that("Orientation fallback cannot replace an existing head", {
   store <- rill_store(list(demo_mode = TRUE))
   entry <- as.list(store$memory$entries[1L, , drop = FALSE])
