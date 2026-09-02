@@ -132,15 +132,21 @@ testthat::test_that("the reader offers an explicit unread action", {
   testthat::expect_match(html, "Mark unread", fixed = TRUE)
 })
 
-testthat::test_that("the reader includes a source-bounded Conversation", {
-  html <- htmltools::renderTags(reader_pane_ui())$html
+testthat::test_that("the reader includes source-bounded Ask Rill chat", {
+  html <- htmltools::renderTags(reader_pane_ui(list(
+    agent_model = "openai"
+  )))$html
 
   testthat::expect_match(html, 'id="reader_chat"', fixed = TRUE)
   testthat::expect_match(html, "enable-cancel", fixed = TRUE)
   testthat::expect_match(html, 'id="reader_agent_status"', fixed = TRUE)
   testthat::expect_match(html, 'data-open-mobile="closed"', fixed = TRUE)
   testthat::expect_match(html, "Ask Rill about this story", fixed = TRUE)
-  testthat::expect_match(html, "selected reading copy only", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "question and selected reading copy to OpenAI",
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("the application shell uses the Rill duck mark", {

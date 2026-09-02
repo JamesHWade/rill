@@ -88,6 +88,35 @@ testthat::test_that("asking about a story runs Deputy through shinychat", {
       run$pinned_inputs$document_id,
       invocation$document_id
     )
+    document <- selected_document()
+    testthat::expect_identical(
+      run$pinned_inputs$submission_id,
+      run$request_key
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$document_content_hash,
+      document$content_hash
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$document_record_hash,
+      document$record_hash
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$research_scope,
+      list(
+        kind = "selected_document",
+        document_ids = document$document_id
+      )
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$data_destination,
+      "OpenAI"
+    )
+    testthat::expect_identical(run$pinned_inputs$model, "openai")
+    testthat::expect_identical(
+      run$pinned_inputs$limits,
+      rill_agent_run_limits()
+    )
     testthat::expect_identical(
       invocation$prompt,
       "What is the author's main point?"
@@ -214,10 +243,10 @@ testthat::test_that("cancelling a question terminalizes the same Agent Run", {
     session$flushReact()
 
     cancelled <- active_agent_run()
-    testthat::expect_identical(interrupted, "user_cancelled")
+    testthat::expect_identical(interrupted, "reader_cancelled")
     testthat::expect_identical(cancelled$run_id, running$run_id)
     testthat::expect_identical(cancelled$status, "cancelled")
-    testthat::expect_identical(cancelled$terminal_reason, "user_cancelled")
+    testthat::expect_identical(cancelled$terminal_reason, "reader_cancelled")
     testthat::expect_identical(
       cancelled$deputy_run_id,
       "deputy-run-cancelled"
@@ -231,11 +260,13 @@ testthat::test_that("the wall deadline interrupts and terminalizes a response", 
   store <- rill_store(config)
   entry_id <- store$memory$entries$entry_id[[1]]
   interrupted <- NULL
+  stop_callback <- NULL
   stream_context <- NULL
 
   testthat::local_mocked_bindings(
-    rill_agent_wall_time_seconds = function() 0,
+    rill_agent_wall_time_seconds = \() 0,
     rill_reader_agent = function(on_stop, ...) {
+      stop_callback <<- on_stop
       list(
         stream_async = function(prompt, stream, run_context) {
           stream_context <<- run_context
@@ -243,14 +274,6 @@ testthat::test_that("the wall deadline interrupts and terminalizes a response", 
         },
         interrupt = function(reason) {
           interrupted <<- reason
-          on_stop(
-            reason,
-            list(
-              usage = list(requests = 1L),
-              run_context = stream_context,
-              run_id = "deputy-run-time-limited"
-            )
-          )
           TRUE
         }
       )
@@ -276,10 +299,115 @@ testthat::test_that("the wall deadline interrupts and terminalizes a response", 
     testthat::expect_identical(interrupted, "wall_time_limit")
     testthat::expect_identical(run$status, "failed")
     testthat::expect_identical(run$terminal_reason, "wall_time_limit")
+    testthat::expect_null(run$deputy_run_id)
+
+    session$setInputs(retry_agent_run = 1L)
+    session$flushReact()
+    testthat::expect_length(store$memory$agent_runs, 1L)
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = list(requests = 1L, output_tokens = 12L),
+        run_context = stream_context,
+        run_id = "deputy-run-time-limited"
+      )
+    )
+    settled <- active_agent_run()
+    testthat::expect_identical(settled$run_id, run$run_id)
+    testthat::expect_identical(settled$status, "failed")
     testthat::expect_identical(
-      run$deputy_run_id,
+      settled$terminal_reason,
+      "wall_time_limit"
+    )
+    testthat::expect_identical(
+      settled$terminal_at,
+      run$terminal_at
+    )
+    testthat::expect_identical(
+      settled$deputy_run_id,
       "deputy-run-time-limited"
     )
+    testthat::expect_identical(settled$usage$requests, 1L)
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = settled$usage,
+        run_context = stream_context,
+        run_id = "deputy-run-time-limited"
+      )
+    )
+    duplicate <- active_agent_run()
+    testthat::expect_identical(
+      duplicate$deputy_run_id,
+      settled$deputy_run_id
+    )
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = list(requests = 99L),
+        run_context = stream_context,
+        run_id = "different-deputy-run"
+      )
+    )
+    rejected <- active_agent_run()
+    testthat::expect_identical(
+      rejected$deputy_run_id,
+      "deputy-run-time-limited"
+    )
+    testthat::expect_identical(rejected$usage$requests, 1L)
+  })
+})
+
+testthat::test_that("an interrupt error keeps the timed-out Agent draining", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 0,
+    rill_reader_agent = function(...) {
+      list(
+        stream_async = \(prompt, stream, run_context) "pending stream",
+        interrupt = function(reason) {
+          cli::cli_abort(
+            "The provider controller failed to cancel.",
+            class = "test_controller_cancel_failed"
+          )
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    later::run_now(0)
+    session$flushReact()
+
+    timed_out <- active_agent_run()
+    testthat::expect_identical(timed_out$status, "failed")
+    testthat::expect_identical(
+      timed_out$terminal_reason,
+      "wall_time_limit"
+    )
+
+    session$setInputs(retry_agent_run = 1L)
+    session$flushReact()
+    testthat::expect_length(store$memory$agent_runs, 1L)
+    testthat::expect_identical(active_agent_run()$run_id, timed_out$run_id)
   })
 })
 
@@ -379,7 +507,7 @@ testthat::test_that("retry creates a linked Run over the pinned question", {
   })
 })
 
-testthat::test_that("changing stories resets the source-bound Conversation", {
+testthat::test_that("changing stories resets the source-bound Ask Rill chat", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)

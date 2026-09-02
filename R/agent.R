@@ -1,9 +1,61 @@
+rill_agent_safe_url <- function(value) {
+  if (is.null(value) || !length(value)) {
+    return(NULL)
+  }
+  value <- as.character(value[[1]])
+  if (is.na(value) || !nzchar(value)) {
+    return(NA_character_)
+  }
+
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = \(error) NULL
+  )
+  if (is.null(parsed)) {
+    return(NA_character_)
+  }
+
+  parsed$username <- NULL
+  parsed$password <- NULL
+  parsed$query <- NULL
+  parsed$fragment <- NULL
+  httr2::url_build(parsed)
+}
+
+rill_agent_provenance_summary <- function(document) {
+  list(
+    acquisition_method = document$acquisition_method,
+    producer = document$producer,
+    producer_version = document$producer_version,
+    captured_at = document$captured_at,
+    content_hash = document$content_hash,
+    record_hash = document$record_hash
+  )
+}
+
+rill_agent_data_destination <- function(model) {
+  provider <- strsplit(trimws(model), "/", fixed = TRUE)[[1]][[1]]
+  switch(
+    tolower(provider),
+    openai = "OpenAI",
+    azure_openai = "Azure OpenAI",
+    anthropic = "Anthropic",
+    bedrock = "AWS Bedrock",
+    gemini = "Google Gemini",
+    google_gemini = "Google Gemini",
+    ollama = "Ollama",
+    provider
+  )
+}
+
 rill_document_tool <- function(document) {
   pinned_document <- list(
     document_id = document$document_id,
     entry_id = document$entry_id,
-    source_url = document$source_url,
-    canonical_url = document$canonical_url,
+    content_hash = document$content_hash,
+    record_hash = document$record_hash,
+    source_url = rill_agent_safe_url(document$source_url),
+    canonical_url = rill_agent_safe_url(document$canonical_url),
     title = document$title,
     author = document$author,
     site = document$site,
@@ -12,15 +64,15 @@ rill_document_tool <- function(document) {
     acquisition_method = document$acquisition_method,
     producer = document$producer,
     producer_version = document$producer_version,
-    provenance = document$provenance,
+    provenance = rill_agent_provenance_summary(document),
     markdown = document$markdown
   )
 
   ellmer::tool(
-    fun = function() pinned_document,
+    fun = \() pinned_document,
     name = "read_current_document",
     description = paste(
-      "Return the immutable Rill Document selected for this Conversation,",
+      "Return the immutable Rill Document selected for this question,",
       "including its captured text and source provenance."
     ),
     annotations = ellmer::tool_annotations(
@@ -71,6 +123,30 @@ rill_agent_usage_limits <- function() {
 
 rill_agent_wall_time_seconds <- function() {
   5 * 60
+}
+
+rill_agent_run_limits <- function() {
+  limits <- rill_agent_usage_limits()
+  list(
+    wall_time_seconds = rill_agent_wall_time_seconds(),
+    max_requests = limits$max_requests,
+    max_tool_calls = limits$max_tool_calls,
+    max_total_tokens = limits$max_total_tokens,
+    max_output_tokens = limits$max_output_tokens,
+    max_cost_usd = limits$max_cost_usd
+  )
+}
+
+rill_agent_runtime_identity <- function(agent, configured_model) {
+  model <- tryCatch(
+    as.character(agent$get_model())[[1]],
+    error = \(error) configured_model
+  )
+  data_destination <- tryCatch(
+    as.character(agent$get_provider()@name)[[1]],
+    error = \(error) rill_agent_data_destination(configured_model)
+  )
+  list(model = model, data_destination = data_destination)
 }
 
 track_reader_agent_stream <- function(stream, on_partial) {

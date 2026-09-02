@@ -21,6 +21,19 @@ normalize_defuddle_backend <- function(value) {
 }
 
 rill_config <- function() {
+  if (env_flag("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", FALSE)) {
+    cli::cli_abort(
+      c(
+        "Rill does not permit content-bearing generative AI telemetry.",
+        "i" = paste(
+          "Unset {.envvar OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}",
+          "or set it to {.val false}."
+        )
+      ),
+      class = "rill_unsafe_telemetry_config"
+    )
+  }
+
   database_url <- trimws(Sys.getenv("DATABASE_URL", unset = ""))
   defuddle_command <- trimws(Sys.getenv(
     "DEFUDDLE_COMMAND",

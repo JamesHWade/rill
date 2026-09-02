@@ -17,10 +17,59 @@ testthat::test_that("the reader Agent receives one pinned source Document", {
   )
   testthat::expect_identical(supplied$document_id, document$document_id)
   testthat::expect_identical(supplied$entry_id, document$entry_id)
+  testthat::expect_identical(supplied$content_hash, document$content_hash)
+  testthat::expect_identical(supplied$record_hash, document$record_hash)
   testthat::expect_identical(supplied$source_url, document$source_url)
   testthat::expect_identical(supplied$markdown, document$markdown)
   testthat::expect_identical(supplied$producer, document$producer)
-  testthat::expect_identical(supplied$provenance, document$provenance)
+  testthat::expect_identical(
+    supplied$provenance,
+    rill_agent_provenance_summary(document)
+  )
+})
+
+testthat::test_that("the provider projection removes source credentials", {
+  document <- sample_rill_data()$documents[[1]]
+  document$source_url <- paste0(
+    "https://reader:source-secret@example.com/story?",
+    "ticket=ST-secret-grant&session=private-session&view=full#private"
+  )
+  document$canonical_url <- paste0(
+    "https://example.com/story?AWSAccessKeyId=AKIASECRET&",
+    "view=canonical"
+  )
+  document$provenance <- list(
+    awsAccessKeyId = "AKIA-METADATA-SECRET",
+    sso_assertion = "metadata-secret",
+    request = list(
+      authorization = "Bearer provenance-secret",
+      embedded_source = paste0(
+        "Captured from ",
+        "https://worker:worker-secret@example.org/fetch?",
+        "sig=provenance-signature&format=md"
+      )
+    )
+  )
+
+  supplied <- rill_document_tool(document)()
+
+  testthat::expect_identical(
+    supplied$source_url,
+    "https://example.com/story"
+  )
+  testthat::expect_identical(
+    supplied$canonical_url,
+    "https://example.com/story"
+  )
+  testthat::expect_identical(
+    supplied$provenance,
+    rill_agent_provenance_summary(document)
+  )
+  testthat::expect_null(supplied$provenance$awsAccessKeyId)
+  testthat::expect_null(supplied$provenance$sso_assertion)
+  testthat::expect_null(supplied$provenance$request)
+  testthat::expect_identical(supplied$content_hash, document$content_hash)
+  testthat::expect_identical(supplied$record_hash, document$record_hash)
 })
 
 testthat::test_that("the reader Agent is source-first and tightly bounded", {
@@ -54,6 +103,10 @@ testthat::test_that("the reader Agent is source-first and tightly bounded", {
   testthat::expect_identical(limits$max_output_tokens, 8000L)
   testthat::expect_identical(limits$max_cost_usd, 2)
   testthat::expect_identical(rill_agent_wall_time_seconds(), 5 * 60)
+  testthat::expect_identical(
+    rill_agent_data_destination("anthropic/claude-sonnet-4-5-20250929"),
+    "Anthropic"
+  )
 })
 
 testthat::test_that("the reader Agent stream exposes its latest partial text", {
@@ -64,14 +117,14 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
   partials <- character()
   tracked <- track_reader_agent_stream(
     stream,
-    function(partial) partials <<- c(partials, partial)
+    \(partial) partials <<- c(partials, partial)
   )
   collected <- NULL
   error <- NULL
 
   coro::async_collect(tracked) |>
-    promises::then(function(value) collected <<- value) |>
-    promises::catch(function(condition) error <<- condition)
+    promises::then(\(value) collected <<- value) |>
+    promises::catch(\(condition) error <<- condition)
   timeout <- Sys.time() + 2
   while (is.null(collected) && is.null(error) && Sys.time() < timeout) {
     later::run_now(0.01)
@@ -85,7 +138,7 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
 testthat::test_that("a Deputy Agent is pinned to the selected Document", {
   document <- sample_rill_data()$documents[[1]]
   chat <- ellmer::chat_openai(
-    credentials = function() "test-key",
+    credentials = \() "test-key",
     model = "gpt-5.4"
   )
 
@@ -113,5 +166,9 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
       product = "rill",
       reader_id = "reader-1"
     )
+  )
+  testthat::expect_identical(
+    rill_agent_runtime_identity(agent, "openai"),
+    list(model = "gpt-5.4", data_destination = "OpenAI")
   )
 })

@@ -39,6 +39,50 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   withr::defer(rill_store_close(store))
 
+  migration_files <- schema_migration_files()
+  apply_migration <- function(migration_id) {
+    migration <- migration_files[[match(
+      migration_id,
+      vapply(migration_files, `[[`, character(1), "migration_id")
+    )]]
+    statements <- Filter(
+      nzchar,
+      trimws(strsplit(migration$sql, ";", fixed = TRUE)[[1]])
+    )
+    for (statement in statements) {
+      DBI::dbExecute(store$pool, statement)
+    }
+  }
+  apply_migration("002_agent_runs")
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "INSERT INTO agent_runs (",
+      paste(
+        "run_id, reader_id, kind, request_key, status, pinned_inputs,",
+        "requested_at, updated_at"
+      ),
+      ") VALUES ('legacy-run', 'reader-1', 'conversation',",
+      "'legacy-question', 'completed', '{}'::jsonb, now(), now())"
+    )
+  )
+  apply_migration("003_agent_run_question_kind")
+  migrated_kind <- DBI::dbGetQuery(
+    store$pool,
+    "SELECT kind FROM agent_runs WHERE run_id = 'legacy-run'"
+  )$kind
+  testthat::expect_identical(migrated_kind, "question")
+  constraint <- DBI::dbGetQuery(
+    store$pool,
+    paste(
+      "SELECT pg_get_constraintdef(oid) AS definition",
+      "FROM pg_constraint WHERE conname = 'agent_runs_kind_check'"
+    )
+  )$definition
+  testthat::expect_match(constraint, "question", fixed = TRUE)
+  testthat::expect_no_match(constraint, "conversation", fixed = TRUE)
+  DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
+
   store_apply_schema(store)
   store_apply_schema(store)
 
@@ -51,31 +95,48 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   testthat::expect_identical(
     migrations$migration_id,
-    c("001_init", "002_agent_runs")
+    c("001_init", "002_agent_runs", "003_agent_run_question_kind")
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
 
   requested_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
+  pinned_inputs <- list(
+    submission_id = "ask-rill-message-17",
+    entry_id = "entry-1",
+    document_id = "document-1",
+    document_content_hash = strrep("a", 64L),
+    document_record_hash = strrep("b", 64L),
+    research_scope = list(
+      kind = "selected_document",
+      document_ids = "document-1"
+    ),
+    data_destination = "OpenAI",
+    question = "What is the main claim?",
+    model = "gpt-5.4",
+    policy_version = "ask-rill-v1",
+    limits = list(
+      wall_time_seconds = 300,
+      max_requests = 8L,
+      max_tool_calls = 16L,
+      max_total_tokens = 128000L,
+      max_output_tokens = 8000L,
+      max_cost_usd = 2
+    )
+  )
   first <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
-    pinned_inputs = list(
-      document_id = "document-1",
-      policy_version = "v1"
-    ),
+    kind = "question",
+    request_key = "ask-rill-message-17",
+    pinned_inputs = pinned_inputs,
     requested_at = requested_at
   )
   replay <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
-    pinned_inputs = list(
-      document_id = "document-1",
-      policy_version = "v1"
-    ),
+    kind = "question",
+    request_key = "ask-rill-message-17",
+    pinned_inputs = pinned_inputs[rev(names(pinned_inputs))],
     requested_at = requested_at + 60
   )
 
@@ -88,8 +149,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     store_start_agent_run(
       store,
       reader_id = "reader-1",
-      kind = "conversation",
-      request_key = "conversation-message-17",
+      kind = "question",
+      request_key = "ask-rill-message-17",
       pinned_inputs = list(document_id = "different-document")
     ),
     class = "rill_agent_run_replay_conflict"
@@ -171,11 +232,78 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   testthat::expect_identical(cancelled$status, "cancelled")
 
+  timed_out <- store_start_agent_run(
+    store,
+    reader_id = "reader-1",
+    kind = "question",
+    request_key = "ask-rill-message-timeout",
+    pinned_inputs = pinned_inputs
+  )
+  timed_out <- store_claim_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = timed_out$run_id,
+    worker_id = "worker-1",
+    lease_expires_at = requested_at + 120
+  )
+  timed_out <- store_finish_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = timed_out$run_id,
+    worker_id = "worker-1",
+    status = "failed",
+    terminal_reason = "wall_time_limit",
+    finished_at = requested_at + 92
+  )
+  settled <- store_enrich_timed_out_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = timed_out$run_id,
+    worker_id = "worker-1",
+    usage = list(requests = 1L, output_tokens = 12L),
+    deputy_run_id = "deputy-run-time-limited",
+    updated_at = requested_at + 93
+  )
+  testthat::expect_identical(settled$status, "failed")
+  testthat::expect_identical(settled$terminal_reason, "wall_time_limit")
+  testthat::expect_identical(settled$terminal_at, timed_out$terminal_at)
+  testthat::expect_identical(
+    settled$deputy_run_id,
+    "deputy-run-time-limited"
+  )
+  testthat::expect_equal(
+    settled$usage[c("requests", "output_tokens")],
+    list(requests = 1, output_tokens = 12)
+  )
+  duplicate <- store_enrich_timed_out_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = timed_out$run_id,
+    worker_id = "worker-1",
+    usage = list(requests = 1L, output_tokens = 12L),
+    deputy_run_id = "deputy-run-time-limited",
+    updated_at = requested_at + 94
+  )
+  testthat::expect_identical(
+    duplicate$deputy_run_id,
+    settled$deputy_run_id
+  )
+  rejected <- store_enrich_timed_out_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = timed_out$run_id,
+    worker_id = "worker-1",
+    usage = list(requests = 99L),
+    deputy_run_id = "different-deputy-run",
+    updated_at = requested_at + 95
+  )
+  testthat::expect_null(rejected)
+
   pending <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-18",
+    kind = "question",
+    request_key = "ask-rill-message-18",
     pinned_inputs = list(document_id = "document-3")
   )
   pending_cancelled <- store_request_agent_run_cancel(

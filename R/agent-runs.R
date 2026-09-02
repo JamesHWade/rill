@@ -71,7 +71,7 @@ store_start_agent_run <- function(
   }
 
   active_runs <- Filter(
-    \(run) {
+    function(run) {
       identical(run$reader_id, reader_id) &&
         run$status %in% c("pending", "running", "cancelling")
     },
@@ -106,7 +106,10 @@ validate_agent_run_replay <- function(
 ) {
   if (
     !identical(run$kind, kind) ||
-      !identical(run$pinned_inputs, pinned_inputs) ||
+      !identical(
+        as.character(canonical_json(run$pinned_inputs)),
+        as.character(canonical_json(pinned_inputs))
+      ) ||
       !identical(run$retry_of_run_id %||% NULL, retry_of_run_id %||% NULL)
   ) {
     cli::cli_abort(
@@ -368,6 +371,59 @@ store_finish_agent_run <- function(
   run
 }
 
+store_enrich_timed_out_agent_run <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  usage,
+  deputy_run_id,
+  updated_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET usage = $4::jsonb,",
+        "deputy_run_id = COALESCE(deputy_run_id, $5), updated_at = $6",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          "AND status = 'failed' AND terminal_reason = 'wall_time_limit'"
+        ),
+        "AND (deputy_run_id IS NULL OR deputy_run_id = $5)",
+        "RETURNING *"
+      ),
+      params = list(
+        reader_id,
+        run_id,
+        worker_id,
+        agent_run_json(usage),
+        deputy_run_id %||% NA_character_,
+        updated_at
+      )
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !identical(run$worker_id, worker_id) ||
+      !identical(run$status, "failed") ||
+      !identical(run$terminal_reason, "wall_time_limit") ||
+      (!is.null(run$deputy_run_id) &&
+        !identical(run$deputy_run_id, deputy_run_id))
+  ) {
+    return(NULL)
+  }
+
+  run$usage <- usage
+  run$deputy_run_id <- deputy_run_id
+  run$updated_at <- updated_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
 store_interrupt_expired_agent_runs <- function(
   store,
   recovered_at = utc_now()
@@ -469,7 +525,7 @@ agent_runs_from_rows <- function(rows) {
   if (!nrow(rows)) {
     return(list())
   }
-  lapply(seq_len(nrow(rows)), \(index) {
+  lapply(seq_len(nrow(rows)), function(index) {
     agent_run_from_row(rows[index, , drop = FALSE])
   })
 }

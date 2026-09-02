@@ -19,7 +19,7 @@ testthat::test_that("starting the same Agent Run request is idempotent", {
     reader_id = "reader-1",
     kind = "orientation",
     request_key = "orientation-library-42",
-    pinned_inputs = pinned_inputs,
+    pinned_inputs = pinned_inputs[rev(names(pinned_inputs))],
     requested_at = requested_at + 60
   )
 
@@ -56,8 +56,8 @@ testthat::test_that("a Reader has at most one active Agent Run", {
     store_start_agent_run(
       store,
       reader_id = "reader-1",
-      kind = "conversation",
-      request_key = "conversation-message-17",
+      kind = "question",
+      request_key = "ask-rill-message-17",
       pinned_inputs = list(document_ids = "document-2")
     ),
     class = "rill_agent_run_conflict"
@@ -100,8 +100,8 @@ testthat::test_that("the lease owner records reconnectable partial output", {
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = list(message_id = "message-17")
   )
   run <- store_claim_agent_run(
@@ -138,8 +138,8 @@ testthat::test_that("cancellation remains pending until a worker confirms it", {
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = list(message_id = "message-17")
   )
   run <- store_claim_agent_run(
@@ -171,8 +171,8 @@ testthat::test_that("an unclaimed Agent Run cancels immediately", {
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = list(message_id = "message-17")
   )
   requested_at <- as.POSIXct("2026-09-02 12:01:30", tz = "UTC")
@@ -193,8 +193,8 @@ testthat::test_that("an unclaimed Agent Run cancels immediately", {
   next_run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-18",
+    kind = "question",
+    request_key = "ask-rill-message-18",
     pinned_inputs = list(message_id = "message-18")
   )
   testthat::expect_identical(next_run$status, "pending")
@@ -205,8 +205,8 @@ testthat::test_that("terminal Agent Runs clear partial state and release the Rea
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = list(message_id = "message-17")
   )
   run <- store_claim_agent_run(
@@ -262,8 +262,8 @@ testthat::test_that("expired Agent Run leases become interrupted", {
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = list(message_id = "message-17")
   )
   run <- store_claim_agent_run(
@@ -305,8 +305,8 @@ testthat::test_that("Retry creates a linked Run with the same pinned inputs", {
   original <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "conversation",
-    request_key = "conversation-message-17",
+    kind = "question",
+    request_key = "ask-rill-message-17",
     pinned_inputs = pinned_inputs
   )
   original <- store_claim_agent_run(
@@ -337,7 +337,7 @@ testthat::test_that("Retry creates a linked Run with the same pinned inputs", {
     request_key = "retry-click-1"
   )
 
-  testthat::expect_false(identical(retry$run_id, original$run_id))
+  testthat::expect_length(unique(c(retry$run_id, original$run_id)), 2L)
   testthat::expect_identical(retry$retry_of_run_id, original$run_id)
   testthat::expect_identical(retry$pinned_inputs, pinned_inputs)
   testthat::expect_identical(retry$kind, original$kind)

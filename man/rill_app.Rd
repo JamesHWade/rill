@@ -14,7 +14,7 @@ A \code{shiny.appobj} object suitable for \code{\link[shiny:runApp]{shiny::runAp
 environment variables. With no \code{DATABASE_URL}, it uses bundled demo data.
 When \code{RILL_CAPTURE_TOKEN} is set, the same application accepts authenticated
 browser documents at \verb{/api/v1/captures}. \code{RILL_AGENT_MODEL} selects the
-\link[ellmer:chat]{ellmer} model used for source-grounded Conversation; its
+\link[ellmer:chat]{ellmer} model used for source-grounded questions; its
 provider credential must also be available in the environment.
 }
 \examples{

@@ -21,7 +21,7 @@ rill_ui <- function(config) {
         class = "app-shell",
         bslib::layout_sidebar(
           bslib::layout_sidebar(
-            reader_pane_ui(),
+            reader_pane_ui(config),
             sidebar = story_sidebar_ui(),
             fillable = TRUE,
             fill = TRUE,
@@ -266,7 +266,7 @@ mark_unread_button <- function() {
   )
 }
 
-reader_pane_ui <- function() {
+reader_pane_ui <- function(config) {
   bslib::layout_sidebar(
     shiny::tags$div(
       class = "reader-scroll",
@@ -276,7 +276,7 @@ reader_pane_ui <- function() {
     sidebar = bslib::sidebar(
       shiny::tags$header(
         class = "reader-agent-header",
-        shiny::tags$p(class = "eyebrow", "Conversation"),
+        shiny::tags$p(class = "eyebrow", "Ask Rill"),
         shiny::tags$h2("Ask Rill about this story")
       ),
       shiny::uiOutput(
@@ -295,7 +295,8 @@ reader_pane_ui <- function() {
         enable_cancel = TRUE,
         footer = shiny::tags$span(
           paste(
-            "Uses the selected reading copy only",
+            "Sends your question and selected reading copy to",
+            rill_agent_data_destination(config$agent_model),
             "\u00b7 interpretation stays labeled"
           )
         )

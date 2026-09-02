@@ -22,6 +22,7 @@ rill_server <- function(config, store) {
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
     active_agent_run <- shiny::reactiveVal(NULL)
+    draining_agent_run_id <- shiny::reactiveVal(NULL)
     agent_request_index <- shiny::reactiveVal(0L)
     agent_run_deadlines <- new.env(parent = emptyenv())
 
@@ -124,14 +125,46 @@ rill_server <- function(config, store) {
       }
       cancel_agent_run_deadline(run_id)
 
+      usage <- context$usage %||% list()
+      if (inherits(usage, "AgentUsage")) {
+        usage <- unclass(usage)
+      }
       run <- store_get_agent_run(store, actor_id, run_id)
-      if (is.null(run) || run$status %in% terminal_agent_run_statuses) {
+      if (is.null(run)) {
+        return(NULL)
+      }
+      if (identical(draining_agent_run_id(), run_id)) {
+        draining_agent_run_id(NULL)
+      }
+      if (run$status %in% terminal_agent_run_statuses) {
+        if (
+          identical(run$status, "failed") &&
+            identical(run$terminal_reason, "wall_time_limit")
+        ) {
+          enriched <- store_enrich_timed_out_agent_run(
+            store,
+            reader_id = actor_id,
+            run_id = run_id,
+            worker_id = session_id,
+            usage = usage,
+            deputy_run_id = context$run_id %||% NULL
+          )
+          if (is.null(enriched)) {
+            telemetry_log(
+              "warn",
+              "agent_run.stop_enrichment_rejected",
+              list("terminal.reason" = run$terminal_reason)
+            )
+          } else {
+            update_visible_agent_run(enriched)
+          }
+        }
         return(NULL)
       }
 
       reason <- as.character(reason %||% "unknown")[[1]]
       status <- if (identical(reason, "complete")) "completed" else "failed"
-      if (reason %in% c("cancelled", "user_cancelled")) {
+      if (reason %in% c("cancelled", "reader_cancelled")) {
         run <- store_request_agent_run_cancel(
           store,
           reader_id = actor_id,
@@ -142,10 +175,6 @@ rill_server <- function(config, store) {
         status <- "cancelled"
       }
 
-      usage <- context$usage %||% list()
-      if (inherits(usage, "AgentUsage")) {
-        usage <- unclass(usage)
-      }
       finished <- store_finish_agent_run(
         store,
         reader_id = actor_id,
@@ -204,6 +233,7 @@ rill_server <- function(config, store) {
             return(NULL)
           }
 
+          draining_agent_run_id(run$run_id)
           interrupted <- tryCatch(
             agent$interrupt("wall_time_limit"),
             error = function(error) {
@@ -212,12 +242,13 @@ rill_server <- function(config, store) {
                 "agent_run.deadline_interrupt_failed",
                 list("error.type" = class(error)[[1]])
               )
-              FALSE
+              NA
             }
           )
-          if (!isTRUE(interrupted)) {
-            fail_agent_run(current, "wall_time_limit")
+          if (identical(interrupted, FALSE)) {
+            draining_agent_run_id(NULL)
           }
+          fail_agent_run(current, "wall_time_limit")
           NULL
         },
         delay = delay
@@ -284,7 +315,7 @@ rill_server <- function(config, store) {
     }
 
     next_agent_request_key <- function(
-      prefix = "conversation",
+      prefix = "ask-rill",
       request_token = NULL
     ) {
       if (!is.null(request_token) && length(request_token)) {
@@ -301,22 +332,49 @@ rill_server <- function(config, store) {
       retry_of = NULL,
       request_token = NULL
     ) {
+      if (!is.null(draining_agent_run_id())) {
+        cli::cli_abort(
+          "The previous response is still stopping. Try again in a moment.",
+          class = "rill_agent_run_draining"
+        )
+      }
       request_key <- next_agent_request_key(
-        if (is.null(retry_of)) "conversation" else "conversation-retry",
+        if (is.null(retry_of)) "ask-rill" else "ask-rill-retry",
         request_token = request_token
       )
+      agent <- tryCatch(
+        reader_agent_for(document),
+        error = \(error) error
+      )
+      runtime_identity <- if (inherits(agent, "error")) {
+        list(
+          model = config$agent_model,
+          data_destination = rill_agent_data_destination(config$agent_model)
+        )
+      } else {
+        rill_agent_runtime_identity(agent, config$agent_model)
+      }
       run <- if (is.null(retry_of)) {
         store_start_agent_run(
           store,
           reader_id = actor_id,
-          kind = "conversation",
+          kind = "question",
           request_key = request_key,
           pinned_inputs = list(
+            submission_id = request_key,
             entry_id = document$entry_id,
             document_id = document$document_id,
+            document_content_hash = document$content_hash,
+            document_record_hash = document$record_hash,
+            research_scope = list(
+              kind = "selected_document",
+              document_ids = document$document_id
+            ),
+            data_destination = runtime_identity$data_destination,
             question = question,
-            model = config$agent_model,
-            policy_version = "source-grounded-conversation-v1"
+            model = runtime_identity$model,
+            policy_version = "ask-rill-v1",
+            limits = rill_agent_run_limits()
           )
         )
       } else {
@@ -357,23 +415,26 @@ rill_server <- function(config, store) {
       }
       active_agent_run(run)
 
-      result <- tryCatch(
-        {
-          agent <- reader_agent_for(document)
-          response <- agent$stream_async(
-            question,
-            stream = "content",
-            run_context = list(rill_agent_run_id = run$run_id)
-          )
-          response <- track_reader_agent_stream(
-            response,
-            record_agent_run_partials(run, deadline)
-          )
-          schedule_agent_run_deadline(run, agent, deadline)
-          append_reader_chat(response, session)
-        },
-        error = function(error) error
-      )
+      result <- if (inherits(agent, "error")) {
+        agent
+      } else {
+        tryCatch(
+          {
+            response <- agent$stream_async(
+              question,
+              stream = "content",
+              run_context = list(rill_agent_run_id = run$run_id)
+            )
+            response <- track_reader_agent_stream(
+              response,
+              record_agent_run_partials(run, deadline)
+            )
+            schedule_agent_run_deadline(run, agent, deadline)
+            append_reader_chat(response, session)
+          },
+          error = \(error) error
+        )
+      }
       if (inherits(result, "error")) {
         fail_agent_run(
           run,
@@ -871,11 +932,12 @@ rill_server <- function(config, store) {
         run <- active_agent_run()
         if (
           !identical(previous_id, entry_id) &&
-            !is.null(run) &&
-            !run$status %in% terminal_agent_run_statuses
+            (!is.null(draining_agent_run_id()) ||
+              (!is.null(run) &&
+                !run$status %in% terminal_agent_run_statuses))
         ) {
           shiny::showNotification(
-            "Finish or stop the current response before changing stories.",
+            "Wait for the current response to stop before changing stories.",
             type = "warning"
           )
           return()
@@ -924,7 +986,7 @@ rill_server <- function(config, store) {
           return()
         }
 
-        document <- tryCatch(selected_document(), error = function(error) error)
+        document <- tryCatch(selected_document(), error = \(error) error)
         if (inherits(document, "error")) {
           shiny::showNotification(
             conditionMessage(document),
@@ -982,7 +1044,7 @@ rill_server <- function(config, store) {
         agent <- reader_agent()
         if (!is.null(agent) && identical(cancelling$status, "cancelling")) {
           tryCatch(
-            agent$interrupt("user_cancelled"),
+            agent$interrupt("reader_cancelled"),
             error = function(error) {
               telemetry_log(
                 "warn",
