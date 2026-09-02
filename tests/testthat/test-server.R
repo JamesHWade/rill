@@ -1266,7 +1266,11 @@ testthat::test_that("a replacement session polls an adopted question", {
   )
   completed <- adopted
   completed$status <- "completed"
+  completed_with_response <- completed
+  completed_with_response$response_text <-
+    "Answer from the owning session."
   poll_reads <- 0L
+  appended <- character()
   real_get_agent_run <- store_get_agent_run
   testthat::local_mocked_bindings(
     rill_reader_agent = function(...) {
@@ -1290,7 +1294,17 @@ testthat::test_that("a replacement session polls an adopted question", {
         return(real_get_agent_run(store, reader_id, run_id))
       }
       poll_reads <<- poll_reads + 1L
-      if (poll_reads < 2L) adopted else completed
+      if (poll_reads < 2L) {
+        adopted
+      } else if (poll_reads == 2L) {
+        completed
+      } else {
+        completed_with_response
+      }
+    },
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
     }
   )
 
@@ -1298,15 +1312,19 @@ testthat::test_that("a replacement session polls an adopted question", {
     session$flushReact()
     deadline <- Sys.time() + 2
     while (
-      !identical(active_agent_run()$status, "completed") &&
+      length(appended) == 0L &&
         Sys.time() < deadline
     ) {
       later::run_now(0.05)
       session$flushReact()
     }
 
-    testthat::expect_gte(poll_reads, 2L)
+    testthat::expect_gte(poll_reads, 3L)
     testthat::expect_identical(active_agent_run()$status, "completed")
+    testthat::expect_identical(
+      appended,
+      "Answer from the owning session."
+    )
   })
 })
 
@@ -1950,7 +1968,7 @@ testthat::test_that("a Reader cancellation remains the first terminal intent", {
   })
 })
 
-testthat::test_that("a raced completion remains completed after cancellation", {
+testthat::test_that("cancellation wins a raced completion", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -1998,13 +2016,16 @@ testthat::test_that("a raced completion remains completed after cancellation", {
       )
     )
 
-    completed <- store_get_agent_run(
+    cancelled <- store_get_agent_run(
       store,
       config$actor_id,
       running$run_id
     )
-    testthat::expect_identical(completed$status, "completed")
-    testthat::expect_identical(completed$terminal_reason, "complete")
+    testthat::expect_identical(cancelled$status, "cancelled")
+    testthat::expect_identical(
+      cancelled$terminal_reason,
+      "reader_cancelled"
+    )
   })
 })
 
@@ -2318,6 +2339,76 @@ testthat::test_that("a replacement session follows a running question", {
     testthat::expect_identical(
       active_agent_run()$terminal_reason,
       "wall_time_limit"
+    )
+  })
+})
+
+testthat::test_that("an owning worker observes durable cancellation", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1L]]
+  stop_callback <- NULL
+  stream_context <- NULL
+  interruptions <- character()
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 2,
+    rill_reader_agent = function(on_stop, ...) {
+      stop_callback <<- on_stop
+      list(
+        stream_async = function(prompt, stream, run_context) {
+          stream_context <<- run_context
+          "pending stream"
+        },
+        interrupt = function(reason) {
+          interruptions <<- c(interruptions, reason)
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1L)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "What changed?")
+    session$flushReact()
+    run_id <- active_agent_run()$run_id
+
+    store_request_agent_run_cancel(
+      store,
+      reader_id = config$actor_id,
+      run_id = run_id
+    )
+    testthat::expect_length(interruptions, 0L)
+
+    deadline <- Sys.time() + 2
+    while (length(interruptions) == 0L && Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+    testthat::expect_identical(interruptions, "reader_cancelled")
+
+    stop_callback(
+      "complete",
+      list(
+        usage = list(requests = 1L),
+        run_context = stream_context,
+        run_id = "deputy-completed-after-cancel"
+      )
+    )
+    cancelled <- store_get_agent_run(store, config$actor_id, run_id)
+    testthat::expect_identical(cancelled$status, "cancelled")
+    testthat::expect_identical(
+      cancelled$terminal_reason,
+      "reader_cancelled"
     )
   })
 })

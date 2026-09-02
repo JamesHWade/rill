@@ -307,8 +307,21 @@ rill_server <- function(config, store) {
           }
           active_agent_run(current)
           if (current$status %in% terminal_agent_run_statuses) {
+            if (
+              identical(current$status, "completed") &&
+                is.null(current$response_text)
+            ) {
+              schedule_visible_agent_run_poll(run_id, delay = 0.25)
+              return(NULL)
+            }
             if (identical(draining_agent_run_id(), run_id)) {
               draining_agent_run_id(NULL)
+            }
+            if (
+              identical(current$status, "completed") &&
+                nzchar(current$response_text %||% "")
+            ) {
+              append_reader_chat(current$response_text, session)
             }
             return(NULL)
           }
@@ -442,6 +455,12 @@ rill_server <- function(config, store) {
       ) {
         reason <- terminal_intent
       }
+      if (
+        identical(run$status, "cancelling") &&
+          identical(reason, "complete")
+      ) {
+        reason <- terminal_intent %||% "reader_cancelled"
+      }
       status <- if (identical(reason, "complete")) "completed" else "failed"
       if (reason %in% c("cancelled", "reader_cancelled")) {
         run <- store_request_agent_run_cancel(
@@ -532,6 +551,7 @@ rill_server <- function(config, store) {
       interrupt_outcome <- NULL
       interrupt_started_at <- as.POSIXct(NA, tz = "UTC")
       drain_cancel <- NULL
+      state_poll_cancel <- NULL
       cancel_drain <- function() {
         if (is.function(drain_cancel)) {
           try(drain_cancel(), silent = TRUE)
@@ -539,8 +559,16 @@ rill_server <- function(config, store) {
         }
         invisible(NULL)
       }
+      cancel_state_poll <- function() {
+        if (is.function(state_poll_cancel)) {
+          try(state_poll_cancel(), silent = TRUE)
+          state_poll_cancel <<- NULL
+        }
+        invisible(NULL)
+      }
       clear_run_control <- function() {
         cancel_agent_run_deadline(run$run_id)
+        cancel_state_poll()
         rill_unregister_question_interrupt(run$run_id)
         agent_run_terminal_intents[[run$run_id]] <- NULL
         agent_run_stop_confirmations[[run$run_id]] <- NULL
@@ -608,6 +636,7 @@ rill_server <- function(config, store) {
         invisible(interrupted)
       }
       schedule_drain_heartbeat <- NULL
+      schedule_state_poll <- NULL
       request_interrupt <- NULL
       schedule_drain_heartbeat <- function(delay = 0.25) {
         if (is.function(drain_cancel)) {
@@ -754,6 +783,49 @@ rill_server <- function(config, store) {
           fallback = \(reason) agent$interrupt(reason)
         )
       }
+      schedule_state_poll <- function(delay = 0.25) {
+        if (is.function(state_poll_cancel)) {
+          return(invisible(NULL))
+        }
+        state_poll_cancel <<- later::later(
+          function() {
+            state_poll_cancel <<- NULL
+            current <- tryCatch(
+              store_get_agent_run(store, actor_id, run$run_id),
+              error = function(error) {
+                telemetry_log(
+                  "warn",
+                  "agent_run.state_poll_failed",
+                  list("error.type" = class(error)[[1L]])
+                )
+                NULL
+              }
+            )
+            if (is.null(current)) {
+              schedule_state_poll()
+              return(NULL)
+            }
+            if (current$status %in% terminal_agent_run_statuses) {
+              clear_run_control()
+              return(NULL)
+            }
+            if (identical(current$status, "cancelling")) {
+              if (is.null(agent_run_terminal_intents[[run$run_id]])) {
+                agent_run_terminal_intents[[run$run_id]] <-
+                  "reader_cancelled"
+                update_visible_agent_run(current)
+                request_interrupt("reader_cancelled")
+              }
+              return(NULL)
+            }
+            schedule_state_poll()
+            NULL
+          },
+          delay = delay
+        )
+        invisible(NULL)
+      }
+      schedule_state_poll()
 
       delay <- max(
         0,
@@ -830,6 +902,32 @@ rill_server <- function(config, store) {
         )
         if (!is.null(updated)) {
           last_saved_at <<- now
+          update_visible_agent_run(updated)
+        }
+        invisible(updated)
+      }
+    }
+
+    record_agent_run_response <- function(run) {
+      function(response) {
+        updated <- tryCatch(
+          store_record_agent_run_response(
+            store,
+            reader_id = actor_id,
+            run_id = run$run_id,
+            worker_id = session_id,
+            response_text = response
+          ),
+          error = function(error) {
+            telemetry_log(
+              "warn",
+              "agent_run.response_write_failed",
+              list("error.type" = class(error)[[1L]])
+            )
+            NULL
+          }
+        )
+        if (!is.null(updated)) {
           update_visible_agent_run(updated)
         }
         invisible(updated)
@@ -1054,10 +1152,17 @@ rill_server <- function(config, store) {
             )
             response <- track_reader_agent_stream(
               response,
-              record_agent_run_partials(run, deadline)
+              record_agent_run_partials(run, deadline),
+              on_complete = record_agent_run_response(run)
             )
             schedule_agent_run_deadline(run, agent, deadline)
-            append_reader_chat(response, session)
+            appended <- append_reader_chat(response, session)
+            promises::then(appended, function(value) {
+              if (is.character(value) && length(value) == 1L) {
+                record_agent_run_response(run)(value)
+              }
+              value
+            })
           },
           error = \(error) error
         )

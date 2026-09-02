@@ -170,9 +170,11 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
     coro::yield("evidence.")
   })()
   partials <- character()
+  complete <- NULL
   tracked <- track_reader_agent_stream(
     stream,
-    \(partial) partials <<- c(partials, partial)
+    \(partial) partials <<- c(partials, partial),
+    on_complete = \(response) complete <<- response
   )
   collected <- NULL
   error <- NULL
@@ -188,6 +190,7 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
   testthat::expect_null(error)
   testthat::expect_identical(collected, list("Source ", "evidence."))
   testthat::expect_identical(partials, c("Source ", "Source evidence."))
+  testthat::expect_identical(complete, "Source evidence.")
 })
 
 testthat::test_that("reader streaming supports current and legacy Deputy APIs", {

@@ -450,6 +450,20 @@ testthat::test_that("cancellation remains pending until a worker confirms it", {
     store_get_agent_run(store, "reader-1", run$run_id),
     cancelling
   )
+
+  rejected <- store_finish_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = run$run_id,
+    worker_id = "worker-1",
+    status = "completed",
+    terminal_reason = "complete"
+  )
+  testthat::expect_null(rejected)
+  testthat::expect_identical(
+    store_get_agent_run(store, "reader-1", run$run_id)$status,
+    "cancelling"
+  )
 })
 
 testthat::test_that("an unclaimed Agent Run cancels immediately", {
@@ -778,10 +792,26 @@ testthat::test_that("terminal Agent Runs clear partial state and release the Rea
   testthat::expect_identical(completed$status, "completed")
   testthat::expect_identical(completed$terminal_at, finished_at)
   testthat::expect_null(completed$partial_response)
+  testthat::expect_identical(
+    completed$response_text,
+    "A useful beginning"
+  )
   testthat::expect_null(completed$lease_expires_at)
   testthat::expect_identical(completed$usage, usage)
   testthat::expect_identical(completed$terminal_reason, "complete")
   testthat::expect_identical(completed$deputy_run_id, "deputy-run-17")
+
+  completed <- store_record_agent_run_response(
+    store,
+    reader_id = "reader-1",
+    run_id = run$run_id,
+    worker_id = "worker-1",
+    response_text = "The final complete response"
+  )
+  testthat::expect_identical(
+    completed$response_text,
+    "The final complete response"
+  )
 
   next_run <- store_start_agent_run(
     store,

@@ -523,7 +523,10 @@ store_fail_unstarted_agent_run <- function(
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "UPDATE agent_runs SET status = 'failed', partial_response = NULL,",
+        paste(
+          "UPDATE agent_runs SET status = 'failed',",
+          "partial_response = NULL, response_text = NULL,"
+        ),
         "lease_expires_at = NULL, terminal_reason = $4,",
         "terminal_at = $5, updated_at = $5",
         paste(
@@ -548,6 +551,7 @@ store_fail_unstarted_agent_run <- function(
 
   run$status <- "failed"
   run$partial_response <- NULL
+  run$response_text <- NULL
   run$lease_expires_at <- NULL
   run$terminal_reason <- terminal_reason
   run$terminal_at <- failed_at
@@ -601,6 +605,58 @@ store_record_agent_run_partial <- function(
   run$partial_response <- partial_response
   run$updated_at <- updated_at
   run$lease_expires_at <- lease_expires_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
+store_record_agent_run_response <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  response_text,
+  updated_at = utc_now()
+) {
+  if (
+    !is.character(response_text) ||
+      length(response_text) != 1L ||
+      is.na(response_text) ||
+      !nzchar(response_text)
+  ) {
+    return(NULL)
+  }
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET response_text = $4, updated_at = $5",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          "AND status IN ('running', 'completed')"
+        ),
+        "RETURNING *"
+      ),
+      params = list(
+        reader_id,
+        run_id,
+        worker_id,
+        response_text,
+        updated_at
+      )
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !run$status %in% c("running", "completed") ||
+      !identical(run$worker_id, worker_id)
+  ) {
+    return(NULL)
+  }
+  run$response_text <- response_text
+  run$updated_at <- updated_at
   store$memory$agent_runs[[run_id]] <- run
   run
 }
@@ -807,7 +863,10 @@ store_finish_agent_run <- function(
       paste(
         "UPDATE agent_runs SET status = $4, partial_response = NULL,",
         paste(
-          "lease_expires_at = NULL, usage = $5::jsonb,",
+          "response_text = CASE WHEN $4 = 'completed' THEN",
+          "COALESCE(response_text, partial_response) ELSE NULL END,",
+          "lease_expires_at = NULL,",
+          "usage = $5::jsonb,",
           "terminal_reason = $6, deputy_run_id = $7, terminal_at = $8,",
           "updated_at = $8"
         ),
@@ -816,6 +875,10 @@ store_finish_agent_run <- function(
           "AND status IN ('running', 'cancelling')"
         ),
         "AND ($4 <> 'cancelled' OR status = 'cancelling')",
+        paste(
+          "AND ($4 <> 'completed' OR status = 'running'",
+          "OR kind <> 'question')"
+        ),
         "RETURNING *"
       ),
       params = list(
@@ -838,12 +901,24 @@ store_finish_agent_run <- function(
       !run$status %in% c("running", "cancelling") ||
       !identical(run$worker_id, worker_id) ||
       (identical(status, "cancelled") &&
-        !identical(run$status, "cancelling"))
+        !identical(run$status, "cancelling")) ||
+      (identical(status, "completed") &&
+        identical(run$kind, "question") &&
+        !identical(run$status, "running"))
   ) {
     return(NULL)
   }
 
   run$status <- status
+  if (
+    identical(status, "completed") &&
+      is.null(run$response_text) &&
+      nzchar(run$partial_response %||% "")
+  ) {
+    run$response_text <- run$partial_response
+  } else if (!identical(status, "completed")) {
+    run$response_text <- NULL
+  }
   run$partial_response <- NULL
   run$lease_expires_at <- NULL
   run$usage <- usage
@@ -869,7 +944,8 @@ store_interrupt_agent_run <- function(
       paste(
         "UPDATE agent_runs SET status = 'interrupted',",
         paste(
-          "partial_response = NULL, lease_expires_at = NULL,",
+          "partial_response = NULL, response_text = NULL,",
+          "lease_expires_at = NULL,",
           "terminal_reason = $4, terminal_at = $5, updated_at = $5"
         ),
         paste(
@@ -899,6 +975,7 @@ store_interrupt_agent_run <- function(
   }
   run$status <- "interrupted"
   run$partial_response <- NULL
+  run$response_text <- NULL
   run$lease_expires_at <- NULL
   run$terminal_reason <- terminal_reason
   run$terminal_at <- interrupted_at
@@ -1042,7 +1119,8 @@ store_interrupt_agent_runs <- function(
       paste(
         "UPDATE agent_runs SET status = 'interrupted',",
         paste(
-          "partial_response = NULL, lease_expires_at = NULL,",
+          "partial_response = NULL, response_text = NULL,",
+          "lease_expires_at = NULL,",
           "terminal_reason = $2, terminal_at = $1,",
           "updated_at = $1"
         ),
@@ -1073,6 +1151,7 @@ store_interrupt_agent_runs <- function(
 
     run$status <- "interrupted"
     run$partial_response <- NULL
+    run$response_text <- NULL
     run$lease_expires_at <- NULL
     run$terminal_reason <- terminal_reason
     run$terminal_at <- recovered_at
@@ -1321,6 +1400,7 @@ agent_run_from_row <- function(row) {
     "worker_id",
     "lease_expires_at",
     "partial_response",
+    "response_text",
     "cancel_requested_at",
     "terminal_at",
     "terminal_reason",

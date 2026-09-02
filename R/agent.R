@@ -352,7 +352,11 @@ rill_agent_shiny_stream <- function(agent, prompt, run_context = list()) {
   stream_async(prompt, stream = "content", run_context = run_context)
 }
 
-track_reader_agent_stream <- function(stream, on_partial) {
+track_reader_agent_stream <- function(
+  stream,
+  on_partial,
+  on_complete = \(response) invisible(NULL)
+) {
   if (!inherits(stream, "coro_generator_instance")) {
     return(stream)
   }
@@ -362,6 +366,10 @@ track_reader_agent_stream <- function(stream, on_partial) {
     repeat {
       chunk <- coro::await(stream())
       if (coro::is_exhausted(chunk)) {
+        response <- paste(parts, collapse = "")
+        if (nzchar(response)) {
+          on_complete(response)
+        }
         break
       }
 

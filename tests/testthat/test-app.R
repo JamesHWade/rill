@@ -117,11 +117,12 @@ testthat::test_that("installed runtime assets are available", {
     rill_package_file("sql", "003_agent_run_question_kind.sql"),
     rill_package_file("sql", "004_orientations.sql"),
     rill_package_file("sql", "005_orientation_data_destination_settings.sql"),
-    rill_package_file("sql", "006_deferred_reader_questions.sql")
+    rill_package_file("sql", "006_deferred_reader_questions.sql"),
+    rill_package_file("sql", "007_agent_run_response.sql")
   )
 
-  testthat::expect_length(assets, 11L)
-  testthat::expect_identical(file.exists(assets), rep(TRUE, 11L))
+  testthat::expect_length(assets, 12L)
+  testthat::expect_identical(file.exists(assets), rep(TRUE, 12L))
 })
 
 testthat::test_that("chat submissions receive an idempotency token", {

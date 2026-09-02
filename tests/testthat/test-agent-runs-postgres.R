@@ -154,7 +154,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "003_agent_run_question_kind",
       "004_orientations",
       "005_orientation_data_destination_settings",
-      "006_deferred_reader_questions"
+      "006_deferred_reader_questions",
+      "007_agent_run_response"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
@@ -306,6 +307,19 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(claimed$status, "running")
   testthat::expect_identical(claimed$worker_id, "worker-1")
 
+  responded <- store_record_agent_run_response(
+    store,
+    reader_id = "reader-1",
+    run_id = first$run_id,
+    worker_id = "worker-1",
+    response_text = "The complete response",
+    updated_at = requested_at + 1.5
+  )
+  testthat::expect_identical(
+    responded$response_text,
+    "The complete response"
+  )
+
   completed <- store_finish_agent_run(
     store,
     reader_id = "reader-1",
@@ -326,6 +340,22 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(completed$terminal_reason, "complete")
   testthat::expect_identical(completed$deputy_run_id, "deputy-run-17")
   testthat::expect_identical(
+    completed$response_text,
+    "The complete response"
+  )
+  completed <- store_record_agent_run_response(
+    store,
+    reader_id = "reader-1",
+    run_id = first$run_id,
+    worker_id = "worker-1",
+    response_text = "The final complete response",
+    updated_at = requested_at + 2.5
+  )
+  testthat::expect_identical(
+    completed$response_text,
+    "The final complete response"
+  )
+  testthat::expect_identical(
     store_get_agent_run(store, "reader-1", first$run_id),
     completed
   )
@@ -333,8 +363,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   second <- store_start_agent_run(
     store,
     reader_id = "reader-1",
-    kind = "orientation",
-    request_key = "orientation-library-42",
+    kind = "question",
+    request_key = "question-library-42",
     pinned_inputs = list(document_id = "document-2"),
     requested_at = requested_at + 3
   )
@@ -352,6 +382,19 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     requested_at = requested_at + 90
   )
   testthat::expect_identical(cancelling$status, "cancelling")
+  rejected <- store_finish_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = second$run_id,
+    worker_id = "worker-1",
+    status = "completed",
+    finished_at = requested_at + 90.5
+  )
+  testthat::expect_null(rejected)
+  testthat::expect_identical(
+    store_get_agent_run(store, "reader-1", second$run_id)$status,
+    "cancelling"
+  )
   cancelled <- store_finish_agent_run(
     store,
     reader_id = "reader-1",
