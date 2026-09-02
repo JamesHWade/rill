@@ -63,6 +63,23 @@ Orientation followed by selection and reading, optional User Engagement for
 understanding or connection-making, and an explicitly initiated Carry-forward.
 _Avoid_: Agent workflow, chat session
 
+### Agency and authority
+
+**Action Proposal**:
+A reader-visible preview of a bounded durable change an agent could make. It has
+no effect until the Reader directly accepts it.
+_Avoid_: Action, recommendation, tool call
+
+**Approval**:
+A Reader's direct request or acceptance authorizing one bounded outcome. It does
+not authorize unrelated changes or future action outside standing maintenance.
+_Avoid_: Blanket permission, tool permission
+
+**Action Receipt**:
+An inspectable Reading History record of an authorized action, its scope,
+outcome, and reversal status. It is neither Reader Memory nor a Reading Artifact.
+_Avoid_: Transcript, tool log, Reading Artifact
+
 ### Evidence and interpretation
 
 **Original Source**:
@@ -122,8 +139,9 @@ _Avoid_: Local, backend
 ### Memory
 
 **Reading History**:
-A record of observable reading activity. It may contribute Reader Context but
-is neither User Engagement nor Reader Memory.
+A record of observable reading activity and visible decisions about agent
+actions. It may contribute Reader Context but is neither User Engagement nor
+Reader Memory.
 _Avoid_: Engagement, preference, Reader Memory
 
 **Reader Memory**:
