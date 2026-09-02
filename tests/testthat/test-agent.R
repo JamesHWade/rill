@@ -47,6 +47,18 @@ testthat::test_that("Agent destinations have stable consent identities", {
     base_url = "http://ollama.example:11434"
   )
   unknown <- rill_agent_data_destination_details("other/model")
+  gateway_a <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:8443/provider-a"
+  )
+  gateway_b <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:8443/provider-b"
+  )
+  gateway_port <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:9443/provider-a"
+  )
 
   testthat::expect_identical(openai$id, upgraded$id)
   testthat::expect_identical(identical(openai$id, changed_policy$id), FALSE)
@@ -56,6 +68,9 @@ testthat::test_that("Agent destinations have stable consent identities", {
   testthat::expect_identical(remote$kind, "external")
   testthat::expect_identical(identical(local$id, remote$id), FALSE)
   testthat::expect_identical(unknown$kind, "external")
+  testthat::expect_identical(gateway_a$label, gateway_b$label)
+  testthat::expect_identical(identical(gateway_a$id, gateway_b$id), FALSE)
+  testthat::expect_identical(identical(gateway_a$id, gateway_port$id), FALSE)
 })
 
 testthat::test_that("the provider projection removes source credentials", {
@@ -237,6 +252,10 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
   )
   testthat::expect_identical(
     rill_agent_runtime_identity(agent, "openai"),
-    list(model = "gpt-5.4", data_destination = "OpenAI")
+    list(
+      model = "gpt-5.4",
+      data_destination = "OpenAI",
+      data_destination_id = rill_agent_data_destination_details("openai")$id
+    )
   )
 })

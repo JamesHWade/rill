@@ -118,6 +118,13 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
   )
   testthat::expect_identical(run$pinned_inputs$model, "gpt-test")
   testthat::expect_identical(
+    run$pinned_inputs$data_destination_id,
+    rill_agent_data_destination_details(
+      "openai/gpt-test",
+      policy_url = "https://provider.example/privacy"
+    )$id
+  )
+  testthat::expect_identical(
     call$run_context$rill_agent_run_id,
     run$run_id
   )

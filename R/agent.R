@@ -300,7 +300,8 @@ rill_agent_chat_call <- function(agent, name, default = NULL) {
 rill_agent_runtime_identity <- function(
   agent,
   configured_model,
-  configured_destination = NULL
+  configured_destination = NULL,
+  configured_destination_id = NULL
 ) {
   provider <- rill_agent_method(agent, "provider")
   identity <- if (is.null(provider)) {
@@ -318,7 +319,13 @@ rill_agent_runtime_identity <- function(
   data_destination <- configured_destination %||%
     provider_name %||%
     rill_agent_data_destination(configured_model)
-  list(model = model, data_destination = data_destination)
+  data_destination_id <- configured_destination_id %||%
+    rill_agent_data_destination_details(configured_model)$id
+  list(
+    model = model,
+    data_destination = data_destination,
+    data_destination_id = data_destination_id
+  )
 }
 
 rill_agent_shiny_stream <- function(agent, prompt, run_context = list()) {

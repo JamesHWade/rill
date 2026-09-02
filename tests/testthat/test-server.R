@@ -1141,6 +1141,7 @@ testthat::test_that("a replacement session resumes a deferred question", {
       document_ids = document$document_id
     ),
     data_destination = "OpenAI at api.openai.com",
+    data_destination_id = rill_agent_data_destination_details("openai")$id,
     question = "What changed?",
     model = "openai",
     policy_version = "ask-rill-v1",
@@ -1213,7 +1214,8 @@ testthat::test_that("a replacement session resumes a deferred question", {
 testthat::test_that("preserved questions require their runtime identity", {
   pinned <- list(
     model = "gpt-accepted",
-    data_destination = "Provider at accepted.example"
+    data_destination = "Provider at accepted.example",
+    data_destination_id = "destination-accepted"
   )
   testthat::expect_no_error(rill_assert_question_runtime_identity(
     pinned,
@@ -1224,7 +1226,8 @@ testthat::test_that("preserved questions require their runtime identity", {
       pinned,
       list(
         model = "gpt-changed",
-        data_destination = pinned$data_destination
+        data_destination = pinned$data_destination,
+        data_destination_id = pinned$data_destination_id
       )
     ),
     class = "rill_agent_runtime_identity_changed"
@@ -1234,7 +1237,19 @@ testthat::test_that("preserved questions require their runtime identity", {
       pinned,
       list(
         model = pinned$model,
-        data_destination = "Provider at changed.example"
+        data_destination = "Provider at changed.example",
+        data_destination_id = "destination-changed"
+      )
+    ),
+    class = "rill_agent_runtime_identity_changed"
+  )
+  testthat::expect_error(
+    rill_assert_question_runtime_identity(
+      pinned,
+      list(
+        model = pinned$model,
+        data_destination = pinned$data_destination,
+        data_destination_id = "destination-changed"
       )
     ),
     class = "rill_agent_runtime_identity_changed"
@@ -1272,7 +1287,8 @@ testthat::test_that("a deferred question rejects a changed destination", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at old.example",
+    data_destination = "OpenAI at api.openai.com",
+    data_destination_id = "agent-data-destination-old-endpoint",
     question = "What changed?",
     model = config$agent_model,
     policy_version = "ask-rill-v1",
@@ -1608,6 +1624,10 @@ testthat::test_that("asking about a story runs Deputy through shinychat", {
     testthat::expect_identical(
       run$pinned_inputs$data_destination,
       "OpenAI at api.openai.com"
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$data_destination_id,
+      rill_agent_data_destination_details("openai")$id
     )
     testthat::expect_identical(run$pinned_inputs$model, "openai")
     testthat::expect_identical(
@@ -2326,6 +2346,7 @@ testthat::test_that("a restarted question remains visible and retryable", {
         document_ids = document$document_id
       ),
       data_destination = "OpenAI at api.openai.com",
+      data_destination_id = rill_agent_data_destination_details("openai")$id,
       question = "What changed?",
       model = "openai",
       policy_version = "ask-rill-v1",

@@ -240,13 +240,15 @@ maintain_orientation_async <- function(
   runtime_identity <- if (inherits(agent, "error")) {
     list(
       model = model,
-      data_destination = rill_agent_data_destination(model, base_url)
+      data_destination = destination_state$destination$label,
+      data_destination_id = destination_id
     )
   } else {
     rill_agent_runtime_identity(
       agent,
       model,
-      configured_destination = rill_agent_data_destination(model, base_url)
+      configured_destination = destination_state$destination$label,
+      configured_destination_id = destination_id
     )
   }
   pinned_inputs <- list(
@@ -255,6 +257,7 @@ maintain_orientation_async <- function(
     candidate_document_ids = boundary$document_ids,
     candidate_limit = as.integer(candidate_limit),
     data_destination = runtime_identity$data_destination,
+    data_destination_id = runtime_identity$data_destination_id,
     model = runtime_identity$model,
     policy_version = policy_version,
     limits = rill_orientation_run_limits()

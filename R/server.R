@@ -58,11 +58,13 @@ rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
   }
   expected <- list(
     model = pinned_inputs$model %||% NULL,
-    data_destination = pinned_inputs$data_destination %||% NULL
+    data_destination = pinned_inputs$data_destination %||% NULL,
+    data_destination_id = pinned_inputs$data_destination_id %||% NULL
   )
   actual <- list(
     model = runtime$model %||% NULL,
-    data_destination = runtime$data_destination %||% NULL
+    data_destination = runtime$data_destination %||% NULL,
+    data_destination_id = runtime$data_destination_id %||% NULL
   )
   if (!identical(expected, actual)) {
     cli::cli_abort(
@@ -892,22 +894,22 @@ rill_server <- function(config, store) {
         reader_agent_for(document),
         error = \(error) error
       )
+      configured_destination <- rill_agent_data_destination_details(
+        config$agent_model,
+        base_url = config$agent_base_url %||% ""
+      )
       runtime_identity <- if (inherits(agent, "error")) {
         list(
           model = config$agent_model,
-          data_destination = rill_agent_data_destination(
-            config$agent_model,
-            config$agent_base_url %||% ""
-          )
+          data_destination = configured_destination$label,
+          data_destination_id = configured_destination$id
         )
       } else {
         rill_agent_runtime_identity(
           agent,
           config$agent_model,
-          configured_destination = rill_agent_data_destination(
-            config$agent_model,
-            config$agent_base_url %||% ""
-          )
+          configured_destination = configured_destination$label,
+          configured_destination_id = configured_destination$id
         )
       }
       preserved_inputs <- pinned_inputs %||% retry_of$pinned_inputs %||% NULL
@@ -940,6 +942,7 @@ rill_server <- function(config, store) {
               document_ids = document$document_id
             ),
             data_destination = runtime_identity$data_destination,
+            data_destination_id = runtime_identity$data_destination_id,
             question = question,
             model = runtime_identity$model,
             policy_version = "ask-rill-v1",
