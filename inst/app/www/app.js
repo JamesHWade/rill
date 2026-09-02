@@ -55,6 +55,8 @@
   let lastHeartbeatAt = 0;
   let milestones = new Set();
   let fileResetRegistered = false;
+  let chatSubmissionRegistered = false;
+  let chatSubmissionIndex = 0;
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -255,6 +257,29 @@
     fileResetRegistered = true;
   }
 
+  function registerChatSubmissionIds() {
+    if (chatSubmissionRegistered || !window.jQuery || !window.Shiny) return;
+    window.jQuery(document).on("shiny:inputchanged.rillChatSubmission", function (event) {
+      if (
+        event.name !== "reader_chat_user_input" ||
+        !["", "shinychat.userInput"].includes(event.inputType)
+      ) {
+        return;
+      }
+      chatSubmissionIndex += 1;
+      const sequence =
+        event.value && event.value.seq != null
+          ? event.value.seq
+          : chatSubmissionIndex;
+      window.Shiny.setInputValue(
+        "reader_chat_submission_id",
+        String(sequence),
+        { priority: "event" }
+      );
+    });
+    chatSubmissionRegistered = true;
+  }
+
   function registerAppearanceControl() {
     const controls = document.querySelectorAll(
       'input[name="rill_theme_mode"]'
@@ -275,12 +300,14 @@
     );
     if (!compactDesktop.matches) return;
 
-    const sidebar = document.getElementById("navigation_sidebar");
-    const layout = sidebar && sidebar.parentElement;
-    const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
-    if (layout && toggle && !layout.classList.contains("sidebar-collapsed")) {
-      toggle.click();
-    }
+    ["navigation_sidebar", "reader_agent_sidebar"].forEach(function (id) {
+      const sidebar = document.getElementById(id);
+      const layout = sidebar && sidebar.parentElement;
+      const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
+      if (layout && toggle && !layout.classList.contains("sidebar-collapsed")) {
+        toggle.click();
+      }
+    });
   }
 
   function handleSystemThemeChange() {
@@ -307,6 +334,7 @@
     watchScroll();
     syncReader();
     registerFileReset();
+    registerChatSubmissionIds();
     new MutationObserver(syncReader).observe(document.body, {
       childList: true,
       subtree: true
@@ -314,7 +342,10 @@
     window.setInterval(heartbeat, 15000);
   });
 
-  document.addEventListener("shiny:connected", registerFileReset);
+  document.addEventListener("shiny:connected", function () {
+    registerFileReset();
+    registerChatSubmissionIds();
+  });
 
   document.addEventListener("keydown", handleShortcut);
 

@@ -6,6 +6,7 @@ const required = [
   "app.R",
   "DESCRIPTION",
   "inst/sql/001_init.sql",
+  "inst/sql/002_agent_runs.sql",
   "inst/app/www/app.js",
   "inst/app/www/styles.css"
 ];

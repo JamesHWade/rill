@@ -9,6 +9,7 @@ reference:
     contents:
       - rill_app
       - poll_feeds
+      - prepare_today
 
   - title: Subscription interchange
     desc: Move feed subscriptions into and out of Rill with OPML.

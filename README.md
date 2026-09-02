@@ -8,6 +8,7 @@ for later analysis:
 - OPML import and export with folder preservation
 - conditional refreshes using ETag and Last-Modified
 - clean reading copies from Defuddle or a local browser capture, cached in Postgres
+- Ask Rill, with source-grounded questions handled by a tightly bounded Deputy Agent embedded in the reader
 - read, star, and save state
 - an append-only interaction ledger for impressions, opens, scroll milestones, dwell heartbeats, and outbound clicks
 - vendor-neutral OpenTelemetry traces and logs, ready for Logfire
@@ -22,6 +23,7 @@ The working title is **Rill**. Rename it freely.
 | Feed discovery and parsing | R (`httr2`, `xml2`) | Small enough to keep inside the app initially |
 | Clean article document | Defuddle or authenticated browser capture | Keeps exact Markdown and producer provenance behind one document boundary |
 | Reader UI | Shiny + `bslib` | Keeps the product fully in R |
+| Ask Rill | Deputy + shinychat | Streams governed answers from one pinned immutable Document |
 | Durable state | Neon Postgres | Connect Cloud instances should not be treated as durable filesystems |
 | Product behavior | `events` table in Neon | Interaction data remains queryable application data |
 | Operations and diagnostics | OpenTelemetry → Logfire | Disclosed, opt-out traces remain non-authoritative diagnostic data |
@@ -54,6 +56,31 @@ With no `DATABASE_URL`, Rill loads six bundled stories and exercises the UI and 
 
 On desktop, press `J` or `K` to move to the next or previous visible story, `O` to open the selected story's original page in a new tab, `S` to toggle Saved, and `F` to toggle Starred. Shortcuts are disabled while typing in a form field.
 
+## Ask Rill about a story
+
+Select a story and use the **Ask Rill** panel without leaving the reading
+surface. Rill creates a session-scoped Deputy Agent with one read-only tool: it
+can retrieve the selected immutable Document and its provenance, but it cannot
+browse the web, read or write files, run a shell, or execute R code. Answers are
+prompted to distinguish source evidence, interpretation, and unsupported gaps.
+The panel names the configured model provider that receives the Reader's
+question and the provider-safe projection of the selected Document.
+
+Set the model and the matching provider credential before launching Rill. The
+default uses ellmer's OpenAI provider:
+
+```text
+RILL_AGENT_MODEL=openai
+OPENAI_API_KEY=your-key
+```
+
+Any model specification supported by `ellmer::chat()` can be supplied through
+`RILL_AGENT_MODEL`. Ask Rill messages currently last for the Shiny session;
+durable Conversation history is a follow-up. Each question still receives
+a bounded Agent Run. In PostgreSQL mode, its pinned Document identity, lifecycle,
+usage, terminal reason, and Deputy run ID persist across app restarts. Demo-mode
+Agent Runs reset with the R process.
+
 The Today view includes **Prepare**, which extracts and persistently caches any
 missing clean reading copies. Existing captured or extracted documents are
 preserved, and failures remain available for a later retry. The same operation
@@ -78,8 +105,8 @@ write_opml(subscriptions, "rill-subscriptions.opml")
 ## Add Neon
 
 Create a Neon project and copy its pooled Postgres connection string. Set it as
-`DATABASE_URL`; include `sslmode=require`. Rill applies the installed,
-idempotent schema when the app starts.
+`DATABASE_URL`; include `sslmode=require`. Rill applies ordered, checksummed
+schema migrations when the app starts.
 
 For local development, put variables in your normal secret-management flow or load an uncommitted `.env`. The repository includes `.env.example` only as a field reference. Do not commit a real Neon password.
 
@@ -180,7 +207,8 @@ URL matches. Otherwise it creates an unread entry under **Local captures**.
 Documents are immutable: exact content, producer version and metadata, source
 URLs, producer record ID, capture time, receipt time, and hashes remain
 available while a separate head record selects the reading copy. That document
-interface is also the input seam reserved for the future Orientation agent.
+interface now grounds Ask Rill and is also the input seam reserved for
+Orientation.
 Demo-mode captures work but disappear when the R process restarts.
 
 ## Logfire and telemetry
@@ -189,13 +217,12 @@ The current code emits low-cardinality, content-free spans and logs around
 database setup, feed HTTP work, and document extraction. It never intentionally
 sends article titles, article bodies, or full URLs to the telemetry backend.
 
-The agent-native v1 design also permits opt-out Conversation tracing after the
-Reader confirms Logfire as a content-bearing Data Destination. shinychat history
-remains the canonical reader-visible record. The diagnostic OpenTelemetry copy
-may contain those visible messages and sanitized structural spans, but not
-hidden instructions, credentials, raw Documents, tool payloads, or unsanitized
-exceptions. Deleting shinychat history cannot promise earlier deletion than
-Logfire's disclosed retention period. This path is planned but not yet
+The reader now includes Ask Rill, but content-bearing agent-interaction
+telemetry remains disabled. The agent-native v1 design permits
+opt-out Conversation tracing only after the Reader confirms Logfire as a Data
+Destination. The future diagnostic copy may contain visible messages and
+sanitized structural spans, but not hidden instructions, credentials, raw
+Documents, tool payloads, or unsanitized exceptions. This export path is not yet
 implemented.
 
 Set the standard OTLP variables:
@@ -208,11 +235,14 @@ OTEL_LOGS_EXPORTER=http
 OTEL_METRICS_EXPORTER=none
 OTEL_R_SUPPRESS_SCOPES=httr2
 OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false
 OTEL_EXPORTER_OTLP_ENDPOINT=https://logfire-us.pydantic.dev
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=your-logfire-write-token
 ```
 
 `OTEL_R_SUPPRESS_SCOPES=httr2` matters: automatic HTTP semantic spans may contain complete request URLs, which would leak part of the reading history. Rill's own enclosing spans identify only the operation and extractor, not the destination.
+
+Rill refuses to start when `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` is enabled. The standard ellmer instrumentation flag can export prompts, responses, and tool results; Rill keeps it disabled until a separately accepted, sanitized Ask Rill tracing path exists.
 
 Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honeycomb, or another collector can replace Logfire without changing the app's instrumentation. The `events` table is deliberately separate: those records are the material for later ranking, daily review, and behavioral analysis.
 
@@ -221,7 +251,7 @@ Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honey
 1. Run `rsconnect::writeManifest()` and commit the resulting `manifest.json`.
 2. Run the tests and launch the app locally.
 3. Push the project to the Git repository used by Connect Cloud, or publish it from Positron/RStudio.
-4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
+4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, `RILL_AGENT_MODEL`, its provider API key, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
 5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
 
 The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably. A scheduler can run `rill::prepare_today()` afterward to pre-build clean reading copies for the current local day.
@@ -268,9 +298,8 @@ This is enough to derive useful daily features without pretending every signal m
 
 ## Immediate next cuts
 
-Build the small browser-side capture adapter against the documented endpoint,
-then collect real reading and capture behavior. The future Orientation agent can
-consume current immutable Documents through one interface while retaining each
-Document's acquisition provenance and limitations for citation inspection.
-Search, embeddings, and summaries should still enter only through an accepted
-reading workflow rather than as standalone features.
+Collect real reading, capture, and Ask Rill feedback. The
+next agent slice can maintain Orientation from current immutable Documents while
+retaining each Document's acquisition provenance and limitations for evidence
+inspection. Search, embeddings, and summaries should still enter only through
+an accepted reading workflow rather than as standalone features.

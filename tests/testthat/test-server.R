@@ -28,6 +28,887 @@ testthat::test_that("selecting a story records the open and updates the queue", 
   })
 })
 
+testthat::test_that("asking about a story runs Deputy through shinychat", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  invocation <- NULL
+  appended <- NULL
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(..., document, on_stop) {
+      list(stream_async = function(prompt, stream, run_context) {
+        invocation <<- list(
+          document_id = document$document_id,
+          prompt = prompt,
+          stream = stream,
+          run_context = run_context
+        )
+        list(
+          consume = function() {
+            on_stop(
+              "complete",
+              list(
+                usage = list(requests = 1L, output_tokens = 42L),
+                run_context = run_context,
+                run_id = "deputy-run-1"
+              )
+            )
+            "Streamed source-grounded response"
+          }
+        )
+      })
+    },
+    append_reader_chat = function(response, session) {
+      if (is.character(response)) {
+        appended <<- response
+        return(promises::promise_resolve(response))
+      }
+      appended <<- response$consume()
+      promises::promise_resolve(appended)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(
+      reader_chat_user_input = "What is the author's main point?"
+    )
+    session$flushReact()
+
+    run <- active_agent_run()
+    testthat::expect_identical(run$status, "completed")
+    testthat::expect_identical(
+      run$pinned_inputs$document_id,
+      invocation$document_id
+    )
+    document <- selected_document()
+    testthat::expect_identical(
+      run$pinned_inputs$submission_id,
+      run$request_key
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$document_content_hash,
+      document$content_hash
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$document_record_hash,
+      document$record_hash
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$research_scope,
+      list(
+        kind = "selected_document",
+        document_ids = document$document_id
+      )
+    )
+    testthat::expect_identical(
+      run$pinned_inputs$data_destination,
+      "OpenAI"
+    )
+    testthat::expect_identical(run$pinned_inputs$model, "openai")
+    testthat::expect_identical(
+      run$pinned_inputs$limits,
+      rill_agent_run_limits()
+    )
+    testthat::expect_identical(
+      invocation$prompt,
+      "What is the author's main point?"
+    )
+    testthat::expect_identical(invocation$stream, "content")
+    testthat::expect_identical(
+      invocation$run_context$rill_agent_run_id,
+      run$run_id
+    )
+    testthat::expect_identical(
+      appended,
+      "Streamed source-grounded response"
+    )
+    testthat::expect_identical(run$terminal_reason, "complete")
+    testthat::expect_identical(run$deputy_run_id, "deputy-run-1")
+    testthat::expect_identical(run$usage$requests, 1L)
+  })
+})
+
+testthat::test_that("a re-delivered chat submission reuses its Agent Run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  invocations <- 0L
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(on_stop, ...) {
+      list(stream_async = function(prompt, stream, run_context) {
+        invocations <<- invocations + 1L
+        list(consume = function() {
+          on_stop(
+            "complete",
+            list(
+              usage = list(requests = 1L),
+              run_context = run_context,
+              run_id = "deputy-run-idempotent"
+            )
+          )
+          "response"
+        })
+      })
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response$consume())
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1),
+      reader_chat_submission_id = "17"
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "What is the main claim?")
+    session$flushReact()
+    first <- active_agent_run()
+
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "What is the main claim?")
+    session$flushReact()
+    replay <- active_agent_run()
+
+    testthat::expect_identical(invocations, 1L)
+    testthat::expect_identical(replay$run_id, first$run_id)
+    testthat::expect_identical(replay$status, "completed")
+  })
+})
+
+testthat::test_that("cancelling a question terminalizes the same Agent Run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  interrupted <- NULL
+  stream_context <- NULL
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(on_stop, ...) {
+      list(
+        stream_async = function(prompt, stream, run_context) {
+          stream_context <<- run_context
+          "pending stream"
+        },
+        interrupt = function(reason) {
+          interrupted <<- reason
+          on_stop(
+            reason,
+            list(
+              usage = list(requests = 1L),
+              run_context = stream_context,
+              run_id = "deputy-run-cancelled"
+            )
+          )
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      reader_chat_user_input = NULL,
+      reader_chat_cancel = NULL
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+
+    running <- active_agent_run()
+    testthat::expect_identical(running$status, "running")
+    testthat::expect_equal(
+      as.numeric(
+        difftime(
+          running$lease_expires_at,
+          running$started_at,
+          units = "secs"
+        )
+      ),
+      rill_agent_wall_time_seconds()
+    )
+
+    session$setInputs(reader_chat_cancel = 1L)
+    session$flushReact()
+
+    cancelled <- active_agent_run()
+    testthat::expect_identical(interrupted, "reader_cancelled")
+    testthat::expect_identical(cancelled$run_id, running$run_id)
+    testthat::expect_identical(cancelled$status, "cancelled")
+    testthat::expect_identical(cancelled$terminal_reason, "reader_cancelled")
+    testthat::expect_identical(
+      cancelled$deputy_run_id,
+      "deputy-run-cancelled"
+    )
+  })
+})
+
+testthat::test_that("a claim error terminalizes the pending Agent Run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  claim_agent_run <- store_claim_agent_run
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = \(...) list(),
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    },
+    store_claim_agent_run = function(...) {
+      claim_agent_run(...)
+      cli::cli_abort(
+        "The database connection was interrupted.",
+        class = "test_database_error"
+      )
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+
+    failed <- active_agent_run()
+    testthat::expect_identical(failed$status, "failed")
+    testthat::expect_identical(
+      failed$terminal_reason,
+      "claim_error:test_database_error"
+    )
+    next_run <- store_start_agent_run(
+      store,
+      reader_id = config$actor_id,
+      kind = "question",
+      request_key = "next-question",
+      pinned_inputs = list(document_id = "next-document")
+    )
+    testthat::expect_identical(next_run$status, "pending")
+  })
+})
+
+testthat::test_that("a start error terminalizes its owned pending Agent Run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  start_agent_run <- store_start_agent_run
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = \(...) list(),
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    },
+    store_start_agent_run = function(...) {
+      start_agent_run(...)
+      cli::cli_abort(
+        "The database response was lost after the write.",
+        class = "test_database_error"
+      )
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+
+    failed <- active_agent_run()
+    testthat::expect_identical(failed$status, "failed")
+    testthat::expect_identical(
+      failed$terminal_reason,
+      "start_error:test_database_error"
+    )
+    next_run <- start_agent_run(
+      store,
+      reader_id = config$actor_id,
+      kind = "question",
+      request_key = "next-question",
+      pinned_inputs = list(document_id = "next-document")
+    )
+    testthat::expect_identical(next_run$status, "pending")
+  })
+})
+
+testthat::test_that("a duplicate start error preserves the active Agent Run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  start_agent_run <- store_start_agent_run
+  state <- new.env(parent = emptyenv())
+  state$fail_start <- FALSE
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(..., document, on_stop) {
+      list(
+        stream_async = \(prompt, stream, run_context) "pending stream",
+        interrupt = \(reason) TRUE
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    },
+    store_start_agent_run = function(...) {
+      if (state$fail_start) {
+        cli::cli_abort(
+          "The database read was interrupted.",
+          class = "test_database_error"
+        )
+      }
+      start_agent_run(...)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      reader_chat_user_input = NULL,
+      reader_chat_submission_id = "submission-1"
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    running <- active_agent_run()
+    state$fail_start <- TRUE
+
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+
+    testthat::expect_identical(active_agent_run(), running)
+    testthat::expect_identical(
+      store_get_agent_run(store, config$actor_id, running$run_id),
+      running
+    )
+    deadline <- agent_run_deadlines[[running$run_id]]
+    if (is.function(deadline)) {
+      deadline()
+    }
+  })
+})
+
+testthat::test_that("an inactive Agent confirms cancellation", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(..., document, on_stop) {
+      list(
+        stream_async = \(prompt, stream, run_context) "pending stream",
+        interrupt = \(reason) FALSE
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      reader_chat_user_input = NULL,
+      reader_chat_cancel = NULL
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    running <- active_agent_run()
+
+    session$setInputs(reader_chat_cancel = 1L)
+    session$flushReact()
+
+    cancelled <- active_agent_run()
+    testthat::expect_identical(cancelled$run_id, running$run_id)
+    testthat::expect_identical(cancelled$status, "cancelled")
+    testthat::expect_identical(cancelled$terminal_reason, "reader_cancelled")
+    testthat::expect_null(agent_run_deadlines[[cancelled$run_id]])
+  })
+})
+
+testthat::test_that("a raced cancellation does not interrupt the Agent", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  interrupted <- character()
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(..., document, on_stop) {
+      list(
+        stream_async = \(prompt, stream, run_context) "pending stream",
+        interrupt = function(reason) {
+          interrupted <<- c(interrupted, reason)
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    },
+    store_request_agent_run_cancel = \(...) NULL
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      reader_chat_user_input = NULL,
+      reader_chat_cancel = NULL
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    session$setInputs(reader_chat_cancel = 1L)
+    session$flushReact()
+
+    testthat::expect_length(interrupted, 0L)
+    testthat::expect_identical(active_agent_run()$status, "running")
+  })
+})
+
+testthat::test_that("the wall deadline interrupts and terminalizes a response", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  interrupted <- NULL
+  stop_callback <- NULL
+  stream_context <- NULL
+
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 0,
+    rill_reader_agent = function(on_stop, ...) {
+      stop_callback <<- on_stop
+      list(
+        stream_async = function(prompt, stream, run_context) {
+          stream_context <<- run_context
+          "pending stream"
+        },
+        interrupt = function(reason) {
+          interrupted <<- reason
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    later::run_now(0)
+    session$flushReact()
+
+    run <- active_agent_run()
+    testthat::expect_identical(interrupted, "wall_time_limit")
+    testthat::expect_identical(run$status, "failed")
+    testthat::expect_identical(run$terminal_reason, "wall_time_limit")
+    testthat::expect_null(run$deputy_run_id)
+
+    session$setInputs(retry_agent_run = 1L)
+    session$flushReact()
+    testthat::expect_length(store$memory$agent_runs, 1L)
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = list(requests = 1L, output_tokens = 12L),
+        run_context = stream_context,
+        run_id = "deputy-run-time-limited"
+      )
+    )
+    settled <- active_agent_run()
+    testthat::expect_identical(settled$run_id, run$run_id)
+    testthat::expect_identical(settled$status, "failed")
+    testthat::expect_identical(
+      settled$terminal_reason,
+      "wall_time_limit"
+    )
+    testthat::expect_identical(
+      settled$terminal_at,
+      run$terminal_at
+    )
+    testthat::expect_identical(
+      settled$deputy_run_id,
+      "deputy-run-time-limited"
+    )
+    testthat::expect_identical(settled$usage$requests, 1L)
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = settled$usage,
+        run_context = stream_context,
+        run_id = "deputy-run-time-limited"
+      )
+    )
+    duplicate <- active_agent_run()
+    testthat::expect_identical(
+      duplicate$deputy_run_id,
+      settled$deputy_run_id
+    )
+
+    stop_callback(
+      "wall_time_limit",
+      list(
+        usage = list(requests = 99L),
+        run_context = stream_context,
+        run_id = "different-deputy-run"
+      )
+    )
+    rejected <- active_agent_run()
+    testthat::expect_identical(
+      rejected$deputy_run_id,
+      "deputy-run-time-limited"
+    )
+    testthat::expect_identical(rejected$usage$requests, 1L)
+  })
+})
+
+testthat::test_that("a deadline read error still interrupts and settles", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  get_agent_run <- store_get_agent_run
+  interrupted <- character()
+  stop_callback <- NULL
+  stream_context <- NULL
+  state <- new.env(parent = emptyenv())
+  state$fail_read <- FALSE
+
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 0,
+    rill_reader_agent = function(on_stop, ...) {
+      stop_callback <<- on_stop
+      list(
+        stream_async = function(prompt, stream, run_context) {
+          stream_context <<- run_context
+          "pending stream"
+        },
+        interrupt = function(reason) {
+          interrupted <<- c(interrupted, reason)
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      state$fail_read <- TRUE
+      promises::promise_resolve(response)
+    },
+    store_get_agent_run = function(...) {
+      if (state$fail_read) {
+        state$fail_read <- FALSE
+        cli::cli_abort(
+          "The database read was interrupted.",
+          class = "test_database_error"
+        )
+      }
+      get_agent_run(...)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    running <- active_agent_run()
+
+    later::run_now(0)
+    session$flushReact()
+
+    testthat::expect_identical(interrupted, "wall_time_limit")
+    testthat::expect_identical(active_agent_run()$status, "running")
+    testthat::expect_type(agent_run_deadlines[[running$run_id]], "closure")
+
+    state$fail_read <- TRUE
+    testthat::expect_error(
+      stop_callback(
+        "wall_time_limit",
+        list(
+          usage = list(requests = 1L),
+          run_context = stream_context,
+          run_id = "deputy-run-time-limited"
+        )
+      ),
+      class = "test_database_error"
+    )
+    testthat::expect_null(draining_agent_run_id())
+
+    for (iteration in seq_len(10)) {
+      later::run_now(0.25)
+      session$flushReact()
+      if (identical(active_agent_run()$status, "failed")) {
+        break
+      }
+    }
+
+    settled <- active_agent_run()
+    testthat::expect_identical(settled$status, "failed")
+    testthat::expect_identical(settled$terminal_reason, "wall_time_limit")
+    testthat::expect_null(draining_agent_run_id())
+  })
+})
+
+testthat::test_that("an interrupt error keeps the timed-out Agent draining", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 0,
+    rill_reader_agent = function(...) {
+      list(
+        stream_async = \(prompt, stream, run_context) "pending stream",
+        interrupt = function(reason) {
+          cli::cli_abort(
+            "The provider controller failed to cancel.",
+            class = "test_controller_cancel_failed"
+          )
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+    later::run_now(0)
+    session$flushReact()
+
+    timed_out <- active_agent_run()
+    testthat::expect_identical(timed_out$status, "failed")
+    testthat::expect_identical(
+      timed_out$terminal_reason,
+      "wall_time_limit"
+    )
+
+    session$setInputs(retry_agent_run = 1L)
+    session$flushReact()
+    testthat::expect_length(store$memory$agent_runs, 1L)
+    testthat::expect_identical(active_agent_run()$run_id, timed_out$run_id)
+  })
+})
+
+testthat::test_that("asking without a story returns a usable chat response", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  appended <- NULL
+
+  testthat::local_mocked_bindings(
+    append_reader_chat = function(response, session) {
+      appended <<- response
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "What does this say?")
+    session$flushReact()
+
+    testthat::expect_match(appended, "Choose a story", fixed = TRUE)
+    testthat::expect_null(active_agent_run())
+    testthat::expect_length(store$memory$agent_runs, 0L)
+  })
+})
+
+testthat::test_that("retry creates a linked Run over the pinned question", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  invocations <- list()
+
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(on_stop, ...) {
+      list(stream_async = function(prompt, stream, run_context) {
+        index <- length(invocations) + 1L
+        invocations[[index]] <<- list(
+          prompt = prompt,
+          run_context = run_context
+        )
+        list(consume = function() {
+          reason <- if (index == 1L) "provider_error" else "complete"
+          on_stop(
+            reason,
+            list(
+              usage = list(requests = 1L),
+              run_context = run_context,
+              run_id = paste0("deputy-run-", index)
+            )
+          )
+          paste("response", index)
+        })
+      })
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response$consume())
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      reader_chat_user_input = NULL,
+      retry_agent_run = NULL
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "What is the main claim?")
+    session$flushReact()
+
+    failed <- active_agent_run()
+    testthat::expect_identical(failed$status, "failed")
+
+    session$setInputs(retry_agent_run = 1L)
+    session$flushReact()
+
+    retried <- active_agent_run()
+    testthat::expect_identical(retried$status, "completed")
+    testthat::expect_identical(retried$retry_of_run_id, failed$run_id)
+    testthat::expect_identical(
+      retried$pinned_inputs,
+      failed$pinned_inputs
+    )
+    testthat::expect_identical(
+      vapply(invocations, `[[`, character(1), "prompt"),
+      rep("What is the main claim?", 2L)
+    )
+    testthat::expect_identical(
+      retried$deputy_run_id,
+      "deputy-run-2"
+    )
+  })
+})
+
+testthat::test_that("changing stories resets the source-bound Ask Rill chat", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_ids <- store$memory$entries$entry_id[1:2]
+  agent_documents <- character()
+  clear_count <- 0L
+
+  testthat::local_mocked_bindings(
+    clear_reader_chat = function(session) {
+      clear_count <<- clear_count + 1L
+    },
+    rill_reader_agent = function(document, on_stop, ...) {
+      agent_documents <<- c(agent_documents, document$document_id)
+      list(stream_async = function(prompt, stream, run_context) {
+        list(consume = function() {
+          on_stop(
+            "complete",
+            list(
+              usage = list(requests = 1L),
+              run_context = run_context,
+              run_id = paste0("deputy-run-", length(agent_documents))
+            )
+          )
+          "response"
+        })
+      })
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response$consume())
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_ids[[1]], position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Question one")
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_ids[[2]], position = 2L, nonce = 2)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Question two")
+    session$flushReact()
+
+    testthat::expect_identical(clear_count, 2L)
+    testthat::expect_length(unique(agent_documents), 2L)
+    testthat::expect_identical(
+      reader_agent_document_id(),
+      agent_documents[[2]]
+    )
+  })
+})
+
 testthat::test_that("marking a story unread keeps its open history", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

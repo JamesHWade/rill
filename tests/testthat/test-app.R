@@ -20,6 +20,64 @@ testthat::test_that("rill_app creates a Shiny application in demo mode", {
   testthat::expect_type(app$serverFuncSource, "closure")
 })
 
+testthat::test_that("rill_app interrupts Agent Runs orphaned by a restart", {
+  withr::local_envvar(DATABASE_URL = "")
+  store <- rill_store(list(demo_mode = TRUE))
+  recovered_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
+  statuses <- c("pending", "running", "cancelling")
+
+  for (index in seq_along(statuses)) {
+    reader_id <- paste0("reader-", index)
+    run <- store_start_agent_run(
+      store,
+      reader_id = reader_id,
+      kind = "question",
+      request_key = paste0("question-", index),
+      pinned_inputs = list(document_id = paste0("document-", index)),
+      requested_at = recovered_at - 60
+    )
+    if (!identical(statuses[[index]], "pending")) {
+      run <- store_claim_agent_run(
+        store,
+        reader_id = reader_id,
+        run_id = run$run_id,
+        worker_id = "previous-process",
+        started_at = recovered_at - 30,
+        lease_expires_at = recovered_at + 60
+      )
+    }
+    if (identical(statuses[[index]], "cancelling")) {
+      store_request_agent_run_cancel(
+        store,
+        reader_id = reader_id,
+        run_id = run$run_id,
+        requested_at = recovered_at - 10
+      )
+    }
+  }
+
+  testthat::local_mocked_bindings(
+    rill_store = \(config) store,
+    utc_now = \() recovered_at
+  )
+
+  rill_app()
+
+  recovered <- unname(store$memory$agent_runs)
+  testthat::expect_identical(
+    vapply(recovered, `[[`, character(1), "status"),
+    rep("interrupted", 3L)
+  )
+  testthat::expect_identical(
+    vapply(recovered, `[[`, character(1), "terminal_reason"),
+    rep("process_restarted", 3L)
+  )
+  testthat::expect_identical(
+    lapply(recovered, `[[`, "terminal_at"),
+    rep(list(recovered_at), 3L)
+  )
+})
+
 testthat::test_that("rill_app mounts the capture route", {
   withr::local_envvar(c(
     DATABASE_URL = "",
@@ -47,11 +105,36 @@ testthat::test_that("installed runtime assets are available", {
     rill_package_file("app", "www", "rill-duck-dark.png"),
     rill_package_file("app", "www", "rill-duck.png"),
     rill_package_file("app", "www", "styles.css"),
-    rill_package_file("sql", "001_init.sql")
+    rill_package_file("sql", "001_init.sql"),
+    rill_package_file("sql", "002_agent_runs.sql")
   )
 
-  testthat::expect_length(assets, 6L)
-  testthat::expect_identical(file.exists(assets), rep(TRUE, 6L))
+  testthat::expect_length(assets, 7L)
+  testthat::expect_identical(file.exists(assets), rep(TRUE, 7L))
+})
+
+testthat::test_that("chat submissions receive an idempotency token", {
+  javascript <- readLines(
+    rill_package_file("app", "www", "app.js"),
+    warn = FALSE
+  )
+  javascript <- paste(javascript, collapse = "\n")
+
+  testthat::expect_match(
+    javascript,
+    'event.name !== "reader_chat_user_input"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    '["", "shinychat.userInput"].includes(event.inputType)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    '"reader_chat_submission_id"',
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("polling requires durable configuration", {

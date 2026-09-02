@@ -21,6 +21,19 @@ normalize_defuddle_backend <- function(value) {
 }
 
 rill_config <- function() {
+  if (env_flag("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", FALSE)) {
+    cli::cli_abort(
+      c(
+        "Rill does not permit content-bearing generative AI telemetry.",
+        "i" = paste(
+          "Unset {.envvar OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT}",
+          "or set it to {.val false}."
+        )
+      ),
+      class = "rill_unsafe_telemetry_config"
+    )
+  }
+
   database_url <- trimws(Sys.getenv("DATABASE_URL", unset = ""))
   defuddle_command <- trimws(Sys.getenv(
     "DEFUDDLE_COMMAND",
@@ -28,6 +41,10 @@ rill_config <- function() {
   ))
   if (!nzchar(defuddle_command)) {
     defuddle_command <- "defuddle"
+  }
+  agent_model <- trimws(Sys.getenv("RILL_AGENT_MODEL", unset = "openai"))
+  if (!nzchar(agent_model)) {
+    agent_model <- "openai"
   }
 
   list(
@@ -41,6 +58,7 @@ rill_config <- function() {
       unset = "hosted"
     )),
     defuddle_command = defuddle_command,
+    agent_model = agent_model,
     defuddle_api_key = trimws(Sys.getenv("DEFUDDLE_API_KEY", unset = "")),
     defuddle_base_url = Sys.getenv(
       "DEFUDDLE_BASE_URL",
