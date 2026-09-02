@@ -80,6 +80,12 @@ An inspectable Reading History record of an authorized action, its scope,
 outcome, and reversal status. It is neither Reader Memory nor a Reading Artifact.
 _Avoid_: Transcript, tool log, Reading Artifact
 
+**Agent Run**:
+One bounded execution attempt to produce a reader-visible agent outcome. It may
+outlive a Reader's connection, never waits for Approval, and a retry creates a
+new linked Agent Run.
+_Avoid_: Conversation, Reading Loop, background task
+
 ### Evidence and interpretation
 
 **Original Source**:
