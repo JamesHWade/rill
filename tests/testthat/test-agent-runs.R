@@ -95,6 +95,105 @@ testthat::test_that("claiming an Agent Run records worker ownership", {
   )
 })
 
+testthat::test_that("a failed pending Agent Run releases the Reader", {
+  store <- rill_store(list(demo_mode = TRUE))
+  run <- store_start_agent_run(
+    store,
+    reader_id = "reader-1",
+    kind = "question",
+    request_key = "ask-rill-message-17",
+    pinned_inputs = list(message_id = "message-17"),
+    worker_id = "worker-1"
+  )
+  failed_at <- as.POSIXct("2026-09-02 12:01:00", tz = "UTC")
+
+  failed <- store_fail_unstarted_agent_run(
+    store,
+    reader_id = "reader-1",
+    run_id = run$run_id,
+    worker_id = "worker-1",
+    phase = "start",
+    terminal_reason = "claim_error:test_database_error",
+    failed_at = failed_at
+  )
+
+  testthat::expect_identical(failed$status, "failed")
+  testthat::expect_identical(
+    failed$terminal_reason,
+    "claim_error:test_database_error"
+  )
+  testthat::expect_identical(failed$terminal_at, failed_at)
+  testthat::expect_null(
+    store_fail_unstarted_agent_run(
+      store,
+      reader_id = "reader-1",
+      run_id = run$run_id,
+      worker_id = "worker-1",
+      phase = "start",
+      terminal_reason = "claim_failed",
+      failed_at = failed_at + 1
+    )
+  )
+  next_run <- store_start_agent_run(
+    store,
+    reader_id = "reader-1",
+    kind = "question",
+    request_key = "ask-rill-message-18",
+    pinned_inputs = list(message_id = "message-18")
+  )
+  testthat::expect_identical(next_run$status, "pending")
+
+  claimed <- store_start_agent_run(
+    store,
+    reader_id = "reader-2",
+    kind = "question",
+    request_key = "ask-rill-message-19",
+    pinned_inputs = list(message_id = "message-19"),
+    worker_id = "worker-2"
+  )
+  claimed <- store_claim_agent_run(
+    store,
+    reader_id = "reader-2",
+    run_id = claimed$run_id,
+    worker_id = "worker-2",
+    lease_expires_at = failed_at + 300
+  )
+  testthat::expect_null(
+    store_fail_unstarted_agent_run(
+      store,
+      reader_id = "reader-2",
+      run_id = claimed$run_id,
+      worker_id = "different-worker",
+      phase = "claim",
+      terminal_reason = "claim_failed",
+      failed_at = failed_at + 1
+    )
+  )
+  testthat::expect_null(
+    store_fail_unstarted_agent_run(
+      store,
+      reader_id = "reader-2",
+      run_id = claimed$run_id,
+      worker_id = "worker-2",
+      phase = "start",
+      terminal_reason = "start_error:test_database_error",
+      failed_at = failed_at + 1
+    )
+  )
+  failed_claim <- store_fail_unstarted_agent_run(
+    store,
+    reader_id = "reader-2",
+    run_id = claimed$run_id,
+    worker_id = "worker-2",
+    phase = "claim",
+    terminal_reason = "claim_error:test_database_error",
+    failed_at = failed_at + 1
+  )
+  testthat::expect_identical(failed_claim$status, "failed")
+  testthat::expect_null(failed_claim$partial_response)
+  testthat::expect_null(failed_claim$lease_expires_at)
+})
+
 testthat::test_that("the lease owner records reconnectable partial output", {
   store <- rill_store(list(demo_mode = TRUE))
   run <- store_start_agent_run(
@@ -259,18 +358,21 @@ testthat::test_that("terminal Agent Runs clear partial state and release the Rea
 
 testthat::test_that("expired Agent Run leases become interrupted", {
   store <- rill_store(list(demo_mode = TRUE))
+  requested_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
   run <- store_start_agent_run(
     store,
     reader_id = "reader-1",
     kind = "question",
     request_key = "ask-rill-message-17",
-    pinned_inputs = list(message_id = "message-17")
+    pinned_inputs = list(message_id = "message-17"),
+    requested_at = requested_at
   )
   run <- store_claim_agent_run(
     store,
     reader_id = "reader-1",
     run_id = run$run_id,
     worker_id = "worker-1",
+    started_at = requested_at + 60,
     lease_expires_at = as.POSIXct("2026-09-02 12:02:00", tz = "UTC")
   )
   run <- store_record_agent_run_partial(
@@ -280,6 +382,22 @@ testthat::test_that("expired Agent Run leases become interrupted", {
     worker_id = "worker-1",
     partial_response = "This output will not survive",
     lease_expires_at = as.POSIXct("2026-09-02 12:02:00", tz = "UTC")
+  )
+  active <- store_start_agent_run(
+    store,
+    reader_id = "reader-2",
+    kind = "question",
+    request_key = "ask-rill-message-18",
+    pinned_inputs = list(message_id = "message-18"),
+    requested_at = requested_at
+  )
+  active <- store_claim_agent_run(
+    store,
+    reader_id = "reader-2",
+    run_id = active$run_id,
+    worker_id = "worker-2",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 300
   )
   recovered_at <- as.POSIXct("2026-09-02 12:03:00", tz = "UTC")
 
@@ -294,6 +412,30 @@ testthat::test_that("expired Agent Run leases become interrupted", {
   )
   testthat::expect_null(interrupted[[1]]$partial_response)
   testthat::expect_null(interrupted[[1]]$lease_expires_at)
+  testthat::expect_length(
+    store_interrupt_expired_agent_runs(store, recovered_at),
+    0L
+  )
+  testthat::expect_error(
+    store_start_agent_run(
+      store,
+      reader_id = "reader-2",
+      kind = "question",
+      request_key = "ask-rill-message-19",
+      pinned_inputs = list(message_id = "message-19"),
+      requested_at = recovered_at
+    ),
+    class = "rill_agent_run_conflict"
+  )
+  next_run <- store_start_agent_run(
+    store,
+    reader_id = "reader-1",
+    kind = "question",
+    request_key = "ask-rill-message-20",
+    pinned_inputs = list(message_id = "message-20"),
+    requested_at = recovered_at
+  )
+  testthat::expect_identical(next_run$status, "pending")
 })
 
 testthat::test_that("Retry creates a linked Run with the same pinned inputs", {

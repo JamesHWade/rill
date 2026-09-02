@@ -18,6 +18,7 @@ rill_app <- function() {
   config <- rill_config()
   init_telemetry(config)
   store <- rill_store(config)
+  store_interrupt_agent_runs(store, recovery = "process_restart")
   shiny::addResourcePath(
     "rill-assets",
     rill_package_file("app", "www")

@@ -5,7 +5,8 @@ store_start_agent_run <- function(
   request_key,
   pinned_inputs,
   requested_at = utc_now(),
-  retry_of_run_id = NULL
+  retry_of_run_id = NULL,
+  worker_id = NULL
 ) {
   run_id <- rill_id("agent-run", reader_id, request_key)
   existing <- store_get_agent_run(store, reader_id, run_id)
@@ -22,9 +23,9 @@ store_start_agent_run <- function(
           "INSERT INTO agent_runs (",
           paste(
             "run_id, reader_id, kind, request_key, retry_of_run_id,",
-            "status, pinned_inputs, requested_at, updated_at"
+            "status, pinned_inputs, requested_at, updated_at, worker_id"
           ),
-          ") SELECT $1, $2, $3, $4, $5, 'pending', $6::jsonb, $7, $7",
+          ") SELECT $1, $2, $3, $4, $5, 'pending', $6::jsonb, $7, $7, $8",
           paste(
             "WHERE NOT EXISTS (SELECT 1 FROM agent_runs",
             "WHERE reader_id = $2",
@@ -39,7 +40,8 @@ store_start_agent_run <- function(
           request_key,
           retry_of_run_id %||% NA_character_,
           agent_run_json(pinned_inputs),
-          requested_at
+          requested_at,
+          worker_id %||% NA_character_
         )
       ),
       error = function(error) {
@@ -92,7 +94,8 @@ store_start_agent_run <- function(
     retry_of_run_id = retry_of_run_id,
     status = "pending",
     pinned_inputs = pinned_inputs,
-    requested_at = requested_at
+    requested_at = requested_at,
+    worker_id = worker_id
   )
   store$memory$agent_runs[[run_id]] <- run
   run
@@ -157,7 +160,10 @@ store_claim_agent_run <- function(
           "status = 'running', worker_id = $3, started_at = $4,",
           "updated_at = $4, lease_expires_at = $5"
         ),
-        "WHERE reader_id = $1 AND run_id = $2 AND status = 'pending'",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND status = 'pending'",
+          "AND (worker_id IS NULL OR worker_id = $3)"
+        ),
         "RETURNING *"
       ),
       params = list(
@@ -172,7 +178,11 @@ store_claim_agent_run <- function(
   }
 
   run <- store_get_agent_run(store, reader_id, run_id)
-  if (is.null(run) || !identical(run$status, "pending")) {
+  if (
+    is.null(run) ||
+      !identical(run$status, "pending") ||
+      (!is.null(run$worker_id) && !identical(run$worker_id, worker_id))
+  ) {
     return(NULL)
   }
 
@@ -181,6 +191,63 @@ store_claim_agent_run <- function(
   run$started_at <- started_at
   run$lease_expires_at <- lease_expires_at
   run$updated_at <- started_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
+store_fail_unstarted_agent_run <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  phase,
+  terminal_reason,
+  failed_at = utc_now()
+) {
+  phase <- match.arg(phase, c("start", "claim"))
+  eligible_statuses <- if (identical(phase, "claim")) {
+    c("pending", "running")
+  } else {
+    "pending"
+  }
+  statuses_sql <- if (identical(phase, "claim")) {
+    "('pending', 'running')"
+  } else {
+    "('pending')"
+  }
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET status = 'failed', partial_response = NULL,",
+        "lease_expires_at = NULL, terminal_reason = $4,",
+        "terminal_at = $5, updated_at = $5",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          paste("AND status IN", statuses_sql)
+        ),
+        "RETURNING *"
+      ),
+      params = list(reader_id, run_id, worker_id, terminal_reason, failed_at)
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !run$status %in% eligible_statuses ||
+      !identical(run$worker_id, worker_id)
+  ) {
+    return(NULL)
+  }
+
+  run$status <- "failed"
+  run$partial_response <- NULL
+  run$lease_expires_at <- NULL
+  run$terminal_reason <- terminal_reason
+  run$terminal_at <- failed_at
+  run$updated_at <- failed_at
   store$memory$agent_runs[[run_id]] <- run
   run
 }
@@ -424,27 +491,44 @@ store_enrich_timed_out_agent_run <- function(
   run
 }
 
-store_interrupt_expired_agent_runs <- function(
+store_interrupt_agent_runs <- function(
   store,
+  recovery,
   recovered_at = utc_now()
 ) {
+  recovery <- match.arg(
+    recovery,
+    c("expired_lease", "process_restart")
+  )
+  process_restart <- identical(recovery, "process_restart")
+  terminal_reason <- if (process_restart) {
+    "process_restarted"
+  } else {
+    "lease_expired"
+  }
+
   if (identical(store$mode, "postgres")) {
+    where <- if (process_restart) {
+      "WHERE status IN ('pending', 'running', 'cancelling')"
+    } else {
+      paste(
+        "WHERE status IN ('running', 'cancelling')",
+        "AND lease_expires_at <= $1"
+      )
+    }
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
         "UPDATE agent_runs SET status = 'interrupted',",
         paste(
           "partial_response = NULL, lease_expires_at = NULL,",
-          "terminal_reason = 'lease_expired', terminal_at = $1,",
+          "terminal_reason = $2, terminal_at = $1,",
           "updated_at = $1"
         ),
-        paste(
-          "WHERE status IN ('running', 'cancelling')",
-          "AND lease_expires_at <= $1"
-        ),
+        where,
         "RETURNING *"
       ),
-      params = list(recovered_at)
+      params = list(recovered_at, terminal_reason)
     )
     return(agent_runs_from_rows(rows))
   }
@@ -453,10 +537,12 @@ store_interrupt_expired_agent_runs <- function(
   for (run_id in names(store$memory$agent_runs)) {
     run <- store$memory$agent_runs[[run_id]]
     if (
-      !run$status %in% c("running", "cancelling") ||
-        is.null(run$lease_expires_at) ||
-        as.POSIXct(run$lease_expires_at, tz = "UTC") >
-          as.POSIXct(recovered_at, tz = "UTC")
+      !run$status %in% c("pending", "running", "cancelling") ||
+        (!process_restart &&
+          (identical(run$status, "pending") ||
+            is.null(run$lease_expires_at) ||
+            as.POSIXct(run$lease_expires_at, tz = "UTC") >
+              as.POSIXct(recovered_at, tz = "UTC")))
     ) {
       next
     }
@@ -464,7 +550,7 @@ store_interrupt_expired_agent_runs <- function(
     run$status <- "interrupted"
     run$partial_response <- NULL
     run$lease_expires_at <- NULL
-    run$terminal_reason <- "lease_expired"
+    run$terminal_reason <- terminal_reason
     run$terminal_at <- recovered_at
     run$updated_at <- recovered_at
     store$memory$agent_runs[[run_id]] <- run
@@ -473,12 +559,24 @@ store_interrupt_expired_agent_runs <- function(
   interrupted
 }
 
+store_interrupt_expired_agent_runs <- function(
+  store,
+  recovered_at = utc_now()
+) {
+  store_interrupt_agent_runs(
+    store,
+    recovery = "expired_lease",
+    recovered_at = recovered_at
+  )
+}
+
 store_retry_agent_run <- function(
   store,
   reader_id,
   run_id,
   request_key,
-  requested_at = utc_now()
+  requested_at = utc_now(),
+  worker_id = NULL
 ) {
   original <- store_get_agent_run(store, reader_id, run_id)
   if (
@@ -501,7 +599,8 @@ store_retry_agent_run <- function(
     request_key = request_key,
     pinned_inputs = original$pinned_inputs,
     requested_at = requested_at,
-    retry_of_run_id = original$run_id
+    retry_of_run_id = original$run_id,
+    worker_id = worker_id
   )
 }
 

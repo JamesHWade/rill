@@ -318,6 +318,157 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     "cancelled_before_start"
   )
 
+  unclaimed <- store_start_agent_run(
+    store,
+    reader_id = "reader-claim-failed",
+    kind = "question",
+    request_key = "unclaimed-question",
+    pinned_inputs = list(document_id = "document-unclaimed"),
+    requested_at = requested_at,
+    worker_id = "worker-claim-failed"
+  )
+  unclaimed <- store_fail_unstarted_agent_run(
+    store,
+    reader_id = "reader-claim-failed",
+    run_id = unclaimed$run_id,
+    worker_id = "worker-claim-failed",
+    phase = "start",
+    terminal_reason = "claim_error:test_database_error",
+    failed_at = requested_at + 1
+  )
+  testthat::expect_identical(unclaimed$status, "failed")
+  testthat::expect_identical(
+    unclaimed$terminal_reason,
+    "claim_error:test_database_error"
+  )
+  testthat::expect_null(
+    store_fail_unstarted_agent_run(
+      store,
+      reader_id = "reader-claim-failed",
+      run_id = unclaimed$run_id,
+      worker_id = "worker-claim-failed",
+      phase = "start",
+      terminal_reason = "claim_failed",
+      failed_at = requested_at + 2
+    )
+  )
+  after_claim_failure <- store_start_agent_run(
+    store,
+    reader_id = "reader-claim-failed",
+    kind = "question",
+    request_key = "after-claim-failure",
+    pinned_inputs = list(document_id = "document-after-claim-failure"),
+    requested_at = requested_at + 2
+  )
+  testthat::expect_identical(after_claim_failure$status, "pending")
+  store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-claim-failed",
+    run_id = after_claim_failure$run_id,
+    requested_at = requested_at + 3
+  )
+
+  expired <- store_start_agent_run(
+    store,
+    reader_id = "reader-recovery",
+    kind = "question",
+    request_key = "expired-question",
+    pinned_inputs = list(document_id = "document-expired"),
+    requested_at = requested_at
+  )
+  expired <- store_claim_agent_run(
+    store,
+    reader_id = "reader-recovery",
+    run_id = expired$run_id,
+    worker_id = "expired-process",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 1
+  )
+  expired_recovery <- store_interrupt_expired_agent_runs(
+    store,
+    recovered_at = requested_at + 2
+  )
+  testthat::expect_identical(
+    vapply(expired_recovery, `[[`, character(1), "run_id"),
+    expired$run_id
+  )
+  replacement <- store_start_agent_run(
+    store,
+    reader_id = "reader-recovery",
+    kind = "question",
+    request_key = "replacement-question",
+    pinned_inputs = list(document_id = "document-replacement"),
+    requested_at = requested_at + 2
+  )
+  expired <- store_get_agent_run(store, "reader-recovery", expired$run_id)
+  testthat::expect_identical(expired$status, "interrupted")
+  testthat::expect_identical(expired$terminal_reason, "lease_expired")
+  testthat::expect_identical(replacement$status, "pending")
+
+  running <- store_start_agent_run(
+    store,
+    reader_id = "reader-restart-running",
+    kind = "question",
+    request_key = "running-question",
+    pinned_inputs = list(document_id = "document-running"),
+    requested_at = requested_at
+  )
+  running <- store_claim_agent_run(
+    store,
+    reader_id = "reader-restart-running",
+    run_id = running$run_id,
+    worker_id = "previous-process",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 3600
+  )
+  cancelling <- store_start_agent_run(
+    store,
+    reader_id = "reader-restart-cancelling",
+    kind = "question",
+    request_key = "cancelling-question",
+    pinned_inputs = list(document_id = "document-cancelling"),
+    requested_at = requested_at
+  )
+  cancelling <- store_claim_agent_run(
+    store,
+    reader_id = "reader-restart-cancelling",
+    run_id = cancelling$run_id,
+    worker_id = "previous-process",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 3600
+  )
+  cancelling <- store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-restart-cancelling",
+    run_id = cancelling$run_id,
+    requested_at = requested_at + 5
+  )
+  restarted <- store_interrupt_agent_runs(
+    store,
+    recovery = "process_restart",
+    recovered_at = requested_at + 10
+  )
+  testthat::expect_setequal(
+    vapply(restarted, `[[`, character(1), "run_id"),
+    c(replacement$run_id, running$run_id, cancelling$run_id)
+  )
+  testthat::expect_identical(
+    vapply(restarted, `[[`, character(1), "status"),
+    rep("interrupted", 3L)
+  )
+  testthat::expect_identical(
+    vapply(restarted, `[[`, character(1), "terminal_reason"),
+    rep("process_restarted", 3L)
+  )
+  testthat::expect_length(
+    store_interrupt_agent_runs(
+      store,
+      recovery = "process_restart",
+      recovered_at = requested_at + 11
+    ),
+    0L
+  )
+
   original_checksum <- migrations$checksum[[1L]]
   DBI::dbExecute(
     store$pool,
