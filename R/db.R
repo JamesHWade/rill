@@ -237,6 +237,7 @@ store_apply_schema <- function(store) {
         identical(migration$migration_id, "001_init") &&
           store_has_domain_schema(connection)
       ) {
+        store_adopt_initial_release_schema(connection)
         store_verify_baseline_schema(connection)
       } else {
         statements <- Filter(
@@ -299,6 +300,67 @@ store_has_domain_schema <- function(connection) {
   nrow(tables) > 0L
 }
 
+store_adopt_initial_release_schema <- function(connection) {
+  legacy_tables <- c(
+    "feeds",
+    "entries",
+    "article_documents",
+    "documents",
+    "entry_document_heads",
+    "entry_state",
+    "events"
+  )
+  tables <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT table_name FROM information_schema.tables",
+      "WHERE table_schema = current_schema()"
+    )
+  )$table_name
+  columns <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT column_name FROM information_schema.columns",
+      "WHERE table_schema = current_schema()",
+      "AND table_name = 'entry_state'"
+    )
+  )$column_name
+  initial_release <- all(legacy_tables %in% tables) &&
+    !"subscription_preferences" %in% tables &&
+    !"read_reason" %in% columns
+  if (!initial_release) {
+    return(invisible(FALSE))
+  }
+
+  DBI::dbExecute(
+    connection,
+    paste(
+      "CREATE TABLE subscription_preferences (",
+      "reader_id text NOT NULL,",
+      paste(
+        "feed_id text NOT NULL REFERENCES feeds(feed_id)",
+        "ON DELETE CASCADE,"
+      ),
+      "display_title text,",
+      "PRIMARY KEY (reader_id, feed_id)",
+      ")"
+    )
+  )
+  DBI::dbExecute(
+    connection,
+    "ALTER TABLE entry_state ADD COLUMN read_reason text"
+  )
+  DBI::dbExecute(
+    connection,
+    paste(
+      "UPDATE entry_state SET read_reason = 'opened'",
+      "WHERE read_at IS NOT NULL AND last_opened_at IS NOT NULL",
+      "AND read_reason IS NULL"
+    )
+  )
+  invisible(TRUE)
+}
+
 store_verify_baseline_schema <- function(connection) {
   required_tables <- c(
     "feeds",
@@ -317,13 +379,26 @@ store_verify_baseline_schema <- function(connection) {
       "WHERE table_schema = current_schema()"
     )
   )
-  missing_tables <- setdiff(required_tables, tables$table_name)
-  if (length(missing_tables)) {
+  missing <- setdiff(required_tables, tables$table_name)
+  if (!"entry_state" %in% missing) {
+    columns <- DBI::dbGetQuery(
+      connection,
+      paste(
+        "SELECT column_name FROM information_schema.columns",
+        "WHERE table_schema = current_schema()",
+        "AND table_name = 'entry_state'"
+      )
+    )$column_name
+    if (!"read_reason" %in% columns) {
+      missing <- c(missing, "entry_state.read_reason")
+    }
+  }
+  if (length(missing)) {
     cli::cli_abort(
       paste0(
         "The existing database is not compatible with the Rill baseline: ",
         "missing ",
-        paste(missing_tables, collapse = ", "),
+        paste(missing, collapse = ", "),
         "."
       ),
       class = "rill_schema_incompatible"

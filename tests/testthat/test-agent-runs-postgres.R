@@ -40,7 +40,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   withr::defer(rill_store_close(store))
 
   migration_files <- schema_migration_files()
-  apply_migration <- function(migration_id) {
+  apply_migration <- function(migration_id, target_pool = store$pool) {
     migration <- migration_files[[match(
       migration_id,
       vapply(migration_files, `[[`, character(1), "migration_id")
@@ -50,7 +50,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       trimws(strsplit(migration$sql, ";", fixed = TRUE)[[1]])
     )
     for (statement in statements) {
-      DBI::dbExecute(store$pool, statement)
+      DBI::dbExecute(target_pool, statement)
     }
   }
   apply_migration("002_agent_runs")
@@ -83,6 +83,38 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_no_match(constraint, "conversation", fixed = TRUE)
   DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
 
+  apply_migration("001_init")
+  DBI::dbExecute(store$pool, "DROP TABLE subscription_preferences")
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE entry_state DROP COLUMN read_reason"
+  )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "INSERT INTO feeds (feed_id, feed_url, title)",
+      "VALUES ('legacy-feed', 'https://example.com/feed', 'Legacy feed')"
+    )
+  )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "INSERT INTO entries (entry_id, feed_id, external_id, url, title)",
+      paste(
+        "VALUES ('legacy-entry', 'legacy-feed', 'legacy-entry',",
+        "'https://example.com/story', 'Legacy story')"
+      )
+    )
+  )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "INSERT INTO entry_state (",
+      "actor_id, entry_id, read_at, last_opened_at",
+      ") VALUES ('reader-legacy', 'legacy-entry', now(), now())"
+    )
+  )
+
   store_apply_schema(store)
   store_apply_schema(store)
 
@@ -98,6 +130,73 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     c("001_init", "002_agent_runs", "003_agent_run_question_kind")
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
+  legacy_state <- DBI::dbGetQuery(
+    store$pool,
+    paste(
+      "SELECT read_reason FROM entry_state",
+      "WHERE actor_id = 'reader-legacy' AND entry_id = 'legacy-entry'"
+    )
+  )
+  testthat::expect_identical(legacy_state$read_reason, "opened")
+  preferences <- DBI::dbGetQuery(
+    store$pool,
+    "SELECT to_regclass('subscription_preferences')::text AS relation"
+  )
+  testthat::expect_identical(
+    preferences$relation,
+    "subscription_preferences"
+  )
+
+  partial_schema_name <- paste0(
+    "rill_partial_",
+    substr(rill_id(Sys.getpid(), Sys.time(), stats::runif(1)), 1L, 16L)
+  )
+  partial_schema_identifier <- DBI::dbQuoteIdentifier(
+    admin,
+    partial_schema_name
+  )
+  DBI::dbExecute(
+    admin,
+    paste("CREATE SCHEMA", partial_schema_identifier)
+  )
+  withr::defer(
+    DBI::dbExecute(
+      admin,
+      paste("DROP SCHEMA", partial_schema_identifier, "CASCADE")
+    )
+  )
+  partial_connection_args <- postgres_connection_args(database_url)
+  partial_connection_args$options <- paste0(
+    "-csearch_path=",
+    partial_schema_name
+  )
+  partial_pool <- do.call(
+    pool::dbPool,
+    c(
+      list(drv = RPostgres::Postgres()),
+      partial_connection_args,
+      list(minSize = 1, maxSize = 2, idleTimeout = 60)
+    )
+  )
+  partial_store <- structure(
+    list(mode = "postgres", pool = partial_pool),
+    class = "rill_store"
+  )
+  withr::defer(rill_store_close(partial_store))
+  apply_migration("001_init", partial_store$pool)
+  DBI::dbExecute(
+    partial_store$pool,
+    "ALTER TABLE entry_state DROP COLUMN read_reason"
+  )
+  testthat::expect_error(
+    store_apply_schema(partial_store),
+    class = "rill_schema_incompatible"
+  )
+  partial_ledger <- DBI::dbGetQuery(
+    partial_store$pool,
+    "SELECT to_regclass('schema_migrations')::text AS relation"
+  )
+  testthat::expect_identical(partial_ledger$relation, NA_character_)
 
   requested_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
   pinned_inputs <- list(
