@@ -1,3 +1,194 @@
+agent_run_pending_lease_seconds <- function() {
+  30
+}
+
+agent_run_interrupt_retry_limit <- function() {
+  3L
+}
+
+agent_run_interrupt_retry_delay <- function(attempt) {
+  min(0.25 * 2^(max(1L, as.integer(attempt)) - 1L), 2)
+}
+
+agent_run_interrupt_confirmation_seconds <- function() {
+  30
+}
+
+deferred_reader_question_from_rows <- function(rows) {
+  if (!nrow(rows)) {
+    return(NULL)
+  }
+  row <- rows[1L, , drop = FALSE]
+  pinned_inputs <- row$pinned_inputs[[1L]]
+  if (is.character(pinned_inputs)) {
+    pinned_inputs <- jsonlite::fromJSON(
+      pinned_inputs,
+      simplifyVector = FALSE
+    )
+  }
+  list(
+    reader_id = row$reader_id[[1L]],
+    request_key = row$request_key[[1L]],
+    pinned_inputs = pinned_inputs,
+    retry_of_run_id = if (is.na(row$retry_of_run_id[[1L]])) {
+      NULL
+    } else {
+      row$retry_of_run_id[[1L]]
+    },
+    requested_at = row$requested_at[[1L]],
+    updated_at = row$updated_at[[1L]]
+  )
+}
+
+store_get_deferred_reader_question <- function(store, reader_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT * FROM deferred_reader_questions WHERE reader_id = $1",
+      params = list(reader_id)
+    )
+    return(deferred_reader_question_from_rows(rows))
+  }
+  store$memory$deferred_reader_questions[[reader_id]] %||% NULL
+}
+
+validate_deferred_reader_question_replay <- function(
+  request,
+  request_key,
+  pinned_inputs,
+  retry_of_run_id
+) {
+  if (
+    !identical(request$request_key, request_key) ||
+      !identical(
+        as.character(canonical_json(request$pinned_inputs)),
+        as.character(canonical_json(pinned_inputs))
+      ) ||
+      !identical(
+        request$retry_of_run_id %||% NULL,
+        retry_of_run_id %||% NULL
+      )
+  ) {
+    cli::cli_abort(
+      "Rill is already preserving another Reader question.",
+      class = "rill_agent_run_draining"
+    )
+  }
+  request
+}
+
+store_save_deferred_reader_question <- function(
+  store,
+  reader_id,
+  request_key,
+  pinned_inputs,
+  retry_of_run_id = NULL,
+  requested_at = utc_now()
+) {
+  existing <- store_get_deferred_reader_question(store, reader_id)
+  if (!is.null(existing)) {
+    return(validate_deferred_reader_question_replay(
+      existing,
+      request_key,
+      pinned_inputs,
+      retry_of_run_id
+    ))
+  }
+  if (identical(store$mode, "postgres")) {
+    tryCatch(
+      DBI::dbExecute(
+        store$pool,
+        paste(
+          "INSERT INTO deferred_reader_questions (",
+          paste(
+            "reader_id, request_key, pinned_inputs, retry_of_run_id,",
+            "requested_at, updated_at"
+          ),
+          ") VALUES ($1, $2, $3::jsonb, $4, $5, $5)"
+        ),
+        params = list(
+          reader_id,
+          request_key,
+          agent_run_json(pinned_inputs),
+          retry_of_run_id %||% NA_character_,
+          requested_at
+        )
+      ),
+      error = function(error) {
+        existing <- store_get_deferred_reader_question(store, reader_id)
+        if (!is.null(existing)) {
+          return(validate_deferred_reader_question_replay(
+            existing,
+            request_key,
+            pinned_inputs,
+            retry_of_run_id
+          ))
+        }
+        stop(error)
+      }
+    )
+    return(store_get_deferred_reader_question(store, reader_id))
+  }
+  request <- list(
+    reader_id = reader_id,
+    request_key = request_key,
+    pinned_inputs = pinned_inputs,
+    retry_of_run_id = retry_of_run_id,
+    requested_at = requested_at,
+    updated_at = requested_at
+  )
+  store$memory$deferred_reader_questions[[reader_id]] <- request
+  request
+}
+
+store_delete_deferred_reader_question <- function(
+  store,
+  reader_id,
+  request_key
+) {
+  if (identical(store$mode, "postgres")) {
+    deleted <- DBI::dbExecute(
+      store$pool,
+      paste(
+        "DELETE FROM deferred_reader_questions",
+        "WHERE reader_id = $1 AND request_key = $2"
+      ),
+      params = list(reader_id, request_key)
+    )
+    return(invisible(identical(as.integer(deleted), 1L)))
+  }
+  existing <- store_get_deferred_reader_question(store, reader_id)
+  if (is.null(existing) || !identical(existing$request_key, request_key)) {
+    return(invisible(FALSE))
+  }
+  store$memory$deferred_reader_questions[[reader_id]] <- NULL
+  invisible(TRUE)
+}
+
+store_with_agent_run_reader_lock <- function(store, reader_id, code) {
+  if (
+    identical(store$mode, "postgres") &&
+      inherits(store$pool, "Pool")
+  ) {
+    return(pool::poolWithTransaction(store$pool, function(connection) {
+      DBI::dbGetQuery(
+        connection,
+        paste(
+          "SELECT pg_advisory_xact_lock(",
+          "hashtextextended($1::text, 20260902))"
+        ),
+        params = list(reader_id)
+      )
+      transaction_store <- structure(
+        list(mode = "postgres", pool = connection),
+        class = "rill_store"
+      )
+      code(transaction_store)
+    }))
+  }
+  code(store)
+}
+
 store_start_agent_run <- function(
   store,
   reader_id,
@@ -6,14 +197,40 @@ store_start_agent_run <- function(
   pinned_inputs,
   requested_at = utc_now(),
   retry_of_run_id = NULL,
-  worker_id = NULL
+  worker_id = NULL,
+  lease_at = requested_at
 ) {
+  if (
+    identical(store$mode, "postgres") &&
+      inherits(store$pool, "Pool")
+  ) {
+    return(store_with_agent_run_reader_lock(
+      store,
+      reader_id,
+      function(transaction_store) {
+        store_start_agent_run(
+          transaction_store,
+          reader_id = reader_id,
+          kind = kind,
+          request_key = request_key,
+          pinned_inputs = pinned_inputs,
+          requested_at = requested_at,
+          retry_of_run_id = retry_of_run_id,
+          worker_id = worker_id,
+          lease_at = lease_at
+        )
+      }
+    ))
+  }
+  store_interrupt_expired_agent_runs(store, recovered_at = lease_at)
   run_id <- rill_id("agent-run", reader_id, request_key)
   existing <- store_get_agent_run(store, reader_id, run_id)
   if (!is.null(existing)) {
     validate_agent_run_replay(existing, kind, pinned_inputs, retry_of_run_id)
     return(existing)
   }
+  lease_expires_at <- as.POSIXct(lease_at, tz = "UTC") +
+    agent_run_pending_lease_seconds()
 
   if (identical(store$mode, "postgres")) {
     tryCatch(
@@ -23,9 +240,13 @@ store_start_agent_run <- function(
           "INSERT INTO agent_runs (",
           paste(
             "run_id, reader_id, kind, request_key, retry_of_run_id,",
-            "status, pinned_inputs, requested_at, updated_at, worker_id"
+            "status, pinned_inputs, requested_at, updated_at, worker_id,",
+            "lease_expires_at"
           ),
-          ") SELECT $1, $2, $3, $4, $5, 'pending', $6::jsonb, $7, $7, $8",
+          paste(
+            ") SELECT $1, $2, $3, $4, $5, 'pending', $6::jsonb,",
+            "$7, $7, $8, $9"
+          ),
           paste(
             "WHERE NOT EXISTS (SELECT 1 FROM agent_runs",
             "WHERE reader_id = $2",
@@ -41,7 +262,8 @@ store_start_agent_run <- function(
           retry_of_run_id %||% NA_character_,
           agent_run_json(pinned_inputs),
           requested_at,
-          worker_id %||% NA_character_
+          worker_id %||% NA_character_,
+          lease_expires_at
         )
       ),
       error = function(error) {
@@ -95,7 +317,8 @@ store_start_agent_run <- function(
     status = "pending",
     pinned_inputs = pinned_inputs,
     requested_at = requested_at,
-    worker_id = worker_id
+    worker_id = worker_id,
+    lease_expires_at = lease_expires_at
   )
   store$memory$agent_runs[[run_id]] <- run
   run
@@ -123,6 +346,61 @@ validate_agent_run_replay <- function(
   invisible(run)
 }
 
+store_get_active_agent_run <- function(store, reader_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT * FROM agent_runs WHERE reader_id = $1",
+        "AND status IN ('pending', 'running', 'cancelling')",
+        "ORDER BY requested_at LIMIT 1"
+      ),
+      params = list(reader_id)
+    )
+    return(agent_run_from_rows(rows))
+  }
+  active <- Filter(
+    function(run) {
+      identical(run$reader_id, reader_id) &&
+        run$status %in% c("pending", "running", "cancelling")
+    },
+    store$memory$agent_runs
+  )
+  if (!length(active)) NULL else active[[1L]]
+}
+
+store_get_latest_question_agent_run <- function(store, reader_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT * FROM agent_runs",
+        "WHERE reader_id = $1 AND kind = 'question'",
+        "ORDER BY requested_at DESC LIMIT 1"
+      ),
+      params = list(reader_id)
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  questions <- Filter(
+    \(run) {
+      identical(run$reader_id, reader_id) &&
+        identical(run$kind, "question")
+    },
+    store$memory$agent_runs
+  )
+  if (!length(questions)) {
+    return(NULL)
+  }
+  requested_at <- vapply(
+    questions,
+    \(run) as.numeric(as.POSIXct(run$requested_at, tz = "UTC")),
+    numeric(1)
+  )
+  questions[[which.max(requested_at)]]
+}
+
 store_get_agent_run <- function(store, reader_id, run_id) {
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
@@ -141,6 +419,32 @@ store_get_agent_run <- function(store, reader_id, run_id) {
     return(NULL)
   }
   run
+}
+
+store_get_agent_run_by_request_key <- function(store, reader_id, request_key) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT * FROM agent_runs",
+        "WHERE reader_id = $1 AND request_key = $2"
+      ),
+      params = list(reader_id, request_key)
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  matches <- Filter(
+    \(run) {
+      identical(run$reader_id, reader_id) &&
+        identical(run$request_key, request_key)
+    },
+    store$memory$agent_runs
+  )
+  if (!length(matches)) {
+    return(NULL)
+  }
+  matches[[1L]]
 }
 
 store_claim_agent_run <- function(
@@ -301,6 +605,50 @@ store_record_agent_run_partial <- function(
   run
 }
 
+store_renew_agent_run_lease <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  lease_expires_at,
+  updated_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET updated_at = $5, lease_expires_at = $4",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          "AND status IN ('running', 'cancelling')"
+        ),
+        "RETURNING *"
+      ),
+      params = list(
+        reader_id,
+        run_id,
+        worker_id,
+        lease_expires_at,
+        updated_at
+      )
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !run$status %in% c("running", "cancelling") ||
+      !identical(run$worker_id, worker_id)
+  ) {
+    return(NULL)
+  }
+  run$updated_at <- updated_at
+  run$lease_expires_at <- lease_expires_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
 store_request_agent_run_cancel <- function(
   store,
   reader_id,
@@ -317,6 +665,8 @@ store_request_agent_run_cancel <- function(
         ),
         paste(
           "cancel_requested_at = COALESCE(cancel_requested_at, $3),",
+          "lease_expires_at = CASE WHEN status = 'pending' THEN NULL",
+          "ELSE lease_expires_at END,",
           "terminal_at = CASE WHEN status = 'pending' THEN $3",
           "ELSE terminal_at END,"
         ),
@@ -346,6 +696,7 @@ store_request_agent_run_cancel <- function(
   if (identical(run$status, "pending")) {
     run$status <- "cancelled"
     run$cancel_requested_at <- requested_at
+    run$lease_expires_at <- NULL
     run$terminal_at <- requested_at
     run$terminal_reason <- "cancelled_before_start"
     run$updated_at <- requested_at
@@ -364,6 +715,72 @@ store_request_agent_run_cancel <- function(
   run$updated_at <- requested_at
   store$memory$agent_runs[[run_id]] <- run
   run
+}
+
+store_prioritize_reader_question <- function(
+  store,
+  reader_id,
+  requested_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        paste(
+          "UPDATE agent_runs SET status = CASE WHEN status = 'pending'",
+          "THEN 'cancelled' ELSE 'cancelling' END,"
+        ),
+        paste(
+          "lease_expires_at = CASE WHEN status = 'pending' THEN NULL",
+          "ELSE lease_expires_at END,",
+          "cancel_requested_at = COALESCE(cancel_requested_at, $2),"
+        ),
+        paste(
+          "terminal_at = CASE WHEN status = 'pending' THEN $2",
+          "ELSE terminal_at END,",
+          "terminal_reason = CASE WHEN status = 'pending'",
+          "THEN 'reader_question' ELSE terminal_reason END,"
+        ),
+        paste(
+          "updated_at = CASE WHEN status = 'cancelling' THEN updated_at",
+          "ELSE $2 END"
+        ),
+        paste(
+          "WHERE reader_id = $1 AND kind = 'orientation'",
+          "AND status IN ('pending', 'running', 'cancelling')"
+        ),
+        "RETURNING *"
+      ),
+      params = list(reader_id, requested_at)
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  for (run_id in names(store$memory$agent_runs)) {
+    run <- store$memory$agent_runs[[run_id]]
+    if (
+      !identical(run$reader_id, reader_id) ||
+        !identical(run$kind, "orientation") ||
+        !run$status %in% c("pending", "running", "cancelling")
+    ) {
+      next
+    }
+
+    run$cancel_requested_at <- run$cancel_requested_at %||% requested_at
+    if (identical(run$status, "pending")) {
+      run$status <- "cancelled"
+      run$lease_expires_at <- NULL
+      run$terminal_at <- requested_at
+      run$terminal_reason <- "reader_question"
+      run$updated_at <- requested_at
+    } else if (!identical(run$status, "cancelling")) {
+      run$status <- "cancelling"
+      run$updated_at <- requested_at
+    }
+    store$memory$agent_runs[[run_id]] <- run
+    return(run)
+  }
+  NULL
 }
 
 store_finish_agent_run <- function(
@@ -438,6 +855,58 @@ store_finish_agent_run <- function(
   run
 }
 
+store_interrupt_agent_run <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  terminal_reason,
+  interrupted_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET status = 'interrupted',",
+        paste(
+          "partial_response = NULL, lease_expires_at = NULL,",
+          "terminal_reason = $4, terminal_at = $5, updated_at = $5"
+        ),
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          "AND status IN ('running', 'cancelling')"
+        ),
+        "RETURNING *"
+      ),
+      params = list(
+        reader_id,
+        run_id,
+        worker_id,
+        terminal_reason,
+        interrupted_at
+      )
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !identical(run$worker_id, worker_id) ||
+      !run$status %in% c("running", "cancelling")
+  ) {
+    return(NULL)
+  }
+  run$status <- "interrupted"
+  run$partial_response <- NULL
+  run$lease_expires_at <- NULL
+  run$terminal_reason <- terminal_reason
+  run$terminal_at <- interrupted_at
+  run$updated_at <- interrupted_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
 store_enrich_timed_out_agent_run <- function(
   store,
   reader_id,
@@ -491,6 +960,58 @@ store_enrich_timed_out_agent_run <- function(
   run
 }
 
+store_enrich_terminal_agent_run <- function(
+  store,
+  reader_id,
+  run_id,
+  worker_id,
+  usage,
+  deputy_run_id,
+  updated_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE agent_runs SET usage = $4::jsonb,",
+        "deputy_run_id = COALESCE(deputy_run_id, $5), updated_at = $6",
+        paste(
+          "WHERE reader_id = $1 AND run_id = $2 AND worker_id = $3",
+          "AND status IN ('failed', 'cancelled', 'interrupted')"
+        ),
+        "AND (deputy_run_id IS NULL OR deputy_run_id = $5)",
+        "RETURNING *"
+      ),
+      params = list(
+        reader_id,
+        run_id,
+        worker_id,
+        agent_run_json(usage),
+        deputy_run_id %||% NA_character_,
+        updated_at
+      )
+    )
+    return(agent_run_from_rows(rows))
+  }
+
+  run <- store_get_agent_run(store, reader_id, run_id)
+  if (
+    is.null(run) ||
+      !identical(run$worker_id, worker_id) ||
+      !run$status %in% c("failed", "cancelled", "interrupted") ||
+      (!is.null(run$deputy_run_id) &&
+        !identical(run$deputy_run_id, deputy_run_id))
+  ) {
+    return(NULL)
+  }
+
+  run$usage <- usage
+  run$deputy_run_id <- deputy_run_id
+  run$updated_at <- updated_at
+  store$memory$agent_runs[[run_id]] <- run
+  run
+}
+
 store_interrupt_agent_runs <- function(
   store,
   recovery,
@@ -512,7 +1033,7 @@ store_interrupt_agent_runs <- function(
       "WHERE status IN ('pending', 'running', 'cancelling')"
     } else {
       paste(
-        "WHERE status IN ('running', 'cancelling')",
+        "WHERE status = 'pending'",
         "AND lease_expires_at <= $1"
       )
     }
@@ -537,10 +1058,13 @@ store_interrupt_agent_runs <- function(
   for (run_id in names(store$memory$agent_runs)) {
     run <- store$memory$agent_runs[[run_id]]
     if (
-      !run$status %in% c("pending", "running", "cancelling") ||
+      !(if (process_restart) {
+        run$status %in% c("pending", "running", "cancelling")
+      } else {
+        identical(run$status, "pending")
+      }) ||
         (!process_restart &&
-          (identical(run$status, "pending") ||
-            is.null(run$lease_expires_at) ||
+          (is.null(run$lease_expires_at) ||
             as.POSIXct(run$lease_expires_at, tz = "UTC") >
               as.POSIXct(recovered_at, tz = "UTC")))
     ) {
@@ -576,7 +1100,8 @@ store_retry_agent_run <- function(
   run_id,
   request_key,
   requested_at = utc_now(),
-  worker_id = NULL
+  worker_id = NULL,
+  lease_at = requested_at
 ) {
   original <- store_get_agent_run(store, reader_id, run_id)
   if (
@@ -600,8 +1125,150 @@ store_retry_agent_run <- function(
     pinned_inputs = original$pinned_inputs,
     requested_at = requested_at,
     retry_of_run_id = original$run_id,
-    worker_id = worker_id
+    worker_id = worker_id,
+    lease_at = lease_at
   )
+}
+
+store_start_prioritized_reader_question <- function(
+  store,
+  reader_id,
+  request_key,
+  pinned_inputs = NULL,
+  retry_of = NULL,
+  requested_at = utc_now(),
+  worker_id = NULL,
+  transition_at = requested_at
+) {
+  result <- store_with_agent_run_reader_lock(
+    store,
+    reader_id,
+    function(transaction_store) {
+      store_interrupt_expired_agent_runs(
+        transaction_store,
+        recovered_at = transition_at
+      )
+      retry_of_run_id <- retry_of$run_id %||% NULL
+      expected_inputs <- pinned_inputs
+      if (!is.null(retry_of)) {
+        original <- store_get_agent_run(
+          transaction_store,
+          reader_id,
+          retry_of_run_id
+        )
+        if (
+          is.null(original) ||
+            !identical(original$kind, "question") ||
+            !original$status %in%
+              c("completed", "failed", "cancelled", "interrupted")
+        ) {
+          return(list(run = NULL, preempted = NULL))
+        }
+        expected_inputs <- original$pinned_inputs
+      }
+      existing <- store_get_agent_run_by_request_key(
+        transaction_store,
+        reader_id,
+        request_key
+      )
+      if (!is.null(existing)) {
+        validate_agent_run_replay(
+          existing,
+          kind = "question",
+          pinned_inputs = expected_inputs,
+          retry_of_run_id = retry_of_run_id
+        )
+        store_delete_deferred_reader_question(
+          transaction_store,
+          reader_id,
+          request_key
+        )
+        return(list(run = existing, preempted = NULL, deferred = NULL))
+      }
+      deferred <- store_get_deferred_reader_question(
+        transaction_store,
+        reader_id
+      )
+      if (!is.null(deferred)) {
+        validate_deferred_reader_question_replay(
+          deferred,
+          request_key,
+          expected_inputs,
+          retry_of_run_id
+        )
+        requested_at <- deferred$requested_at
+      }
+      preempted <- store_prioritize_reader_question(
+        transaction_store,
+        reader_id,
+        requested_at = requested_at
+      )
+      if (
+        !is.null(preempted) &&
+          preempted$status %in% c("running", "cancelling")
+      ) {
+        deferred <- store_save_deferred_reader_question(
+          transaction_store,
+          reader_id = reader_id,
+          request_key = request_key,
+          pinned_inputs = expected_inputs,
+          retry_of_run_id = retry_of_run_id,
+          requested_at = requested_at
+        )
+        return(list(
+          run = NULL,
+          preempted = preempted,
+          deferred = deferred
+        ))
+      }
+      run <- if (is.null(retry_of)) {
+        store_start_agent_run(
+          transaction_store,
+          reader_id = reader_id,
+          kind = "question",
+          request_key = request_key,
+          pinned_inputs = pinned_inputs,
+          requested_at = requested_at,
+          worker_id = worker_id,
+          lease_at = transition_at
+        )
+      } else {
+        store_retry_agent_run(
+          transaction_store,
+          reader_id = reader_id,
+          run_id = retry_of$run_id,
+          request_key = request_key,
+          requested_at = requested_at,
+          worker_id = worker_id,
+          lease_at = transition_at
+        )
+      }
+      if (is.null(run)) {
+        cli::cli_abort(
+          "The Agent Run is not available to retry.",
+          class = "rill_agent_run_retry_unavailable"
+        )
+      }
+      store_delete_deferred_reader_question(
+        transaction_store,
+        reader_id,
+        request_key
+      )
+      list(run = run, preempted = preempted, deferred = NULL)
+    }
+  )
+  result$orientation_signalled <- if (
+    is.null(result$preempted) ||
+      !identical(result$preempted$status, "cancelling")
+  ) {
+    FALSE
+  } else {
+    rill_signal_orientation_interrupt(
+      result$preempted$run_id,
+      "reader_question"
+    )
+  }
+  result
 }
 
 agent_run_json <- function(value) {

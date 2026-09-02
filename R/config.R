@@ -46,6 +46,30 @@ rill_config <- function() {
   if (!nzchar(agent_model)) {
     agent_model <- "openai"
   }
+  agent_provider <- rill_agent_provider(agent_model)
+  agent_base_url <- trimws(Sys.getenv("RILL_AGENT_BASE_URL", unset = ""))
+  if (!nzchar(agent_base_url)) {
+    agent_base_url <- switch(
+      agent_provider,
+      openai = trimws(Sys.getenv("OPENAI_BASE_URL", unset = "")),
+      azure_openai = trimws(Sys.getenv("AZURE_OPENAI_ENDPOINT", unset = "")),
+      ollama = trimws(Sys.getenv("OLLAMA_BASE_URL", unset = "")),
+      ""
+    )
+  }
+  if (nzchar(agent_base_url)) {
+    agent_base_url <- rill_agent_base_url(agent_model, agent_base_url)
+  }
+  agent_policy_url <- trimws(Sys.getenv(
+    "RILL_AGENT_POLICY_URL",
+    unset = ""
+  ))
+  if (nzchar(agent_policy_url)) {
+    agent_policy_url <- rill_agent_http_url(
+      agent_policy_url,
+      "RILL_AGENT_POLICY_URL"
+    )
+  }
 
   list(
     app_name = "Rill",
@@ -59,12 +83,15 @@ rill_config <- function() {
     )),
     defuddle_command = defuddle_command,
     agent_model = agent_model,
+    agent_base_url = agent_base_url,
+    agent_policy_url = agent_policy_url,
     defuddle_api_key = trimws(Sys.getenv("DEFUDDLE_API_KEY", unset = "")),
     defuddle_base_url = Sys.getenv(
       "DEFUDDLE_BASE_URL",
       unset = "https://defuddle.md"
     ),
     capture_token = Sys.getenv("RILL_CAPTURE_TOKEN", unset = ""),
+    orientation_enabled = env_flag("RILL_ORIENTATION_ENABLED", FALSE),
     telemetry_enabled = nzchar(Sys.getenv(
       "OTEL_EXPORTER_OTLP_ENDPOINT",
       unset = ""

@@ -14,8 +14,14 @@ A \code{shiny.appobj} object suitable for \code{\link[shiny:runApp]{shiny::runAp
 environment variables. With no \code{DATABASE_URL}, it uses bundled demo data.
 When \code{RILL_CAPTURE_TOKEN} is set, the same application accepts authenticated
 browser documents at \verb{/api/v1/captures}. \code{RILL_AGENT_MODEL} selects the
-\link[ellmer:chat]{ellmer} model used for source-grounded questions; its
-provider credential must also be available in the environment.
+\link[ellmer:chat]{ellmer} model used for source-grounded questions and
+Orientation. Its provider credential must also be available.
+\code{RILL_AGENT_BASE_URL} selects a custom provider endpoint and is required
+when Rill cannot resolve the effective endpoint itself.
+\code{RILL_ORIENTATION_ENABLED=true} makes automatic Orientation available; each
+Reader must still confirm the configured Data Destination in the app before
+bounded reading copies are sent. External destinations also require an
+inspectable provider-policy link in \code{RILL_AGENT_POLICY_URL}.
 }
 \examples{
 if (interactive()) {

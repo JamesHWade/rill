@@ -29,23 +29,163 @@ rill_agent_provenance_summary <- function(document) {
     producer_version = document$producer_version,
     captured_at = document$captured_at,
     content_hash = document$content_hash,
-    record_hash = document$record_hash
+    record_hash = document$record_hash,
+    limitations = rill_document_limitations(document)
   )
 }
 
-rill_agent_data_destination <- function(model) {
+rill_agent_provider <- function(model) {
   provider <- strsplit(trimws(model), "/", fixed = TRUE)[[1]][[1]]
+  tolower(provider)
+}
+
+rill_agent_http_url <- function(value, argument, allow_blank = FALSE) {
+  value <- trimws(value %||% "")
+  if (!nzchar(value) && isTRUE(allow_blank)) {
+    return(NA_character_)
+  }
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = \(error) NULL
+  )
+  if (
+    is.null(parsed) ||
+      !tolower(parsed$scheme %||% "") %in% c("http", "https") ||
+      !nzchar(parsed$hostname %||% "")
+  ) {
+    cli::cli_abort(
+      "{.envvar {argument}} must be a complete HTTP or HTTPS URL.",
+      class = "rill_agent_url_invalid"
+    )
+  }
+  if (
+    nzchar(parsed$username %||% "") ||
+      nzchar(parsed$password %||% "")
+  ) {
+    cli::cli_abort(
+      "{.envvar {argument}} cannot contain credentials.",
+      class = "rill_agent_url_invalid"
+    )
+  }
+  httr2::url_build(parsed)
+}
+
+rill_agent_base_url <- function(model, configured = "") {
+  configured <- trimws(configured %||% "")
+  if (nzchar(configured)) {
+    parsed <- httr2::url_parse(
+      rill_agent_http_url(configured, "RILL_AGENT_BASE_URL")
+    )
+    if (
+      nzchar(parsed$username %||% "") ||
+        nzchar(parsed$password %||% "") ||
+        length(parsed$query %||% list()) ||
+        nzchar(parsed$fragment %||% "")
+    ) {
+      cli::cli_abort(
+        paste(
+          "{.envvar RILL_AGENT_BASE_URL} cannot contain credentials, a query,",
+          "or a fragment."
+        ),
+        class = "rill_agent_url_invalid"
+      )
+    }
+    return(sub("/+$", "", httr2::url_build(parsed)))
+  }
+
   switch(
-    tolower(provider),
+    rill_agent_provider(model),
+    openai = "https://api.openai.com/v1",
+    anthropic = "https://api.anthropic.com/v1",
+    google_gemini = "https://generativelanguage.googleapis.com/v1beta",
+    gemini = "https://generativelanguage.googleapis.com/v1beta",
+    ollama = "http://localhost:11434",
+    NA_character_
+  )
+}
+
+rill_agent_endpoint_is_installation <- function(provider, endpoint) {
+  if (!identical(provider, "ollama") || is.na(endpoint)) {
+    return(FALSE)
+  }
+  hostname <- tolower(httr2::url_parse(endpoint)$hostname %||% "")
+  identical(hostname, "localhost") ||
+    identical(hostname, "::1") ||
+    grepl("^127\\.", hostname)
+}
+
+rill_agent_data_destination_details <- function(
+  model,
+  base_url = "",
+  policy_url = ""
+) {
+  id <- rill_agent_provider(model)
+  name <- switch(
+    id,
     openai = "OpenAI",
     azure_openai = "Azure OpenAI",
     anthropic = "Anthropic",
     bedrock = "AWS Bedrock",
+    aws_bedrock = "AWS Bedrock",
     gemini = "Google Gemini",
     google_gemini = "Google Gemini",
     ollama = "Ollama",
-    provider
+    id
   )
+  endpoint <- rill_agent_base_url(model, base_url)
+  policy_url <- rill_agent_http_url(
+    policy_url,
+    "RILL_AGENT_POLICY_URL",
+    allow_blank = TRUE
+  )
+  endpoint_host <- if (is.na(endpoint)) {
+    NA_character_
+  } else {
+    httr2::url_parse(endpoint)$hostname
+  }
+  label <- if (is.na(endpoint_host) || !nzchar(endpoint_host)) {
+    name
+  } else {
+    paste(name, "at", endpoint_host)
+  }
+  kind <- if (rill_agent_endpoint_is_installation(id, endpoint)) {
+    "installation"
+  } else {
+    "external"
+  }
+  consent_policy_url <- if (identical(kind, "external")) {
+    policy_url
+  } else {
+    NA_character_
+  }
+  list(
+    id = rill_id("agent-data-destination", id, endpoint, consent_policy_url),
+    provider_id = id,
+    name = name,
+    label = label,
+    endpoint = endpoint,
+    endpoint_ready = !is.na(endpoint),
+    kind = kind,
+    policy_url = policy_url
+  )
+}
+
+rill_agent_data_destination <- function(model, base_url = "") {
+  rill_agent_data_destination_details(model, base_url = base_url)$label
+}
+
+rill_agent_chat <- function(model, base_url = "", echo = "none") {
+  arguments <- list(name = model, echo = echo)
+  configured <- trimws(base_url %||% "")
+  if (nzchar(configured)) {
+    argument <- if (identical(rill_agent_provider(model), "azure_openai")) {
+      "endpoint"
+    } else {
+      "base_url"
+    }
+    arguments[[argument]] <- rill_agent_base_url(model, configured)
+  }
+  do.call(ellmer::chat, arguments)
 }
 
 rill_document_tool <- function(document) {
@@ -64,6 +204,7 @@ rill_document_tool <- function(document) {
     acquisition_method = document$acquisition_method,
     producer = document$producer,
     producer_version = document$producer_version,
+    limitations = rill_document_limitations(document),
     provenance = rill_agent_provenance_summary(document),
     markdown = document$markdown
   )
@@ -137,16 +278,63 @@ rill_agent_run_limits <- function() {
   )
 }
 
-rill_agent_runtime_identity <- function(agent, configured_model) {
-  model <- tryCatch(
-    as.character(agent$get_model())[[1]],
-    error = \(error) configured_model
-  )
-  data_destination <- tryCatch(
-    as.character(agent$get_provider()@name)[[1]],
-    error = \(error) rill_agent_data_destination(configured_model)
-  )
+rill_agent_method <- function(agent, name) {
+  method <- tryCatch(agent[[name]], error = \(error) NULL)
+  if (is.function(method)) method else NULL
+}
+
+rill_agent_chat_call <- function(agent, name, default = NULL) {
+  legacy <- rill_agent_method(agent, name)
+  if (!is.null(legacy)) {
+    return(tryCatch(legacy(), error = \(error) default))
+  }
+
+  chat <- tryCatch(agent[["chat"]], error = \(error) NULL)
+  method <- tryCatch(chat[[name]], error = \(error) NULL)
+  if (!is.function(method)) {
+    return(default)
+  }
+  tryCatch(method(), error = \(error) default)
+}
+
+rill_agent_runtime_identity <- function(
+  agent,
+  configured_model,
+  configured_destination = NULL
+) {
+  provider <- rill_agent_method(agent, "provider")
+  identity <- if (is.null(provider)) {
+    NULL
+  } else {
+    tryCatch(provider(), error = \(error) NULL)
+  }
+  model <- identity$model %||%
+    rill_agent_chat_call(agent, "get_model", configured_model)
+  provider_name <- identity$name %||%
+    tryCatch(
+      as.character(rill_agent_chat_call(agent, "get_provider")@name)[[1]],
+      error = \(error) NULL
+    )
+  data_destination <- configured_destination %||%
+    provider_name %||%
+    rill_agent_data_destination(configured_model)
   list(model = model, data_destination = data_destination)
+}
+
+rill_agent_shiny_stream <- function(agent, prompt, run_context = list()) {
+  run_shiny <- rill_agent_method(agent, "run_shiny")
+  if (!is.null(run_shiny)) {
+    return(run_shiny(prompt, run_context = run_context))
+  }
+
+  stream_async <- rill_agent_method(agent, "stream_async")
+  if (is.null(stream_async)) {
+    cli::cli_abort(
+      "The installed Deputy version cannot run a Shiny Agent stream.",
+      class = "rill_deputy_api_incompatible"
+    )
+  }
+  stream_async(prompt, stream = "content", run_context = run_context)
 }
 
 track_reader_agent_stream <- function(stream, on_partial) {
@@ -187,11 +375,12 @@ rill_reader_agent <- function(
   reader_id,
   session_id,
   model = "openai",
+  base_url = "",
   chat = NULL,
   on_stop = NULL
 ) {
   if (is.null(chat)) {
-    chat <- ellmer::chat(model, echo = "none")
+    chat <- rill_agent_chat(model, base_url = base_url, echo = "none")
   }
 
   agent <- deputy::Agent$new(

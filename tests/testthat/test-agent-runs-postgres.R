@@ -76,11 +76,14 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     store$pool,
     paste(
       "SELECT pg_get_constraintdef(oid) AS definition",
-      "FROM pg_constraint WHERE conname = 'agent_runs_kind_check'"
+      "FROM pg_constraint",
+      "WHERE conname = 'agent_runs_kind_check'",
+      "AND conrelid = 'agent_runs'::regclass"
     )
   )$definition
   testthat::expect_match(constraint, "question", fixed = TRUE)
   testthat::expect_no_match(constraint, "conversation", fixed = TRUE)
+  DBI::dbExecute(store$pool, "DROP TABLE IF EXISTS orientations")
   DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
 
   DBI::dbExecute(
@@ -95,6 +98,12 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(unrelated$relation, "unrelated_records")
 
   DBI::dbExecute(store$pool, "DROP TABLE schema_migrations")
+  DBI::dbExecute(
+    store$pool,
+    "DROP TABLE orientation_destination_settings"
+  )
+  DBI::dbExecute(store$pool, "DROP TABLE deferred_reader_questions")
+  DBI::dbExecute(store$pool, "DROP TABLE IF EXISTS orientations")
   DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
   DBI::dbExecute(store$pool, "DROP TABLE subscription_preferences")
   DBI::dbExecute(
@@ -139,7 +148,14 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   testthat::expect_identical(
     migrations$migration_id,
-    c("001_init", "002_agent_runs", "003_agent_run_question_kind")
+    c(
+      "001_init",
+      "002_agent_runs",
+      "003_agent_run_question_kind",
+      "004_orientations",
+      "005_orientation_data_destination_settings",
+      "006_deferred_reader_questions"
+    )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
   legacy_state <- DBI::dbGetQuery(
@@ -242,13 +258,14 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     pinned_inputs = pinned_inputs,
     requested_at = requested_at
   )
+  testthat::expect_equal(first$lease_expires_at, requested_at + 30)
   replay <- store_start_agent_run(
     store,
     reader_id = "reader-1",
     kind = "question",
     request_key = "ask-rill-message-17",
     pinned_inputs = pinned_inputs[rev(names(pinned_inputs))],
-    requested_at = requested_at + 60
+    requested_at = requested_at + 20
   )
 
   testthat::expect_identical(replay, first)
@@ -272,7 +289,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       reader_id = "reader-1",
       kind = "orientation",
       request_key = "orientation-library-41",
-      pinned_inputs = list(document_id = "document-2")
+      pinned_inputs = list(document_id = "document-2"),
+      requested_at = requested_at + 1
     ),
     class = "rill_agent_run_conflict"
   )
@@ -317,7 +335,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     reader_id = "reader-1",
     kind = "orientation",
     request_key = "orientation-library-42",
-    pinned_inputs = list(document_id = "document-2")
+    pinned_inputs = list(document_id = "document-2"),
+    requested_at = requested_at + 3
   )
   second <- store_claim_agent_run(
     store,
@@ -342,6 +361,87 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     finished_at = requested_at + 91
   )
   testthat::expect_identical(cancelled$status, "cancelled")
+
+  priority <- store_start_agent_run(
+    store,
+    reader_id = "reader-priority",
+    kind = "orientation",
+    request_key = "orientation-priority",
+    pinned_inputs = list(document_id = "document-priority"),
+    requested_at = requested_at,
+    worker_id = "other-session"
+  )
+  priority <- store_claim_agent_run(
+    store,
+    reader_id = "reader-priority",
+    run_id = priority$run_id,
+    worker_id = "other-session",
+    started_at = requested_at + 1,
+    lease_expires_at = requested_at + 120
+  )
+  prioritized_at <- requested_at + 2
+  priority <- store_prioritize_reader_question(
+    store,
+    reader_id = "reader-priority",
+    requested_at = prioritized_at
+  )
+  testthat::expect_identical(priority$status, "cancelling")
+  testthat::expect_null(priority$terminal_reason)
+  testthat::expect_null(priority$terminal_at)
+  testthat::expect_identical(priority$worker_id, "other-session")
+  testthat::expect_identical(
+    priority$lease_expires_at,
+    requested_at + 120
+  )
+  testthat::expect_error(
+    store_start_agent_run(
+      store,
+      reader_id = "reader-priority",
+      kind = "question",
+      request_key = "question-before-orientation-stops",
+      pinned_inputs = list(document_id = "document-priority"),
+      requested_at = prioritized_at
+    ),
+    class = "rill_agent_run_conflict"
+  )
+  priority <- store_finish_agent_run(
+    store,
+    reader_id = "reader-priority",
+    run_id = priority$run_id,
+    worker_id = "other-session",
+    status = "cancelled",
+    terminal_reason = "reader_question",
+    finished_at = prioritized_at + 1
+  )
+  priority <- store_enrich_terminal_agent_run(
+    store,
+    reader_id = "reader-priority",
+    run_id = priority$run_id,
+    worker_id = "other-session",
+    usage = list(requests = 1L),
+    deputy_run_id = "deputy-orientation-late",
+    updated_at = prioritized_at + 1
+  )
+  testthat::expect_identical(priority$usage$requests, 1L)
+  testthat::expect_identical(
+    priority$deputy_run_id,
+    "deputy-orientation-late"
+  )
+  priority_question <- store_start_agent_run(
+    store,
+    reader_id = "reader-priority",
+    kind = "question",
+    request_key = "question-after-orientation",
+    pinned_inputs = list(document_id = "document-priority"),
+    requested_at = prioritized_at
+  )
+  testthat::expect_identical(priority_question$status, "pending")
+  store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-priority",
+    run_id = priority_question$run_id,
+    requested_at = prioritized_at + 1
+  )
 
   timed_out <- store_start_agent_run(
     store,
@@ -428,6 +528,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     pending_cancelled$terminal_reason,
     "cancelled_before_start"
   )
+  testthat::expect_null(pending_cancelled$lease_expires_at)
 
   unclaimed <- store_start_agent_run(
     store,
@@ -495,13 +596,32 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     started_at = requested_at,
     lease_expires_at = requested_at + 1
   )
+  expired_pending <- store_start_agent_run(
+    store,
+    reader_id = "reader-pending-recovery",
+    kind = "orientation",
+    request_key = "expired-pending-orientation",
+    pinned_inputs = list(document_id = "document-pending"),
+    requested_at = requested_at - 30
+  )
   expired_recovery <- store_interrupt_expired_agent_runs(
     store,
     recovered_at = requested_at + 2
   )
-  testthat::expect_identical(
+  testthat::expect_setequal(
     vapply(expired_recovery, `[[`, character(1), "run_id"),
-    expired$run_id
+    expired_pending$run_id
+  )
+  expired <- store_get_agent_run(store, "reader-recovery", expired$run_id)
+  testthat::expect_identical(expired$status, "running")
+  process_recovery <- store_interrupt_agent_runs(
+    store,
+    recovery = "process_restart",
+    recovered_at = requested_at + 3
+  )
+  testthat::expect_in(
+    expired$run_id,
+    vapply(process_recovery, `[[`, character(1), "run_id")
   )
   replacement <- store_start_agent_run(
     store,
@@ -513,8 +633,23 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   expired <- store_get_agent_run(store, "reader-recovery", expired$run_id)
   testthat::expect_identical(expired$status, "interrupted")
-  testthat::expect_identical(expired$terminal_reason, "lease_expired")
+  testthat::expect_identical(expired$terminal_reason, "process_restarted")
   testthat::expect_identical(replacement$status, "pending")
+  pending_replacement <- store_start_agent_run(
+    store,
+    reader_id = "reader-pending-recovery",
+    kind = "question",
+    request_key = "question-after-pending-recovery",
+    pinned_inputs = list(document_id = "document-pending"),
+    requested_at = requested_at + 2
+  )
+  testthat::expect_identical(pending_replacement$status, "pending")
+  store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-pending-recovery",
+    run_id = pending_replacement$run_id,
+    requested_at = requested_at + 3
+  )
 
   running <- store_start_agent_run(
     store,

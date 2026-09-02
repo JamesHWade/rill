@@ -43,3 +43,45 @@ jobs:
         with:
           upload-snapshots: true
           build_args: 'c("--no-manual", "--compact-vignettes=gs+qpdf")'
+
+  PostgreSQL-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: rill_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      RILL_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rill_test
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+      - name: Test PostgreSQL contracts
+        run: |
+          testthat::test_local(
+            filter = paste0(
+              "agent-runs-postgres|orientation-backends|",
+              "orientation-destination|orientation-postgres"
+            )
+          )
+        shell: Rscript {0}

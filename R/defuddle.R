@@ -236,7 +236,11 @@ document_fallback <- function(entry, reason = "feed-content") {
 
 get_or_extract_document <- function(store, entry, config) {
   cached <- store_get_document(store, entry$entry_id)
-  if (!is.null(cached)) {
+  if (
+    !is.null(cached) &&
+      !(identical(cached$acquisition_method, "feed_fallback") &&
+        identical(cached$producer, "orientation-feed-copy"))
+  ) {
     return(cached)
   }
 

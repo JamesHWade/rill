@@ -24,7 +24,7 @@ testthat::test_that("rill_app interrupts Agent Runs orphaned by a restart", {
   withr::local_envvar(DATABASE_URL = "")
   store <- rill_store(list(demo_mode = TRUE))
   recovered_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
-  statuses <- c("pending", "running", "cancelling")
+  statuses <- c("pending", "running", "cancelling", "running")
 
   for (index in seq_along(statuses)) {
     reader_id <- paste0("reader-", index)
@@ -43,7 +43,11 @@ testthat::test_that("rill_app interrupts Agent Runs orphaned by a restart", {
         run_id = run$run_id,
         worker_id = "previous-process",
         started_at = recovered_at - 30,
-        lease_expires_at = recovered_at + 60
+        lease_expires_at = if (index < 4L) {
+          recovered_at - 1
+        } else {
+          recovered_at + 60
+        }
       )
     }
     if (identical(statuses[[index]], "cancelling")) {
@@ -63,18 +67,21 @@ testthat::test_that("rill_app interrupts Agent Runs orphaned by a restart", {
 
   rill_app()
 
-  recovered <- unname(store$memory$agent_runs)
-  testthat::expect_identical(
-    vapply(recovered, `[[`, character(1), "status"),
-    rep("interrupted", 3L)
+  runs <- Filter(
+    \(run) !identical(run$terminal_reason, "bundled_demo"),
+    unname(store$memory$agent_runs)
   )
   testthat::expect_identical(
-    vapply(recovered, `[[`, character(1), "terminal_reason"),
-    rep("process_restarted", 3L)
+    vapply(runs, `[[`, character(1), "status"),
+    rep("interrupted", 4L)
   )
   testthat::expect_identical(
-    lapply(recovered, `[[`, "terminal_at"),
-    rep(list(recovered_at), 3L)
+    vapply(runs, `[[`, character(1), "terminal_reason"),
+    rep("process_restarted", 4L)
+  )
+  testthat::expect_identical(
+    lapply(runs, `[[`, "terminal_at"),
+    rep(list(recovered_at), 4L)
   )
 })
 
@@ -106,11 +113,15 @@ testthat::test_that("installed runtime assets are available", {
     rill_package_file("app", "www", "rill-duck.png"),
     rill_package_file("app", "www", "styles.css"),
     rill_package_file("sql", "001_init.sql"),
-    rill_package_file("sql", "002_agent_runs.sql")
+    rill_package_file("sql", "002_agent_runs.sql"),
+    rill_package_file("sql", "003_agent_run_question_kind.sql"),
+    rill_package_file("sql", "004_orientations.sql"),
+    rill_package_file("sql", "005_orientation_data_destination_settings.sql"),
+    rill_package_file("sql", "006_deferred_reader_questions.sql")
   )
 
-  testthat::expect_length(assets, 7L)
-  testthat::expect_identical(file.exists(assets), rep(TRUE, 7L))
+  testthat::expect_length(assets, 11L)
+  testthat::expect_identical(file.exists(assets), rep(TRUE, 11L))
 })
 
 testthat::test_that("chat submissions receive an idempotency token", {
