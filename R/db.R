@@ -116,6 +116,7 @@ rill_store <- function(config) {
       payload = character(),
       stringsAsFactors = FALSE
     )
+    memory$agent_runs <- list()
     return(structure(
       list(mode = "memory", memory = memory),
       class = "rill_store"
@@ -182,16 +183,152 @@ store_apply_schema <- function(store) {
       silent = TRUE
     )
   }
-  schema_path <- rill_package_file("sql", "001_init.sql")
-  schema <- paste(readLines(schema_path, warn = FALSE), collapse = "\n")
-  statements <- Filter(nzchar, trimws(strsplit(schema, ";", fixed = TRUE)[[1]]))
-
   pool::poolWithTransaction(store$pool, function(connection) {
-    for (statement in statements) {
-      DBI::dbExecute(connection, statement)
+    DBI::dbExecute(
+      connection,
+      "SELECT pg_advisory_xact_lock(hashtext('rill:schema-migrations'))"
+    )
+    DBI::dbExecute(
+      connection,
+      paste(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (",
+        "migration_id text PRIMARY KEY,",
+        "checksum text NOT NULL,",
+        "applied_at timestamptz NOT NULL DEFAULT now()",
+        ")"
+      )
+    )
+
+    migrations <- schema_migration_files()
+    applied <- DBI::dbGetQuery(
+      connection,
+      paste(
+        "SELECT migration_id, checksum FROM schema_migrations",
+        "ORDER BY migration_id"
+      )
+    )
+    known_ids <- vapply(migrations, `[[`, character(1), "migration_id")
+    unknown_ids <- setdiff(applied$migration_id, known_ids)
+    if (length(unknown_ids)) {
+      cli::cli_abort(
+        paste0(
+          "The database has unknown schema migration",
+          if (length(unknown_ids) == 1L) " " else "s ",
+          paste(unknown_ids, collapse = ", "),
+          "."
+        ),
+        class = "rill_schema_newer"
+      )
+    }
+
+    for (migration in migrations) {
+      applied_index <- match(migration$migration_id, applied$migration_id)
+      if (!is.na(applied_index)) {
+        if (!identical(applied$checksum[[applied_index]], migration$checksum)) {
+          cli::cli_abort(
+            "Schema migration {.val {migration$migration_id}} has changed.",
+            class = "rill_schema_drift"
+          )
+        }
+        next
+      }
+
+      if (
+        identical(migration$migration_id, "001_init") &&
+          store_has_domain_schema(connection)
+      ) {
+        store_verify_baseline_schema(connection)
+      } else {
+        statements <- Filter(
+          nzchar,
+          trimws(strsplit(migration$sql, ";", fixed = TRUE)[[1]])
+        )
+        for (statement in statements) {
+          DBI::dbExecute(connection, statement)
+        }
+      }
+
+      DBI::dbExecute(
+        connection,
+        paste(
+          "INSERT INTO schema_migrations (migration_id, checksum)",
+          "VALUES ($1, $2)"
+        ),
+        params = list(migration$migration_id, migration$checksum)
+      )
+      applied <- rbind(
+        applied,
+        data.frame(
+          migration_id = migration$migration_id,
+          checksum = migration$checksum,
+          stringsAsFactors = FALSE
+        )
+      )
     }
   })
 
+  invisible(NULL)
+}
+
+schema_migration_files <- function() {
+  paths <- list.files(
+    rill_package_file("sql"),
+    pattern = "^[0-9]{3}_[a-z0-9_]+[.]sql$",
+    full.names = TRUE
+  )
+  paths <- sort(paths)
+  lapply(paths, function(path) {
+    sql <- paste(readLines(path, warn = FALSE), collapse = "\n")
+    list(
+      migration_id = sub("[.]sql$", "", basename(path)),
+      checksum = digest::digest(sql, algo = "sha256", serialize = FALSE),
+      sql = sql
+    )
+  })
+}
+
+store_has_domain_schema <- function(connection) {
+  tables <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT table_name FROM information_schema.tables",
+      "WHERE table_schema = current_schema()",
+      "AND table_name <> 'schema_migrations'"
+    )
+  )
+  nrow(tables) > 0L
+}
+
+store_verify_baseline_schema <- function(connection) {
+  required_tables <- c(
+    "feeds",
+    "entries",
+    "article_documents",
+    "documents",
+    "entry_document_heads",
+    "entry_state",
+    "subscription_preferences",
+    "events"
+  )
+  tables <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT table_name FROM information_schema.tables",
+      "WHERE table_schema = current_schema()"
+    )
+  )
+  missing_tables <- setdiff(required_tables, tables$table_name)
+  if (length(missing_tables)) {
+    cli::cli_abort(
+      paste0(
+        "The existing database is not compatible with the Rill baseline: ",
+        "missing ",
+        paste(missing_tables, collapse = ", "),
+        "."
+      ),
+      class = "rill_schema_incompatible"
+    )
+  }
   invisible(NULL)
 }
 

@@ -3,7 +3,9 @@
 #' `rill_app()` creates the Shiny application using configuration read from
 #' environment variables. With no `DATABASE_URL`, it uses bundled demo data.
 #' When `RILL_CAPTURE_TOKEN` is set, the same application accepts authenticated
-#' browser documents at `/api/v1/captures`.
+#' browser documents at `/api/v1/captures`. `RILL_AGENT_MODEL` selects the
+#' [ellmer][ellmer::chat()] model used for source-grounded Conversation; its
+#' provider credential must also be available in the environment.
 #'
 #' @return A `shiny.appobj` object suitable for [shiny::runApp()].
 #' @export

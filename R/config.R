@@ -29,6 +29,10 @@ rill_config <- function() {
   if (!nzchar(defuddle_command)) {
     defuddle_command <- "defuddle"
   }
+  agent_model <- trimws(Sys.getenv("RILL_AGENT_MODEL", unset = "openai"))
+  if (!nzchar(agent_model)) {
+    agent_model <- "openai"
+  }
 
   list(
     app_name = "Rill",
@@ -41,6 +45,7 @@ rill_config <- function() {
       unset = "hosted"
     )),
     defuddle_command = defuddle_command,
+    agent_model = agent_model,
     defuddle_api_key = trimws(Sys.getenv("DEFUDDLE_API_KEY", unset = "")),
     defuddle_base_url = Sys.getenv(
       "DEFUDDLE_BASE_URL",

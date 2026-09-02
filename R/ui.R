@@ -267,10 +267,56 @@ mark_unread_button <- function() {
 }
 
 reader_pane_ui <- function() {
-  shiny::tags$div(
-    class = "reader-scroll",
-    shiny::uiOutput("reader_header", container = shiny::tags$div),
-    shiny::uiOutput("reader_body", container = shiny::tags$div)
+  bslib::layout_sidebar(
+    shiny::tags$div(
+      class = "reader-scroll",
+      shiny::uiOutput("reader_header", container = shiny::tags$div),
+      shiny::uiOutput("reader_body", container = shiny::tags$div)
+    ),
+    sidebar = bslib::sidebar(
+      shiny::tags$header(
+        class = "reader-agent-header",
+        shiny::tags$p(class = "eyebrow", "Conversation"),
+        shiny::tags$h2("Ask Rill about this story")
+      ),
+      shiny::uiOutput(
+        "reader_agent_status",
+        container = shiny::tags$div,
+        class = "reader-agent-status-slot"
+      ),
+      shinychat::chat_ui(
+        "reader_chat",
+        greeting = shinychat::chat_greeting(
+          "Choose a story, then ask what it says, why it matters, or how it connects."
+        ),
+        placeholder = "Ask about the selected story\u2026",
+        height = "100%",
+        fill = TRUE,
+        enable_cancel = TRUE,
+        footer = shiny::tags$span(
+          paste(
+            "Uses the selected reading copy only",
+            "\u00b7 interpretation stays labeled"
+          )
+        )
+      ),
+      id = "reader_agent_sidebar",
+      class = "reader-agent-sidebar",
+      width = "380px",
+      position = "right",
+      open = list(desktop = "open", mobile = "closed"),
+      resizable = TRUE,
+      fillable = TRUE,
+      padding = 0,
+      gap = 0
+    ),
+    fillable = TRUE,
+    fill = TRUE,
+    border = FALSE,
+    border_radius = FALSE,
+    padding = 0,
+    gap = 0,
+    height = "100%"
   )
 }
 

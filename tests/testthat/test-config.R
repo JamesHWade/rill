@@ -5,6 +5,7 @@ testthat::test_that("configuration defaults to the bundled demo", {
     RILL_ENV = NA,
     DEFUDDLE_BACKEND = NA,
     DEFUDDLE_COMMAND = NA,
+    RILL_AGENT_MODEL = NA,
     RILL_CAPTURE_TOKEN = NA,
     RILL_REFRESH_ON_START = NA
   ))
@@ -17,6 +18,7 @@ testthat::test_that("configuration defaults to the bundled demo", {
   testthat::expect_identical(config$demo_mode, TRUE)
   testthat::expect_identical(config$defuddle_backend, "hosted")
   testthat::expect_identical(config$defuddle_command, "defuddle")
+  testthat::expect_identical(config$agent_model, "openai")
   testthat::expect_identical(config$capture_token, "")
   testthat::expect_identical(config$refresh_on_start, FALSE)
 })
@@ -28,6 +30,7 @@ testthat::test_that("configuration reads explicit environment settings", {
     RILL_ENV = "test",
     DEFUDDLE_BACKEND = "LOCAL",
     DEFUDDLE_COMMAND = "/opt/defuddle/bin/defuddle",
+    RILL_AGENT_MODEL = "anthropic/claude-sonnet-4-5-20250929",
     RILL_CAPTURE_TOKEN = "capture-secret",
     RILL_REFRESH_ON_START = "yes"
   ))
@@ -42,8 +45,18 @@ testthat::test_that("configuration reads explicit environment settings", {
     config$defuddle_command,
     "/opt/defuddle/bin/defuddle"
   )
+  testthat::expect_identical(
+    config$agent_model,
+    "anthropic/claude-sonnet-4-5-20250929"
+  )
   testthat::expect_identical(config$capture_token, "capture-secret")
   testthat::expect_identical(config$refresh_on_start, TRUE)
+})
+
+testthat::test_that("a blank Agent model uses the default", {
+  withr::local_envvar(RILL_AGENT_MODEL = "   ")
+
+  testthat::expect_identical(rill_config()$agent_model, "openai")
 })
 
 testthat::test_that("configuration rejects an unknown Defuddle backend", {

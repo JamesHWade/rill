@@ -1,9 +1,11 @@
 ^\.env\.example$
+^\.git$
 ^\.github$
 ^\.scratch$
 ^\.vscode$
 ^_pkgdown\.yml$
 ^app\.R$
+^CONTEXT[.]md$
 ^artifacts$
 ^design-qa\.md$
 ^docs$

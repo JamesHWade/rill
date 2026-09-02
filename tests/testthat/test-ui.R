@@ -132,6 +132,17 @@ testthat::test_that("the reader offers an explicit unread action", {
   testthat::expect_match(html, "Mark unread", fixed = TRUE)
 })
 
+testthat::test_that("the reader includes a source-bounded Conversation", {
+  html <- htmltools::renderTags(reader_pane_ui())$html
+
+  testthat::expect_match(html, 'id="reader_chat"', fixed = TRUE)
+  testthat::expect_match(html, "enable-cancel", fixed = TRUE)
+  testthat::expect_match(html, 'id="reader_agent_status"', fixed = TRUE)
+  testthat::expect_match(html, 'data-open-mobile="closed"', fixed = TRUE)
+  testthat::expect_match(html, "Ask Rill about this story", fixed = TRUE)
+  testthat::expect_match(html, "selected reading copy only", fixed = TRUE)
+})
+
 testthat::test_that("the application shell uses the Rill duck mark", {
   config <- rill_config()
   marks <- htmltools::tagQuery(rill_ui(config))$find(
@@ -155,13 +166,13 @@ testthat::test_that("appearance control offers system, light, and dark modes", {
   testthat::expect_match(html, 'value="dark"', fixed = TRUE)
 })
 
-testthat::test_that("navigation and story queue use native resizable sidebars", {
+testthat::test_that("the application panes use native resizable sidebars", {
   query <- htmltools::tagQuery(rill_ui(rill_config()))
   layouts <- query$find(".bslib-sidebar-layout")$selectedTags()
   sidebars <- query$find(".bslib-sidebar-input")$selectedTags()
 
-  testthat::expect_length(layouts, 2L)
-  testthat::expect_length(sidebars, 2L)
+  testthat::expect_length(layouts, 3L)
+  testthat::expect_length(sidebars, 3L)
   testthat::expect_true(all(vapply(
     sidebars,
     function(sidebar) "data-resizable" %in% names(sidebar$attribs),
@@ -169,6 +180,6 @@ testthat::test_that("navigation and story queue use native resizable sidebars", 
   )))
   testthat::expect_setequal(
     vapply(sidebars, function(sidebar) sidebar$attribs$id, character(1)),
-    c("navigation_sidebar", "story_sidebar")
+    c("navigation_sidebar", "story_sidebar", "reader_agent_sidebar")
   )
 })

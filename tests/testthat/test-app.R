@@ -47,11 +47,36 @@ testthat::test_that("installed runtime assets are available", {
     rill_package_file("app", "www", "rill-duck-dark.png"),
     rill_package_file("app", "www", "rill-duck.png"),
     rill_package_file("app", "www", "styles.css"),
-    rill_package_file("sql", "001_init.sql")
+    rill_package_file("sql", "001_init.sql"),
+    rill_package_file("sql", "002_agent_runs.sql")
   )
 
-  testthat::expect_length(assets, 6L)
-  testthat::expect_identical(file.exists(assets), rep(TRUE, 6L))
+  testthat::expect_length(assets, 7L)
+  testthat::expect_identical(file.exists(assets), rep(TRUE, 7L))
+})
+
+testthat::test_that("chat submissions receive an idempotency token", {
+  javascript <- readLines(
+    rill_package_file("app", "www", "app.js"),
+    warn = FALSE
+  )
+  javascript <- paste(javascript, collapse = "\n")
+
+  testthat::expect_match(
+    javascript,
+    'event.name !== "reader_chat_user_input"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    '["", "shinychat.userInput"].includes(event.inputType)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    '"reader_chat_submission_id"',
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("polling requires durable configuration", {
