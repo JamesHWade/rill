@@ -83,7 +83,19 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_no_match(constraint, "conversation", fixed = TRUE)
   DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
 
-  apply_migration("001_init")
+  DBI::dbExecute(
+    store$pool,
+    "CREATE TABLE unrelated_records (record_id integer PRIMARY KEY)"
+  )
+  store_apply_schema(store)
+  unrelated <- DBI::dbGetQuery(
+    store$pool,
+    "SELECT to_regclass('unrelated_records')::text AS relation"
+  )
+  testthat::expect_identical(unrelated$relation, "unrelated_records")
+
+  DBI::dbExecute(store$pool, "DROP TABLE schema_migrations")
+  DBI::dbExecute(store$pool, "DROP TABLE agent_runs")
   DBI::dbExecute(store$pool, "DROP TABLE subscription_preferences")
   DBI::dbExecute(
     store$pool,

@@ -297,7 +297,7 @@ store_has_domain_schema <- function(connection) {
       "AND table_name <> 'schema_migrations'"
     )
   )
-  nrow(tables) > 0L
+  all(c("feeds", "entries") %in% tables$table_name)
 }
 
 store_adopt_initial_release_schema <- function(connection) {
