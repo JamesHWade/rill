@@ -1,6 +1,8 @@
 ^\.env\.example$
 ^\.git$
 ^\.github$
+^\.playwright-mcp$
+^prototypes$
 ^\.scratch$
 ^\.vscode$
 ^_pkgdown\.yml$

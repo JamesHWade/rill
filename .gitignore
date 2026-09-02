@@ -12,3 +12,4 @@ renv/library/
 renv/staging/
 rsconnect/
 .claude/settings.local.json
+.playwright-mcp/
