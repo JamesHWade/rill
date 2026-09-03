@@ -6,9 +6,9 @@
 #' Identity adapter resolves exact issuer and `sub` pairs to durable internal
 #' Readers. Configured `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private
 #' Reader in `RILL_ACTOR_ID`; unknown identities remain denied with one pending
-#' admission record. Until Reader-owned Library isolation is complete,
-#' admissions can attach only to that configured private Reader. Email and
-#' other profile claims are mutable metadata, not identity keys.
+#' admission record. Until captured Document and reading-copy isolation is
+#' complete, admissions can attach only to that configured private Reader.
+#' Email and other profile claims are mutable metadata, not identity keys.
 #' When `RILL_CAPTURE_TOKEN` is set, the same application accepts authenticated
 #' browser documents at `/api/v1/captures`. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and
@@ -49,10 +49,11 @@ rill_app <- function() {
   app
 }
 
-#' Poll every configured feed
+#' Poll every active Feed
 #'
-#' `poll_feeds()` refreshes every feed in the durable PostgreSQL store. It is
-#' intended for scheduled jobs and reports progress with structured cli output.
+#' `poll_feeds()` refreshes each shared Feed with at least one active
+#' Subscription once. It is intended for scheduled jobs and reports progress
+#' with structured cli output.
 #'
 #' @return Invisibly, a list containing one refresh result per feed.
 #' @export
@@ -69,7 +70,7 @@ poll_feeds <- function() {
   store <- rill_store(config)
   on.exit(rill_store_close(store), add = TRUE)
 
-  results <- refresh_all_feeds(store, config$actor_id)
+  results <- refresh_all_feeds(store)
   failed <- vapply(results, function(result) !is.null(result$error), logical(1))
 
   if (any(failed)) {

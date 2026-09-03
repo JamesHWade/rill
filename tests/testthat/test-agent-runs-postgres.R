@@ -34,7 +34,11 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     )
   )
   store <- structure(
-    list(mode = "postgres", pool = database_pool),
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = "reader-legacy"
+    ),
     class = "rill_store"
   )
   withr::defer(rill_store_close(store))
@@ -98,10 +102,44 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(unrelated$relation, "unrelated_records")
 
   DBI::dbExecute(store$pool, "DROP TABLE schema_migrations")
+  DBI::dbExecute(store$pool, "DROP TABLE subscriptions CASCADE")
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE entry_state DROP COLUMN feed_id CASCADE"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE entry_state RENAME COLUMN reader_id TO actor_id"
+  )
+  DBI::dbExecute(store$pool, "DROP INDEX entry_state_reader_idx")
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "CREATE INDEX entry_state_actor_idx",
+      "ON entry_state (actor_id, read_at, starred, saved)"
+    )
+  )
+  DBI::dbExecute(store$pool, "ALTER TABLE events DROP COLUMN feed_id CASCADE")
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE events RENAME COLUMN reader_id TO actor_id"
+  )
+  DBI::dbExecute(store$pool, "DROP INDEX events_reader_time_idx")
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "CREATE INDEX events_actor_time_idx",
+      "ON events (actor_id, happened_at DESC)"
+    )
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE entries DROP CONSTRAINT entries_feed_entry_key"
+  )
   DBI::dbExecute(store$pool, "DROP TABLE reader_identity_events")
   DBI::dbExecute(store$pool, "DROP TABLE reader_admission_requests")
   DBI::dbExecute(store$pool, "DROP TABLE reader_external_identities")
-  DBI::dbExecute(store$pool, "DROP TABLE readers")
+  DBI::dbExecute(store$pool, "DROP TABLE readers CASCADE")
   DBI::dbExecute(
     store$pool,
     "DROP TABLE orientation_destination_settings"
@@ -160,7 +198,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "005_orientation_data_destination_settings",
       "006_deferred_reader_questions",
       "007_agent_run_response",
-      "008_reader_identities"
+      "008_reader_identities",
+      "009_reader_library"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
@@ -168,7 +207,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     store$pool,
     paste(
       "SELECT read_reason FROM entry_state",
-      "WHERE actor_id = 'reader-legacy' AND entry_id = 'legacy-entry'"
+      "WHERE reader_id = 'reader-legacy' AND entry_id = 'legacy-entry'"
     )
   )
   testthat::expect_identical(legacy_state$read_reason, "opened")
@@ -180,6 +219,38 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     preferences$relation,
     "subscription_preferences"
   )
+  subscriptions <- DBI::dbGetQuery(
+    store$pool,
+    paste(
+      "SELECT reader_id, feed_id, folder, status FROM subscriptions",
+      "WHERE reader_id = 'reader-legacy'"
+    )
+  )
+  testthat::expect_identical(
+    subscriptions[c("reader_id", "feed_id", "folder", "status")],
+    data.frame(
+      reader_id = "reader-legacy",
+      feed_id = "legacy-feed",
+      folder = "Unsorted",
+      status = "active"
+    )
+  )
+  for (reader_id in c(
+    "reader-1",
+    "reader-cancelling",
+    "reader-cancelling-recovery",
+    "reader-claim",
+    "reader-claim-failed",
+    "reader-pending",
+    "reader-pending-recovery",
+    "reader-priority",
+    "reader-recovery",
+    "reader-restart",
+    "reader-restart-cancelling",
+    "reader-restart-running"
+  )) {
+    store_ensure_reader(store, reader_id)
+  }
 
   partial_schema_name <- paste0(
     "rill_partial_",

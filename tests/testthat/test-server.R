@@ -236,7 +236,7 @@ testthat::test_that("a failed Orientation event leaves the selection unopened", 
     store$memory$state[
       0,
       c(
-        "actor_id",
+        "reader_id",
         "entry_id",
         "read_at",
         "read_reason",
@@ -1390,6 +1390,12 @@ testthat::test_that("a replacement session restores a completed question", {
     status = "completed",
     terminal_reason = "complete"
   )
+  entry_index <- match(document$entry_id, store$memory$entries$entry_id)
+  feed_id <- store$memory$entries$feed_id[[entry_index]]
+  store_unsubscribe_feed(store, config$actor_id, feed_id)
+  testthat::expect_null(
+    store_get_entry(store, config$actor_id, document$entry_id)
+  )
   appended <- character()
   testthat::local_mocked_bindings(
     rill_reader_agent = function(...) {
@@ -1412,6 +1418,14 @@ testthat::test_that("a replacement session restores a completed question", {
     testthat::expect_identical(active_agent_run()$run_id, run$run_id)
     testthat::expect_identical(active_agent_run()$status, "completed")
     testthat::expect_identical(selected_id(), document$entry_id)
+    testthat::expect_identical(
+      selected_document()$document_id,
+      document$document_id
+    )
+    reader_header <- as.character(output$reader_header)
+    testthat::expect_no_match(reader_header, 'id="mark_unread"', fixed = TRUE)
+    testthat::expect_no_match(reader_header, 'id="toggle_star"', fixed = TRUE)
+    testthat::expect_no_match(reader_header, 'id="toggle_save"', fixed = TRUE)
     testthat::expect_identical(
       appended,
       "Answer completed before reconnection."
@@ -3742,7 +3756,7 @@ testthat::test_that("changing views clears the current reader and retained queue
   })
 })
 
-testthat::test_that("renaming a selected feed updates its durable label", {
+testthat::test_that("organizing a selected feed updates its Subscription", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -3765,6 +3779,29 @@ testthat::test_that("renaming a selected feed updates its durable label", {
     testthat::expect_identical(
       tail(store$memory$events$event_type, 1L),
       "feed_renamed"
+    )
+
+    session$setInputs(feed_folder = "Research", move_feed = 1L)
+    session$flushReact()
+    moved <- store_list_feeds(store, config$actor_id)
+    moved <- moved[moved$feed_id == feed_id, , drop = FALSE]
+    testthat::expect_identical(moved$folder, "Research")
+    testthat::expect_identical(status_text(), "Moved feed to Research")
+    testthat::expect_identical(
+      tail(store$memory$events$event_type, 1L),
+      "feed_moved"
+    )
+
+    session$setInputs(unsubscribe_feed = 1L)
+    session$flushReact()
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      feed_id
+    )
+    testthat::expect_null(selected_feed())
+    testthat::expect_identical(
+      tail(store$memory$events$event_type, 1L),
+      "feed_unsubscribed"
     )
   })
 })
@@ -3822,8 +3859,10 @@ testthat::test_that("preparing today reports progress and records the result", {
   config <- rill_config()
   store <- rill_store(config)
   progress_calls <- 0L
+  prepared_reader_id <- NULL
   testthat::local_mocked_bindings(
-    prepare_today_documents = function(store, config, progress) {
+    prepare_today_documents = function(store, config, reader_id, progress) {
+      prepared_reader_id <<- reader_id
       progress(1L, 2L, "First article")
       progress_calls <<- progress_calls + 1L
       list(
@@ -3843,6 +3882,7 @@ testthat::test_that("preparing today reports progress and records the result", {
     session$flushReact()
 
     testthat::expect_identical(progress_calls, 1L)
+    testthat::expect_identical(prepared_reader_id, config$actor_id)
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),

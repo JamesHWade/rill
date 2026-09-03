@@ -2,7 +2,7 @@
 % Please edit documentation in R/app.R
 \name{poll_feeds}
 \alias{poll_feeds}
-\title{Poll every configured feed}
+\title{Poll every active Feed}
 \usage{
 poll_feeds()
 }
@@ -10,6 +10,7 @@ poll_feeds()
 Invisibly, a list containing one refresh result per feed.
 }
 \description{
-\code{poll_feeds()} refreshes every feed in the durable PostgreSQL store. It is
-intended for scheduled jobs and reports progress with structured cli output.
+\code{poll_feeds()} refreshes each shared Feed with at least one active
+Subscription once. It is intended for scheduled jobs and reports progress
+with structured cli output.
 }

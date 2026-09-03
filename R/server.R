@@ -246,7 +246,7 @@ rill_server <- function(config, store) {
       event <- list(
         event_id = event_id %||%
           rill_id("event", session_id, type, utc_now(), stats::runif(1)),
-        actor_id = actor_id,
+        reader_id = actor_id,
         entry_id = entry_id,
         session_id = session_id,
         event_type = type,
@@ -1905,7 +1905,22 @@ rill_server <- function(config, store) {
       entry_id <- selected_id()
       shiny::req(entry_id)
       refresh_tick()
-      store_get_entry(store, actor_id, entry_id)
+      entry <- store_get_entry(store, actor_id, entry_id)
+      if (!is.null(entry)) {
+        entry$library_access <- TRUE
+        return(entry)
+      }
+      if (!is.null(selected_document_id())) {
+        entry <- store_get_entry_for_document_pin(
+          store,
+          actor_id,
+          selected_document_id()
+        )
+      }
+      if (!is.null(entry)) {
+        entry$library_access <- FALSE
+      }
+      entry
     })
 
     selected_document <- shiny::reactive({
@@ -2031,17 +2046,17 @@ rill_server <- function(config, store) {
       shiny::tagList(links)
     })
 
-    output$rename_feed_control <- shiny::renderUI({
+    output$feed_organization_control <- shiny::renderUI({
       feed_id <- selected_feed()
       if (is.null(feed_id)) {
-        return(rename_feed_control_ui())
+        return(feed_organization_control_ui())
       }
       feed_rows <- feeds()
       selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
       if (!nrow(selected)) {
-        return(rename_feed_control_ui())
+        return(feed_organization_control_ui())
       }
-      rename_feed_control_ui(as.list(selected[1, , drop = FALSE]))
+      feed_organization_control_ui(as.list(selected[1, , drop = FALSE]))
     })
 
     output$orientation_destination_settings <- shiny::renderUI({
@@ -2168,41 +2183,50 @@ rill_server <- function(config, store) {
             bsicons::bs_icon("arrow-left"),
             "Stories"
           ),
-          if (
-            !is.na(entry$read_at %||% NA_character_) &&
-              nzchar(as.character(entry$read_at %||% ""))
-          ) {
-            mark_unread_button()
+          if (isTRUE(entry$library_access)) {
+            shiny::tagList(
+              if (
+                !is.na(entry$read_at %||% NA_character_) &&
+                  nzchar(as.character(entry$read_at %||% ""))
+              ) {
+                mark_unread_button()
+              } else {
+                NULL
+              },
+              shiny::actionButton(
+                "toggle_star",
+                shiny::tagList(
+                  bsicons::bs_icon(
+                    if (isTRUE(entry$starred)) "star-fill" else "star"
+                  ),
+                  if (isTRUE(entry$starred)) "Starred" else "Star"
+                ),
+                `aria-keyshortcuts` = "f",
+                `aria-pressed` = if (isTRUE(entry$starred)) "true" else "false",
+                class = paste(
+                  "reader-action",
+                  if (isTRUE(entry$starred)) "is-active"
+                )
+              ),
+              shiny::actionButton(
+                "toggle_save",
+                shiny::tagList(
+                  bsicons::bs_icon(
+                    if (isTRUE(entry$saved)) "bookmark-fill" else "bookmark"
+                  ),
+                  if (isTRUE(entry$saved)) "Saved" else "Save"
+                ),
+                `aria-keyshortcuts` = "s",
+                `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
+                class = paste(
+                  "reader-action",
+                  if (isTRUE(entry$saved)) "is-active"
+                )
+              )
+            )
           } else {
             NULL
           },
-          shiny::actionButton(
-            "toggle_star",
-            shiny::tagList(
-              bsicons::bs_icon(
-                if (isTRUE(entry$starred)) "star-fill" else "star"
-              ),
-              if (isTRUE(entry$starred)) "Starred" else "Star"
-            ),
-            `aria-keyshortcuts` = "f",
-            `aria-pressed` = if (isTRUE(entry$starred)) "true" else "false",
-            class = paste(
-              "reader-action",
-              if (isTRUE(entry$starred)) "is-active"
-            )
-          ),
-          shiny::actionButton(
-            "toggle_save",
-            shiny::tagList(
-              bsicons::bs_icon(
-                if (isTRUE(entry$saved)) "bookmark-fill" else "bookmark"
-              ),
-              if (isTRUE(entry$saved)) "Saved" else "Save"
-            ),
-            `aria-keyshortcuts` = "s",
-            `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
-            class = paste("reader-action", if (isTRUE(entry$saved)) "is-active")
-          ),
           shiny::tags$a(
             class = "reader-action original-link",
             href = entry$url,
@@ -2825,6 +2849,7 @@ rill_server <- function(config, store) {
       input$toggle_star,
       {
         entry <- selected_entry()
+        shiny::req(isTRUE(entry$library_access))
         value <- store_toggle_state(store, actor_id, entry$entry_id, "starred")
         record_event(
           "star_changed",
@@ -2840,6 +2865,7 @@ rill_server <- function(config, store) {
       input$mark_unread,
       {
         entry <- selected_entry()
+        shiny::req(isTRUE(entry$library_access))
         changed <- store_mark_unread(store, actor_id, entry$entry_id)
         if (changed) {
           record_event(
@@ -2859,6 +2885,7 @@ rill_server <- function(config, store) {
       input$toggle_save,
       {
         entry <- selected_entry()
+        shiny::req(isTRUE(entry$library_access))
         value <- store_toggle_state(store, actor_id, entry$entry_id, "saved")
         record_event(
           "save_changed",
@@ -2921,7 +2948,7 @@ rill_server <- function(config, store) {
             message = "Finding and reading the feed",
             value = 0.5,
             {
-              ingest_feed_url(store, url)
+              ingest_feed_url(store, actor_id, url)
             }
           ),
           error = function(error) error
@@ -2996,6 +3023,82 @@ rill_server <- function(config, store) {
           "feed_renamed",
           surface = "sidebar",
           payload = list(feed_id = feed_id, title = title)
+        )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$move_feed,
+      {
+        feed_id <- selected_feed()
+        folder <- trimws(input$feed_folder %||% "")
+        if (is.null(feed_id) || !nzchar(folder)) {
+          status_kind("error")
+          status_text("Select a feed and enter a folder.")
+          shiny::showNotification(
+            "Select a feed and enter a folder.",
+            type = "warning"
+          )
+          return()
+        }
+
+        result <- tryCatch(
+          store_move_feed(store, actor_id, feed_id, folder),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text(conditionMessage(result))
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error"
+          )
+          return()
+        }
+
+        status_kind("success")
+        status_text(paste("Moved feed to", folder))
+        record_event(
+          "feed_moved",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id, folder = folder)
+        )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$unsubscribe_feed,
+      {
+        feed_id <- selected_feed()
+        if (is.null(feed_id)) {
+          return()
+        }
+        result <- tryCatch(
+          store_unsubscribe_feed(store, actor_id, feed_id),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text(conditionMessage(result))
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error"
+          )
+          return()
+        }
+
+        selected_feed(NULL)
+        clear_selection(force = TRUE)
+        status_kind("success")
+        status_text("Unsubscribed. Reading state was preserved.")
+        record_event(
+          "feed_unsubscribed",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id)
         )
         bump_refresh()
       },
@@ -3111,6 +3214,7 @@ rill_server <- function(config, store) {
               prepare_today_documents(
                 store,
                 config,
+                reader_id = actor_id,
                 progress = function(index, total, title) {
                   shiny::setProgress(
                     value = index / total,

@@ -77,8 +77,8 @@ testthat::test_that("an Orientation is bound to its Reader's producing run", {
 })
 
 testthat::test_that("Orientation JSON preserves one-card record collections", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidate <- orientation_candidates(store, reader_id, limit = 1L)[[1L]]
   boundary <- orientation_boundary(list(candidate))
   orientation <- new_rill_orientation(
@@ -133,8 +133,8 @@ testthat::test_that("Orientation JSON preserves one-card record collections", {
 })
 
 testthat::test_that("the Orientation boundary changes only with eligible reading state", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
 
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   first <- orientation_boundary(candidates)
@@ -161,8 +161,8 @@ testthat::test_that("the Orientation boundary changes only with eligible reading
 })
 
 testthat::test_that("entry copy changes do not move an immutable Document boundary", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   before <- orientation_boundary(candidates)
   entry_id <- candidates[[1L]]$entry$entry_id
@@ -177,8 +177,8 @@ testthat::test_that("entry copy changes do not move an immutable Document bounda
 })
 
 testthat::test_that("missing Documents do not consume the Orientation bound", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   newest_entry_id <- store$memory$entries$entry_id[[1L]]
   newest_document_id <- store$memory$document_heads[[newest_entry_id]]
   store$memory$document_heads <- store$memory$document_heads[
@@ -202,8 +202,8 @@ testthat::test_that("missing Documents do not consume the Orientation bound", {
 })
 
 testthat::test_that("Orientation prepares bounded feed copies without extraction", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   entry_ids <- store$memory$entries$entry_id[1:2]
   document_ids <- unname(store$memory$document_heads[entry_ids])
   store$memory$document_heads <- store$memory$document_heads[
@@ -235,8 +235,8 @@ testthat::test_that("Orientation prepares bounded feed copies without extraction
 })
 
 testthat::test_that("Orientation skips unusable feed copies within its bound", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   entry_ids <- store$memory$entries$entry_id[1:2]
   document_ids <- unname(store$memory$document_heads[entry_ids])
   store$memory$document_heads <- store$memory$document_heads[
@@ -272,8 +272,8 @@ testthat::test_that("Orientation fallback cannot replace an existing head", {
 })
 
 testthat::test_that("dismissed bases do not consume the candidate bound", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 2L)
   first <- candidates[[1L]]
   orientation <- new_rill_orientation(
@@ -312,8 +312,8 @@ testthat::test_that("dismissed bases do not consume the candidate bound", {
 })
 
 testthat::test_that("invalid Orientation cards disappear without discarding valid cards", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   boundary <- orientation_boundary(candidates)
   cards <- lapply(seq_len(2L), function(index) {
@@ -490,8 +490,8 @@ testthat::test_that("the Orientation schema keeps one current aggregate per Read
 })
 
 testthat::test_that("dismissing an Orientation card suppresses its unchanged basis", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   boundary <- orientation_boundary(candidates)
   cards <- lapply(seq_len(2L), function(index) {
@@ -541,8 +541,8 @@ testthat::test_that("dismissing an Orientation card suppresses its unchanged bas
 })
 
 testthat::test_that("dismissal is pinned to the visible Orientation revision", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidate <- orientation_candidates(store, reader_id, limit = 1L)[[1L]]
   boundary <- orientation_boundary(list(candidate))
   card <- list(
@@ -600,8 +600,8 @@ testthat::test_that("dismissal is pinned to the visible Orientation revision", {
 })
 
 testthat::test_that("a newly read card cannot be dismissed from stale UI", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidate <- orientation_candidates(store, reader_id, limit = 1L)[[1L]]
   orientation <- new_rill_orientation(
     reader_id = reader_id,
@@ -639,8 +639,8 @@ testthat::test_that("a newly read card cannot be dismissed from stale UI", {
 })
 
 testthat::test_that("a dismissal and its Reading History event are atomic", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidate <- orientation_candidates(store, reader_id, limit = 1L)[[1L]]
   orientation <- new_rill_orientation(
     reader_id = reader_id,
@@ -661,7 +661,7 @@ testthat::test_that("a dismissal and its Reading History event are atomic", {
   store_save_orientation(store, orientation)
   event <- list(
     event_id = "dismissal-event-1",
-    actor_id = reader_id,
+    reader_id = reader_id,
     entry_id = NULL,
     session_id = "session-1",
     event_type = "orientation_card_dismissed",
@@ -696,8 +696,8 @@ testthat::test_that("a dismissal and its Reading History event are atomic", {
 })
 
 testthat::test_that("publishing Orientation completes its owned Agent Run", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   worker_id <- "worker-1"
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   boundary <- orientation_boundary(candidates)
@@ -754,8 +754,8 @@ testthat::test_that("publishing Orientation completes its owned Agent Run", {
 })
 
 testthat::test_that("a worker cannot publish another worker's Orientation", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   boundary <- orientation_boundary(candidates)
   run <- store_start_agent_run(
@@ -797,8 +797,8 @@ testthat::test_that("a worker cannot publish another worker's Orientation", {
 })
 
 testthat::test_that("publication rechecks its boundary at the store seam", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   worker_id <- "worker-1"
   candidates <- orientation_candidates(store, reader_id, limit = 4L)
   boundary <- orientation_boundary(candidates)

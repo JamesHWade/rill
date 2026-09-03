@@ -90,6 +90,12 @@ testthat::test_that("browser capture reaches the normal document boundary", {
 testthat::test_that("capture sources are not polled as subscriptions", {
   store <- rill_store(list(demo_mode = TRUE))
   capture_document(store, capture_test_payload(), "reader")
+  store_ensure_reader(store, "other-reader")
+  store_subscribe_feed(
+    store,
+    "other-reader",
+    store$memory$feeds$feed_id[[1L]]
+  )
   polled <- character()
   testthat::local_mocked_bindings(
     refresh_feed = function(store, feed) {
@@ -99,10 +105,27 @@ testthat::test_that("capture sources are not polled as subscriptions", {
     .package = "rill"
   )
 
-  results <- refresh_all_feeds(store, "reader")
+  results <- refresh_all_feeds(store)
 
   testthat::expect_length(results, 3L)
   testthat::expect_identical(polled, rep("subscription", 3L))
+})
+
+testthat::test_that("capture sources cannot be unsubscribed as Feeds", {
+  store <- rill_store(list(demo_mode = TRUE))
+  result <- capture_document(store, capture_test_payload(), "reader")
+  capture_feed_id <- store$memory$entries$feed_id[
+    store$memory$entries$entry_id == result$entry_id
+  ][[1L]]
+
+  testthat::expect_error(
+    store_unsubscribe_feed(store, "reader", capture_feed_id),
+    class = "rill_subscription_source_invalid"
+  )
+  testthat::expect_in(
+    result$entry_id,
+    store_list_entries(store, "reader", view = "all")$entry_id
+  )
 })
 
 testthat::test_that("capture uses an existing feed entry for the same URL", {
@@ -122,6 +145,22 @@ testthat::test_that("capture uses an existing feed entry for the same URL", {
   testthat::expect_equal(nrow(store$memory$entries), 6L)
   testthat::expect_identical(current$document_id, result$document_id)
   testthat::expect_identical(current$markdown, payload$markdown)
+
+  store_unsubscribe_feed(store, "reader", entry$feed_id[[1L]])
+  testthat::expect_null(
+    store_get_entry(store, "reader", entry$entry_id[[1L]])
+  )
+  captured_entry <- store_get_entry_for_document_pin(
+    store,
+    "reader",
+    result$document_id
+  )
+  testthat::expect_identical(captured_entry$entry_id, result$entry_id)
+  testthat::expect_null(store_get_entry_for_document_pin(
+    store,
+    "other-reader",
+    result$document_id
+  ))
 })
 
 testthat::test_that("capture retries are idempotent", {

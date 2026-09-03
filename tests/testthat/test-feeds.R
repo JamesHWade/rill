@@ -55,3 +55,26 @@ testthat::test_that("feed URLs require an HTTP scheme", {
     error = TRUE
   )
 })
+
+testthat::test_that("re-adding a Feed restores its saved folder", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  feed <- as.list(store$memory$feeds[1L, , drop = FALSE])
+  store_move_feed(store, "reader", feed$feed_id, "Research")
+  store_unsubscribe_feed(store, "reader", feed$feed_id)
+
+  testthat::local_mocked_bindings(
+    fetch_feed = function(url, folder) {
+      list(
+        feed = feed,
+        entries = empty_entries(),
+        not_modified = FALSE
+      )
+    }
+  )
+
+  ingest_feed_url(store, "reader", feed$feed_url)
+
+  restored <- store_list_feeds(store, "reader")
+  restored <- restored[restored$feed_id == feed$feed_id, , drop = FALSE]
+  testthat::expect_identical(restored$folder, "Research")
+})

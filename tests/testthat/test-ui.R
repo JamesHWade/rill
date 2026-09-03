@@ -59,11 +59,31 @@ testthat::test_that("feed management exposes OPML import and export", {
   html <- htmltools::renderTags(feed_tools_ui())$html
 
   testthat::expect_match(html, "Manage feeds", fixed = TRUE)
-  testthat::expect_match(html, 'id="rename_feed_control"', fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'id="feed_organization_control"',
+    fixed = TRUE
+  )
   testthat::expect_match(html, 'id="import_opml"', fixed = TRUE)
   testthat::expect_match(html, "Import OPML", fixed = TRUE)
   testthat::expect_match(html, 'id="export_opml"', fixed = TRUE)
   testthat::expect_match(html, "Export OPML", fixed = TRUE)
+
+  selected <- htmltools::renderTags(feed_organization_control_ui(list(
+    title = "R Weekly",
+    folder = "Research",
+    source_kind = "subscription"
+  )))$html
+  testthat::expect_match(selected, 'id="feed_folder"', fixed = TRUE)
+  testthat::expect_match(selected, 'id="move_feed"', fixed = TRUE)
+  testthat::expect_match(selected, 'id="unsubscribe_feed"', fixed = TRUE)
+
+  capture <- htmltools::renderTags(feed_organization_control_ui(list(
+    title = "Local captures",
+    folder = "Captured",
+    source_kind = "capture"
+  )))$html
+  testthat::expect_no_match(capture, 'id="unsubscribe_feed"', fixed = TRUE)
 })
 
 testthat::test_that("populated story output remains a scroll container", {
@@ -126,7 +146,7 @@ testthat::test_that("the private gate offers a complete sign-out path", {
 })
 
 testthat::test_that("Orientation settings disclose their Data Destination", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   config <- orientation_destination_test_config()
   needs_confirmation <- orientation_destination_state(
     store,
@@ -301,7 +321,7 @@ testthat::test_that("the reader includes source-bounded Ask Rill chat", {
 })
 
 testthat::test_that("Orientation presents a source-grounded reading path", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
   boundary <- orientation_boundary(candidates)
   cards <- lapply(seq_len(2L), function(index) {
@@ -419,7 +439,7 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
 })
 
 testthat::test_that("Orientation identifies material boundary changes", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
   orientation <- new_rill_orientation(
     reader_id = "reader-1",

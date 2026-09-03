@@ -16,9 +16,9 @@ The production web container enables a private OIDC proxy gate. Its Reader
 Identity adapter resolves exact issuer and \code{sub} pairs to durable internal
 Readers. Configured \code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private
 Reader in \code{RILL_ACTOR_ID}; unknown identities remain denied with one pending
-admission record. Until Reader-owned Library isolation is complete,
-admissions can attach only to that configured private Reader. Email and
-other profile claims are mutable metadata, not identity keys.
+admission record. Until captured Document and reading-copy isolation is
+complete, admissions can attach only to that configured private Reader.
+Email and other profile claims are mutable metadata, not identity keys.
 When \code{RILL_CAPTURE_TOKEN} is set, the same application accepts authenticated
 browser documents at \verb{/api/v1/captures}. \code{RILL_AGENT_MODEL} selects the
 \link[ellmer:chat]{ellmer} model used for source-grounded questions and

@@ -525,7 +525,8 @@ body.bslib-page-fill {
 }
 
 .btn-add-feed,
-.btn-rename-feed {
+.btn-rename-feed,
+.btn-move-feed {
   width: 100%;
   border: 1px solid var(--green);
   color: var(--on-primary);
@@ -537,9 +538,31 @@ body.bslib-page-fill {
 .btn-add-feed:hover,
 .btn-add-feed:focus,
 .btn-rename-feed:hover,
-.btn-rename-feed:focus {
+.btn-rename-feed:focus,
+.btn-move-feed:hover,
+.btn-move-feed:focus {
   color: white;
   background: var(--green-deep);
+}
+
+.btn-move-feed,
+.btn-unsubscribe-feed {
+  margin-top: 6px;
+}
+
+.btn-unsubscribe-feed {
+  width: 100%;
+  border-color: var(--sidebar-border);
+  color: var(--sidebar-muted);
+  background: transparent;
+  font-size: 12px;
+}
+
+.btn-unsubscribe-feed:hover,
+.btn-unsubscribe-feed:focus {
+  border-color: var(--bs-danger);
+  color: var(--bs-danger);
+  background: transparent;
 }
 
 .feed-tool-section {

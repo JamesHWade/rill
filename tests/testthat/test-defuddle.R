@@ -175,6 +175,21 @@ testthat::test_that("today preparation extracts only uncached articles", {
   testthat::expect_identical(calls, 1L)
 })
 
+testthat::test_that("today preparation uses the requested Reader Library", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "legacy-reader"))
+  store_ensure_reader(store, "session-reader")
+
+  result <- prepare_today_documents(
+    store,
+    list(actor_id = "legacy-reader"),
+    reader_id = "session-reader",
+    now = as.POSIXct("2026-08-19 14:00:00", tz = "UTC"),
+    timezone = "UTC"
+  )
+
+  testthat::expect_identical(result$total, 0L)
+})
+
 testthat::test_that("today preparation leaves failed articles retryable", {
   store <- rill_store(list(demo_mode = TRUE))
   store$memory$documents <- list()

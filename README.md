@@ -297,17 +297,18 @@ The refresh button works inside the app. `scripts/poll.R` is the ingestion entry
 
 ## Hosted Rill direction
 
-The current schema is not safe for multiple Readers: Subscriptions, folders,
-and selected captured Documents are still global. The proposed invited-beta
-deployment uses a single Render Docker web process behind an OpenID Connect
-proxy, Auth0 as the first identity adapter, Neon PostgreSQL, and a separate
-Render cron process for feed polling. The production image, local composition,
-and exact environment contract are documented in the
+Subscriptions, folders, Entry state, and Reading History are now Reader-owned,
+but captured Documents and selected reading copies are still global. The
+proposed invited-beta deployment uses a single Render Docker web process behind
+an OpenID Connect proxy, Auth0 as the first identity adapter, Neon PostgreSQL,
+and a separate Render cron process for feed polling. The production image,
+local composition, and exact environment contract are documented in the
 [Render deployment guide](docs/deployment/render.md). See also the
 [proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
-[hosting research](docs/research/hosted-rill-platforms.md). Do not enable a
-shared deployment until Reader ownership and cross-Reader isolation are
-implemented and verified.
+[hosting research](docs/research/hosted-rill-platforms.md). The accepted
+[Reader ownership contract](docs/adr/0007-separate-shared-sources-from-reader-libraries.md)
+defines the required isolation and legacy migration. Do not enable a shared
+deployment until that contract is implemented and verified.
 
 ## Package development
 
@@ -326,9 +327,9 @@ R release, devel, and oldrel on Linux, macOS, and Windows with r-lib/actions.
 
 ## Event contract
 
-Each event has an id, actor, session, optional entry, timestamp, surface, list position, JSON payload, and schema version. Current event types are:
+Each event has an id, Reader, session, optional Feed Entry, timestamp, surface, list position, JSON payload, and schema version. Current event types are:
 
-- `feed_filter`, `feed_added`, `feed_renamed`, `feeds_refreshed`, `opml_imported`, `opml_exported`
+- `feed_filter`, `feed_added`, `feed_renamed`, `feed_moved`, `feed_unsubscribed`, `feeds_refreshed`, `opml_imported`, `opml_exported`
 - `entry_opened`, `article_impression`, `open_original`
 - `document_captured`
 - `star_changed`, `save_changed`, `read_state_changed`, `read_state_bulk_changed`

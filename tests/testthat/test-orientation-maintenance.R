@@ -1,6 +1,6 @@
 testthat::test_that("Orientation maintenance is deterministic and source-pinned", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   worker_id <- "orientation-worker-1"
   previous_candidates <- orientation_candidates(store, reader_id, limit = 2L)
   previous_boundary <- orientation_boundary(previous_candidates)
@@ -192,8 +192,8 @@ testthat::test_that("Orientation rechecks consent at the provider boundary", {
 })
 
 testthat::test_that("a current Orientation does not launch another Agent Run", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   candidates <- orientation_candidates(store, reader_id, limit = 3L)
   boundary <- orientation_boundary(candidates)
   orientation <- new_rill_orientation(
@@ -230,8 +230,8 @@ testthat::test_that("a current Orientation does not launch another Agent Run", {
 })
 
 testthat::test_that("Orientation rejects output that skipped source inspection", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -279,8 +279,8 @@ testthat::test_that("Orientation rejects output that skipped source inspection",
 })
 
 testthat::test_that("Orientation rejects a completed run without submission", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -324,8 +324,8 @@ testthat::test_that("Orientation rejects a completed run without submission", {
 })
 
 testthat::test_that("a Reader's active question leaves Orientation maintenance busy", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   active <- store_start_agent_run(
     store,
     reader_id = reader_id,
@@ -357,8 +357,8 @@ testthat::test_that("a Reader's active question leaves Orientation maintenance b
 })
 
 testthat::test_that("durable preemption stops the Orientation owner", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_output <- NULL
   reject_output <- NULL
   interrupted <- NULL
@@ -453,8 +453,8 @@ testthat::test_that("durable preemption stops the Orientation owner", {
 })
 
 testthat::test_that("Orientation deadline survives a transient state read", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   interrupts <- character()
   get_agent_run <- store_get_agent_run
@@ -520,8 +520,8 @@ testthat::test_that("Orientation deadline survives a transient state read", {
 })
 
 testthat::test_that("an inactive Orientation releases a deferred question", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   interrupts <- character()
   agent_factory <- function(...) {
@@ -595,8 +595,8 @@ testthat::test_that("Orientation retries transient interruption", {
   testthat::local_mocked_bindings(
     agent_run_interrupt_retry_delay = \(attempt) 0
   )
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   interrupts <- character()
   agent_factory <- function(...) {
@@ -660,8 +660,8 @@ testthat::test_that("exhausted Orientation interruption releases a question", {
   testthat::local_mocked_bindings(
     agent_run_interrupt_retry_delay = \(attempt) 0
   )
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   interrupts <- character()
   agent_factory <- function(...) {
@@ -739,8 +739,8 @@ testthat::test_that("unconfirmed Orientation interruption is bounded", {
   testthat::local_mocked_bindings(
     agent_run_interrupt_confirmation_seconds = \() 0
   )
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
@@ -814,8 +814,8 @@ testthat::test_that("unconfirmed Orientation interruption is bounded", {
 })
 
 testthat::test_that("process recovery interrupts the Orientation owner", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_run <- NULL
   interrupted <- NULL
   agent_factory <- function(...) {
@@ -881,8 +881,8 @@ testthat::test_that("process recovery interrupts the Orientation owner", {
 })
 
 testthat::test_that("a terminal boundary run gets one automatic retry", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   failed_agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -998,8 +998,8 @@ testthat::test_that("a terminal boundary run gets one automatic retry", {
 })
 
 testthat::test_that("Orientation Agent errors terminalize the owned run", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -1043,8 +1043,8 @@ testthat::test_that("Orientation Agent errors terminalize the owned run", {
 })
 
 testthat::test_that("a governed stop preserves Deputy terminal metadata", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   agent_factory <- function(...) {
     agent <- new.env(parent = emptyenv())
     agent$get_model <- \() "gpt-test"
@@ -1098,8 +1098,8 @@ testthat::test_that("a governed stop preserves Deputy terminal metadata", {
 })
 
 testthat::test_that("a changed source boundary rejects stale publication", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_output <- NULL
   candidates <- NULL
   agent_factory <- function(
@@ -1175,8 +1175,8 @@ testthat::test_that("a changed source boundary rejects stale publication", {
 })
 
 testthat::test_that("Orientation exposes cancellation and wall-time boundaries", {
-  store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
   resolve_output <- NULL
   reject_output <- NULL
   last_result <- NULL

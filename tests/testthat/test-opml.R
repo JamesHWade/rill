@@ -115,6 +115,36 @@ testthat::test_that("OPML imports add and reorganize subscriptions", {
     feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
     "Newsletters"
   )
+  testthat::expect_identical(
+    feeds$title[feeds$feed_url == "https://example.com/feed.xml"],
+    "New feed"
+  )
+  testthat::expect_identical(
+    feeds$source_title[feeds$feed_url == "https://example.com/feed.xml"],
+    "https://example.com/feed.xml"
+  )
+
+  store_ensure_reader(store, "other-reader")
+  import_opml_subscriptions(
+    store,
+    "other-reader",
+    data.frame(
+      title = "My R Weekly",
+      feed_url = "https://rweekly.org/atom.xml",
+      site_url = "https://rweekly.org/",
+      folder = "Morning",
+      stringsAsFactors = FALSE
+    ),
+    refresh = FALSE
+  )
+  other_library <- store_list_feeds(store, "other-reader")
+  feeds <- store_list_feeds(store, config$actor_id)
+  testthat::expect_identical(other_library$folder, "Morning")
+  testthat::expect_identical(other_library$title, "My R Weekly")
+  testthat::expect_identical(
+    feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
+    "Newsletters"
+  )
 })
 
 testthat::test_that("OPML imports skip subscriptions Rill cannot fetch", {
@@ -138,4 +168,44 @@ testthat::test_that("OPML imports skip subscriptions Rill cannot fetch", {
   testthat::expect_identical(result$imported, 0L)
   testthat::expect_identical(result$failed, 1L)
   testthat::expect_match(format_opml_import_status(result), "1 feed skipped")
+})
+
+testthat::test_that("failed OPML refreshes preserve shared source titles", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  feed <- store_list_feeds(store, config$actor_id)[1L, , drop = FALSE]
+  source_title <- feed$source_title[[1L]]
+  store_rename_feed(
+    store,
+    config$actor_id,
+    feed$feed_id[[1L]],
+    "Private OPML label"
+  )
+  testthat::local_mocked_bindings(
+    refresh_feed = function(...) cli::cli_abort("Feed unavailable.")
+  )
+
+  result <- import_opml_subscriptions(
+    store,
+    config$actor_id,
+    data.frame(
+      title = "Private OPML label",
+      feed_url = feed$feed_url,
+      site_url = feed$site_url,
+      folder = "Research",
+      stringsAsFactors = FALSE
+    )
+  )
+  shared_feed <- store_find_feed_by_url(store, feed$feed_url[[1L]])
+  reader_feed <- store_list_feeds(store, config$actor_id)
+  reader_feed <- reader_feed[
+    reader_feed$feed_id == feed$feed_id[[1L]],
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_identical(result$refresh_failed, 1L)
+  testthat::expect_identical(shared_feed$title, source_title)
+  testthat::expect_identical(reader_feed$title, "Private OPML label")
 })
