@@ -103,6 +103,32 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     list(email = "reader@example.com", display_name = "Reader")
   )
 
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "UPDATE reader_external_identities SET revoked_at = $3",
+      "WHERE issuer = $1 AND subject = $2"
+    ),
+    params = list(
+      config$oidc_issuer,
+      "github|reader",
+      "2026-09-03 12:00:00 UTC"
+    )
+  )
+  revoked <- adapter$session_status(active)
+  testthat::expect_identical(
+    revoked[c("status", "reader_id")],
+    list(status = "revoked", reader_id = NULL)
+  )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "UPDATE reader_external_identities SET revoked_at = NULL",
+      "WHERE issuer = $1 AND subject = $2"
+    ),
+    params = list(config$oidc_issuer, "github|reader")
+  )
+
   testthat::expect_error(
     store_admit_reader_identity(
       store,

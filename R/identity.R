@@ -60,7 +60,16 @@ reader_identity_adapter <- function(config, store) {
       store,
       resolve = function(request) {
         principal <- identity_proxy_principal(request, config)
-        store_resolve_reader_identity(store, principal)
+        resolution <- store_resolve_reader_identity(store, principal)
+        resolution$session_identity <- principal[c("issuer", "subject")]
+        resolution
+      },
+      session_status = function(resolution) {
+        store_revalidate_reader_identity(
+          store,
+          resolution$session_identity,
+          resolution$reader_id
+        )
       }
     ))
   }
@@ -70,14 +79,22 @@ reader_identity_adapter <- function(config, store) {
   )
 }
 
-new_reader_identity_adapter <- function(kind, config, store, resolve) {
+new_reader_identity_adapter <- function(
+  kind,
+  config,
+  store,
+  resolve,
+  session_status = function(resolution) {
+    store_resolve_reader(store, resolution$reader_id)
+  }
+) {
   force(store)
   structure(
     list(
       kind = kind,
       config = config,
       resolve = resolve,
-      reader_status = \(reader_id) store_resolve_reader(store, reader_id)
+      session_status = session_status
     ),
     class = "rill_reader_identity_adapter"
   )
@@ -356,9 +373,75 @@ store_resolve_reader_identity <- function(store, principal, now = utc_now()) {
   reader_id <- identities$reader_id[[index]]
   readers <- store$memory$readers
   reader_index <- match(reader_id, readers$reader_id)
-  status <- readers$status[[reader_index]]
+  status <- if (!is.na(identities$revoked_at[[index]])) {
+    "revoked"
+  } else {
+    readers$status[[reader_index]]
+  }
   reader_identity_resolution(
     if (identical(status, "active")) reader_id else NULL,
+    status = status
+  )
+}
+
+store_revalidate_reader_identity <- function(store, principal, reader_id) {
+  if (
+    is.null(principal) ||
+      !nzchar(principal$issuer %||% "") ||
+      !nzchar(principal$subject %||% "")
+  ) {
+    return(reader_identity_resolution(NULL, status = "missing"))
+  }
+  if (identical(store$mode, "postgres")) {
+    identity <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT i.reader_id, i.revoked_at, r.status",
+        "FROM reader_external_identities i",
+        "JOIN readers r ON r.reader_id = i.reader_id",
+        "WHERE i.issuer = $1 AND i.subject = $2"
+      ),
+      params = list(principal$issuer, principal$subject)
+    )
+    if (!nrow(identity)) {
+      return(reader_identity_resolution(NULL, status = "missing"))
+    }
+    mapped_reader_id <- identity$reader_id[[1L]]
+    status <- if (!identical(mapped_reader_id, reader_id)) {
+      "changed"
+    } else if (!is.na(identity$revoked_at[[1L]])) {
+      "revoked"
+    } else {
+      identity$status[[1L]]
+    }
+    return(reader_identity_resolution(
+      if (identical(status, "active")) mapped_reader_id else NULL,
+      status = status
+    ))
+  }
+  identities <- store$memory$reader_identities
+  identity_index <- which(
+    identities$issuer == principal$issuer &
+      identities$subject == principal$subject
+  )
+  if (!length(identity_index)) {
+    return(reader_identity_resolution(NULL, status = "missing"))
+  }
+  identity_index <- identity_index[[1L]]
+  mapped_reader_id <- identities$reader_id[[identity_index]]
+  readers <- store$memory$readers
+  reader_index <- match(mapped_reader_id, readers$reader_id)
+  status <- if (!identical(mapped_reader_id, reader_id)) {
+    "changed"
+  } else if (!is.na(identities$revoked_at[[identity_index]])) {
+    "revoked"
+  } else if (is.na(reader_index)) {
+    "missing"
+  } else {
+    readers$status[[reader_index]]
+  }
+  reader_identity_resolution(
+    if (identical(status, "active")) mapped_reader_id else NULL,
     status = status
   )
 }
@@ -769,23 +852,23 @@ identity_server_handler <- function(base_server, adapter) {
       session$close()
       return(invisible(NULL))
     }
-    reader_identity_guard_session(adapter, resolution$reader_id, session)
+    reader_identity_guard_session(adapter, resolution, session)
     base_server(input, output, session, resolution$reader_id)
   }
 }
 
-reader_identity_guard_session <- function(adapter, reader_id, session) {
+reader_identity_guard_session <- function(adapter, resolution, session) {
   if (!is.function(session$onSessionEnded)) {
     return(invisible(NULL))
   }
   guard <- shiny::observe(
     {
       shiny::invalidateLater(1000, session)
-      resolution <- tryCatch(
-        adapter$reader_status(reader_id),
+      current <- tryCatch(
+        adapter$session_status(resolution),
         error = \(error) NULL
       )
-      if (!is.null(resolution) && !identical(resolution$status, "active")) {
+      if (is.null(current) || !identical(current$status, "active")) {
         session$close()
       }
     },

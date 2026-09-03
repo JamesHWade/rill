@@ -525,3 +525,58 @@ testthat::test_that("an active session closes when its Reader is disabled", {
 
   testthat::expect_identical(session$isClosed(), TRUE)
 })
+
+testthat::test_that("an active session closes when its identity is revoked", {
+  local_proxy_identity(subjects = "github|reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_request("github|reader")
+  )
+  session <- shiny::MockShinySession$new()
+  reader_identity_guard_session(adapter, resolution, session)
+  session$flushReact()
+
+  identity_index <- which(
+    store$memory$reader_identities$issuer == config$oidc_issuer &
+      store$memory$reader_identities$subject == "github|reader"
+  )
+  store$memory$reader_identities$revoked_at[[identity_index]] <- utc_now()
+  session$elapse(1000)
+  revoked <- reader_identity_resolve(
+    adapter,
+    identity_test_request("github|reader")
+  )
+
+  testthat::expect_identical(session$isClosed(), TRUE)
+  testthat::expect_identical(
+    revoked[c("status", "reader_id")],
+    list(status = "revoked", reader_id = NULL)
+  )
+})
+
+testthat::test_that("an active session closes when reauthorization errors", {
+  withr::local_envvar(c(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "local-reader",
+    RILL_IDENTITY_MODE = "local"
+  ))
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_request()
+  )
+  adapter$session_status <- function(resolution) {
+    stop("the identity store is unavailable")
+  }
+  session <- shiny::MockShinySession$new()
+
+  reader_identity_guard_session(adapter, resolution, session)
+  session$flushReact()
+
+  testthat::expect_identical(session$isClosed(), TRUE)
+})
