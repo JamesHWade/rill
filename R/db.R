@@ -937,7 +937,7 @@ store_list_entries <- function(
     entries <- merge(
       entries,
       state,
-      by = "entry_id",
+      by = c("entry_id", "feed_id"),
       all.x = TRUE,
       sort = FALSE
     )

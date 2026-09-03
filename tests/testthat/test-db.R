@@ -146,6 +146,15 @@ testthat::test_that("Reader Libraries isolate shared Feed membership and state",
   testthat::expect_identical(library_two$title, library_two$source_title)
 
   store_mark_opened(store, reader_one, entry_id)
+  reader_one_feed <- store_list_entries(
+    store,
+    reader_one,
+    view = "all",
+    feed_id = feed_id
+  )
+  testthat::expect_in("feed_id", names(reader_one_feed))
+  testthat::expect_in(entry_id, reader_one_feed$entry_id)
+  testthat::expect_identical(unique(reader_one_feed$feed_id), feed_id)
   testthat::expect_disjoint(
     store_list_entries(store, reader_one, view = "unread")$entry_id,
     entry_id
