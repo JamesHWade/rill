@@ -1223,6 +1223,9 @@ testthat::test_that("a replacement session resumes a deferred question", {
     terminal_reason = "reader_question"
   )
   appended <- character()
+  get_deferred_reader_question <- store_get_deferred_reader_question
+  deferred_reads <- 0L
+  deferred_read_failures_remaining <- 3L
   testthat::local_mocked_bindings(
     rill_reader_agent = function(on_stop, ...) {
       list(stream_async = function(prompt, stream, run_context) {
@@ -1243,6 +1246,18 @@ testthat::test_that("a replacement session resumes a deferred question", {
       value <- response$consume()
       appended <<- c(appended, value)
       promises::promise_resolve(value)
+    },
+    store_get_deferred_reader_question = function(...) {
+      deferred_reads <<- deferred_reads + 1L
+      if (deferred_read_failures_remaining > 0L) {
+        deferred_read_failures_remaining <<-
+          deferred_read_failures_remaining - 1L
+        cli::cli_abort(
+          "The startup deferred question read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_deferred_reader_question(...)
     }
   )
 
@@ -1259,6 +1274,7 @@ testthat::test_that("a replacement session resumes a deferred question", {
     }
 
     testthat::expect_identical(selected_id(), document$entry_id)
+    testthat::expect_gte(deferred_reads, 4L)
     testthat::expect_identical(active_agent_run()$status, "completed")
     testthat::expect_identical(
       active_agent_run()$request_key,
@@ -1335,6 +1351,78 @@ testthat::test_that("a replacement session restores a completed question", {
   })
 })
 
+testthat::test_that("a replacement session stops polling a legacy response", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  run <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "question",
+    request_key = "legacy-completed-question",
+    pinned_inputs = list(document_id = document$document_id)
+  )
+  run <- store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = run$run_id,
+    worker_id = "legacy-worker",
+    lease_expires_at = Sys.time() + 120
+  )
+  store_finish_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = run$run_id,
+    worker_id = "legacy-worker",
+    status = "completed",
+    terminal_reason = "complete",
+    finished_at = Sys.time() - 10
+  )
+  get_agent_run <- store_get_agent_run
+  poll_reads <- 0L
+  appended <- character()
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(...) {
+      list(get_model = \() config$agent_model)
+    },
+    store_get_agent_run = function(store, reader_id, run_id) {
+      if (identical(run_id, run$run_id)) {
+        poll_reads <<- poll_reads + 1L
+      }
+      get_agent_run(store, reader_id, run_id)
+    },
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    deadline <- Sys.time() + 1
+    while (poll_reads == 0L && Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+    observed_reads <- poll_reads
+    settle_deadline <- Sys.time() + 0.6
+    while (Sys.time() < settle_deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+
+    testthat::expect_gte(observed_reads, 1L)
+    testthat::expect_identical(poll_reads, observed_reads)
+    testthat::expect_identical(
+      completed_response_may_arrive(active_agent_run()),
+      FALSE
+    )
+    testthat::expect_length(appended, 0L)
+  })
+})
+
 testthat::test_that("a replacement session polls an adopted question", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -1390,6 +1478,7 @@ testthat::test_that("a replacement session polls an adopted question", {
   )
   completed <- adopted
   completed$status <- "completed"
+  completed$terminal_at <- Sys.time()
   completed_with_response <- completed
   completed_with_response$response_text <-
     "Answer from the owning session."

@@ -273,6 +273,24 @@ rill_server <- function(config, store) {
       "cancelled",
       "interrupted"
     )
+    completed_response_grace_seconds <- 2
+
+    completed_response_may_arrive <- function(run) {
+      if (
+        !identical(run$status, "completed") ||
+          !is.null(run$response_text) ||
+          is.null(run$terminal_at)
+      ) {
+        return(FALSE)
+      }
+      terminal_at <- tryCatch(
+        as.POSIXct(run$terminal_at, tz = "UTC"),
+        error = \(error) as.POSIXct(NA, tz = "UTC")
+      )
+      length(terminal_at) == 1L &&
+        !is.na(terminal_at) &&
+        Sys.time() < terminal_at + completed_response_grace_seconds
+    }
 
     schedule_visible_agent_run_poll <- NULL
     schedule_visible_agent_run_poll <- function(run_id, delay = 0.05) {
@@ -308,7 +326,7 @@ rill_server <- function(config, store) {
           if (current$status %in% terminal_agent_run_statuses) {
             if (
               identical(current$status, "completed") &&
-                is.null(current$response_text)
+                completed_response_may_arrive(current)
             ) {
               schedule_visible_agent_run_poll(run_id, delay = 0.25)
               return(NULL)
@@ -1338,11 +1356,32 @@ rill_server <- function(config, store) {
       invisible(result)
     }
 
+    resume_deferred_reader_question <- NULL
     resume_deferred_reader_question <- function() {
-      deferred <- tryCatch(
-        store_get_deferred_reader_question(store, actor_id),
-        error = \(error) NULL
+      deferred_read <- tryCatch(
+        list(value = store_get_deferred_reader_question(store, actor_id)),
+        error = function(error) {
+          telemetry_log(
+            "warn",
+            "agent_run.deferred_resume_failed",
+            list("error.type" = class(error)[[1L]])
+          )
+          NULL
+        }
       )
+      if (is.null(deferred_read)) {
+        later::later(
+          function() {
+            if (!session$isClosed()) {
+              resume_deferred_reader_question()
+            }
+            NULL
+          },
+          delay = 0.25
+        )
+        return(invisible(NULL))
+      }
+      deferred <- deferred_read$value
       if (is.null(deferred)) {
         return(invisible(NULL))
       }
