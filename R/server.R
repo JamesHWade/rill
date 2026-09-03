@@ -82,8 +82,8 @@ rill_server <- function(config, store) {
   force(config)
   force(store)
 
-  function(input, output, session) {
-    actor_id <- config$actor_id
+  function(input, output, session, reader_id = config$actor_id) {
+    actor_id <- reader_id
     session_id <- rill_id(
       "session",
       actor_id,

@@ -2,9 +2,11 @@
 #'
 #' `rill_app()` creates the Shiny application using configuration read from
 #' environment variables. With no `DATABASE_URL`, it uses bundled demo data.
-#' The production web container enables a private OIDC proxy gate: exact
-#' Auth0 `sub` values in `RILL_ALLOWED_OIDC_SUBJECTS` are mapped to the single
-#' internal Reader in `RILL_ACTOR_ID`. Email and other profile claims are not
+#' The production web container enables a private OIDC proxy gate. Its Reader
+#' Identity adapter resolves exact issuer and `sub` pairs to durable internal
+#' Readers. Configured `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private
+#' Reader in `RILL_ACTOR_ID`; unknown identities remain denied with one pending
+#' admission record. Email and other profile claims are mutable metadata, not
 #' identity keys.
 #' When `RILL_CAPTURE_TOKEN` is set, the same application accepts authenticated
 #' browser documents at `/api/v1/captures`. `RILL_AGENT_MODEL` selects the
@@ -29,6 +31,7 @@ rill_app <- function() {
   init_telemetry(config)
   store <- rill_store(config)
   store_interrupt_agent_runs(store, recovery = "process_restart")
+  identity <- reader_identity_adapter(config, store)
   shiny::addResourcePath(
     "rill-assets",
     rill_package_file("app", "www")
@@ -38,9 +41,9 @@ rill_app <- function() {
 
   app <- shiny::shinyApp(
     ui = rill_ui(config),
-    server = identity_server_handler(rill_server(config, store), config)
+    server = identity_server_handler(rill_server(config, store), identity)
   )
-  app$httpHandler <- identity_http_handler(app$httpHandler, config)
+  app$httpHandler <- identity_http_handler(app$httpHandler, identity)
   app$httpHandler <- capture_http_handler(app$httpHandler, store, config)
   app
 }
