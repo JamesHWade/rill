@@ -90,7 +90,7 @@ prepare_orientation_documents <- function(store, reader_id, limit = 12L) {
     limit = 500L,
     sort = "newest"
   )
-  documents <- store_list_documents(store, entries$entry_id)
+  documents <- store_list_documents(store, reader_id, entries$entry_id)
   pending <- entries[
     !as.character(entries$entry_id) %in% names(documents),
     ,
@@ -110,7 +110,7 @@ prepare_orientation_documents <- function(store, reader_id, limit = 12L) {
     if (is.null(document)) {
       next
     }
-    saved <- store_save_document_if_missing_head(store, document)
+    saved <- store_save_document_if_missing_head(store, reader_id, document)
     if (isTRUE(saved$created)) {
       prepared <- c(prepared, document$document_id)
     }
@@ -132,7 +132,7 @@ orientation_candidates <- function(store, reader_id, limit = 12L, dismissals) {
     limit = max(500L, as.integer(limit)),
     sort = "newest"
   )
-  documents <- store_list_documents(store, entries$entry_id)
+  documents <- store_list_documents(store, reader_id, entries$entry_id)
   if (missing(dismissals)) {
     dismissals <- store_get_orientation(store, reader_id)$dismissals %||% list()
   }
@@ -561,10 +561,21 @@ store_select_orientation_card <- function(
     head <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "SELECT entry_id, document_id FROM entry_document_heads",
-        "WHERE entry_id = $1 FOR UPDATE"
+        paste(
+          "SELECT COALESCE(selected.document_id, public.document_id)",
+          "AS document_id FROM entries e"
+        ),
+        paste(
+          "LEFT JOIN reader_document_selections selected",
+          "ON selected.reader_id = $1 AND selected.entry_id = e.entry_id"
+        ),
+        paste(
+          "LEFT JOIN public_document_heads public",
+          "ON public.entry_id = e.entry_id"
+        ),
+        "WHERE e.entry_id = $2"
       ),
-      params = list(card$entry_id)
+      params = list(reader_id, card$entry_id)
     )
     if (
       nrow(head) != 1L ||
@@ -1004,7 +1015,11 @@ validate_orientation <- function(store, orientation) {
     if (!identical(rationale_hash, orientation_card_rationale(card))) {
       orientation_abort("An Orientation card has an invalid rationale hash.")
     }
-    document <- store_get_document_by_id(store, document_id)
+    document <- store_get_document_by_id(
+      store,
+      orientation$reader_id,
+      document_id
+    )
     if (is.null(document) || !identical(document$entry_id, entry_id)) {
       orientation_abort(
         "An Orientation card does not identify its immutable Document."

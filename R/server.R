@@ -147,6 +147,7 @@ rill_server <- function(config, store) {
       document <- tryCatch(
         store_get_document_by_id(
           store,
+          actor_id,
           existing_agent_run$pinned_inputs$document_id
         ),
         error = \(error) NULL
@@ -1470,6 +1471,7 @@ rill_server <- function(config, store) {
         \() {
           store_get_document_by_id(
             store,
+            actor_id,
             deferred$pinned_inputs$document_id
           )
         }
@@ -1927,7 +1929,7 @@ rill_server <- function(config, store) {
       entry <- selected_entry()
       document_id <- selected_document_id()
       if (!is.null(document_id)) {
-        document <- store_get_document_by_id(store, document_id)
+        document <- store_get_document_by_id(store, actor_id, document_id)
         if (
           is.null(document) ||
             !identical(document$entry_id, entry$entry_id)
@@ -1943,7 +1945,7 @@ rill_server <- function(config, store) {
         message = "Preparing a clean reading copy",
         value = 0.5,
         {
-          get_or_extract_document(store, entry, config)
+          get_or_extract_document(store, actor_id, entry, config)
         }
       )
     })
@@ -2816,6 +2818,7 @@ rill_server <- function(config, store) {
         }
         document <- store_get_document_by_id(
           store,
+          actor_id,
           run$pinned_inputs$document_id
         )
         if (is.null(document)) {

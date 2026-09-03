@@ -234,8 +234,26 @@ document_fallback <- function(entry, reason = "feed-content") {
   )
 }
 
-get_or_extract_document <- function(store, entry, config) {
-  cached <- store_get_document(store, entry$entry_id)
+save_prepared_document <- function(store, reader_id, previous, document) {
+  store_save_document(store, document)
+  if (
+    !is.null(previous) &&
+      identical(previous$acquisition_method, "feed_fallback") &&
+      identical(previous$producer, "orientation-feed-copy")
+  ) {
+    store_replace_selected_document(
+      store,
+      reader_id,
+      previous$document_id,
+      document$document_id,
+      selected_at = document$received_at
+    )
+  }
+  document
+}
+
+get_or_extract_document <- function(store, reader_id, entry, config) {
+  cached <- store_get_document(store, reader_id, entry$entry_id)
   if (
     !is.null(cached) &&
       !(identical(cached$acquisition_method, "feed_fallback") &&
@@ -257,8 +275,7 @@ get_or_extract_document <- function(store, entry, config) {
       fallback
     }
   )
-  store_save_document(store, document)
-  document
+  save_prepared_document(store, reader_id, cached, document)
 }
 
 prepare_today_documents <- function(
@@ -277,7 +294,7 @@ prepare_today_documents <- function(
     now = now,
     timezone = timezone
   )
-  documents <- store_list_documents(store, entries$entry_id)
+  documents <- store_list_documents(store, reader_id, entries$entry_id)
   ready <- vapply(
     documents,
     \(document) !identical(document$acquisition_method, "feed_fallback"),
@@ -298,8 +315,12 @@ prepare_today_documents <- function(
     result <- tryCatch(
       {
         document <- document_from_defuddle(entry, config)
-        store_save_document(store, document)
-        document
+        save_prepared_document(
+          store,
+          reader_id,
+          documents[[entry$entry_id]] %||% NULL,
+          document
+        )
       },
       error = function(error) error
     )

@@ -95,6 +95,22 @@ rill_store <- function(config) {
       vapply(sample$documents, `[[`, character(1), "document_id"),
       vapply(sample$documents, `[[`, character(1), "entry_id")
     )
+    memory$document_selections <- data.frame(
+      reader_id = character(),
+      feed_id = character(),
+      entry_id = character(),
+      document_id = character(),
+      ownership_key = character(),
+      selected_at = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$capture_credentials <- data.frame(
+      reader_id = character(),
+      token_hash = character(),
+      created_at = character(),
+      updated_at = character(),
+      stringsAsFactors = FALSE
+    )
     memory$state <- data.frame(
       reader_id = character(),
       entry_id = character(),
@@ -557,6 +573,50 @@ store_migrate_legacy_feed_titles <- function(store, reader_id) {
   invisible(NULL)
 }
 
+memory_reader_visible_entry_ids <- function(store, reader_id) {
+  subscriptions <- store$memory$subscriptions
+  active_feed_ids <- subscriptions$feed_id[
+    subscriptions$reader_id == reader_id &
+      subscriptions$status == "active"
+  ]
+  entries <- store$memory$entries
+  visible <- entries$feed_id %in% active_feed_ids
+  capture_feed_ids <- store$memory$feeds$feed_id[
+    store$memory$feeds$source_kind == "capture"
+  ]
+  capture_entries <- entries$feed_id %in% capture_feed_ids
+  owned_entry_ids <- vapply(
+    Filter(
+      \(document) identical(document$reader_id, reader_id),
+      store$memory$documents
+    ),
+    `[[`,
+    character(1),
+    "entry_id"
+  )
+  entries$entry_id[
+    visible & (!capture_entries | entries$entry_id %in% owned_entry_ids)
+  ]
+}
+
+postgres_capture_entry_visible_sql <- function(
+  reader_parameter,
+  entry_alias = "e",
+  feed_alias = "f"
+) {
+  paste0(
+    "(",
+    feed_alias,
+    ".source_kind <> 'capture' OR EXISTS (",
+    "SELECT 1 FROM documents private_document ",
+    "WHERE private_document.entry_id = ",
+    entry_alias,
+    ".entry_id AND private_document.reader_id = ",
+    reader_parameter,
+    "))"
+  )
+}
+
 store_list_feeds <- function(
   store,
   reader_id,
@@ -581,7 +641,10 @@ store_list_feeds <- function(
         "COUNT(e.entry_id)::integer AS entry_count",
         "FROM subscriptions s",
         "JOIN feeds f ON f.feed_id = s.feed_id",
-        "LEFT JOIN entries e ON e.feed_id = f.feed_id",
+        paste(
+          "LEFT JOIN entries e ON e.feed_id = f.feed_id AND",
+          postgres_capture_entry_visible_sql("$1")
+        ),
         paste(
           "LEFT JOIN entry_state st ON st.entry_id = e.entry_id",
           "AND st.reader_id = $1"
@@ -623,11 +686,13 @@ store_list_feeds <- function(
   feeds$folder <- feeds$folder_subscription
   feeds$folder_subscription <- NULL
   feeds <- resolve_feed_titles(feeds)
+  visible_entry_ids <- memory_reader_visible_entry_ids(store, reader_id)
   feeds$unread_count <- vapply(
     feeds$feed_id,
     function(feed_id) {
       ids <- store$memory$entries$entry_id[
-        store$memory$entries$feed_id == feed_id
+        store$memory$entries$feed_id == feed_id &
+          store$memory$entries$entry_id %in% visible_entry_ids
       ]
       read_ids <- store$memory$state$entry_id[
         store$memory$state$reader_id == reader_id &
@@ -640,7 +705,12 @@ store_list_feeds <- function(
   )
   feeds$entry_count <- vapply(
     feeds$feed_id,
-    function(feed_id) sum(store$memory$entries$feed_id == feed_id),
+    function(feed_id) {
+      sum(
+        store$memory$entries$feed_id == feed_id &
+          store$memory$entries$entry_id %in% visible_entry_ids
+      )
+    },
     integer(1)
   )
   if (!is.null(source_kind)) {
@@ -855,7 +925,10 @@ store_list_entries <- function(
 
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id)
-    clauses <- "COALESCE(s.hidden, false) = false"
+    clauses <- c(
+      "COALESCE(s.hidden, false) = false",
+      postgres_capture_entry_visible_sql("$1")
+    )
 
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
@@ -927,6 +1000,11 @@ store_list_entries <- function(
   )
   names(entries)[names(entries) == "title_feed"] <- "feed_title"
   names(entries)[names(entries) == "source_title"] <- "source_feed_title"
+  entries <- entries[
+    entries$entry_id %in% memory_reader_visible_entry_ids(store, reader_id),
+    ,
+    drop = FALSE
+  ]
 
   state <- store$memory$state[
     store$memory$state$reader_id == reader_id,
@@ -1142,7 +1220,10 @@ store_get_entry <- function(store, reader_id, entry_id) {
         ),
         "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
         "AND s.reader_id = $1",
-        "WHERE e.entry_id = $2"
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1")
+        )
       ),
       params = list(reader_id, entry_id)
     )
@@ -1184,15 +1265,20 @@ store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
         ),
         "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
         "AND s.reader_id = $1",
-        "WHERE d.document_id = $2 AND (EXISTS (SELECT 1 FROM agent_runs ar",
+        "WHERE d.document_id = $2 AND (d.reader_id = $1 OR (",
+        "d.reader_id IS NULL AND (EXISTS (SELECT 1 FROM agent_runs ar",
         paste(
           "WHERE ar.reader_id = $1",
-          "AND ar.pinned_inputs ->> 'document_id' = $2)"
+          "AND (ar.pinned_inputs ->> 'document_id' = $2",
+          paste(
+            "OR COALESCE(ar.pinned_inputs -> 'document_ids', '[]'::jsonb)",
+            "? $2))"
+          )
         ),
-        "OR EXISTS (SELECT 1 FROM events ev WHERE ev.reader_id = $1",
+        "OR EXISTS (SELECT 1 FROM orientations o WHERE o.reader_id = $1",
         paste(
-          "AND ev.entry_id = d.entry_id AND ev.event_type = 'document_captured'",
-          "AND ev.payload ->> 'document_id' = $2))"
+          "AND o.payload -> 'cards' @> jsonb_build_array(",
+          "jsonb_build_object('document_id', d.document_id))))))"
         )
       ),
       params = list(reader_id, document_id)
@@ -1203,36 +1289,14 @@ store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
     return(as.list(rows[1L, , drop = FALSE]))
   }
 
-  agent_run_pin <- any(vapply(
-    store$memory$agent_runs,
-    function(run) {
-      identical(run$reader_id, reader_id) &&
-        identical(run$pinned_inputs$document_id %||% NULL, document_id)
-    },
-    logical(1)
-  ))
-  capture_events <- store$memory$events[
-    store$memory$events$reader_id == reader_id &
-      store$memory$events$event_type == "document_captured",
-    ,
-    drop = FALSE
-  ]
-  capture_pin <- any(vapply(
-    capture_events$payload,
-    function(payload) {
-      captured <- tryCatch(
-        jsonlite::fromJSON(payload, simplifyVector = FALSE),
-        error = \(error) list()
-      )
-      identical(captured$document_id %||% NULL, document_id)
-    },
-    logical(1)
-  ))
-  if (!agent_run_pin && !capture_pin) {
+  document <- store_get_document_by_id(store, reader_id, document_id)
+  if (is.null(document)) {
     return(NULL)
   }
-  document <- store_get_document_by_id(store, document_id)
-  if (is.null(document)) {
+  if (
+    is.na(document$reader_id) &&
+      !memory_document_is_pinned(store, reader_id, document_id)
+  ) {
     return(NULL)
   }
   entry_index <- match(document$entry_id, store$memory$entries$entry_id)
@@ -1300,11 +1364,13 @@ store_find_entry_by_url <- function(
       store$pool,
       paste(
         "SELECT e.* FROM entries e",
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
         "WHERE (e.url IN ($2, $3) OR e.canonical_url IN ($2, $3))",
+        paste("AND", postgres_capture_entry_visible_sql("$1")),
         "ORDER BY e.inserted_at, e.entry_id LIMIT 1"
       ),
       params = list(reader_id, source_url, canonical_url)
@@ -1325,6 +1391,7 @@ store_find_entry_by_url <- function(
     entries$canonical_url %in% c(source_url, canonical_url)
   matches <- entries$feed_id %in%
     feed_ids &
+    entries$entry_id %in% memory_reader_visible_entry_ids(store, reader_id) &
     (entries$url %in% c(source_url, canonical_url) | canonical_matches)
   row <- entries[matches, , drop = FALSE]
   if (!nrow(row)) {
@@ -1335,7 +1402,8 @@ store_find_entry_by_url <- function(
 
 document_select_sql <- function() {
   paste(
-    "SELECT d.document_id, d.entry_id, d.source_url, d.canonical_url,",
+    "SELECT d.document_id, d.entry_id, d.reader_id, d.source_url,",
+    "d.canonical_url,",
     "d.acquisition_method, d.producer, d.producer_version,",
     "d.producer_record_id, d.captured_at, d.received_at, d.title,",
     "d.author, d.site, d.published_at, d.markdown, d.word_count,",
@@ -1344,7 +1412,7 @@ document_select_sql <- function() {
   )
 }
 
-store_get_document_by_id <- function(store, document_id) {
+store_get_document_record <- function(store, document_id) {
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
       store$pool,
@@ -1363,28 +1431,133 @@ store_get_document_by_id <- function(store, document_id) {
   store$memory$documents[[document_id]] %||% NULL
 }
 
-store_list_documents <- function(store, entry_ids = NULL) {
+memory_document_is_pinned <- function(store, reader_id, document_id) {
+  agent_run_pin <- any(vapply(
+    store$memory$agent_runs,
+    function(run) {
+      if (!identical(run$reader_id, reader_id)) {
+        return(FALSE)
+      }
+      identical(run$pinned_inputs$document_id %||% NULL, document_id) ||
+        document_id %in% (run$pinned_inputs$document_ids %||% character())
+    },
+    logical(1)
+  ))
+  orientation_pin <- any(vapply(
+    store$memory$orientations,
+    function(orientation) {
+      if (!identical(orientation$reader_id, reader_id)) {
+        return(FALSE)
+      }
+      document_id %in%
+        vapply(
+          orientation$cards %||% list(),
+          `[[`,
+          character(1),
+          "document_id"
+        )
+    },
+    logical(1)
+  ))
+  agent_run_pin || orientation_pin
+}
+
+store_get_document_by_id <- function(store, reader_id, document_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        document_select_sql(),
+        "WHERE d.document_id = $2 AND (d.reader_id = $1 OR (",
+        "d.reader_id IS NULL AND (EXISTS (SELECT 1 FROM entries e",
+        "JOIN subscriptions s ON s.feed_id = e.feed_id",
+        paste(
+          "WHERE e.entry_id = d.entry_id AND s.reader_id = $1",
+          "AND s.status = 'active')"
+        ),
+        "OR EXISTS (SELECT 1 FROM agent_runs ar WHERE ar.reader_id = $1",
+        "AND (ar.pinned_inputs ->> 'document_id' = d.document_id",
+        paste(
+          "OR COALESCE(ar.pinned_inputs -> 'document_ids', '[]'::jsonb)",
+          "? d.document_id))"
+        ),
+        "OR EXISTS (SELECT 1 FROM orientations o WHERE o.reader_id = $1",
+        paste(
+          "AND o.payload -> 'cards' @> jsonb_build_array(",
+          "jsonb_build_object('document_id', d.document_id)))"
+        ),
+        ")))"
+      ),
+      params = list(reader_id, document_id)
+    )
+    if (!nrow(rows)) {
+      return(NULL)
+    }
+    return(document_from_store_row(rows))
+  }
+
+  document <- store_get_document_record(store, document_id)
+  if (is.null(document)) {
+    return(NULL)
+  }
+  if (identical(document$reader_id, reader_id)) {
+    return(document)
+  }
+  if (!is.na(document$reader_id)) {
+    return(NULL)
+  }
+  if (
+    !is.null(store_get_entry(store, reader_id, document$entry_id)) ||
+      memory_document_is_pinned(store, reader_id, document_id)
+  ) {
+    return(document)
+  }
+  NULL
+}
+
+store_list_documents <- function(store, reader_id, entry_ids = NULL) {
   if (identical(store$mode, "postgres")) {
     query <- paste(
       document_select_sql(),
-      "JOIN entry_document_heads h ON h.document_id = d.document_id"
+      "JOIN entries e ON e.entry_id = d.entry_id",
+      "JOIN feeds f ON f.feed_id = e.feed_id",
+      paste(
+        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        "AND sub.reader_id = $1 AND sub.status = 'active'"
+      ),
+      paste(
+        "LEFT JOIN reader_document_selections selected",
+        "ON selected.reader_id = $1 AND selected.entry_id = e.entry_id"
+      ),
+      "LEFT JOIN public_document_heads public ON public.entry_id = e.entry_id",
+      paste(
+        "WHERE d.document_id =",
+        "COALESCE(selected.document_id, public.document_id)"
+      ),
+      "AND (f.source_kind <> 'capture' OR d.reader_id = $1)"
     )
-    params <- list()
+    params <- list(reader_id)
     if (!is.null(entry_ids)) {
       entry_ids <- unique(as.character(entry_ids))
       if (!length(entry_ids)) {
         return(list())
       }
-      placeholders <- paste0("$", seq_along(entry_ids), collapse = ", ")
-      query <- paste(query, "WHERE h.entry_id IN (", placeholders, ")")
-      params <- as.list(entry_ids)
+      placeholders <- paste0(
+        "$",
+        seq_along(entry_ids) + 1L,
+        collapse = ", "
+      )
+      query <- paste(query, "AND e.entry_id IN (", placeholders, ")")
+      params <- c(params, as.list(entry_ids))
     }
-    query <- paste(query, "ORDER BY h.selected_at DESC, h.entry_id")
-    rows <- if (length(params)) {
-      DBI::dbGetQuery(store$pool, query, params = params)
-    } else {
-      DBI::dbGetQuery(store$pool, query)
-    }
+    query <- paste(
+      query,
+      paste(
+        "ORDER BY COALESCE(selected.selected_at, public.selected_at) DESC,",
+        "e.entry_id"
+      )
+    )
+    rows <- DBI::dbGetQuery(store$pool, query, params = params)
     if (!nrow(rows)) {
       return(list())
     }
@@ -1397,21 +1570,44 @@ store_list_documents <- function(store, entry_ids = NULL) {
     ))
   }
 
-  heads <- store$memory$document_heads
+  visible_entry_ids <- memory_reader_visible_entry_ids(store, reader_id)
   if (!is.null(entry_ids)) {
-    heads <- heads[names(heads) %in% as.character(entry_ids)]
+    visible_entry_ids <- intersect(visible_entry_ids, as.character(entry_ids))
+  }
+  if (!length(visible_entry_ids)) {
+    return(list())
+  }
+  heads <- store$memory$document_heads
+  heads <- heads[names(heads) %in% visible_entry_ids]
+  selections <- store$memory$document_selections
+  selections <- selections[
+    selections$reader_id == reader_id &
+      selections$entry_id %in% visible_entry_ids,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(selections)) {
+    heads[selections$entry_id] <- selections$document_id
   }
   documents <- unname(lapply(heads, function(id) {
     store$memory$documents[[id]]
   }))
+  documents <- Filter(Negate(is.null), documents)
+  if (!length(documents)) {
+    return(list())
+  }
   stats::setNames(
     documents,
     vapply(documents, `[[`, character(1), "entry_id")
   )
 }
 
-store_get_document <- function(store, entry_id) {
-  documents <- store_list_documents(store, entry_ids = entry_id)
+store_get_document <- function(store, reader_id, entry_id) {
+  documents <- store_list_documents(
+    store,
+    reader_id,
+    entry_ids = entry_id
+  )
   if (!length(documents)) NULL else documents[[1]]
 }
 
@@ -1420,18 +1616,19 @@ store_insert_document <- function(connection, document) {
     connection,
     paste(
       "INSERT INTO documents",
-      "(document_id, entry_id, source_url, canonical_url,",
+      "(document_id, entry_id, reader_id, source_url, canonical_url,",
       "acquisition_method, producer, producer_version, producer_record_id,",
       "title, author, site, published_at, markdown, word_count,",
       "content_hash, record_hash, captured_at, received_at, provenance,",
       "schema_version)",
       "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,",
-      "$13, $14, $15, $16, $17, $18, $19::jsonb, $20)",
+      "$13, $14, $15, $16, $17, $18, $19, $20::jsonb, $21)",
       "ON CONFLICT (document_id) DO NOTHING"
     ),
     params = list(
       document$document_id,
       document$entry_id,
+      document$reader_id,
       document$source_url,
       document$canonical_url,
       document$acquisition_method,
@@ -1454,10 +1651,167 @@ store_insert_document <- function(connection, document) {
   )
 }
 
+store_select_document <- function(
+  store,
+  reader_id,
+  document_id,
+  selected_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    selected <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "INSERT INTO reader_document_selections",
+        paste(
+          "(reader_id, feed_id, entry_id, document_id, ownership_key,",
+          "selected_at)"
+        ),
+        "SELECT $1, e.feed_id, d.entry_id, d.document_id, d.ownership_key, $3",
+        "FROM documents d JOIN entries e ON e.entry_id = d.entry_id",
+        "WHERE d.document_id = $2 AND (d.reader_id = $1 OR (",
+        "d.reader_id IS NULL AND EXISTS (SELECT 1 FROM subscriptions s",
+        paste(
+          "WHERE s.reader_id = $1 AND s.feed_id = e.feed_id",
+          "AND s.status = 'active')))"
+        ),
+        "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
+        "feed_id = EXCLUDED.feed_id, document_id = EXCLUDED.document_id,",
+        paste(
+          "ownership_key = EXCLUDED.ownership_key,",
+          "selected_at = EXCLUDED.selected_at"
+        ),
+        "RETURNING entry_id"
+      ),
+      params = list(reader_id, document_id, selected_at)
+    )
+    if (nrow(selected) != 1L) {
+      cli::cli_abort(
+        "That Document is not available to this Reader.",
+        class = "rill_document_forbidden"
+      )
+    }
+    return(invisible(document_id))
+  }
+
+  document <- store_get_document_record(store, document_id)
+  if (is.null(document)) {
+    cli::cli_abort(
+      "That Document is not available to this Reader.",
+      class = "rill_document_forbidden"
+    )
+  }
+  public_access <- is.na(document$reader_id) &&
+    document$entry_id %in% memory_reader_visible_entry_ids(store, reader_id)
+  if (!identical(document$reader_id, reader_id) && !public_access) {
+    cli::cli_abort(
+      "That Document is not available to this Reader.",
+      class = "rill_document_forbidden"
+    )
+  }
+  entry_index <- match(document$entry_id, store$memory$entries$entry_id)
+  selection <- data.frame(
+    reader_id = reader_id,
+    feed_id = store$memory$entries$feed_id[[entry_index]],
+    entry_id = document$entry_id,
+    document_id = document_id,
+    ownership_key = if (is.na(document$reader_id)) {
+      "public"
+    } else {
+      paste0("reader:", reader_id)
+    },
+    selected_at = selected_at,
+    stringsAsFactors = FALSE
+  )
+  selections <- store$memory$document_selections
+  index <- which(
+    selections$reader_id == reader_id &
+      selections$entry_id == document$entry_id
+  )
+  if (length(index)) {
+    selections[index[[1L]], ] <- selection
+    store$memory$document_selections <- selections
+  } else {
+    store$memory$document_selections <- rbind(selections, selection)
+  }
+  invisible(document_id)
+}
+
+store_replace_selected_document <- function(
+  store,
+  reader_id,
+  expected_document_id,
+  replacement_document_id,
+  selected_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    updated <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE reader_document_selections selected SET",
+        "document_id = replacement.document_id,",
+        "ownership_key = replacement.ownership_key, selected_at = $4",
+        "FROM documents replacement",
+        "WHERE selected.reader_id = $1",
+        "AND selected.document_id = $2",
+        "AND replacement.document_id = $3",
+        "AND replacement.entry_id = selected.entry_id",
+        "AND (replacement.reader_id IS NULL OR replacement.reader_id = $1)",
+        "RETURNING selected.entry_id"
+      ),
+      params = list(
+        reader_id,
+        expected_document_id,
+        replacement_document_id,
+        selected_at
+      )
+    )
+    return(nrow(updated) == 1L)
+  }
+
+  selections <- store$memory$document_selections
+  index <- which(
+    selections$reader_id == reader_id &
+      selections$document_id == expected_document_id
+  )
+  replacement <- store_get_document_by_id(
+    store,
+    reader_id,
+    replacement_document_id
+  )
+  if (
+    length(index) != 1L ||
+      is.null(replacement) ||
+      !identical(replacement$entry_id, selections$entry_id[[index]])
+  ) {
+    return(FALSE)
+  }
+  selections$document_id[[index]] <- replacement_document_id
+  selections$ownership_key[[index]] <- if (is.na(replacement$reader_id)) {
+    "public"
+  } else {
+    paste0("reader:", reader_id)
+  }
+  selections$selected_at[[index]] <- selected_at
+  store$memory$document_selections <- selections
+  TRUE
+}
+
 store_save_document <- function(store, document) {
-  existing <- store_get_document_by_id(store, document$document_id)
+  existing <- store_get_document_record(store, document$document_id)
   if (!is.null(existing)) {
-    if (!identical(existing$record_hash, document$record_hash)) {
+    legacy_replay <- identical(
+      existing$acquisition_method,
+      "browser_capture"
+    ) &&
+      identical(existing$reader_id, document$reader_id) &&
+      identical(
+        existing$record_hash,
+        document_record_hash(document, include_reader = FALSE)
+      )
+    if (
+      !identical(existing$record_hash, document$record_hash) &&
+        !legacy_replay
+    ) {
       document_conflict_abort(
         paste(
           "The producer record ID was already used for different content.",
@@ -1470,14 +1824,23 @@ store_save_document <- function(store, document) {
 
   if (identical(store$mode, "postgres")) {
     created <- pool::poolWithTransaction(store$pool, function(connection) {
+      DBI::dbGetQuery(
+        connection,
+        "SELECT entry_id FROM entries WHERE entry_id = $1 FOR UPDATE",
+        params = list(document$entry_id)
+      )
       inserted <- store_insert_document(connection, document)
-      if (identical(inserted, 1L)) {
+      transaction_store <- structure(
+        list(mode = "postgres", pool = connection),
+        class = "rill_store"
+      )
+      if (identical(inserted, 1L) && is.na(document$reader_id)) {
         DBI::dbExecute(
           connection,
           paste(
-            "INSERT INTO entry_document_heads",
-            "(entry_id, document_id, selected_at)",
-            "VALUES ($1, $2, $3)",
+            "INSERT INTO public_document_heads",
+            "(entry_id, document_id, ownership_key, selected_at)",
+            "VALUES ($1, $2, 'public', $3)",
             "ON CONFLICT (entry_id) DO UPDATE SET",
             "document_id = EXCLUDED.document_id,",
             "selected_at = EXCLUDED.selected_at"
@@ -1489,10 +1852,18 @@ store_save_document <- function(store, document) {
           )
         )
       }
+      if (!is.na(document$reader_id)) {
+        store_select_document(
+          transaction_store,
+          document$reader_id,
+          document$document_id,
+          selected_at = document$received_at
+        )
+      }
       identical(inserted, 1L)
     })
     if (!created) {
-      raced <- store_get_document_by_id(store, document$document_id)
+      raced <- store_get_document_record(store, document$document_id)
       if (
         is.null(raced) || !identical(raced$record_hash, document$record_hash)
       ) {
@@ -1503,12 +1874,27 @@ store_save_document <- function(store, document) {
   }
 
   store$memory$documents[[document$document_id]] <- document
-  store$memory$document_heads[[document$entry_id]] <- document$document_id
+  if (is.na(document$reader_id)) {
+    store$memory$document_heads[[document$entry_id]] <- document$document_id
+  } else {
+    store_select_document(
+      store,
+      document$reader_id,
+      document$document_id,
+      selected_at = document$received_at
+    )
+  }
   invisible(list(created = TRUE, document = document))
 }
 
-store_save_document_if_missing_head <- function(store, document) {
-  current <- store_get_document(store, document$entry_id)
+store_save_document_if_missing_head <- function(store, reader_id, document) {
+  if (!is.na(document$reader_id)) {
+    cli::cli_abort(
+      "Only a public Document may become the shared default reading copy.",
+      class = "rill_document_invalid"
+    )
+  }
+  current <- store_get_document(store, reader_id, document$entry_id)
   if (!is.null(current)) {
     return(invisible(list(created = FALSE, document = current)))
   }
@@ -1525,25 +1911,21 @@ store_save_document_if_missing_head <- function(store, document) {
         "SELECT entry_id FROM entries WHERE entry_id = $1 FOR UPDATE",
         params = list(document$entry_id)
       )
-      head <- DBI::dbGetQuery(
-        connection,
-        paste(
-          document_select_sql(),
-          "JOIN entry_document_heads h ON h.document_id = d.document_id",
-          "WHERE h.entry_id = $1 FOR UPDATE"
-        ),
-        params = list(document$entry_id)
+      current <- store_get_document(
+        transaction_store,
+        reader_id,
+        document$entry_id
       )
-      if (nrow(head)) {
+      if (!is.null(current)) {
         return(list(
           created = FALSE,
-          document = document_from_store_row(head[1L, , drop = FALSE])
+          document = current
         ))
       }
 
       inserted <- store_insert_document(connection, document)
       if (!identical(inserted, 1L)) {
-        raced <- store_get_document_by_id(
+        raced <- store_get_document_record(
           transaction_store,
           document$document_id
         )
@@ -1559,9 +1941,9 @@ store_save_document_if_missing_head <- function(store, document) {
       selected <- DBI::dbExecute(
         connection,
         paste(
-          "INSERT INTO entry_document_heads",
-          "(entry_id, document_id, selected_at)",
-          "VALUES ($1, $2, $3)",
+          "INSERT INTO public_document_heads",
+          "(entry_id, document_id, ownership_key, selected_at)",
+          "VALUES ($1, $2, 'public', $3)",
           "ON CONFLICT (entry_id) DO NOTHING"
         ),
         params = list(
@@ -1575,7 +1957,11 @@ store_save_document_if_missing_head <- function(store, document) {
       }
       list(
         created = FALSE,
-        document = store_get_document(transaction_store, document$entry_id)
+        document = store_get_document(
+          transaction_store,
+          reader_id,
+          document$entry_id
+        )
       )
     })
     return(invisible(result))
@@ -1597,11 +1983,15 @@ store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
       store$pool,
       paste(
         "SELECT e.feed_id FROM entries e",
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2"
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1")
+        )
       ),
       params = list(reader_id, entry_id)
     )
@@ -1617,7 +2007,10 @@ store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
       allowed <- subscriptions$reader_id == reader_id &
         subscriptions$feed_id == feed_id &
         subscriptions$status == "active"
-      if (any(allowed)) {
+      if (
+        any(allowed) &&
+          entry_id %in% memory_reader_visible_entry_ids(store, reader_id)
+      ) {
         return(feed_id)
       }
     }
@@ -1640,11 +2033,16 @@ store_mark_opened <- function(
           "WITH authorized AS (SELECT e.entry_id, e.feed_id",
           "FROM entries e"
         ),
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2 FOR SHARE OF s)",
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1"),
+          "FOR SHARE OF s)"
+        ),
         paste(
           "INSERT INTO entry_state",
           "(reader_id, entry_id, feed_id, read_at, read_reason, last_opened_at)"
@@ -1713,11 +2111,16 @@ store_mark_unread <- function(store, reader_id, entry_id) {
           "WITH authorized AS (SELECT e.entry_id, e.feed_id",
           "FROM entries e"
         ),
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2 FOR SHARE OF s),",
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1"),
+          "FOR SHARE OF s),"
+        ),
         "changed AS (UPDATE entry_state state SET",
         "read_at = NULL, read_reason = NULL FROM authorized",
         paste(
@@ -1775,7 +2178,7 @@ store_mark_entries_read <- function(
 
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id, now, reason)
-    entry_clauses <- character()
+    entry_clauses <- postgres_capture_entry_visible_sql("$1")
     state_clauses <- c(
       "s.read_at IS NULL",
       "COALESCE(s.hidden, false) = false"
@@ -1802,6 +2205,7 @@ store_mark_entries_read <- function(
       store$pool,
       paste(
         "WITH authorized_entries AS (SELECT e.* FROM entries e",
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
           "AND sub.reader_id = $1 AND sub.status = 'active'"
@@ -1836,7 +2240,10 @@ store_mark_entries_read <- function(
 
   active_feeds <- store_list_feeds(store, reader_id)
   entries <- store$memory$entries[
-    store$memory$entries$feed_id %in% active_feeds$feed_id,
+    store$memory$entries$feed_id %in%
+      active_feeds$feed_id &
+      store$memory$entries$entry_id %in%
+        memory_reader_visible_entry_ids(store, reader_id),
     ,
     drop = FALSE
   ]
@@ -1900,9 +2307,12 @@ store_toggle_state <- function(store, reader_id, entry_id, field) {
   if (identical(store$mode, "postgres")) {
     query <- paste0(
       "WITH authorized AS (SELECT e.entry_id, e.feed_id ",
-      "FROM entries e JOIN subscriptions s ON s.feed_id = e.feed_id ",
+      "FROM entries e JOIN feeds f ON f.feed_id = e.feed_id ",
+      "JOIN subscriptions s ON s.feed_id = e.feed_id ",
       "AND s.reader_id = $1 AND s.status = 'active' ",
-      "WHERE e.entry_id = $2 FOR SHARE OF s) ",
+      "WHERE e.entry_id = $2 AND ",
+      postgres_capture_entry_visible_sql("$1"),
+      " FOR SHARE OF s) ",
       "INSERT INTO entry_state (reader_id, entry_id, feed_id, ",
       field,
       ") ",
@@ -2003,13 +2413,17 @@ store_record_event <- function(store, event, require_new = FALSE) {
             "authorized AS (SELECT e.entry_id, e.feed_id",
             "FROM entries e"
           ),
+          "JOIN feeds f ON f.feed_id = e.feed_id",
           paste(
             "JOIN subscriptions s ON s.feed_id = e.feed_id",
             "AND s.reader_id = $2 AND s.status = 'active'"
           ),
           paste(
             "WHERE e.entry_id = $3",
-            "AND NOT EXISTS (SELECT 1 FROM existing) FOR SHARE OF s),"
+            "AND NOT EXISTS (SELECT 1 FROM existing)",
+            "AND",
+            postgres_capture_entry_visible_sql("$2"),
+            "FOR SHARE OF s),"
           ),
           "inserted AS (INSERT INTO events",
           paste(

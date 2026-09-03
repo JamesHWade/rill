@@ -214,7 +214,7 @@ testthat::test_that("today preparation leaves failed articles retryable", {
   )
 
   testthat::expect_identical(result$failed, 1L)
-  testthat::expect_length(store_list_documents(store), 0L)
+  testthat::expect_length(store_list_documents(store, "reader"), 0L)
 })
 
 testthat::test_that("today preparation retries feed fallbacks", {
@@ -257,7 +257,7 @@ testthat::test_that("today preparation retries feed fallbacks", {
   testthat::expect_identical(result$cached, 0L)
   testthat::expect_identical(result$prepared, 1L)
   testthat::expect_identical(
-    store_get_document(store, entry$entry_id)$acquisition_method,
+    store_get_document(store, "reader", entry$entry_id)$acquisition_method,
     "web_extraction"
   )
 })
@@ -283,17 +283,106 @@ testthat::test_that("opening an Orientation feed copy upgrades it", {
     }
   )
 
-  document <- get_or_extract_document(store, entry, list())
+  document <- get_or_extract_document(store, "reader", entry, list())
 
   testthat::expect_identical(calls, 1L)
   testthat::expect_identical(document$acquisition_method, "web_extraction")
   testthat::expect_identical(
-    store_get_document(store, entry$entry_id)$document_id,
+    store_get_document(store, "reader", entry$entry_id)$document_id,
     document$document_id
   )
   testthat::expect_identical(
-    store_get_document_by_id(store, fallback$document_id)$document_id,
+    store_get_document_by_id(
+      store,
+      "reader",
+      fallback$document_id
+    )$document_id,
     fallback$document_id
+  )
+})
+
+testthat::test_that("opening a selected Orientation copy upgrades its selection", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store$memory$documents <- list()
+  store$memory$document_heads <- character()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "orientation-feed-copy")
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    document_from_defuddle = function(entry, config) {
+      calls <<- calls + 1L
+      new_rill_document(
+        entry_id = entry$entry_id,
+        source_url = entry$url,
+        markdown = "The complete extracted article.",
+        acquisition_method = "web_extraction",
+        producer = "defuddle-test"
+      )
+    }
+  )
+
+  document <- get_or_extract_document(store, "reader", entry, list())
+  cached <- get_or_extract_document(store, "reader", entry, list())
+
+  testthat::expect_identical(calls, 1L)
+  testthat::expect_identical(cached$document_id, document$document_id)
+  testthat::expect_identical(
+    store$memory$document_selections$document_id,
+    document$document_id
+  )
+})
+
+testthat::test_that("today preparation upgrades a selected Orientation copy once", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store$memory$documents <- list()
+  store$memory$document_heads <- character()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  store$memory$entries$published_at <- format(
+    as.POSIXct("2026-08-19 12:00:00", tz = "UTC") -
+      c(60, rep(60 * 60 * 24 * 40, 5)),
+    tz = "UTC",
+    usetz = TRUE
+  )
+  fallback <- document_fallback(entry, reason = "orientation-feed-copy")
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    document_from_defuddle = function(entry, config) {
+      calls <<- calls + 1L
+      new_rill_document(
+        entry_id = entry$entry_id,
+        source_url = entry$url,
+        markdown = "The complete extracted article.",
+        acquisition_method = "web_extraction",
+        producer = "defuddle-test"
+      )
+    }
+  )
+  now <- as.POSIXct("2026-08-19 14:00:00", tz = "UTC")
+
+  first <- prepare_today_documents(
+    store,
+    list(actor_id = "reader"),
+    now = now,
+    timezone = "UTC"
+  )
+  second <- prepare_today_documents(
+    store,
+    list(actor_id = "reader"),
+    now = now,
+    timezone = "UTC"
+  )
+
+  testthat::expect_identical(calls, 1L)
+  testthat::expect_identical(first$prepared, 1L)
+  testthat::expect_identical(second$cached, 1L)
+  testthat::expect_no_match(
+    store$memory$document_selections$document_id,
+    fallback$document_id,
+    fixed = TRUE
   )
 })
 
@@ -312,7 +401,7 @@ testthat::test_that("opening an ordinary cached document does not extract", {
     }
   )
 
-  document <- get_or_extract_document(store, entry, list())
+  document <- get_or_extract_document(store, "reader", entry, list())
 
   testthat::expect_identical(calls, 0L)
   testthat::expect_identical(document$document_id, cached$document_id)

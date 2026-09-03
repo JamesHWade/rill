@@ -1,5 +1,5 @@
 testthat::test_that("the memory store keeps one current Orientation per Reader", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-1"))
   document <- store$memory$documents[[1]]
   evaluated_at <- as.POSIXct("2026-09-02 16:00:00", tz = "UTC")
   orientation <- new_rill_orientation(
@@ -33,7 +33,7 @@ testthat::test_that("the memory store keeps one current Orientation per Reader",
 })
 
 testthat::test_that("an Orientation is bound to its Reader's producing run", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-1"))
   document <- store$memory$documents[[1L]]
   orientation <- new_rill_orientation(
     reader_id = "reader-1",
@@ -222,7 +222,7 @@ testthat::test_that("Orientation prepares bounded feed copies without extraction
 
   testthat::expect_identical(prepared$prepared, 2L)
   testthat::expect_identical(extracted, FALSE)
-  documents <- store_list_documents(store, entry_ids)
+  documents <- store_list_documents(store, reader_id, entry_ids)
   testthat::expect_length(documents, 2L)
   testthat::expect_all_equal(
     vapply(documents, `[[`, character(1), "acquisition_method"),
@@ -248,9 +248,11 @@ testthat::test_that("Orientation skips unusable feed copies within its bound", {
   prepared <- prepare_orientation_documents(store, reader_id, limit = 1L)
 
   testthat::expect_identical(prepared$prepared, 1L)
-  testthat::expect_null(store_get_document(store, entry_ids[[1L]]))
+  testthat::expect_null(
+    store_get_document(store, reader_id, entry_ids[[1L]])
+  )
   testthat::expect_s3_class(
-    store_get_document(store, entry_ids[[2L]]),
+    store_get_document(store, reader_id, entry_ids[[2L]]),
     "rill_document"
   )
 })
@@ -258,15 +260,15 @@ testthat::test_that("Orientation skips unusable feed copies within its bound", {
 testthat::test_that("Orientation fallback cannot replace an existing head", {
   store <- rill_store(list(demo_mode = TRUE))
   entry <- as.list(store$memory$entries[1L, , drop = FALSE])
-  current <- store_get_document(store, entry$entry_id)
+  current <- store_get_document(store, "reader", entry$entry_id)
   fallback <- document_fallback(entry, reason = "orientation-feed-copy")
 
-  saved <- store_save_document_if_missing_head(store, fallback)
+  saved <- store_save_document_if_missing_head(store, "reader", fallback)
 
   testthat::expect_identical(saved$created, FALSE)
   testthat::expect_identical(saved$document$document_id, current$document_id)
   testthat::expect_identical(
-    store_get_document(store, entry$entry_id)$document_id,
+    store_get_document(store, "reader", entry$entry_id)$document_id,
     current$document_id
   )
 })

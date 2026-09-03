@@ -1,47 +1,3 @@
-capture_test_payload <- function(...) {
-  utils::modifyList(
-    list(
-      capture_id = "browser-capture-001",
-      source_url = "https://example.com/notes/one",
-      canonical_url = "https://example.com/notes/one",
-      title = "A locally captured document",
-      author = "Ada Lovelace",
-      site = "Example Notes",
-      published_at = "2026-08-29T12:30:00Z",
-      markdown = "# A local document\n\nSource-grounded text.",
-      captured_at = "2026-08-30T22:15:00Z",
-      producer = "rill-test-clipper",
-      producer_version = "1.0.0",
-      metadata = list(selection = "article")
-    ),
-    list(...)
-  )
-}
-
-capture_test_request <- function(
-  payload,
-  token = "test-secret",
-  path = capture_endpoint_path,
-  method = "POST",
-  content_type = "application/json"
-) {
-  body <- if (is.character(payload)) {
-    payload
-  } else {
-    jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null")
-  }
-  list2env(
-    list(
-      PATH_INFO = path,
-      REQUEST_METHOD = method,
-      CONTENT_TYPE = content_type,
-      HTTP_AUTHORIZATION = paste("Bearer", token),
-      rook.input = list(read = function() charToRaw(body))
-    ),
-    parent = emptyenv()
-  )
-}
-
 testthat::test_that("browser capture reaches the normal document boundary", {
   store <- rill_store(list(demo_mode = TRUE))
   result <- capture_document(
@@ -52,8 +8,8 @@ testthat::test_that("browser capture reaches the normal document boundary", {
   )
 
   entry <- store_get_entry(store, "reader", result$entry_id)
-  document <- store_get_document(store, result$entry_id)
-  documents <- store_list_documents(store, result$entry_id)
+  document <- store_get_document(store, "reader", result$entry_id)
+  documents <- store_list_documents(store, "reader", result$entry_id)
   capture_sources <- store_list_feeds(store, "reader", source_kind = "capture")
   subscriptions <- store_list_feeds(
     store,
@@ -139,7 +95,7 @@ testthat::test_that("capture uses an existing feed entry for the same URL", {
   )
 
   result <- capture_document(store, payload, "reader")
-  current <- store_get_document(store, entry$entry_id[[1]])
+  current <- store_get_document(store, "reader", entry$entry_id[[1]])
 
   testthat::expect_identical(result$entry_id, entry$entry_id[[1]])
   testthat::expect_equal(nrow(store$memory$entries), 6L)
@@ -190,6 +146,137 @@ testthat::test_that("capture IDs cannot be reused for different evidence", {
       "reader"
     ),
     error = TRUE
+  )
+})
+
+testthat::test_that("legacy captured Document hashes remain replayable", {
+  store <- rill_store(list(demo_mode = TRUE))
+  payload <- capture_test_payload()
+  captured <- capture_document(store, payload, "reader")
+  legacy <- store_get_document_record(store, captured$document_id)
+  legacy$record_hash <- document_record_hash(
+    legacy,
+    include_reader = FALSE
+  )
+  store$memory$documents[[captured$document_id]] <- legacy
+
+  replayed <- capture_document(store, payload, "reader")
+
+  testthat::expect_identical(replayed$created, FALSE)
+  testthat::expect_error(
+    capture_document(
+      store,
+      capture_test_payload(markdown = "Different evidence."),
+      "reader"
+    ),
+    class = "rill_document_conflict"
+  )
+})
+
+testthat::test_that("private captures and reading copies stay with their Reader", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  store_ensure_reader(store, "reader-two")
+  entry <- store$memory$entries[1L, , drop = FALSE]
+  store_subscribe_feed(store, "reader-two", entry$feed_id[[1L]])
+  public_document <- store_get_document(
+    store,
+    "reader-two",
+    entry$entry_id[[1L]]
+  )
+  payload <- capture_test_payload(
+    source_url = entry$url[[1L]],
+    canonical_url = entry$url[[1L]],
+    title = entry$title[[1L]]
+  )
+
+  captured <- capture_document(store, payload, "reader-one")
+
+  testthat::expect_identical(
+    store_get_document(store, "reader-one", captured$entry_id)$document_id,
+    captured$document_id
+  )
+  testthat::expect_identical(
+    store_get_document(store, "reader-two", captured$entry_id)$document_id,
+    public_document$document_id
+  )
+  testthat::expect_null(
+    store_get_document_by_id(store, "reader-two", captured$document_id)
+  )
+  testthat::expect_error(
+    store_select_document(store, "reader-two", captured$document_id),
+    class = "rill_document_forbidden"
+  )
+})
+
+testthat::test_that("standalone capture entries cannot be discovered by another Reader", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  store_ensure_reader(store, "reader-two")
+  payload <- capture_test_payload(
+    source_url = "https://example.com/private-note",
+    canonical_url = "https://example.com/private-note"
+  )
+
+  first <- capture_document(store, payload, "reader-one")
+  second <- capture_document(
+    store,
+    capture_test_payload(
+      capture_id = "reader-two-capture",
+      source_url = payload$source_url,
+      canonical_url = payload$canonical_url,
+      markdown = "Reader two's private copy."
+    ),
+    "reader-two"
+  )
+
+  testthat::expect_length(unique(c(first$entry_id, second$entry_id)), 2L)
+  testthat::expect_in(
+    first$entry_id,
+    store_list_entries(store, "reader-one", view = "all")$entry_id
+  )
+  testthat::expect_disjoint(
+    store_list_entries(store, "reader-two", view = "all")$entry_id,
+    first$entry_id
+  )
+  testthat::expect_in(
+    second$entry_id,
+    store_list_entries(store, "reader-two", view = "all")$entry_id
+  )
+  testthat::expect_null(store_get_entry(store, "reader-one", second$entry_id))
+  testthat::expect_error(
+    store_mark_opened(store, "reader-two", first$entry_id),
+    class = "rill_entry_forbidden"
+  )
+})
+
+testthat::test_that("capture credentials resolve the owning Reader", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  store_ensure_reader(store, "reader-two")
+  store_set_capture_credential(store, "reader-two", "reader-two-secret")
+  handler <- capture_http_handler(
+    \(request) NULL,
+    store,
+    list(actor_id = "reader-one", capture_token = "reader-one-secret")
+  )
+
+  response <- handler(capture_test_request(
+    capture_test_payload(capture_id = "reader-two-http-capture"),
+    token = "reader-two-secret"
+  ))
+  body <- jsonlite::fromJSON(response$body)
+  document <- store_get_document_record(store, body$document_id)
+
+  testthat::expect_identical(response$status, 201L)
+  testthat::expect_identical(document$reader_id, "reader-two")
+  testthat::expect_null(
+    store_get_document_by_id(store, "reader-one", body$document_id)
+  )
+  testthat::expect_error(
+    store_set_capture_credential(
+      store,
+      "reader-one",
+      "reader-two-secret"
+    ),
+    class = "rill_capture_credential_conflict"
   )
 })
 
@@ -247,7 +334,7 @@ testthat::test_that("invalid capture input returns a client error", {
   store <- rill_store(list(demo_mode = TRUE))
   store_ensure_reader(store, "reader")
   handler <- capture_http_handler(
-    function(request) NULL,
+    \(request) NULL,
     store,
     list(actor_id = "reader", capture_token = "test-secret")
   )
@@ -272,7 +359,7 @@ testthat::test_that("the HTTP endpoint denies a disabled Reader", {
     reason = "access revoked"
   )
   handler <- capture_http_handler(
-    function(request) NULL,
+    \(request) NULL,
     store,
     list(actor_id = "reader", capture_token = "test-secret")
   )
@@ -283,4 +370,22 @@ testthat::test_that("the HTTP endpoint denies a disabled Reader", {
     jsonlite::fromJSON(response$body)$error,
     "Capture is disabled for this Reader."
   )
+})
+
+testthat::test_that("removing the configured token disables capture", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store_ensure_reader(store, "reader")
+  store_set_capture_credential(store, "reader", "persisted-secret")
+  handler <- capture_http_handler(
+    \(request) NULL,
+    store,
+    list(actor_id = "reader", capture_token = "")
+  )
+
+  response <- handler(capture_test_request(
+    capture_test_payload(),
+    token = "persisted-secret"
+  ))
+
+  testthat::expect_identical(response$status, 404L)
 })

@@ -28,6 +28,30 @@ document_optional_string <- function(value) {
   if (!nzchar(value)) NA_character_ else value
 }
 
+document_record_hash <- function(document, include_reader = TRUE) {
+  identity_fields <- document[c(
+    "entry_id",
+    "reader_id",
+    "source_url",
+    "canonical_url",
+    "acquisition_method",
+    "producer",
+    "producer_version",
+    "producer_record_id",
+    "title",
+    "author",
+    "site",
+    "published_at",
+    "captured_at",
+    "content_hash",
+    "provenance"
+  )]
+  if (!include_reader) {
+    identity_fields$reader_id <- NULL
+  }
+  rill_id("document-record", canonical_json(identity_fields))
+}
+
 document_http_url <- function(value, argument) {
   value <- document_optional_string(value)
   parsed <- tryCatch(
@@ -84,6 +108,7 @@ new_rill_document <- function(
   markdown,
   acquisition_method,
   producer,
+  reader_id = NA_character_,
   producer_version = NA_character_,
   producer_record_id = NA_character_,
   canonical_url = NA_character_,
@@ -138,10 +163,25 @@ new_rill_document <- function(
       class = "rill_document_invalid"
     )
   }
+  reader_id <- document_optional_string(reader_id)
+  is_private <- identical(acquisition_method, "browser_capture")
+  if (is_private && is.na(reader_id)) {
+    cli::cli_abort(
+      "A browser-captured Document requires a Reader owner.",
+      class = "rill_document_invalid"
+    )
+  }
+  if (!is_private && !is.na(reader_id)) {
+    cli::cli_abort(
+      "Only browser-captured Documents may have a Reader owner.",
+      class = "rill_document_invalid"
+    )
+  }
 
   content_hash <- rill_id("document-content", markdown)
   identity_fields <- list(
     entry_id = entry_id,
+    reader_id = reader_id,
     source_url = source_url,
     canonical_url = document_optional_string(canonical_url),
     acquisition_method = acquisition_method,
@@ -156,7 +196,7 @@ new_rill_document <- function(
     content_hash = content_hash,
     provenance = provenance
   )
-  record_hash <- rill_id("document-record", canonical_json(identity_fields))
+  record_hash <- document_record_hash(identity_fields)
   document_id <- document_id %||% rill_id("document", record_hash)
 
   structure(
@@ -164,6 +204,7 @@ new_rill_document <- function(
       list(
         document_id = document_id,
         entry_id = entry_id,
+        reader_id = reader_id,
         source_url = source_url,
         canonical_url = document_optional_string(canonical_url),
         acquisition_method = acquisition_method,
@@ -206,6 +247,7 @@ document_from_store_row <- function(row) {
     )
   }
   record$provenance <- provenance
+  record$reader_id <- document_optional_string(record$reader_id)
   record$schema_version <- as.integer(record$schema_version %||% 1L)
   record$word_count <- as.integer(record$word_count %||% 0L)
   structure(record, class = c("rill_document", "list"))

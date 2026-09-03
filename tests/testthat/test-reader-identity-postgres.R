@@ -129,22 +129,28 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     params = list(config$oidc_issuer, "github|reader")
   )
 
-  testthat::expect_error(
-    store_admit_reader_identity(
-      store,
-      issuer = config$oidc_issuer,
-      subject = "google-oauth2|second-reader",
-      reader_id = "reader-two",
-      responsible_id = "operator:james",
-      reason = "unsafe admission"
-    ),
-    class = "rill_reader_isolation_incomplete"
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "google-oauth2|second-reader",
+    reader_id = "reader-two",
+    responsible_id = "operator:james",
+    reason = "invitation approved"
+  )
+  admitted_second_reader <- reader_identity_resolve(
+    adapter,
+    identity_test_request("google-oauth2|second-reader")
   )
   reader_count <- DBI::dbGetQuery(
     store$pool,
     "SELECT COUNT(*) AS count FROM readers WHERE reader_id = 'reader-two'"
   )
-  testthat::expect_identical(as.integer(reader_count$count[[1L]]), 0L)
+  testthat::expect_identical(
+    admitted_second_reader[c("status", "reader_id")],
+    list(status = "active", reader_id = "reader-two")
+  )
+  testthat::expect_identical(as.integer(reader_count$count[[1L]]), 1L)
+  testthat::expect_identical(nrow(store_list_feeds(store, "reader-two")), 0L)
 
   store_ensure_reader(store, "other-reader")
   DBI::dbExecute(
