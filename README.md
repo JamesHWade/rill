@@ -30,7 +30,7 @@ The working title is **Rill**. Rename it freely.
 | Operations and diagnostics | OpenTelemetry → Logfire | Disclosed, opt-out traces remain non-authoritative diagnostic data |
 
 The package exposes five focused entry points: `rill_app()` creates the Shiny
-application, `poll_feeds()` runs a durable scheduled refresh,
+application, `poll_feeds()` runs a due-aware durable scheduled refresh,
 `prepare_today()` pre-builds the current day's reading copies, and
 `read_opml()` and `write_opml()` provide a small interchange boundary for
 Subscription lists. Feed parsing, storage, telemetry, and UI helpers remain
@@ -299,7 +299,7 @@ Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honey
 4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, `RILL_AGENT_MODEL`, its provider API key, optional `RILL_AGENT_BASE_URL`, the selected `DEFUDDLE_*` settings, optional `RILL_ORIENTATION_ENABLED`, the required `RILL_AGENT_POLICY_URL` when external Orientation is enabled, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
 5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
 
-The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably. A scheduler can run `rill::prepare_today()` afterward to pre-build clean reading copies for the current local day.
+The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a scheduled job. It skips Feeds until `RILL_POLL_INTERVAL_MINUTES` has elapsed, records every per-Feed outcome, and tolerates isolated failures. It exits non-zero when failures reach `RILL_POLL_FAILURE_THRESHOLD` or a systemic error interrupts the run. A scheduler can run `rill::prepare_today()` afterward to pre-build clean reading copies for the current local day.
 
 ## Hosted Rill direction
 

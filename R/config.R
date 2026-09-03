@@ -9,6 +9,25 @@ env_flag <- function(name, default = FALSE) {
   value %in% c("1", "true", "yes", "on")
 }
 
+env_positive_integer <- function(name, default) {
+  value <- Sys.getenv(name, unset = as.character(default))
+  parsed <- suppressWarnings(as.numeric(value))
+  if (
+    length(parsed) != 1L ||
+      is.na(parsed) ||
+      !is.finite(parsed) ||
+      parsed < 1 ||
+      parsed != floor(parsed) ||
+      parsed > .Machine$integer.max
+  ) {
+    cli::cli_abort(
+      "{.envvar {name}} must be a positive whole number.",
+      class = "rill_config_invalid"
+    )
+  }
+  as.integer(parsed)
+}
+
 normalize_defuddle_backend <- function(value) {
   value <- tolower(trimws(value %||% "hosted"))
   if (length(value) != 1L || is.na(value) || !value %in% c("hosted", "local")) {
@@ -232,6 +251,14 @@ rill_config <- function() {
       unset = "https://defuddle.md"
     ),
     capture_token = Sys.getenv("RILL_CAPTURE_TOKEN", unset = ""),
+    poll_interval_minutes = env_positive_integer(
+      "RILL_POLL_INTERVAL_MINUTES",
+      60L
+    ),
+    poll_failure_threshold = env_positive_integer(
+      "RILL_POLL_FAILURE_THRESHOLD",
+      5L
+    ),
     orientation_enabled = env_flag("RILL_ORIENTATION_ENABLED", FALSE),
     telemetry_enabled = nzchar(Sys.getenv(
       "OTEL_EXPORTER_OTLP_ENDPOINT",

@@ -44,6 +44,6 @@
 
 * The reader now supports `J`/`K` navigation, `O` to open the original, `S` to save, and `F` to star.
 
-* `poll_feeds()` and `rill_app()` provide focused entry points for scheduled refreshes and the Shiny application.
+* `poll_feeds()` refreshes only due shared Feeds, prevents overlapping runs, records durable per-Feed outcomes, tolerates isolated failures, and exits non-zero only for systemic errors or the configured failure threshold (#22).
 
 * `read_opml()` and `write_opml()` import and export OPML 2.0 subscription lists, including nested feed folders; the Shiny app registers imports immediately under **Manage feeds** and leaves feed refresh as a separate action.

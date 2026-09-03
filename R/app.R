@@ -49,48 +49,6 @@ rill_app <- function() {
   app
 }
 
-#' Poll every active Feed
-#'
-#' `poll_feeds()` refreshes each shared Feed with at least one active
-#' Subscription once. It is intended for scheduled jobs and reports progress
-#' with structured cli output.
-#'
-#' @return Invisibly, a list containing one refresh result per feed.
-#' @export
-poll_feeds <- function() {
-  config <- rill_config()
-  if (config$demo_mode) {
-    cli::cli_abort(c(
-      "Can't poll feeds without a durable store.",
-      "i" = "Set {.envvar DATABASE_URL} to a PostgreSQL connection string."
-    ))
-  }
-
-  init_telemetry(config)
-  store <- rill_store(config)
-  on.exit(rill_store_close(store), add = TRUE)
-
-  results <- refresh_all_feeds(store)
-  failed <- vapply(results, function(result) !is.null(result$error), logical(1))
-
-  if (any(failed)) {
-    failure_details <- vapply(
-      results[failed],
-      function(result) paste0(result$feed_id, ": ", result$error),
-      character(1)
-    )
-    cli::cli_abort(c(
-      "Failed to refresh {sum(failed)} feed{?s}.",
-      "x" = "{failure_details}"
-    ))
-  }
-
-  cli::cli_inform(c(
-    "v" = "Checked {length(results)} feed{?s}; all succeeded."
-  ))
-  invisible(results)
-}
-
 #' Prepare today's reading copies
 #'
 #' `prepare_today()` extracts and caches clean reading copies for articles

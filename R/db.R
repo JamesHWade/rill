@@ -158,6 +158,31 @@ rill_store <- function(config) {
       payload = character(),
       stringsAsFactors = FALSE
     )
+    memory$feed_poll_runs <- data.frame(
+      run_id = character(),
+      started_at = character(),
+      completed_at = character(),
+      status = character(),
+      due_count = integer(),
+      succeeded_count = integer(),
+      failed_count = integer(),
+      failure_threshold = integer(),
+      error_class = character(),
+      error_message = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$feed_poll_outcomes <- data.frame(
+      run_id = character(),
+      feed_id = character(),
+      started_at = character(),
+      completed_at = character(),
+      status = character(),
+      added_count = integer(),
+      error_class = character(),
+      error_message = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$feed_poll_locked <- FALSE
     memory$agent_runs <- list()
     memory$orientations <- list()
     memory$orientation_destination_settings <- list()

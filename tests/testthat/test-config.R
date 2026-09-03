@@ -16,6 +16,8 @@ testthat::test_that("configuration defaults to the bundled demo", {
     OLLAMA_BASE_URL = NA,
     RILL_AGENT_POLICY_URL = NA,
     RILL_CAPTURE_TOKEN = NA,
+    RILL_POLL_INTERVAL_MINUTES = NA,
+    RILL_POLL_FAILURE_THRESHOLD = NA,
     RILL_ORIENTATION_ENABLED = NA,
     RILL_REFRESH_ON_START = NA,
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
@@ -38,6 +40,8 @@ testthat::test_that("configuration defaults to the bundled demo", {
   testthat::expect_identical(config$agent_base_url, "")
   testthat::expect_identical(config$agent_policy_url, "")
   testthat::expect_identical(config$capture_token, "")
+  testthat::expect_identical(config$poll_interval_minutes, 60L)
+  testthat::expect_identical(config$poll_failure_threshold, 5L)
   testthat::expect_identical(config$orientation_enabled, FALSE)
   testthat::expect_identical(config$refresh_on_start, FALSE)
 })
@@ -58,6 +62,8 @@ testthat::test_that("configuration reads explicit environment settings", {
     RILL_AGENT_BASE_URL = "https://gateway.example/v1/",
     RILL_AGENT_POLICY_URL = "https://provider.example/terms",
     RILL_CAPTURE_TOKEN = "capture-secret",
+    RILL_POLL_INTERVAL_MINUTES = "15",
+    RILL_POLL_FAILURE_THRESHOLD = "3",
     RILL_ORIENTATION_ENABLED = "true",
     RILL_REFRESH_ON_START = "yes",
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "false"
@@ -100,8 +106,25 @@ testthat::test_that("configuration reads explicit environment settings", {
     "https://provider.example/terms"
   )
   testthat::expect_identical(config$capture_token, "capture-secret")
+  testthat::expect_identical(config$poll_interval_minutes, 15L)
+  testthat::expect_identical(config$poll_failure_threshold, 3L)
   testthat::expect_identical(config$orientation_enabled, TRUE)
   testthat::expect_identical(config$refresh_on_start, TRUE)
+})
+
+testthat::test_that("polling configuration requires positive whole numbers", {
+  withr::local_envvar(c(
+    RILL_POLL_INTERVAL_MINUTES = "0",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+  testthat::expect_error(rill_config(), class = "rill_config_invalid")
+
+  withr::local_envvar(c(
+    RILL_POLL_INTERVAL_MINUTES = "15",
+    RILL_POLL_FAILURE_THRESHOLD = "1.5",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+  testthat::expect_error(rill_config(), class = "rill_config_invalid")
 })
 
 testthat::test_that("the proxy gate requires a safe HTTPS issuer", {
