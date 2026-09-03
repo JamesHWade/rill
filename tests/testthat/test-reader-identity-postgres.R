@@ -218,6 +218,166 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     )
   )
 
+  race_subject <- "google-oauth2|approval-race"
+  blocker <- do.call(
+    DBI::dbConnect,
+    c(list(drv = RPostgres::Postgres()), connection_args)
+  )
+  blocker_active <- TRUE
+  withr::defer({
+    if (blocker_active) {
+      try(DBI::dbRollback(blocker), silent = TRUE)
+    }
+    DBI::dbDisconnect(blocker)
+  })
+  DBI::dbBegin(blocker)
+  DBI::dbGetQuery(
+    blocker,
+    paste(
+      "SELECT pg_advisory_xact_lock(",
+      "hashtext($1::text), hashtext($2::text))"
+    ),
+    params = list(config$oidc_issuer, race_subject)
+  )
+
+  package_path <- normalizePath(
+    testthat::test_path("..", ".."),
+    mustWork = FALSE
+  )
+  if (!file.exists(file.path(package_path, "DESCRIPTION"))) {
+    package_path <- NULL
+  }
+  application_names <- paste0(
+    "rill_identity_race_",
+    Sys.getpid(),
+    "_",
+    c("resolve", "admit")
+  )
+  identity_race_worker <- function(
+    package_path,
+    connection_args,
+    application_name,
+    operation,
+    issuer,
+    subject
+  ) {
+    if (is.null(package_path)) {
+      loadNamespace("rill")
+    } else {
+      pkgload::load_all(package_path, quiet = TRUE)
+    }
+    connection_args$application_name <- application_name
+    database_pool <- do.call(
+      pool::dbPool,
+      c(
+        list(drv = RPostgres::Postgres()),
+        connection_args,
+        list(minSize = 1, maxSize = 1, idleTimeout = 60)
+      )
+    )
+    on.exit(pool::poolClose(database_pool), add = TRUE)
+    worker_store <- structure(
+      list(
+        mode = "postgres",
+        pool = database_pool,
+        private_reader_id = "reader-one"
+      ),
+      class = "rill_store"
+    )
+    if (identical(operation, "resolve")) {
+      principal <- list(
+        issuer = issuer,
+        subject = subject,
+        email = NULL,
+        display_name = NULL
+      )
+      return(rill:::store_resolve_reader_identity(worker_store, principal))
+    }
+    rill:::store_admit_reader_identity(
+      worker_store,
+      issuer = issuer,
+      subject = subject,
+      reader_id = "reader-one",
+      responsible_id = "operator:james",
+      reason = "proactive approval"
+    )
+    invisible(NULL)
+  }
+  workers <- Map(
+    function(application_name, operation) {
+      callr::r_bg(
+        identity_race_worker,
+        args = list(
+          package_path = package_path,
+          connection_args = connection_args,
+          application_name = application_name,
+          operation = operation,
+          issuer = config$oidc_issuer,
+          subject = race_subject
+        ),
+        stdout = "|",
+        stderr = "|",
+        supervise = TRUE
+      )
+    },
+    application_names,
+    c("resolve", "admit")
+  )
+  withr::defer({
+    for (worker in workers) {
+      if (worker$is_alive()) {
+        worker$kill_tree()
+      }
+    }
+  })
+
+  blocked <- character()
+  deadline <- Sys.time() + 20
+  while (Sys.time() < deadline) {
+    activity <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT application_name, wait_event_type FROM pg_stat_activity",
+        "WHERE application_name IN ($1, $2)"
+      ),
+      params = as.list(application_names)
+    )
+    blocked <- activity$application_name[
+      activity$wait_event_type == "Lock"
+    ]
+    if (setequal(blocked, application_names)) {
+      break
+    }
+    Sys.sleep(0.05)
+  }
+  testthat::expect_setequal(blocked, application_names)
+
+  DBI::dbCommit(blocker)
+  blocker_active <- FALSE
+  for (worker in workers) {
+    worker$wait(timeout = 20000)
+    testthat::expect_identical(worker$is_alive(), FALSE)
+    worker$get_result()
+  }
+  workers <- list()
+  raced_identity <- store_get_reader_identity(
+    store,
+    config$oidc_issuer,
+    race_subject
+  )
+  raced_admission <- store_get_reader_admission(
+    store,
+    config$oidc_issuer,
+    race_subject
+  )
+  admission_status <- if (is.null(raced_admission)) {
+    "missing"
+  } else {
+    raced_admission$status
+  }
+  testthat::expect_identical(raced_identity$reader_id, "reader-one")
+  testthat::expect_in(admission_status, c("missing", "approved"))
+
   happened_at <- "2099-09-03 12:00:00 UTC"
   store_admit_reader_identity(
     store,

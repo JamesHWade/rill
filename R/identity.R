@@ -237,6 +237,11 @@ store_resolve_reader_identity <- function(store, principal, now = utc_now()) {
   }
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
+      store_lock_reader_identity(
+        connection,
+        principal$issuer,
+        principal$subject
+      )
       identity <- DBI::dbGetQuery(
         connection,
         paste(
@@ -384,6 +389,18 @@ store_resolve_reader_identity <- function(store, principal, now = utc_now()) {
   )
 }
 
+store_lock_reader_identity <- function(connection, issuer, subject) {
+  DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT pg_advisory_xact_lock(",
+      "hashtext($1::text), hashtext($2::text))"
+    ),
+    params = list(issuer, subject)
+  )
+  invisible(NULL)
+}
+
 store_revalidate_reader_identity <- function(store, principal, reader_id) {
   if (
     is.null(principal) ||
@@ -518,6 +535,7 @@ store_admit_reader_identity <- function(
   }
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
+      store_lock_reader_identity(connection, issuer, subject)
       store_ensure_reader(store, reader_id, now, connection)
       existing <- DBI::dbGetQuery(
         connection,
