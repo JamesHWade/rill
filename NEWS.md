@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* A non-root production image now runs Rill as either a loopback-only Shiny web process behind oauth2-proxy or a scheduled Feed poller, with local Compose and Render deployment guidance (#23).
+
 * Orientation now maintains a source-grounded zero-to-three-Document reading path, preserves exact evidence and producer provenance, records explicit dismissals, durably preserves questions while yielding to User Engagement, and requires persistent per-Reader confirmation of its endpoint-bound Data Destination before automatic model use (#32).
 
 * Ask Rill now embeds shinychat beside the selected story, streams a tightly bounded Deputy Agent over one immutable Document, and records each question in the durable Agent Run lifecycle with cancellation and Retry (#30).

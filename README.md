@@ -301,7 +301,9 @@ The current schema is not safe for multiple Readers: Subscriptions, folders,
 and selected captured Documents are still global. The proposed invited-beta
 deployment uses a single Render Docker web process behind an OpenID Connect
 proxy, Auth0 as the first identity adapter, Neon PostgreSQL, and a separate
-Render cron process for feed polling. See the
+Render cron process for feed polling. The production image, local composition,
+and exact environment contract are documented in the
+[Render deployment guide](docs/deployment/render.md). See also the
 [proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
 [hosting research](docs/research/hosted-rill-platforms.md). Do not enable a
 shared deployment until Reader ownership and cross-Reader isolation are

@@ -1,4 +1,6 @@
 ^\.env\.example$
+^\.env\.hosted\.example$
+^\.dockerignore$
 ^\.git$
 ^\.github$
 ^\.playwright-mcp$
@@ -7,7 +9,10 @@
 ^\.vscode$
 ^_pkgdown\.yml$
 ^app\.R$
+^compose\.yaml$
 ^CONTEXT[.]md$
+^Dockerfile$
+^docker$
 ^artifacts$
 ^design-qa\.md$
 ^docs$
