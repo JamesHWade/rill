@@ -555,10 +555,39 @@ rill_server <- function(config, store) {
     }
 
     schedule_agent_run_deadline <- function(run, agent, deadline) {
-      current <- tryCatch(
-        store_get_agent_run(store, actor_id, run$run_id),
-        error = \(error) NULL
+      current_read <- tryCatch(
+        list(value = store_get_agent_run(store, actor_id, run$run_id)),
+        error = function(error) {
+          telemetry_log(
+            "warn",
+            "agent_run.deadline_read_failed",
+            list("error.type" = class(error)[[1L]])
+          )
+          NULL
+        }
       )
+      if (is.null(current_read)) {
+        retry_cancel <- NULL
+        retry_cancel <- later::later(
+          function() {
+            if (
+              !identical(
+                agent_run_deadlines[[run$run_id]],
+                retry_cancel
+              )
+            ) {
+              return(NULL)
+            }
+            agent_run_deadlines[[run$run_id]] <- NULL
+            schedule_agent_run_deadline(run, agent, deadline)
+            NULL
+          },
+          delay = 0.25
+        )
+        agent_run_deadlines[[run$run_id]] <- retry_cancel
+        return(invisible(deadline))
+      }
+      current <- current_read$value
       if (
         is.null(current) ||
           current$status %in% terminal_agent_run_statuses

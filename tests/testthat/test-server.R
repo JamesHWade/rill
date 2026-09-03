@@ -3243,6 +3243,71 @@ testthat::test_that("the wall deadline interrupts and terminalizes a response", 
   })
 })
 
+testthat::test_that("a deadline setup read error is retried", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1]]
+  get_agent_run <- store_get_agent_run
+  interrupted <- character()
+  state <- new.env(parent = emptyenv())
+  state$fail_read <- FALSE
+  state$read_failures <- 0L
+
+  testthat::local_mocked_bindings(
+    rill_agent_wall_time_seconds = \() 0,
+    rill_reader_agent = function(...) {
+      list(
+        stream_async = function(prompt, stream, run_context) {
+          state$fail_read <- TRUE
+          "pending stream"
+        },
+        interrupt = function(reason) {
+          interrupted <<- c(interrupted, reason)
+          TRUE
+        }
+      )
+    },
+    append_reader_chat = function(response, session) {
+      promises::promise_resolve(response)
+    },
+    store_get_agent_run = function(...) {
+      if (state$fail_read) {
+        state$fail_read <- FALSE
+        state$read_failures <- state$read_failures + 1L
+        cli::cli_abort(
+          "The database read was interrupted.",
+          class = "test_database_error"
+        )
+      }
+      get_agent_run(...)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(reader_chat_user_input = NULL)
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$flushReact()
+    session$setInputs(reader_chat_user_input = "Summarize this story.")
+    session$flushReact()
+
+    testthat::expect_identical(state$read_failures, 1L)
+    testthat::expect_length(interrupted, 0L)
+
+    deadline <- Sys.time() + 2
+    while (length(interrupted) == 0L && Sys.time() < deadline) {
+      later::run_now(0.25)
+      session$flushReact()
+    }
+
+    testthat::expect_identical(interrupted, "wall_time_limit")
+    testthat::expect_identical(active_agent_run()$status, "cancelling")
+  })
+})
+
 testthat::test_that("a deadline read error still interrupts and settles", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
