@@ -1459,6 +1459,13 @@ store_save_document_if_missing_head <- function(store, document) {
   store_save_document(store, document)
 }
 
+store_abort_entry_forbidden <- function() {
+  cli::cli_abort(
+    "That Feed Entry is not available in this Reader's Library.",
+    class = "rill_entry_forbidden"
+  )
+}
+
 store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
@@ -1490,10 +1497,7 @@ store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
       }
     }
   }
-  cli::cli_abort(
-    "That Feed Entry is not available in this Reader's Library.",
-    class = "rill_entry_forbidden"
-  )
+  store_abort_entry_forbidden()
 }
 
 store_mark_opened <- function(
@@ -1503,29 +1507,45 @@ store_mark_opened <- function(
   opened_at = utc_now()
 ) {
   now <- opened_at
-  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
-    DBI::dbExecute(
+    opened <- DBI::dbGetQuery(
       store$pool,
       paste(
+        paste(
+          "WITH authorized AS (SELECT e.entry_id, e.feed_id",
+          "FROM entries e"
+        ),
+        paste(
+          "JOIN subscriptions s ON s.feed_id = e.feed_id",
+          "AND s.reader_id = $1 AND s.status = 'active'"
+        ),
+        "WHERE e.entry_id = $2 FOR SHARE OF s)",
         paste(
           "INSERT INTO entry_state",
           "(reader_id, entry_id, feed_id, read_at, read_reason, last_opened_at)"
         ),
-        "VALUES ($1, $2, $3, $4, 'opened', $4)",
+        paste(
+          "SELECT $1, entry_id, feed_id, $3, 'opened', $3",
+          "FROM authorized"
+        ),
         "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
         "read_at = COALESCE(entry_state.read_at, EXCLUDED.read_at),",
         paste(
           "read_reason = CASE WHEN entry_state.read_at IS NULL",
           "THEN EXCLUDED.read_reason ELSE entry_state.read_reason END,"
         ),
-        "last_opened_at = EXCLUDED.last_opened_at"
+        "last_opened_at = EXCLUDED.last_opened_at",
+        "RETURNING entry_id"
       ),
-      params = list(reader_id, entry_id, feed_id, now)
+      params = list(reader_id, entry_id, now)
     )
+    if (!nrow(opened)) {
+      store_abort_entry_forbidden()
+    }
     return(invisible(NULL))
   }
 
+  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   index <- which(
     store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
@@ -1560,20 +1580,40 @@ store_mark_opened <- function(
 }
 
 store_mark_unread <- function(store, reader_id, entry_id) {
-  store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
-    changed <- DBI::dbGetQuery(
+    result <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "UPDATE entry_state SET read_at = NULL, read_reason = NULL",
-        "WHERE reader_id = $1 AND entry_id = $2 AND read_at IS NOT NULL",
-        "RETURNING entry_id"
+        paste(
+          "WITH authorized AS (SELECT e.entry_id, e.feed_id",
+          "FROM entries e"
+        ),
+        paste(
+          "JOIN subscriptions s ON s.feed_id = e.feed_id",
+          "AND s.reader_id = $1 AND s.status = 'active'"
+        ),
+        "WHERE e.entry_id = $2 FOR SHARE OF s),",
+        "changed AS (UPDATE entry_state state SET",
+        "read_at = NULL, read_reason = NULL FROM authorized",
+        paste(
+          "WHERE state.reader_id = $1",
+          "AND state.entry_id = authorized.entry_id"
+        ),
+        "AND state.read_at IS NOT NULL RETURNING state.entry_id)",
+        paste(
+          "SELECT EXISTS (SELECT 1 FROM authorized) AS authorized,",
+          "EXISTS (SELECT 1 FROM changed) AS changed"
+        )
       ),
       params = list(reader_id, entry_id)
     )
-    return(nrow(changed) == 1L)
+    if (!isTRUE(result$authorized[[1L]])) {
+      store_abort_entry_forbidden()
+    }
+    return(isTRUE(result$changed[[1L]]))
   }
 
+  store_entry_feed_for_reader(store, reader_id, entry_id)
   index <- which(
     store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
@@ -1721,13 +1761,16 @@ store_toggle_state <- function(store, reader_id, entry_id, field) {
     )
   }
 
-  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
     query <- paste0(
+      "WITH authorized AS (SELECT e.entry_id, e.feed_id ",
+      "FROM entries e JOIN subscriptions s ON s.feed_id = e.feed_id ",
+      "AND s.reader_id = $1 AND s.status = 'active' ",
+      "WHERE e.entry_id = $2 FOR SHARE OF s) ",
       "INSERT INTO entry_state (reader_id, entry_id, feed_id, ",
       field,
       ") ",
-      "VALUES ($1, $2, $3, true) ",
+      "SELECT $1, entry_id, feed_id, true FROM authorized ",
       "ON CONFLICT (reader_id, entry_id) DO UPDATE SET ",
       field,
       " = NOT entry_state.",
@@ -1738,11 +1781,15 @@ store_toggle_state <- function(store, reader_id, entry_id, field) {
     result <- DBI::dbGetQuery(
       store$pool,
       query,
-      params = list(reader_id, entry_id, feed_id)
+      params = list(reader_id, entry_id)
     )
+    if (!nrow(result)) {
+      store_abort_entry_forbidden()
+    }
     return(isTRUE(result[[field]][[1]]))
   }
 
+  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   index <- which(
     store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
@@ -1778,11 +1825,6 @@ store_record_event <- function(store, event, require_new = FALSE) {
       class = "rill_event_reader_invalid"
     )
   }
-  feed_id <- if (is.null(event$entry_id)) {
-    NA_character_
-  } else {
-    store_entry_feed_for_reader(store, reader_id, event$entry_id)
-  }
   payload <- jsonlite::toJSON(
     event$payload %||% list(),
     auto_unbox = TRUE,
@@ -1790,30 +1832,74 @@ store_record_event <- function(store, event, require_new = FALSE) {
   )
 
   if (identical(store$mode, "postgres")) {
-    inserted <- DBI::dbExecute(
-      store$pool,
-      paste(
-        "INSERT INTO events",
+    if (is.null(event$entry_id)) {
+      inserted <- DBI::dbExecute(
+        store$pool,
         paste(
-          "(event_id, reader_id, entry_id, feed_id, session_id, event_type,",
-          "happened_at, surface, position, payload)"
+          "INSERT INTO events",
+          paste(
+            "(event_id, reader_id, entry_id, feed_id, session_id, event_type,",
+            "happened_at, surface, position, payload)"
+          ),
+          "VALUES ($1, $2, NULL, NULL, $3, $4, $5, $6, $7, $8::jsonb)",
+          "ON CONFLICT (event_id) DO NOTHING"
         ),
-        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)",
-        "ON CONFLICT (event_id) DO NOTHING"
-      ),
-      params = list(
-        event$event_id,
-        reader_id,
-        event$entry_id %||% NA_character_,
-        feed_id,
-        event$session_id,
-        event$event_type,
-        event$happened_at,
-        event$surface,
-        as.integer(event$position %||% NA_integer_),
-        payload
+        params = list(
+          event$event_id,
+          reader_id,
+          event$session_id,
+          event$event_type,
+          event$happened_at,
+          event$surface,
+          as.integer(event$position %||% NA_integer_),
+          payload
+        )
       )
-    )
+    } else {
+      result <- DBI::dbGetQuery(
+        store$pool,
+        paste(
+          paste(
+            "WITH authorized AS (SELECT e.entry_id, e.feed_id",
+            "FROM entries e"
+          ),
+          paste(
+            "JOIN subscriptions s ON s.feed_id = e.feed_id",
+            "AND s.reader_id = $2 AND s.status = 'active'"
+          ),
+          "WHERE e.entry_id = $3 FOR SHARE OF s),",
+          "inserted AS (INSERT INTO events",
+          paste(
+            "(event_id, reader_id, entry_id, feed_id, session_id, event_type,",
+            "happened_at, surface, position, payload)"
+          ),
+          paste(
+            "SELECT $1, $2, entry_id, feed_id, $4, $5, $6, $7, $8, $9::jsonb",
+            "FROM authorized"
+          ),
+          "ON CONFLICT (event_id) DO NOTHING RETURNING event_id)",
+          paste(
+            "SELECT EXISTS (SELECT 1 FROM authorized) AS authorized,",
+            "EXISTS (SELECT 1 FROM inserted) AS inserted"
+          )
+        ),
+        params = list(
+          event$event_id,
+          reader_id,
+          event$entry_id,
+          event$session_id,
+          event$event_type,
+          event$happened_at,
+          event$surface,
+          as.integer(event$position %||% NA_integer_),
+          payload
+        )
+      )
+      if (!isTRUE(result$authorized[[1L]])) {
+        store_abort_entry_forbidden()
+      }
+      inserted <- as.integer(isTRUE(result$inserted[[1L]]))
+    }
     if (isTRUE(require_new) && !identical(inserted, 1L)) {
       cli::cli_abort(
         "The Reading History event ID is already in use.",
@@ -1821,6 +1907,11 @@ store_record_event <- function(store, event, require_new = FALSE) {
       )
     }
   } else {
+    feed_id <- if (is.null(event$entry_id)) {
+      NA_character_
+    } else {
+      store_entry_feed_for_reader(store, reader_id, event$entry_id)
+    }
     if (event$event_id %in% store$memory$events$event_id) {
       if (isTRUE(require_new)) {
         cli::cli_abort(
