@@ -377,6 +377,35 @@ testthat::test_that("disabled Readers fail closed at identity resolution", {
   )
 })
 
+testthat::test_that("identity audit events preserve tied insertion order", {
+  withr::local_envvar(c(DATABASE_URL = "", RILL_IDENTITY_MODE = "local"))
+  store <- rill_store(rill_config())
+  happened_at <- "2026-09-03 12:00:00 UTC"
+  store_admit_reader_identity(
+    store,
+    issuer = "https://reader.example/",
+    subject = "github|reader",
+    reader_id = "reader-audit",
+    responsible_id = "operator:james",
+    reason = "invitation approved",
+    now = happened_at
+  )
+  store_disable_reader(
+    store,
+    "reader-audit",
+    responsible_id = "operator:james",
+    reason = "access revoked",
+    now = happened_at
+  )
+
+  events <- store_list_reader_identity_events(store, "reader-audit")
+
+  testthat::expect_identical(
+    events$action,
+    c("identity_attached", "reader_disabled")
+  )
+})
+
 testthat::test_that("the server receives the Reader resolved by its adapter", {
   local_proxy_identity(subjects = "github|reader")
   config <- rill_config()

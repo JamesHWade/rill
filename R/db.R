@@ -152,6 +152,7 @@ rill_store <- function(config) {
       stringsAsFactors = FALSE
     )
     memory$reader_identity_events <- data.frame(
+      event_sequence = integer(),
       event_id = character(),
       reader_id = character(),
       action = character(),

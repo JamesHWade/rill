@@ -550,9 +550,11 @@ store_admit_reader_identity <- function(
         stringsAsFactors = FALSE
       )
     )
+    events <- store$memory$reader_identity_events
     store$memory$reader_identity_events <- rbind(
-      store$memory$reader_identity_events,
+      events,
       data.frame(
+        event_sequence = nrow(events) + 1L,
         event_id = rill_id(
           "reader-identity-event",
           reader_id,
@@ -653,9 +655,11 @@ store_disable_reader <- function(
   readers$disabled_at[[index]] <- now
   readers$updated_at[[index]] <- now
   store$memory$readers <- readers
+  events <- store$memory$reader_identity_events
   store$memory$reader_identity_events <- rbind(
-    store$memory$reader_identity_events,
+    events,
     data.frame(
+      event_sequence = nrow(events) + 1L,
       event_id = rill_id(
         "reader-identity-event",
         reader_id,
@@ -683,12 +687,13 @@ store_list_reader_identity_events <- function(store, reader_id) {
         "SELECT action, responsible_id, reason",
         "FROM reader_identity_events",
         "WHERE reader_id = $1",
-        "ORDER BY happened_at, event_id"
+        "ORDER BY happened_at, event_sequence"
       ),
       params = list(reader_id)
     ))
   }
   events <- store$memory$reader_identity_events
+  events <- events[order(events$happened_at, events$event_sequence), ]
   events <- events[events$reader_id == reader_id, columns, drop = FALSE]
   rownames(events) <- NULL
   events

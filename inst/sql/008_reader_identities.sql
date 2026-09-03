@@ -40,6 +40,7 @@ CREATE TABLE reader_admission_requests (
 );
 
 CREATE TABLE reader_identity_events (
+  event_sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   event_id text PRIMARY KEY,
   reader_id text,
   issuer text,

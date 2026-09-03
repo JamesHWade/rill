@@ -151,4 +151,26 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     local_disabled[c("status", "reader_id")],
     list(status = "disabled", reader_id = NULL)
   )
+
+  happened_at <- "2026-09-03 12:00:00 UTC"
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "github|audit",
+    reader_id = "reader-audit",
+    responsible_id = "operator:james",
+    reason = "invitation approved",
+    now = happened_at
+  )
+  store_disable_reader(
+    store,
+    "reader-audit",
+    responsible_id = "operator:james",
+    reason = "access revoked",
+    now = happened_at
+  )
+  testthat::expect_identical(
+    store_list_reader_identity_events(store, "reader-audit")$action,
+    c("identity_attached", "reader_disabled")
+  )
 })
