@@ -1,0 +1,11 @@
+*
+!.Rbuildignore
+!DESCRIPTION
+!LICENSE
+!NAMESPACE
+!NEWS.md
+!R/**
+!data/**
+!docker/**
+!inst/**
+!man/**

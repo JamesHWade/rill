@@ -1,4 +1,5 @@
 .env
+.env.hosted
 .Renviron
 .DS_Store
 .Rhistory

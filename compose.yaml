@@ -1,0 +1,73 @@
+name: rill
+
+x-rill-image: &rill-image
+  image: rill:local
+  build:
+    context: .
+    args:
+      RILL_SOURCE_REVISION: local
+
+x-rill-environment: &rill-environment
+  DATABASE_URL: postgresql://rill:${RILL_POSTGRES_PASSWORD:?Set RILL_POSTGRES_PASSWORD}@database:5432/rill
+  RILL_ACTOR_ID: ${RILL_ACTOR_ID:-local-reader}
+  RILL_ENV: ${RILL_ENV:-development}
+  RILL_AGENT_MODEL: ${RILL_AGENT_MODEL:-openai}
+  RILL_AGENT_BASE_URL: ${RILL_AGENT_BASE_URL:-}
+  RILL_AGENT_POLICY_URL: ${RILL_AGENT_POLICY_URL:-}
+  RILL_ORIENTATION_ENABLED: ${RILL_ORIENTATION_ENABLED:-false}
+  RILL_CAPTURE_TOKEN: ${RILL_CAPTURE_TOKEN:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  DEFUDDLE_BACKEND: ${DEFUDDLE_BACKEND:-hosted}
+  DEFUDDLE_API_KEY: ${DEFUDDLE_API_KEY:-}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rill
+      POSTGRES_PASSWORD: ${RILL_POSTGRES_PASSWORD:?Set RILL_POSTGRES_PASSWORD}
+      POSTGRES_USER: rill
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username rill --dbname rill"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - rill-postgres:/var/lib/postgresql/data
+
+  web:
+    <<: *rill-image
+    command: ["web"]
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      <<: *rill-environment
+      PORT: ${RILL_PUBLIC_PORT:-10000}
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_PROXY_CLIENT_ID:?Set OAUTH2_PROXY_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_PROXY_CLIENT_SECRET:?Set OAUTH2_PROXY_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?Set OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${OAUTH2_PROXY_OIDC_ISSUER_URL:?Set OAUTH2_PROXY_OIDC_ISSUER_URL}
+      OAUTH2_PROXY_REDIRECT_URL: ${OAUTH2_PROXY_REDIRECT_URL:-http://127.0.0.1:10000/oauth2/callback}
+      OAUTH2_PROXY_SCOPE: "openid profile email"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    ports:
+      - "127.0.0.1:${RILL_PUBLIC_PORT:-10000}:${RILL_PUBLIC_PORT:-10000}"
+
+  poll:
+    <<: *rill-image
+    profiles: ["poll"]
+    command: ["poll"]
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      <<: *rill-environment
+    healthcheck:
+      disable: true
+
+volumes:
+  rill-postgres:
