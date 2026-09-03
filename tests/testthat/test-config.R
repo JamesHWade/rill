@@ -2,6 +2,11 @@ testthat::test_that("configuration defaults to the bundled demo", {
   withr::local_envvar(c(
     DATABASE_URL = "",
     RILL_ACTOR_ID = NA,
+    RILL_IDENTITY_MODE = NA,
+    RILL_ALLOWED_OIDC_SUBJECTS = NA,
+    OAUTH2_PROXY_CLIENT_ID = NA,
+    OAUTH2_PROXY_OIDC_ISSUER_URL = NA,
+    OAUTH2_PROXY_REDIRECT_URL = NA,
     RILL_ENV = NA,
     DEFUDDLE_BACKEND = NA,
     DEFUDDLE_COMMAND = NA,
@@ -21,6 +26,11 @@ testthat::test_that("configuration defaults to the bundled demo", {
   testthat::expect_identical(config$app_name, "Rill")
   testthat::expect_identical(config$app_env, "development")
   testthat::expect_identical(config$actor_id, "reader")
+  testthat::expect_identical(config$identity_mode, "local")
+  testthat::expect_identical(config$oidc_client_id, "")
+  testthat::expect_identical(config$oidc_issuer, "")
+  testthat::expect_identical(config$oidc_logout_redirect_url, "")
+  testthat::expect_identical(config$allowed_oidc_subjects, character())
   testthat::expect_identical(config$demo_mode, TRUE)
   testthat::expect_identical(config$defuddle_backend, "hosted")
   testthat::expect_identical(config$defuddle_command, "defuddle")
@@ -36,6 +46,11 @@ testthat::test_that("configuration reads explicit environment settings", {
   withr::local_envvar(c(
     DATABASE_URL = "postgresql://example.test/rill",
     RILL_ACTOR_ID = "james",
+    RILL_IDENTITY_MODE = "oidc_proxy",
+    RILL_ALLOWED_OIDC_SUBJECTS = " google-oauth2|reader,github|reader ",
+    OAUTH2_PROXY_CLIENT_ID = "private-reader-client",
+    OAUTH2_PROXY_OIDC_ISSUER_URL = "https://reader.us.auth0.com/",
+    OAUTH2_PROXY_REDIRECT_URL = "https://reader.example/oauth2/callback",
     RILL_ENV = "test",
     DEFUDDLE_BACKEND = "LOCAL",
     DEFUDDLE_COMMAND = "/opt/defuddle/bin/defuddle",
@@ -51,6 +66,20 @@ testthat::test_that("configuration reads explicit environment settings", {
   config <- rill_config()
 
   testthat::expect_identical(config$actor_id, "james")
+  testthat::expect_identical(config$identity_mode, "oidc_proxy")
+  testthat::expect_identical(config$oidc_client_id, "private-reader-client")
+  testthat::expect_identical(
+    config$allowed_oidc_subjects,
+    c("google-oauth2|reader", "github|reader")
+  )
+  testthat::expect_identical(
+    config$oidc_issuer,
+    "https://reader.us.auth0.com/"
+  )
+  testthat::expect_identical(
+    config$oidc_logout_redirect_url,
+    "https://reader.example/"
+  )
   testthat::expect_identical(config$app_env, "test")
   testthat::expect_identical(config$demo_mode, FALSE)
   testthat::expect_identical(config$defuddle_backend, "local")
@@ -73,6 +102,77 @@ testthat::test_that("configuration reads explicit environment settings", {
   testthat::expect_identical(config$capture_token, "capture-secret")
   testthat::expect_identical(config$orientation_enabled, TRUE)
   testthat::expect_identical(config$refresh_on_start, TRUE)
+})
+
+testthat::test_that("the proxy gate requires a safe HTTPS issuer", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "oidc_proxy",
+    RILL_ALLOWED_OIDC_SUBJECTS = "auth0|reader",
+    OAUTH2_PROXY_OIDC_ISSUER_URL = "http://reader.us.auth0.com/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
+testthat::test_that("the private gate requires a stable Reader identifier", {
+  withr::local_envvar(c(
+    RILL_ACTOR_ID = "   ",
+    RILL_IDENTITY_MODE = "oidc_proxy",
+    RILL_ALLOWED_OIDC_SUBJECTS = "auth0|reader",
+    OAUTH2_PROXY_OIDC_ISSUER_URL = "https://reader.us.auth0.com/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
+testthat::test_that("the proxy gate requires an explicit subject allowlist", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "oidc_proxy",
+    RILL_ALLOWED_OIDC_SUBJECTS = "  ",
+    OAUTH2_PROXY_OIDC_ISSUER_URL = "https://reader.us.auth0.com/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
+testthat::test_that("the proxy gate requires complete logout configuration", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "oidc_proxy",
+    RILL_ALLOWED_OIDC_SUBJECTS = "auth0|reader",
+    OAUTH2_PROXY_CLIENT_ID = "",
+    OAUTH2_PROXY_OIDC_ISSUER_URL = "https://reader.us.auth0.com/",
+    OAUTH2_PROXY_REDIRECT_URL = "https://reader.example/oauth2/callback",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
+testthat::test_that("configuration rejects an unknown identity mode", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "auth0",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
 })
 
 testthat::test_that("a blank Agent model uses the default", {

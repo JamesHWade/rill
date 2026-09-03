@@ -467,6 +467,31 @@ body.bslib-page-fill {
   height: 14px;
 }
 
+.identity-sign-out {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 6px;
+  color: var(--sidebar-muted);
+  background: var(--sidebar-wash-soft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.identity-sign-out:hover,
+.identity-sign-out:focus-visible {
+  color: var(--green-deep);
+  background: var(--sidebar-wash);
+}
+
+.identity-sign-out:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 2px;
+}
+
 .add-feed {
   margin-top: 0;
   font-size: 12px;

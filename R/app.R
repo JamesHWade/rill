@@ -2,6 +2,10 @@
 #'
 #' `rill_app()` creates the Shiny application using configuration read from
 #' environment variables. With no `DATABASE_URL`, it uses bundled demo data.
+#' The production web container enables a private OIDC proxy gate: exact
+#' Auth0 `sub` values in `RILL_ALLOWED_OIDC_SUBJECTS` are mapped to the single
+#' internal Reader in `RILL_ACTOR_ID`. Email and other profile claims are not
+#' identity keys.
 #' When `RILL_CAPTURE_TOKEN` is set, the same application accepts authenticated
 #' browser documents at `/api/v1/captures`. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and
@@ -34,8 +38,9 @@ rill_app <- function() {
 
   app <- shiny::shinyApp(
     ui = rill_ui(config),
-    server = rill_server(config, store)
+    server = identity_server_handler(rill_server(config, store), config)
   )
+  app$httpHandler <- identity_http_handler(app$httpHandler, config)
   app$httpHandler <- capture_http_handler(app$httpHandler, store, config)
   app
 }

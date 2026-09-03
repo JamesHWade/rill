@@ -29,6 +29,7 @@ jobs:
           OAUTH2_PROXY_CLIENT_SECRET: test-secret
           OAUTH2_PROXY_COOKIE_SECRET: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           OAUTH2_PROXY_OIDC_ISSUER_URL: https://example.auth0.com/
+          RILL_ALLOWED_OIDC_SUBJECTS: test-subject
           RILL_POSTGRES_PASSWORD: test-password
         run: |
           docker compose --profile poll config --format json | jq --exit-status '
@@ -144,6 +145,8 @@ jobs:
             --env OAUTH2_PROXY_OIDC_ISSUER_URL=https://accounts.google.com \
             --env OAUTH2_PROXY_REDIRECT_URL=http://127.0.0.1:10000/oauth2/callback \
             --env OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true \
+            --env RILL_ACTOR_ID=test-reader \
+            --env RILL_ALLOWED_OIDC_SUBJECTS=test-subject,test-second-subject \
             --env RILL_CAPTURE_TOKEN=test-secret \
             "$IMAGE_REF" web
 
@@ -165,10 +168,48 @@ jobs:
           fi
 
           docker exec rill-web-smoke \
-            curl --fail --silent http://127.0.0.1:3838/ >/dev/null
+            curl --fail --silent \
+            http://127.0.0.1:3838/_rill/health >/dev/null
+          status="$(docker exec rill-web-smoke \
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-User: test-subject' \
+            http://127.0.0.1:3838/)"
+          test "$status" = "200"
+          status="$(docker exec rill-web-smoke \
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-User: test-second-subject' \
+            http://127.0.0.1:3838/)"
+          test "$status" = "200"
+          status="$(docker exec rill-web-smoke \
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-User: unapproved-subject' \
+            http://127.0.0.1:3838/)"
+          test "$status" = "403"
+          docker exec rill-web-smoke \
+            curl --silent \
+            --header 'X-Forwarded-User: test-subject' \
+            http://127.0.0.1:3838/ | \
+            grep --fixed-strings \
+              '/oauth2/sign_out?rd=https%3A%2F%2Faccounts.google.com%2Fv2%2Flogout%3Fclient_id%3Dtest-client%26returnTo%3Dhttp%253A%252F%252F127.0.0.1%253A10000%252F'
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:10000/)"
           test "$status" = "302"
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-User: test-subject' \
+            http://127.0.0.1:10000/)"
+          test "$status" = "302"
+          status="$(curl --http1.1 --silent --output /dev/null \
+            --write-out '%{http_code}' \
+            --header 'Connection: Upgrade' \
+            --header 'Upgrade: websocket' \
+            --header 'X-Forwarded-User: test-subject' \
+            http://127.0.0.1:10000/websocket/)"
+          test "$status" = "302"
+          logout_headers="$(curl --silent --dump-header - --output /dev/null \
+            'http://127.0.0.1:10000/oauth2/sign_out?rd=https%3A%2F%2Faccounts.google.com%2Fv2%2Flogout%3Fclient_id%3Dtest-client%26returnTo%3Dhttp%253A%252F%252F127.0.0.1%253A10000%252F')"
+          grep --fixed-strings \
+            'Location: https://accounts.google.com/v2/logout?client_id=test-client&returnTo=http%3A%2F%2F127.0.0.1%3A10000%2F' \
+            <<< "$logout_headers"
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
             --request OPTIONS \
             http://127.0.0.1:10000/api/v1/captures)"
@@ -178,6 +219,21 @@ jobs:
             --header 'Authorization: Bearer test-secret' \
             http://127.0.0.1:10000/api/v1/captures)"
           test "$status" = "415"
+
+          docker restart rill-web-smoke >/dev/null
+          ready=false
+          for _ in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:10000/ready >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "true"
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-User: test-subject' \
+            http://127.0.0.1:10000/)"
+          test "$status" = "302"
 
       - name: Record production digest
         if: github.event_name == 'push'
