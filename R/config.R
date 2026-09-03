@@ -20,6 +20,96 @@ normalize_defuddle_backend <- function(value) {
   value
 }
 
+normalize_identity_mode <- function(value) {
+  value <- tolower(trimws(value %||% "local"))
+  if (
+    length(value) != 1L ||
+      is.na(value) ||
+      !value %in% c("local", "oidc_proxy")
+  ) {
+    cli::cli_abort(
+      c(
+        "Invalid Reader identity mode {.val {value}}.",
+        "i" = paste(
+          "Set {.envvar RILL_IDENTITY_MODE} to {.val local} or",
+          "{.val oidc_proxy}."
+        )
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  value
+}
+
+parse_oidc_subjects <- function(value) {
+  values <- trimws(strsplit(value %||% "", ",", fixed = TRUE)[[1L]])
+  unique(values[nzchar(values)])
+}
+
+normalize_oidc_issuer <- function(value) {
+  value <- trimws(value %||% "")
+  if (!nzchar(value)) {
+    return("")
+  }
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = \(error) NULL
+  )
+  if (
+    is.null(parsed) ||
+      !identical(tolower(parsed$scheme %||% ""), "https") ||
+      !nzchar(parsed$hostname %||% "") ||
+      nzchar(parsed$username %||% "") ||
+      nzchar(parsed$password %||% "") ||
+      length(parsed$query %||% list()) ||
+      nzchar(parsed$fragment %||% "")
+  ) {
+    cli::cli_abort(
+      paste(
+        "{.envvar OAUTH2_PROXY_OIDC_ISSUER_URL} must be a complete HTTPS URL",
+        "without credentials, a query, or a fragment."
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  httr2::url_build(parsed)
+}
+
+normalize_oidc_logout_redirect_url <- function(value) {
+  value <- trimws(value %||% "")
+  if (!nzchar(value)) {
+    return("")
+  }
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = \(error) NULL
+  )
+  scheme <- tolower(parsed$scheme %||% "")
+  hostname <- tolower(parsed$hostname %||% "")
+  local_http <- identical(scheme, "http") &&
+    hostname %in% c("127.0.0.1", "localhost", "::1")
+  if (
+    is.null(parsed) ||
+      (!identical(scheme, "https") && !local_http) ||
+      !nzchar(hostname) ||
+      nzchar(parsed$username %||% "") ||
+      nzchar(parsed$password %||% "") ||
+      length(parsed$query %||% list()) ||
+      nzchar(parsed$fragment %||% "")
+  ) {
+    cli::cli_abort(
+      paste(
+        "{.envvar OAUTH2_PROXY_REDIRECT_URL} must be a complete HTTPS URL",
+        "without credentials, a query, or a fragment. Loopback HTTP is",
+        "permitted for local development."
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  parsed$path <- "/"
+  httr2::url_build(parsed)
+}
+
 rill_config <- function() {
   if (env_flag("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", FALSE)) {
     cli::cli_abort(
@@ -70,11 +160,62 @@ rill_config <- function() {
       "RILL_AGENT_POLICY_URL"
     )
   }
+  identity_mode <- normalize_identity_mode(Sys.getenv(
+    "RILL_IDENTITY_MODE",
+    unset = "local"
+  ))
+  oidc_issuer <- normalize_oidc_issuer(Sys.getenv(
+    "OAUTH2_PROXY_OIDC_ISSUER_URL",
+    unset = ""
+  ))
+  oidc_client_id <- trimws(Sys.getenv(
+    "OAUTH2_PROXY_CLIENT_ID",
+    unset = ""
+  ))
+  oidc_logout_redirect_url <- normalize_oidc_logout_redirect_url(Sys.getenv(
+    "OAUTH2_PROXY_REDIRECT_URL",
+    unset = ""
+  ))
+  allowed_oidc_subjects <- parse_oidc_subjects(Sys.getenv(
+    "RILL_ALLOWED_OIDC_SUBJECTS",
+    unset = ""
+  ))
+  actor_id <- Sys.getenv("RILL_ACTOR_ID", unset = "reader")
+  if (
+    identical(identity_mode, "oidc_proxy") &&
+      (!nzchar(trimws(actor_id)) ||
+        !nzchar(oidc_issuer) ||
+        !nzchar(oidc_client_id) ||
+        !nzchar(oidc_logout_redirect_url) ||
+        !length(allowed_oidc_subjects))
+  ) {
+    cli::cli_abort(
+      c(
+        "The OIDC proxy identity gate is incomplete.",
+        "i" = paste(
+          "Set {.envvar RILL_ACTOR_ID},",
+          "{.envvar OAUTH2_PROXY_CLIENT_ID},",
+          "{.envvar OAUTH2_PROXY_OIDC_ISSUER_URL},",
+          "{.envvar OAUTH2_PROXY_REDIRECT_URL}, and",
+          "{.envvar RILL_ALLOWED_OIDC_SUBJECTS}."
+        )
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  if (identical(identity_mode, "oidc_proxy")) {
+    actor_id <- trimws(actor_id)
+  }
 
   list(
     app_name = "Rill",
     app_env = Sys.getenv("RILL_ENV", unset = "development"),
-    actor_id = Sys.getenv("RILL_ACTOR_ID", unset = "reader"),
+    actor_id = actor_id,
+    identity_mode = identity_mode,
+    oidc_client_id = oidc_client_id,
+    oidc_issuer = oidc_issuer,
+    oidc_logout_redirect_url = oidc_logout_redirect_url,
+    allowed_oidc_subjects = allowed_oidc_subjects,
     database_url = database_url,
     demo_mode = identical(database_url, ""),
     defuddle_backend = normalize_defuddle_backend(Sys.getenv(

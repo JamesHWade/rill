@@ -12,6 +12,10 @@ A \code{shiny.appobj} object suitable for \code{\link[shiny:runApp]{shiny::runAp
 \description{
 \code{rill_app()} creates the Shiny application using configuration read from
 environment variables. With no \code{DATABASE_URL}, it uses bundled demo data.
+The production web container enables a private OIDC proxy gate: exact
+Auth0 \code{sub} values in \code{RILL_ALLOWED_OIDC_SUBJECTS} are mapped to the single
+internal Reader in \code{RILL_ACTOR_ID}. Email and other profile claims are not
+identity keys.
 When \code{RILL_CAPTURE_TOKEN} is set, the same application accepts authenticated
 browser documents at \verb{/api/v1/captures}. \code{RILL_AGENT_MODEL} selects the
 \link[ellmer:chat]{ellmer} model used for source-grounded questions and

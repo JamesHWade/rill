@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Hosted Rill now admits only configured Auth0 subjects to one private Reader, keeps Shiny behind oauth2-proxy, strips forged identity headers, and provides complete sign-out without retaining or forwarding provider tokens (#29).
+
 * A non-root production image now runs Rill as either a loopback-only Shiny web process behind oauth2-proxy or a scheduled Feed poller, with local Compose and Render deployment guidance (#23).
 
 * Orientation now maintains a source-grounded zero-to-three-Document reading path, preserves exact evidence and producer provenance, records explicit dismissals, durably preserves questions while yielding to User Engagement, and requires persistent per-Reader confirmation of its endpoint-bound Data Destination before automatic model use (#32).

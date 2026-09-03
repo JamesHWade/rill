@@ -104,6 +104,27 @@ testthat::test_that("navigation offers local calendar views", {
   testthat::expect_match(html, "This month", fixed = TRUE)
 })
 
+testthat::test_that("the private gate offers a complete sign-out path", {
+  html <- htmltools::renderTags(navigation_sidebar_ui(list(
+    app_name = "Rill",
+    demo_mode = FALSE,
+    identity_mode = "oidc_proxy",
+    oidc_client_id = "test-client",
+    oidc_issuer = "https://reader.us.auth0.com/",
+    oidc_logout_redirect_url = "https://reader.example/"
+  )))$html
+
+  testthat::expect_match(
+    html,
+    paste0(
+      'href="/oauth2/sign_out?rd=https%3A%2F%2Freader.us.auth0.com',
+      "%2Fv2%2Flogout%3Fclient_id%3Dtest-client%26returnTo%3D",
+      'https%253A%252F%252Freader.example%252F"'
+    ),
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("Orientation settings disclose their Data Destination", {
   store <- rill_store(list(demo_mode = TRUE))
   config <- orientation_destination_test_config()

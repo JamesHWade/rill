@@ -25,7 +25,9 @@ require_environment() {
     OAUTH2_PROXY_CLIENT_SECRET \
     OAUTH2_PROXY_COOKIE_SECRET \
     OAUTH2_PROXY_OIDC_ISSUER_URL \
-    OAUTH2_PROXY_REDIRECT_URL; do
+    OAUTH2_PROXY_REDIRECT_URL \
+    RILL_ACTOR_ID \
+    RILL_ALLOWED_OIDC_SUBJECTS; do
     if [[ -z "${!name:-}" ]]; then
       missing+=("$name")
     fi
@@ -39,8 +41,15 @@ require_environment() {
 }
 
 run_web() {
+  if (( $# > 0 )); then
+    echo "The web command does not accept arguments." >&2
+    exit 64
+  fi
   local public_port="${PORT:-10000}"
   local shiny_port="${RILL_SHINY_PORT:-3838}"
+  local oidc_issuer=""
+  local oidc_authority=""
+  local oidc_host=""
   local -a capture_route_args=()
   local shiny_pid
   local proxy_pid=""
@@ -53,6 +62,9 @@ run_web() {
     exit 78
   fi
   require_environment
+  oidc_issuer="${OAUTH2_PROXY_OIDC_ISSUER_URL%/}"
+  oidc_authority="${oidc_issuer#https://}"
+  oidc_host="${oidc_authority%%/*}"
 
   if [[ -n "${RILL_CAPTURE_TOKEN:-}" ]]; then
     capture_route_args+=(
@@ -82,7 +94,8 @@ run_web() {
   trap 'terminate_children; exit 130' INT
   trap 'terminate_children; exit 143' TERM
 
-  RILL_SHINY_PORT="$shiny_port" \
+  RILL_IDENTITY_MODE=oidc_proxy \
+    RILL_SHINY_PORT="$shiny_port" \
     Rscript --vanilla /opt/rill/docker/run-web.R &
   shiny_pid=$!
 
@@ -99,12 +112,21 @@ run_web() {
     --upstream="http://127.0.0.1:${shiny_port}" \
     --reverse-proxy=true \
     --proxy-websockets=true \
+    --code-challenge-method=S256 \
+    --insecure-oidc-skip-nonce=false \
+    --user-id-claim=sub \
+    --skip-auth-strip-headers=true \
+    --pass-user-headers=true \
+    --session-cookie-minimal=true \
+    --pass-basic-auth=false \
+    --pass-access-token=false \
+    --pass-authorization-header=false \
+    --whitelist-domain="${oidc_host}" \
     --set-xauthrequest=true \
     --ping-path=/ping \
     --ready-path=/ready \
     --silence-ping-logging=true \
-    "${capture_route_args[@]}" \
-    "$@" &
+    "${capture_route_args[@]}" &
   proxy_pid=$!
 
   set +e
@@ -127,7 +149,7 @@ wait_for_shiny() {
 
   for (( attempt = 1; attempt <= 120; attempt++ )); do
     if curl --fail --silent --max-time 1 \
-      "http://127.0.0.1:${port}/" >/dev/null; then
+      "http://127.0.0.1:${port}/_rill/health" >/dev/null; then
       return 0
     fi
     if ! kill -0 "$pid" 2>/dev/null; then

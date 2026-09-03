@@ -22,7 +22,14 @@ complete.
 Create an Auth0 Regular Web Application. Add
 `http://127.0.0.1:10000/oauth2/callback` to **Allowed Callback URLs** and
 `http://127.0.0.1:10000/` to **Allowed Logout URLs**. Disable sign-ups on the
-database connection for an invited deployment.
+database connection for an invited deployment. Enable the Google and GitHub
+social connections, but leave Auth0 account linking disabled: Rill owns the
+mapping from each external identity to its Reader.
+
+Sign in once with each identity and copy its exact Auth0 `user_id`/OIDC `sub`
+from the Auth0 user record. Set the comma-separated values in
+`RILL_ALLOWED_OIDC_SUBJECTS`. Rill compares them case-sensitively and never uses
+email as an identity key.
 
 Copy `.env.hosted.example` to an ignored `.env`, replace every placeholder,
 then start Rill:
@@ -66,6 +73,7 @@ Set these secret environment variables on the web service:
 ```text
 DATABASE_URL=<Neon pooled URL ending in sslmode=require>
 RILL_ACTOR_ID=<stable single-Reader identifier>
+RILL_ALLOWED_OIDC_SUBJECTS=<comma-separated exact Auth0 sub values>
 RILL_ENV=production
 OAUTH2_PROXY_CLIENT_ID=<Auth0 client ID>
 OAUTH2_PROXY_CLIENT_SECRET=<Auth0 client secret>
@@ -74,6 +82,9 @@ OAUTH2_PROXY_OIDC_ISSUER_URL=https://<tenant>.auth0.com/
 OAUTH2_PROXY_REDIRECT_URL=https://<rill-domain>/oauth2/callback
 OAUTH2_PROXY_COOKIE_SECURE=true
 ```
+
+Add `https://<rill-domain>/` to the Auth0 application's **Allowed Logout
+URLs**. It must match the origin derived from `OAUTH2_PROXY_REDIRECT_URL`.
 
 Set `DATABASE_URL`, `RILL_ACTOR_ID`, and `RILL_ENV=production` on the cron job.
 Add Rill's optional provider, Defuddle, capture, and telemetry variables only
@@ -86,6 +97,13 @@ Render supplies `PORT` to the web service. The container binds oauth2-proxy to
 container health check that verifies both listeners. `/ping` checks the proxy;
 `/ready` is the public Render readiness path.
 
+The web role always enables Rill's OIDC proxy gate, configures oauth2-proxy to
+forward the verified `sub` claim rather than email, and strips incoming
+identity headers before replacing them. Provider access and ID tokens are not
+forwarded into Rill or retained in its minimal proxy session. **Sign out**
+clears the oauth2-proxy session, sends the browser through Auth0's logout
+endpoint using the public client ID, and returns to the registered Rill URL.
+
 ## Verify before inviting a Reader
 
 Confirm all of these against the deployed digest:
@@ -96,7 +114,14 @@ Confirm all of these against the deployed digest:
 3. A manual `poll` cron run updates the same Neon database used by the web
    service and exits zero.
 4. Restarting the web service preserves Library state in Neon.
-5. Auth0 sign-up is disabled and only the invited account can sign in.
+5. Both configured Google and GitHub identities open the same private Library.
+6. An unconfigured identity receives the generic Rill access-denied page.
+7. Supplying a forged `X-Forwarded-User` header to the public URL cannot bypass
+   oauth2-proxy, and the loopback Shiny listener is externally unreachable.
+8. **Sign out** requires a fresh Auth0 login before the Library opens again.
+9. Restarting or deploying the web service reconnects to the same Library with
+   no change to the configured Reader identity.
 
-Identity-header admission and cross-Reader isolation require their own
-verified implementation before Rill can become a shared deployment.
+This gate protects one configured private Reader. Cross-Reader data isolation
+still requires its own verified implementation before Rill can become a shared
+deployment.

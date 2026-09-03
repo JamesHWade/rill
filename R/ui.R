@@ -138,6 +138,7 @@ navigation_sidebar_ui <- function(config) {
       shiny::uiOutput("orientation_destination_settings"),
       appearance_control_ui(),
       feed_tools_ui(),
+      identity_sign_out_ui(config),
       shiny::uiOutput(
         "sidebar_status",
         container = shiny::tags$div,
