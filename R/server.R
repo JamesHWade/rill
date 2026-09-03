@@ -1235,24 +1235,54 @@ rill_server <- function(config, store) {
             if (is.null(pending)) {
               return(NULL)
             }
-            durable_pending <- tryCatch(
-              store_get_deferred_reader_question(store, actor_id),
-              error = \(error) NULL
+            durable_pending_read <- tryCatch(
+              list(value = store_get_deferred_reader_question(store, actor_id)),
+              error = function(error) {
+                telemetry_log(
+                  "warn",
+                  "agent_run.deferred_poll_failed",
+                  list(
+                    "read.target" = "deferred_question",
+                    "error.type" = class(error)[[1L]]
+                  )
+                )
+                NULL
+              }
             )
+            if (is.null(durable_pending_read)) {
+              poll()
+              return(NULL)
+            }
+            durable_pending <- durable_pending_read$value
             if (is.null(durable_pending)) {
               pending_reader_question(NULL)
               return(NULL)
             }
-            current <- tryCatch(
-              store_get_agent_run(
-                store,
-                actor_id,
-                pending$preempted$run_id
+            current_read <- tryCatch(
+              list(
+                value = store_get_agent_run(
+                  store,
+                  actor_id,
+                  pending$preempted$run_id
+                )
               ),
               error = function(error) {
+                telemetry_log(
+                  "warn",
+                  "agent_run.deferred_poll_failed",
+                  list(
+                    "read.target" = "preempted_agent_run",
+                    "error.type" = class(error)[[1L]]
+                  )
+                )
                 NULL
               }
             )
+            if (is.null(current_read)) {
+              poll()
+              return(NULL)
+            }
+            current <- current_read$value
             if (
               !is.null(current) &&
                 !current$status %in% terminal_agent_run_statuses

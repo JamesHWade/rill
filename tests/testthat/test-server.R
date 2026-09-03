@@ -985,6 +985,14 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
   resolve_orientation <- NULL
   interruption <- NULL
   appended <- character()
+  get_deferred_reader_question <- store_get_deferred_reader_question
+  get_agent_run <- store_get_agent_run
+  deferred_read <- new.env(parent = emptyenv())
+  deferred_read$fail <- FALSE
+  deferred_read$failures <- 0L
+  agent_run_read <- new.env(parent = emptyenv())
+  agent_run_read$fail <- FALSE
+  agent_run_read$failures <- 0L
   testthat::local_mocked_bindings(
     rill_reader_agent = function(..., on_stop) {
       list(stream_async = function(prompt, stream, run_context) {
@@ -1005,6 +1013,26 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
       value <- if (is.character(response)) response else response$consume()
       appended <<- c(appended, value)
       promises::promise_resolve(value)
+    },
+    store_get_deferred_reader_question = function(...) {
+      if (isTRUE(deferred_read$fail)) {
+        deferred_read$failures <- deferred_read$failures + 1L
+        cli::cli_abort(
+          "The deferred question read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_deferred_reader_question(...)
+    },
+    store_get_agent_run = function(...) {
+      if (isTRUE(agent_run_read$fail)) {
+        agent_run_read$failures <- agent_run_read$failures + 1L
+        cli::cli_abort(
+          "The Agent Run read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_agent_run(...)
     }
   )
 
@@ -1071,6 +1099,38 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
       pending_reader_question()$request_key
     )
     testthat::expect_length(appended, 0L)
+
+    deferred_read$fail <- TRUE
+    deadline <- Sys.time() + 1
+    while (deferred_read$failures == 0L && Sys.time() < deadline) {
+      later::run_now(0.05)
+    }
+    deferred_read$fail <- FALSE
+    testthat::expect_gte(deferred_read$failures, 1L)
+    testthat::expect_identical(
+      pending_reader_question()$request_key,
+      rill_id("ask-rill", session_id, "question-1")
+    )
+    testthat::expect_identical(
+      get_deferred_reader_question(store, config$actor_id)$request_key,
+      pending_reader_question()$request_key
+    )
+
+    agent_run_read$fail <- TRUE
+    deadline <- Sys.time() + 1
+    while (agent_run_read$failures == 0L && Sys.time() < deadline) {
+      later::run_now(0.05)
+    }
+    agent_run_read$fail <- FALSE
+    testthat::expect_gte(agent_run_read$failures, 1L)
+    testthat::expect_identical(
+      pending_reader_question()$request_key,
+      rill_id("ask-rill", session_id, "question-1")
+    )
+    testthat::expect_identical(
+      get_deferred_reader_question(store, config$actor_id)$request_key,
+      pending_reader_question()$request_key
+    )
 
     other_entry_id <- store$memory$entries$entry_id[[2L]]
     session$setInputs(
