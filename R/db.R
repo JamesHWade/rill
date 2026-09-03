@@ -806,11 +806,7 @@ store_list_entries <- function(
 
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id)
-    clauses <- c(
-      "sub.reader_id = $1",
-      "sub.status = 'active'",
-      "COALESCE(s.hidden, false) = false"
-    )
+    clauses <- "COALESCE(s.hidden, false) = false"
 
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
@@ -856,7 +852,10 @@ store_list_entries <- function(
       "COALESCE(s.saved, false) AS saved, s.last_opened_at",
       "FROM entries e",
       "JOIN feeds f ON f.feed_id = e.feed_id",
-      "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+      paste(
+        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        "AND sub.reader_id = $1 AND sub.status = 'active'"
+      ),
       "LEFT JOIN entry_state s ON s.entry_id = e.entry_id AND s.reader_id = $1",
       "WHERE",
       paste(clauses, collapse = " AND "),
@@ -1088,11 +1087,13 @@ store_get_entry <- function(store, reader_id, entry_id) {
         "s.read_at, s.read_reason, COALESCE(s.starred, false) AS starred,",
         "COALESCE(s.saved, false) AS saved, s.last_opened_at",
         "FROM entries e JOIN feeds f ON f.feed_id = e.feed_id",
-        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        paste(
+          "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+          "AND sub.reader_id = $1 AND sub.status = 'active'"
+        ),
         "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
         "AND s.reader_id = $1",
-        "WHERE e.entry_id = $2 AND sub.reader_id = $1",
-        "AND sub.status = 'active'"
+        "WHERE e.entry_id = $2"
       ),
       params = list(reader_id, entry_id)
     )
@@ -1125,9 +1126,11 @@ store_find_entry_by_url <- function(
       store$pool,
       paste(
         "SELECT e.* FROM entries e",
-        "JOIN subscriptions s ON s.feed_id = e.feed_id",
-        "WHERE s.reader_id = $1 AND s.status = 'active'",
-        "AND (e.url IN ($2, $3) OR e.canonical_url IN ($2, $3))",
+        paste(
+          "JOIN subscriptions s ON s.feed_id = e.feed_id",
+          "AND s.reader_id = $1 AND s.status = 'active'"
+        ),
+        "WHERE (e.url IN ($2, $3) OR e.canonical_url IN ($2, $3))",
         "ORDER BY e.inserted_at, e.entry_id LIMIT 1"
       ),
       params = list(reader_id, source_url, canonical_url)
@@ -1413,9 +1416,11 @@ store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
       store$pool,
       paste(
         "SELECT e.feed_id FROM entries e",
-        "JOIN subscriptions s ON s.feed_id = e.feed_id",
-        "WHERE e.entry_id = $2 AND s.reader_id = $1",
-        "AND s.status = 'active'"
+        paste(
+          "JOIN subscriptions s ON s.feed_id = e.feed_id",
+          "AND s.reader_id = $1 AND s.status = 'active'"
+        ),
+        "WHERE e.entry_id = $2"
       ),
       params = list(reader_id, entry_id)
     )
@@ -1557,8 +1562,6 @@ store_mark_entries_read <- function(
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id, now, reason)
     clauses <- c(
-      "sub.reader_id = $1",
-      "sub.status = 'active'",
       "s.read_at IS NULL",
       "COALESCE(s.hidden, false) = false"
     )
@@ -1586,7 +1589,10 @@ store_mark_entries_read <- function(
         ),
         "SELECT $1, e.entry_id, e.feed_id, $2, $3",
         "FROM entries e",
-        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        paste(
+          "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+          "AND sub.reader_id = $1 AND sub.status = 'active'"
+        ),
         paste(
           "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
           "AND s.reader_id = $1"
