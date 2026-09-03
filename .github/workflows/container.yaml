@@ -79,7 +79,11 @@ jobs:
           image="$IMAGE_NAME:sha-${GITHUB_SHA}"
           test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
           docker run --rm --entrypoint Rscript "$image" \
-            --vanilla -e 'stopifnot(packageVersion("rill") == "0.0.0.9000")'
+            --vanilla -e 'stopifnot(
+              packageVersion("rill") == "0.0.0.9000",
+              requireNamespace("otel", quietly = TRUE),
+              requireNamespace("otelsdk", quietly = TRUE)
+            )'
           docker run --rm --entrypoint oauth2-proxy "$image" --version | \
             grep --fixed-strings 'v7.15.4'
           set +e
@@ -113,6 +117,7 @@ jobs:
             --env OAUTH2_PROXY_OIDC_ISSUER_URL=https://accounts.google.com \
             --env OAUTH2_PROXY_REDIRECT_URL=http://127.0.0.1:10000/oauth2/callback \
             --env OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true \
+            --env RILL_CAPTURE_TOKEN=test-secret \
             "$IMAGE_NAME:sha-${GITHUB_SHA}" web
 
           ready=false
@@ -137,6 +142,15 @@ jobs:
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:10000/)"
           test "$status" = "302"
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request OPTIONS \
+            http://127.0.0.1:10000/api/v1/captures)"
+          test "$status" = "204"
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Authorization: Bearer test-secret' \
+            http://127.0.0.1:10000/api/v1/captures)"
+          test "$status" = "415"
 
       - name: Record production digest
         if: github.event_name == 'push'

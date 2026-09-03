@@ -41,6 +41,7 @@ require_environment() {
 run_web() {
   local public_port="${PORT:-10000}"
   local shiny_port="${RILL_SHINY_PORT:-3838}"
+  local -a capture_route_args=()
   local shiny_pid
   local proxy_pid=""
   local status
@@ -52,6 +53,13 @@ run_web() {
     exit 78
   fi
   require_environment
+
+  if [[ -n "${RILL_CAPTURE_TOKEN:-}" ]]; then
+    capture_route_args+=(
+      '--skip-auth-route=OPTIONS=^/api/v1/captures$'
+      '--skip-auth-route=POST=^/api/v1/captures$'
+    )
+  fi
 
   printf 'web\n' > /tmp/rill-role
 
@@ -74,7 +82,8 @@ run_web() {
   trap 'terminate_children; exit 130' INT
   trap 'terminate_children; exit 143' TERM
 
-  RILL_SHINY_PORT="$shiny_port" Rscript /opt/rill/docker/run-web.R &
+  RILL_SHINY_PORT="$shiny_port" \
+    Rscript --vanilla /opt/rill/docker/run-web.R &
   shiny_pid=$!
 
   if ! wait_for_shiny "$shiny_port" "$shiny_pid"; then
@@ -94,6 +103,7 @@ run_web() {
     --ping-path=/ping \
     --ready-path=/ready \
     --silence-ping-logging=true \
+    "${capture_route_args[@]}" \
     "$@" &
   proxy_pid=$!
 

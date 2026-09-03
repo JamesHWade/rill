@@ -35,7 +35,8 @@ WORKDIR /opt/rill/src
 
 COPY DESCRIPTION NAMESPACE ./
 
-RUN R --quiet -e 'pak::local_install_deps("/opt/rill/src", dependencies = c("Depends", "Imports", "LinkingTo"), ask = FALSE)'
+RUN R --quiet -e 'pak::local_install_deps("/opt/rill/src", dependencies = c("Depends", "Imports", "LinkingTo"), ask = FALSE)' \
+    && R --quiet -e 'pak::pkg_install(c("otel", "otelsdk"), upgrade = FALSE, ask = FALSE)'
 
 COPY . ./
 
