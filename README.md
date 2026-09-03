@@ -9,6 +9,7 @@ for later analysis:
 - conditional refreshes using ETag and Last-Modified
 - clean reading copies from Defuddle or a local browser capture, cached in Postgres
 - Ask Rill, with source-grounded questions handled by a tightly bounded Deputy Agent embedded in the reader
+- a maintained Orientation that offers a source-grounded path into the reading queue
 - read, star, and save state
 - an append-only interaction ledger for impressions, opens, scroll milestones, dwell heartbeats, and outbound clicks
 - vendor-neutral OpenTelemetry traces and logs, ready for Logfire
@@ -85,6 +86,44 @@ The Today view includes **Prepare**, which extracts and persistently caches any
 missing clean reading copies. Existing captured or extracted documents are
 preserved, and failures remain available for a later retry. The same operation
 can run outside the app with `rill::prepare_today()`.
+
+## Maintain Orientation
+
+With no story selected, Orientation presents up to three source-linked choices
+that frame why each Document may be worth reading now. It keeps exact Source
+Evidence separate from agent-written Interpretation, preserves the producing
+Agent Run, and treats **Not for me** as explicit Reader input. Opening a card
+does not count as endorsement.
+
+Automatic model use is off by default. To make maintained Orientation available
+in the app, configure the model provider and installation gate:
+
+```text
+RILL_AGENT_MODEL=openai
+RILL_AGENT_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=your-key
+RILL_AGENT_POLICY_URL=https://provider.example/privacy
+RILL_ORIENTATION_ENABLED=true
+```
+
+The Reader must then confirm the named Data Destination once from the sidebar.
+That confirmation is stored per Reader, remains inspectable, and can be disabled
+without deleting the current Orientation. A provider endpoint change fails
+closed and requires a new confirmation; a model upgrade at the same endpoint
+does not. Remote Ollama endpoints are external destinations; only a loopback
+Ollama endpoint is treated as part of the installation. Providers whose
+endpoint Rill cannot resolve must set `RILL_AGENT_BASE_URL` explicitly before
+automatic Orientation can be enabled.
+Rill reuses immutable reading copies, creates missing copies only from
+already-ingested feed content, and sends only the bounded candidate copies to
+the confirmed provider. That bounded set discloses which candidate Documents
+are currently unread, but not the rest of the Library, the Reading History
+event log, Reader Memory, or credentials. External Orientation cannot be
+enabled until
+`RILL_AGENT_POLICY_URL` provides an inspectable HTTP or HTTPS link to the terms
+that govern data at that provider. Full scheduled maintenance remains follow-up
+work. If a Reader question arrives during maintenance, Rill durably preserves
+it, cooperatively stops Orientation, and starts the question exactly once.
 
 ## Move subscriptions with OPML
 
@@ -251,7 +290,7 @@ Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honey
 1. Run `rsconnect::writeManifest()` and commit the resulting `manifest.json`.
 2. Run the tests and launch the app locally.
 3. Push the project to the Git repository used by Connect Cloud, or publish it from Positron/RStudio.
-4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, `RILL_AGENT_MODEL`, its provider API key, the selected `DEFUDDLE_*` settings, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
+4. Add `DATABASE_URL`, `RILL_ACTOR_ID`, `RILL_AGENT_MODEL`, its provider API key, optional `RILL_AGENT_BASE_URL`, the selected `DEFUDDLE_*` settings, optional `RILL_ORIENTATION_ENABLED`, the required `RILL_AGENT_POLICY_URL` when external Orientation is enabled, optional `RILL_CAPTURE_TOKEN`, and any `OTEL_*` values as deployment secrets.
 5. Keep the first deployment private. The current app assumes one trusted reader identity and does not contain multi-user authentication.
 
 The refresh button works inside the app. `scripts/poll.R` is the ingestion entry point for a later scheduled job; it exits non-zero if any feed fails so an external scheduler can alert reliably. A scheduler can run `rill::prepare_today()` afterward to pre-build clean reading copies for the current local day.
@@ -298,8 +337,7 @@ This is enough to derive useful daily features without pretending every signal m
 
 ## Immediate next cuts
 
-Collect real reading, capture, and Ask Rill feedback. The
-next agent slice can maintain Orientation from current immutable Documents while
-retaining each Document's acquisition provenance and limitations for evidence
-inspection. Search, embeddings, and summaries should still enter only through
+Collect real reading, capture, Ask Rill, and maintained Orientation feedback.
+The next hardening cut is scheduled maintenance and longer-lived Conversation
+restoration. Search, embeddings, and summaries should still enter only through
 an accepted reading workflow rather than as standalone features.

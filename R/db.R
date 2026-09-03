@@ -117,10 +117,21 @@ rill_store <- function(config) {
       stringsAsFactors = FALSE
     )
     memory$agent_runs <- list()
-    return(structure(
+    memory$orientations <- list()
+    memory$orientation_destination_settings <- list()
+    memory$deferred_reader_questions <- list()
+    store <- structure(
       list(mode = "memory", memory = memory),
       class = "rill_store"
-    ))
+    )
+    orientation <- sample_rill_orientation(
+      store,
+      config$actor_id %||% "reader"
+    )
+    run <- sample_rill_orientation_run(orientation)
+    memory$agent_runs[[run$run_id]] <- run
+    store_save_orientation(store, orientation)
+    return(store)
   }
 
   connection_args <- postgres_connection_args(config$database_url)
@@ -963,6 +974,45 @@ store_get_document <- function(store, entry_id) {
   if (!length(documents)) NULL else documents[[1]]
 }
 
+store_insert_document <- function(connection, document) {
+  DBI::dbExecute(
+    connection,
+    paste(
+      "INSERT INTO documents",
+      "(document_id, entry_id, source_url, canonical_url,",
+      "acquisition_method, producer, producer_version, producer_record_id,",
+      "title, author, site, published_at, markdown, word_count,",
+      "content_hash, record_hash, captured_at, received_at, provenance,",
+      "schema_version)",
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,",
+      "$13, $14, $15, $16, $17, $18, $19::jsonb, $20)",
+      "ON CONFLICT (document_id) DO NOTHING"
+    ),
+    params = list(
+      document$document_id,
+      document$entry_id,
+      document$source_url,
+      document$canonical_url,
+      document$acquisition_method,
+      document$producer,
+      document$producer_version,
+      document$producer_record_id,
+      document$title,
+      document$author,
+      document$site,
+      document$published_at,
+      document$markdown,
+      as.integer(document$word_count),
+      document$content_hash,
+      document$record_hash,
+      document$captured_at,
+      document$received_at,
+      document_provenance_json(document),
+      as.integer(document$schema_version)
+    )
+  )
+}
+
 store_save_document <- function(store, document) {
   existing <- store_get_document_by_id(store, document$document_id)
   if (!is.null(existing)) {
@@ -979,42 +1029,7 @@ store_save_document <- function(store, document) {
 
   if (identical(store$mode, "postgres")) {
     created <- pool::poolWithTransaction(store$pool, function(connection) {
-      inserted <- DBI::dbExecute(
-        connection,
-        paste(
-          "INSERT INTO documents",
-          "(document_id, entry_id, source_url, canonical_url,",
-          "acquisition_method, producer, producer_version, producer_record_id,",
-          "title, author, site, published_at, markdown, word_count,",
-          "content_hash, record_hash, captured_at, received_at, provenance,",
-          "schema_version)",
-          "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,",
-          "$13, $14, $15, $16, $17, $18, $19::jsonb, $20)",
-          "ON CONFLICT (document_id) DO NOTHING"
-        ),
-        params = list(
-          document$document_id,
-          document$entry_id,
-          document$source_url,
-          document$canonical_url,
-          document$acquisition_method,
-          document$producer,
-          document$producer_version,
-          document$producer_record_id,
-          document$title,
-          document$author,
-          document$site,
-          document$published_at,
-          document$markdown,
-          as.integer(document$word_count),
-          document$content_hash,
-          document$record_hash,
-          document$captured_at,
-          document$received_at,
-          document_provenance_json(document),
-          as.integer(document$schema_version)
-        )
-      )
+      inserted <- store_insert_document(connection, document)
       if (identical(inserted, 1L)) {
         DBI::dbExecute(
           connection,
@@ -1051,8 +1066,90 @@ store_save_document <- function(store, document) {
   invisible(list(created = TRUE, document = document))
 }
 
-store_mark_opened <- function(store, actor_id, entry_id) {
-  now <- utc_now()
+store_save_document_if_missing_head <- function(store, document) {
+  current <- store_get_document(store, document$entry_id)
+  if (!is.null(current)) {
+    return(invisible(list(created = FALSE, document = current)))
+  }
+
+  if (identical(store$mode, "postgres")) {
+    result <- pool::poolWithTransaction(store$pool, function(connection) {
+      transaction_store <- structure(
+        list(mode = "postgres", pool = connection),
+        class = "rill_store"
+      )
+      # A missing head has no row to lock, so serialize on its parent Entry.
+      DBI::dbGetQuery(
+        connection,
+        "SELECT entry_id FROM entries WHERE entry_id = $1 FOR UPDATE",
+        params = list(document$entry_id)
+      )
+      head <- DBI::dbGetQuery(
+        connection,
+        paste(
+          document_select_sql(),
+          "JOIN entry_document_heads h ON h.document_id = d.document_id",
+          "WHERE h.entry_id = $1 FOR UPDATE"
+        ),
+        params = list(document$entry_id)
+      )
+      if (nrow(head)) {
+        return(list(
+          created = FALSE,
+          document = document_from_store_row(head[1L, , drop = FALSE])
+        ))
+      }
+
+      inserted <- store_insert_document(connection, document)
+      if (!identical(inserted, 1L)) {
+        raced <- store_get_document_by_id(
+          transaction_store,
+          document$document_id
+        )
+        if (
+          is.null(raced) ||
+            !identical(raced$record_hash, document$record_hash)
+        ) {
+          document_conflict_abort(
+            "The fallback Document conflicted with another write."
+          )
+        }
+      }
+      selected <- DBI::dbExecute(
+        connection,
+        paste(
+          "INSERT INTO entry_document_heads",
+          "(entry_id, document_id, selected_at)",
+          "VALUES ($1, $2, $3)",
+          "ON CONFLICT (entry_id) DO NOTHING"
+        ),
+        params = list(
+          document$entry_id,
+          document$document_id,
+          document$received_at
+        )
+      )
+      if (identical(selected, 1L)) {
+        return(list(created = TRUE, document = document))
+      }
+      list(
+        created = FALSE,
+        document = store_get_document(transaction_store, document$entry_id)
+      )
+    })
+    return(invisible(result))
+  }
+
+  store_save_document(store, document)
+}
+
+store_mark_opened <- function(
+  store,
+  actor_id,
+  entry_id,
+  opened_at = utc_now()
+) {
+  now <- opened_at
   if (identical(store$mode, "postgres")) {
     DBI::dbExecute(
       store$pool,
@@ -1305,7 +1402,7 @@ store_toggle_state <- function(store, actor_id, entry_id, field) {
   store$memory$state[[field]][[index]]
 }
 
-store_record_event <- function(store, event) {
+store_record_event <- function(store, event, require_new = FALSE) {
   payload <- jsonlite::toJSON(
     event$payload %||% list(),
     auto_unbox = TRUE,
@@ -1313,7 +1410,7 @@ store_record_event <- function(store, event) {
   )
 
   if (identical(store$mode, "postgres")) {
-    DBI::dbExecute(
+    inserted <- DBI::dbExecute(
       store$pool,
       paste(
         "INSERT INTO events",
@@ -1333,8 +1430,20 @@ store_record_event <- function(store, event) {
         payload
       )
     )
+    if (isTRUE(require_new) && !identical(inserted, 1L)) {
+      cli::cli_abort(
+        "The Reading History event ID is already in use.",
+        class = "rill_event_id_conflict"
+      )
+    }
   } else {
     if (event$event_id %in% store$memory$events$event_id) {
+      if (isTRUE(require_new)) {
+        cli::cli_abort(
+          "The Reading History event ID is already in use.",
+          class = "rill_event_id_conflict"
+        )
+      }
       return(invisible(event))
     }
     row <- data.frame(

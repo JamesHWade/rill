@@ -2,6 +2,7 @@
   const themeStorageKey = "rill-theme-mode";
   const themeModes = new Set(["system", "light", "dark"]);
   const systemDarkMode = window.matchMedia("(prefers-color-scheme: dark)");
+  const desktopReaderMode = window.matchMedia("(min-width: 576px)");
 
   function storedThemeMode() {
     try {
@@ -51,12 +52,22 @@
   applyThemeMode(storedThemeMode(), { persist: false });
 
   let activeEntryId = null;
+  let activeDocumentId = null;
+  let activeEntrySurface = null;
+  let pendingEntrySurface = null;
+  let pendingReaderFocus = false;
+  let pendingOrientationDismissal = null;
+  let pendingOrientationSelectionCardId = null;
+  let pendingOrientationReturnFocus = null;
   let openedAt = 0;
   let lastHeartbeatAt = 0;
   let milestones = new Set();
   let fileResetRegistered = false;
   let chatSubmissionRegistered = false;
+  let queueBrowseRegistered = false;
+  let orientationActionMessagesRegistered = false;
   let chatSubmissionIndex = 0;
+  let orientationModalWasOpen = false;
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -79,44 +90,501 @@
     );
   }
 
-  function focusStory(entryId) {
+  function normalizeSelectionSurface(surface) {
+    return surface === "orientation" ? "orientation" : "story_list";
+  }
+
+  function focusStory(entryId, { reveal = false } = {}) {
+    function applyFocus(onlyIfLost = false) {
+      if (onlyIfLost && !focusWasLost()) return;
+      const selector = entryId
+        ? `.story-card[data-entry-id="${CSS.escape(entryId)}"]`
+        : ".story-card";
+      const card =
+        document.querySelector(selector) || document.querySelector(".story-card");
+      if (!card) {
+        const heading = document.querySelector(".story-pane .pane-header");
+        if (!heading) return;
+        heading.setAttribute("tabindex", "-1");
+        heading.focus({ preventScroll: true });
+        return;
+      }
+
+      if (reveal) card.scrollIntoView({ block: "nearest" });
+      card.focus({ preventScroll: !reveal });
+    }
+
     window.requestAnimationFrame(function () {
-      const card = document.querySelector(
-        `.story-card[data-entry-id="${CSS.escape(entryId)}"]`
-      );
-      if (card) card.focus({ preventScroll: true });
+      applyFocus();
     });
+    [150, 500].forEach(function (delay) {
+      window.setTimeout(function () {
+        applyFocus(true);
+      }, delay);
+    });
+  }
+
+  function focusOrientation() {
+    function applyFocus(onlyIfLost = false) {
+      if (onlyIfLost && !focusWasLost()) return;
+      const orientation = document.getElementById("rill-orientation");
+      if (!orientation) return;
+
+      const target =
+        orientation.querySelector("h1") ||
+        orientation.querySelector(".orientation-browse") ||
+        orientation;
+
+      if (!target.matches("button, a, input, select, textarea, summary")) {
+        target.setAttribute("tabindex", "-1");
+      }
+      target.focus({ preventScroll: true });
+    }
+
+    window.requestAnimationFrame(function () {
+      applyFocus();
+    });
+    window.setTimeout(function () {
+      applyFocus(true);
+    }, 150);
+  }
+
+  function focusReader() {
+    window.requestAnimationFrame(function () {
+      const heading = document.querySelector(".article-header h1");
+      const close = document.querySelector(".article-header .mobile-back");
+      const target = desktopReaderMode.matches
+        ? heading || close
+        : close || heading;
+      if (!target) return;
+
+      if (target === heading) target.setAttribute("tabindex", "-1");
+      target.focus({ preventScroll: true });
+      pendingReaderFocus = false;
+    });
+  }
+
+  function focusWasLost() {
+    const active = document.activeElement;
+    return Boolean(
+      !active ||
+        active === document.body ||
+        active === document.documentElement ||
+        active.closest("[inert]")
+    );
+  }
+
+  function recoverReaderFocus() {
+    window.setTimeout(function () {
+      const documentNode = document.getElementById("reader-document");
+      if (
+        !documentNode ||
+        documentNode.dataset.selectionSurface !== "orientation" ||
+        (!pendingReaderFocus && !focusWasLost())
+      ) {
+        return;
+      }
+
+      pendingReaderFocus = true;
+      focusReader();
+    }, 150);
+  }
+
+  function deferOrientationReturnFocus(entryId) {
+    pendingOrientationReturnFocus = entryId;
+    window.setTimeout(function () {
+      if (pendingOrientationReturnFocus !== entryId) return;
+      pendingOrientationReturnFocus = null;
+      if (document.getElementById("reader-document")) return;
+      if (document.getElementById("rill-orientation")) {
+        focusOrientation();
+      } else {
+        focusStory(entryId, {
+          reveal: window.matchMedia("(max-width: 900px)").matches
+        });
+      }
+    }, 300);
+  }
+
+  function restoreOrientationDismissFocus() {
+    const pending = pendingOrientationDismissal;
+    if (!pending) return;
+
+    const dismissed = document.querySelector(
+      `.orientation-step[data-card-id="${CSS.escape(pending.cardId)}"]`
+    );
+    if (dismissed) return;
+
+    pendingOrientationDismissal = null;
+    const nextCard = pending.fallbackCardIds
+      .map(function (cardId) {
+        return document.querySelector(
+          `.orientation-step[data-card-id="${CSS.escape(cardId)}"]`
+        );
+      })
+      .find(Boolean);
+    const nextAction =
+      nextCard &&
+      (nextCard.querySelector(".orientation-read") ||
+        nextCard.querySelector(".orientation-dismiss"));
+    if (nextAction) {
+      window.requestAnimationFrame(function () {
+        nextAction.focus({ preventScroll: true });
+      });
+      return;
+    }
+
+    focusStory(null, {
+      reveal: window.matchMedia("(max-width: 900px)").matches
+    });
+  }
+
+  function focusOrientationDestinationSettings() {
+    window.requestAnimationFrame(function () {
+      const summary = document.querySelector(
+        ".orientation-destination-settings summary"
+      );
+      if (summary) summary.focus({ preventScroll: true });
+    });
+  }
+
+  function restoreOrientationModalFocus(event) {
+    if (
+      event.target.matches(
+        "#shiny-modal[data-rill-orientation-confirmation]"
+      )
+    ) {
+      orientationModalWasOpen = false;
+      focusOrientationDestinationSettings();
+    }
+  }
+
+  function syncOrientationModalFocus() {
+    const modal = document.querySelector(
+      "#shiny-modal[data-rill-orientation-confirmation]"
+    );
+    if (modal) {
+      orientationModalWasOpen = true;
+    } else if (orientationModalWasOpen) {
+      orientationModalWasOpen = false;
+      focusOrientationDestinationSettings();
+    }
+  }
+
+  function ensureOrientationReturn(hasOrientation) {
+    const controls = document.querySelector(".queue-controls");
+    if (!controls) return;
+
+    let button = controls.querySelector(".orientation-return");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "orientation-return";
+      button.textContent = "Orientation";
+      button.title = "Return to Orientation";
+      button.setAttribute("aria-label", "Return to Orientation");
+      button.addEventListener("click", function () {
+        window.rillShowOrientation();
+      });
+      controls.prepend(button);
+    }
+    button.hidden = !hasOrientation;
+  }
+
+  const surfaceAccessibilityState = new WeakMap();
+
+  function setSurfaceCovered(element, covered) {
+    if (!element) return;
+
+    if (covered) {
+      if (!surfaceAccessibilityState.has(element)) {
+        surfaceAccessibilityState.set(element, {
+          inert: element.hasAttribute("inert"),
+          ariaHidden: element.getAttribute("aria-hidden")
+        });
+      }
+      element.setAttribute("inert", "");
+      element.setAttribute("aria-hidden", "true");
+      return;
+    }
+
+    const previous = surfaceAccessibilityState.get(element);
+    if (!previous) return;
+    element.toggleAttribute("inert", previous.inert);
+    if (previous.ariaHidden === null) {
+      element.removeAttribute("aria-hidden");
+    } else {
+      element.setAttribute("aria-hidden", previous.ariaHidden);
+    }
+    surfaceAccessibilityState.delete(element);
+  }
+
+  function setSidebarCovered(sidebar, covered) {
+    const layout = sidebar && sidebar.parentElement;
+    const elements = [
+      sidebar,
+      layout && layout.querySelector(":scope > .collapse-toggle"),
+      layout && layout.querySelector(":scope > .bslib-sidebar-resize-handle")
+    ].filter(Boolean);
+    const containsFocus = elements.some(function (element) {
+      return (
+        element === document.activeElement ||
+        element.contains(document.activeElement)
+      );
+    });
+    elements.forEach(function (element) {
+      setSurfaceCovered(element, covered);
+    });
+    return containsFocus;
+  }
+
+  function syncMobileSurfaces(shell, hasReader, hasOrientation) {
+    if (!shell) return;
+
+    const readerPane = document.querySelector(".reader-pane");
+    const navigationSidebar = document.querySelector(".nav-sidebar");
+    const storyPane = document.querySelector(".story-pane");
+    const orientationVisible = Boolean(
+      !desktopReaderMode.matches &&
+        !hasReader &&
+        hasOrientation &&
+        !shell.classList.contains("orientation-queue-visible")
+    );
+
+    const readerPaneHidden = Boolean(
+      !desktopReaderMode.matches && !hasReader && !orientationVisible
+    );
+    setSurfaceCovered(readerPane, readerPaneHidden);
+    const navigationHadFocus = setSidebarCovered(
+      navigationSidebar,
+      orientationVisible
+    );
+    const queueHadFocus = setSidebarCovered(storyPane, orientationVisible);
+
+    if (orientationVisible && (navigationHadFocus || queueHadFocus)) {
+      focusOrientation();
+    }
   }
 
   function syncReader() {
     const documentNode = document.getElementById("reader-document");
     const nextId = documentNode && documentNode.dataset.entryId;
+    const nextDocumentId = documentNode && documentNode.dataset.documentId;
+    const nextSurface =
+      (documentNode && documentNode.dataset.selectionSurface) || "story_list";
+    const orientation = document.getElementById("rill-orientation");
+    const hasOrientation = Boolean(orientation);
+    const hasReader = Boolean(nextId);
     const shell = document.querySelector(".app-shell");
-    if (shell) shell.classList.toggle("has-reader", Boolean(nextId));
+    localizeOrientationTimes();
+    syncOrientationModalFocus();
+    if (shell) {
+      shell.classList.toggle("has-reader", hasReader);
+      shell.classList.toggle("has-orientation", hasOrientation);
+      if (!hasOrientation && !hasReader) {
+        shell.classList.remove("orientation-queue-visible");
+      }
+    }
+    syncMobileSurfaces(shell, hasReader, hasOrientation);
+    ensureOrientationReturn(hasOrientation);
 
     if (!nextId) {
+      restoreOrientationDismissFocus();
       const previousId = activeEntryId;
+      const previousSurface = activeEntrySurface;
+      const changingSelection = pendingEntrySurface !== null;
       activeEntryId = null;
-      if (previousId) focusStory(previousId);
+      activeDocumentId = null;
+      activeEntrySurface = null;
+      if (previousId && !changingSelection) {
+        if (previousSurface === "orientation") {
+          if (hasOrientation) {
+            pendingOrientationReturnFocus = null;
+            if (shell) shell.classList.remove("orientation-queue-visible");
+            focusOrientation();
+          } else {
+            deferOrientationReturnFocus(previousId);
+          }
+        } else {
+          focusStory(previousId);
+        }
+      }
+      if (pendingOrientationReturnFocus !== null && hasOrientation) {
+        pendingOrientationReturnFocus = null;
+        if (shell) shell.classList.remove("orientation-queue-visible");
+        focusOrientation();
+      }
+      if (
+        hasOrientation &&
+        shell &&
+        shell.classList.contains("orientation-queue-visible") &&
+        focusWasLost()
+      ) {
+        focusStory(null, {
+          reveal: window.matchMedia("(max-width: 900px)").matches
+        });
+      }
       return;
     }
-    if (nextId === activeEntryId) return;
+    if (
+      nextId === activeEntryId &&
+      nextDocumentId === activeDocumentId &&
+      nextSurface === activeEntrySurface
+    ) {
+      if (
+        pendingReaderFocus ||
+        (nextSurface === "orientation" && focusWasLost())
+      ) {
+        pendingReaderFocus = true;
+        focusReader();
+      }
+      return;
+    }
 
     activeEntryId = nextId;
+    activeDocumentId = nextDocumentId;
+    activeEntrySurface = nextSurface;
+    pendingReaderFocus = activeEntrySurface === "orientation";
+    pendingEntrySurface = null;
+    pendingOrientationSelectionCardId = null;
     openedAt = Date.now();
     lastHeartbeatAt = openedAt;
     milestones = new Set();
     const scrollPane = document.querySelector(".reader-scroll");
     if (scrollPane) scrollPane.scrollTop = 0;
     send("article_impression", { scroll_percent: 0, dwell_seconds: 0 });
+    if (pendingReaderFocus) {
+      focusReader();
+      recoverReaderFocus();
+    }
   }
 
-  window.rillSelectEntry = function (id, position) {
+  function localizeOrientationTimes() {
+    const formatter = new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short"
+    });
+    document.querySelectorAll(".orientation-evaluated time[datetime]").forEach(
+      function (time) {
+        const instant = new Date(time.dateTime);
+        if (!Number.isNaN(instant.getTime())) {
+          const localized = formatter.format(instant);
+          if (time.textContent !== localized) time.textContent = localized;
+        }
+      }
+    );
+  }
+
+  window.rillSelectEntry = function (
+    id,
+    position,
+    surface = "story_list",
+    provenance = null
+  ) {
+    if (!window.Shiny) return;
+    pendingEntrySurface = normalizeSelectionSurface(surface);
+    pendingOrientationSelectionCardId =
+      pendingEntrySurface === "orientation" && provenance
+        ? provenance.card_id || null
+        : null;
+    const payload = {
+      id,
+      position,
+      surface: pendingEntrySurface,
+      nonce: Math.random()
+    };
+    if (provenance) {
+      [
+        "document_id",
+        "card_id",
+        "revision_id",
+        "basis_hash",
+        "rationale_hash",
+        "orientation_id"
+      ].forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(provenance, key)) {
+          payload[key] = provenance[key];
+        }
+      });
+    }
     window.Shiny.setInputValue(
       "select_entry",
-      { id, position, nonce: Math.random() },
+      payload,
       { priority: "event" }
     );
+  };
+
+  window.rillDismissOrientation = function (
+    cardId,
+    revisionId,
+    rationaleHash
+  ) {
+    if (!window.Shiny || !cardId) return;
+    const cards = Array.from(document.querySelectorAll(".orientation-step"));
+    const dismissed = cards.find(function (card) {
+      return card.dataset.cardId === cardId;
+    });
+    const index = cards.indexOf(dismissed);
+    const fallbackCardIds = [];
+    if (index >= 0 && cards[index + 1]) {
+      fallbackCardIds.push(cards[index + 1].dataset.cardId);
+    }
+    if (index > 0) fallbackCardIds.push(cards[index - 1].dataset.cardId);
+    const pending = { cardId, fallbackCardIds };
+    pendingOrientationDismissal = pending;
+    window.setTimeout(function () {
+      if (pendingOrientationDismissal === pending) {
+        pendingOrientationDismissal = null;
+      }
+    }, 5000);
+    window.Shiny.setInputValue(
+      "dismiss_orientation_card",
+      {
+        card_id: cardId,
+        revision_id: revisionId,
+        rationale_hash: rationaleHash,
+        nonce: Math.random()
+      },
+      { priority: "event" }
+    );
+  };
+
+  function revealOrientationQueue(_message) {
+    const shell = document.querySelector(".app-shell");
+    if (shell) shell.classList.add("orientation-queue-visible");
+    syncReader();
+    const reveal = window.matchMedia("(max-width: 900px)").matches;
+    focusStory(null, { reveal });
+    window.setTimeout(function () {
+      const currentShell = document.querySelector(".app-shell");
+      if (
+        currentShell &&
+        currentShell.classList.contains("orientation-queue-visible") &&
+        !document.getElementById("reader-document") &&
+        focusWasLost()
+      ) {
+        focusStory(null, { reveal });
+      }
+    }, 150);
+  }
+
+  window.rillBrowseQueue = function () {
+    if (!window.Shiny) return;
+    window.Shiny.setInputValue(
+      "browse_orientation_queue",
+      { nonce: Math.random() },
+      { priority: "event" }
+    );
+  };
+
+  window.rillShowOrientation = function () {
+    const shell = document.querySelector(".app-shell");
+    if (shell) shell.classList.remove("orientation-queue-visible");
+    syncReader();
+    focusOrientation();
   };
 
   window.rillSelectFeed = function (id) {
@@ -128,6 +596,8 @@
   };
 
   window.rillCloseReader = function () {
+    if (!window.Shiny) return;
+    pendingEntrySurface = null;
     window.Shiny.setInputValue(
       "close_reader",
       { nonce: Math.random() },
@@ -150,6 +620,17 @@
   }
 
   function moveStory(direction) {
+    const shell = document.querySelector(".app-shell");
+    if (
+      window.matchMedia("(max-width: 900px)").matches &&
+      shell &&
+      shell.classList.contains("has-orientation") &&
+      !shell.classList.contains("orientation-queue-visible") &&
+      !activeEntryId
+    ) {
+      return false;
+    }
+
     const cards = Array.from(document.querySelectorAll(".story-card"));
     if (!cards.length) return false;
 
@@ -204,9 +685,19 @@
     if (key === "o") handled = openOriginal();
     if (key === "s") handled = toggleReaderAction("toggle_save");
     if (key === "f") handled = toggleReaderAction("toggle_star");
-    if (key === "escape" && activeEntryId) {
-      window.rillCloseReader();
-      handled = true;
+    if (key === "escape") {
+      const shell = document.querySelector(".app-shell");
+      if (activeEntryId) {
+        window.rillCloseReader();
+        handled = true;
+      } else if (
+        shell &&
+        shell.classList.contains("has-orientation") &&
+        shell.classList.contains("orientation-queue-visible")
+      ) {
+        window.rillShowOrientation();
+        handled = true;
+      }
     }
 
     if (handled) event.preventDefault();
@@ -255,6 +746,66 @@
       if (filename) filename.value = "";
     });
     fileResetRegistered = true;
+  }
+
+  function registerQueueBrowse() {
+    if (queueBrowseRegistered || !window.Shiny) return;
+    window.Shiny.addCustomMessageHandler(
+      "rill-browse-queue-ready",
+      revealOrientationQueue
+    );
+    queueBrowseRegistered = true;
+  }
+
+  function registerOrientationActionMessages() {
+    if (orientationActionMessagesRegistered || !window.Shiny) return;
+    window.Shiny.addCustomMessageHandler(
+      "rill-orientation-action-rejected",
+      function (message) {
+        const dismissal = pendingOrientationDismissal;
+        const cardId =
+          message.action === "dismiss"
+            ? dismissal && dismissal.cardId
+            : pendingOrientationSelectionCardId;
+        pendingOrientationDismissal = null;
+        pendingOrientationSelectionCardId = null;
+        pendingEntrySurface = null;
+        pendingReaderFocus = false;
+        const card =
+          cardId &&
+          document.querySelector(
+            `.orientation-step[data-card-id="${CSS.escape(cardId)}"]`
+          );
+        const action =
+          card &&
+          (card.querySelector(".orientation-read") ||
+            card.querySelector(".orientation-dismiss"));
+        if (action) {
+          action.focus({ preventScroll: true });
+        } else {
+          focusOrientation();
+        }
+      }
+    );
+    window.Shiny.addCustomMessageHandler(
+      "rill-selection-accepted",
+      function (message) {
+        pendingEntrySurface = null;
+        pendingOrientationSelectionCardId = null;
+        if (message.surface === "orientation") {
+          pendingReaderFocus = true;
+          focusReader();
+          recoverReaderFocus();
+        }
+      }
+    );
+    window.Shiny.addCustomMessageHandler(
+      "rill-focus-orientation-destination",
+      function (_message) {
+        focusOrientationDestinationSettings();
+      }
+    );
+    orientationActionMessagesRegistered = true;
   }
 
   function registerChatSubmissionIds() {
@@ -322,6 +873,12 @@
     systemDarkMode.addListener(handleSystemThemeChange);
   }
 
+  if (typeof desktopReaderMode.addEventListener === "function") {
+    desktopReaderMode.addEventListener("change", syncReader);
+  } else {
+    desktopReaderMode.addListener(syncReader);
+  }
+
   window.addEventListener("storage", function (event) {
     if (event.key === themeStorageKey) {
       applyThemeMode(event.newValue || "system", { persist: false });
@@ -331,9 +888,12 @@
   document.addEventListener("DOMContentLoaded", function () {
     registerAppearanceControl();
     window.setTimeout(initializeCompactSidebarState, 100);
+    window.setTimeout(syncReader, 200);
     watchScroll();
     syncReader();
     registerFileReset();
+    registerQueueBrowse();
+    registerOrientationActionMessages();
     registerChatSubmissionIds();
     new MutationObserver(syncReader).observe(document.body, {
       childList: true,
@@ -341,9 +901,13 @@
     });
     window.setInterval(heartbeat, 15000);
   });
+  document.addEventListener("hide.bs.modal", restoreOrientationModalFocus);
+  document.addEventListener("hidden.bs.modal", restoreOrientationModalFocus);
 
   document.addEventListener("shiny:connected", function () {
     registerFileReset();
+    registerQueueBrowse();
+    registerOrientationActionMessages();
     registerChatSubmissionIds();
   });
 

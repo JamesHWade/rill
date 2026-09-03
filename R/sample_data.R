@@ -102,3 +102,86 @@ sample_rill_data <- function() {
 
   list(feeds = feeds, entries = entries, documents = documents)
 }
+
+sample_rill_orientation <- function(store, reader_id) {
+  candidates <- orientation_candidates(store, reader_id, limit = 6L)
+  boundary <- orientation_boundary(candidates)
+  selected <- candidates[c(1L, 5L)]
+  cards <- Map(
+    function(candidate, role, frame, interpretation, why_now) {
+      list(
+        role = role,
+        frame = frame,
+        document_id = candidate$document$document_id,
+        entry_id = candidate$entry$entry_id,
+        interpretation = interpretation,
+        why_now = why_now,
+        evidence = paste(
+          "Rill keeps the source feed, a cleaned reading copy, and your",
+          "interactions as separate records."
+        )
+      )
+    },
+    selected,
+    c("anchor", "contrast"),
+    c("unresolved_question", "counterpoint"),
+    c(
+      paste(
+        "The source boundary is the foundation: captured material remains",
+        "distinct from Rill's interpretation of it."
+      ),
+      paste(
+        "Durable application state makes that boundary useful across days,",
+        "but persistence should not collapse provenance into behavior."
+      )
+    ),
+    c(
+      "It states the product constraint that every agent action must preserve.",
+      "It tests that constraint against the practical need for durable state."
+    )
+  )
+
+  new_rill_orientation(
+    reader_id = reader_id,
+    boundary = boundary,
+    question = "What must stay separate as Rill becomes agent-native?",
+    introduction = paste(
+      "Start with the boundary Rill protects, then test it against the case",
+      "for durable state."
+    ),
+    cards = cards,
+    agent_run_id = rill_id(
+      "sample-orientation-run",
+      reader_id,
+      boundary$hash
+    ),
+    status = "Two source-grounded selections are ready."
+  )
+}
+
+sample_rill_orientation_run <- function(orientation) {
+  list(
+    run_id = orientation$agent_run_id,
+    reader_id = orientation$reader_id,
+    kind = "orientation",
+    request_key = rill_id(
+      "sample-orientation-request",
+      orientation$reader_id,
+      orientation$boundary$hash
+    ),
+    retry_of_run_id = NULL,
+    status = "completed",
+    pinned_inputs = list(
+      boundary_hash = orientation$boundary$hash,
+      candidate_document_ids = orientation$boundary$document_ids,
+      data_destination = "Bundled demo",
+      model = "none",
+      policy_version = orientation$policy_version
+    ),
+    requested_at = orientation$evaluated_at,
+    terminal_at = orientation$evaluated_at,
+    terminal_reason = "bundled_demo",
+    updated_at = orientation$evaluated_at,
+    usage = list()
+  )
+}

@@ -247,6 +247,62 @@ testthat::test_that("today preparation retries feed fallbacks", {
   )
 })
 
+testthat::test_that("opening an Orientation feed copy upgrades it", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store$memory$documents <- list()
+  store$memory$document_heads <- character()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "orientation-feed-copy")
+  store_save_document(store, fallback)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    document_from_defuddle = function(entry, config) {
+      calls <<- calls + 1L
+      new_rill_document(
+        entry_id = entry$entry_id,
+        source_url = entry$url,
+        markdown = "The complete extracted article.",
+        acquisition_method = "web_extraction",
+        producer = "defuddle-test"
+      )
+    }
+  )
+
+  document <- get_or_extract_document(store, entry, list())
+
+  testthat::expect_identical(calls, 1L)
+  testthat::expect_identical(document$acquisition_method, "web_extraction")
+  testthat::expect_identical(
+    store_get_document(store, entry$entry_id)$document_id,
+    document$document_id
+  )
+  testthat::expect_identical(
+    store_get_document_by_id(store, fallback$document_id)$document_id,
+    fallback$document_id
+  )
+})
+
+testthat::test_that("opening an ordinary cached document does not extract", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store$memory$documents <- list()
+  store$memory$document_heads <- character()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  cached <- document_fallback(entry, reason = "feed-fallback")
+  store_save_document(store, cached)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    document_from_defuddle = function(entry, config) {
+      calls <<- calls + 1L
+      stop("ordinary cached documents must not be re-extracted")
+    }
+  )
+
+  document <- get_or_extract_document(store, entry, list())
+
+  testthat::expect_identical(calls, 0L)
+  testthat::expect_identical(document$document_id, cached$document_id)
+})
+
 testthat::test_that("rendered documents drop executable markup", {
   dirty <- paste0(
     "<p onclick='alert(1)'>Safe words</p>",

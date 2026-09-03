@@ -28,6 +28,61 @@ testthat::test_that("the reader Agent receives one pinned source Document", {
   )
 })
 
+testthat::test_that("Agent destinations have stable consent identities", {
+  openai <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    policy_url = "https://provider.example/privacy"
+  )
+  upgraded <- rill_agent_data_destination_details(
+    "openai/gpt-6",
+    policy_url = "https://provider.example/privacy"
+  )
+  changed_policy <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    policy_url = "https://provider.example/revised-privacy"
+  )
+  local <- rill_agent_data_destination_details("ollama/llama3.3")
+  remote <- rill_agent_data_destination_details(
+    "ollama/llama3.3",
+    base_url = "http://ollama.example:11434"
+  )
+  unknown <- rill_agent_data_destination_details("other/model")
+  gateway_a <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:8443/provider-a"
+  )
+  gateway_b <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:8443/provider-b"
+  )
+  gateway_port <- rill_agent_data_destination_details(
+    "openai/gpt-5",
+    base_url = "https://gateway.example:9443/provider-a"
+  )
+  loopback <- rill_agent_data_destination_details(
+    "ollama/llama3.3",
+    base_url = "http://127.24.1.9:11434"
+  )
+  loopback_spoof <- rill_agent_data_destination_details(
+    "ollama/llama3.3",
+    base_url = "http://127.attacker.example:11434"
+  )
+
+  testthat::expect_identical(openai$id, upgraded$id)
+  testthat::expect_identical(identical(openai$id, changed_policy$id), FALSE)
+  testthat::expect_identical(openai$name, "OpenAI")
+  testthat::expect_identical(openai$kind, "external")
+  testthat::expect_identical(local$kind, "installation")
+  testthat::expect_identical(remote$kind, "external")
+  testthat::expect_identical(identical(local$id, remote$id), FALSE)
+  testthat::expect_identical(unknown$kind, "external")
+  testthat::expect_identical(gateway_a$label, gateway_b$label)
+  testthat::expect_identical(identical(gateway_a$id, gateway_b$id), FALSE)
+  testthat::expect_identical(identical(gateway_a$id, gateway_port$id), FALSE)
+  testthat::expect_identical(loopback$kind, "installation")
+  testthat::expect_identical(loopback_spoof$kind, "external")
+})
+
 testthat::test_that("the provider projection removes source credentials", {
   document <- sample_rill_data()$documents[[1]]
   document$source_url <- paste0(
@@ -105,7 +160,7 @@ testthat::test_that("the reader Agent is source-first and tightly bounded", {
   testthat::expect_identical(rill_agent_wall_time_seconds(), 5 * 60)
   testthat::expect_identical(
     rill_agent_data_destination("anthropic/claude-sonnet-4-5-20250929"),
-    "Anthropic"
+    "Anthropic at api.anthropic.com"
   )
 })
 
@@ -115,9 +170,11 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
     coro::yield("evidence.")
   })()
   partials <- character()
+  complete <- NULL
   tracked <- track_reader_agent_stream(
     stream,
-    \(partial) partials <<- c(partials, partial)
+    \(partial) partials <<- c(partials, partial),
+    on_complete = \(response) complete <<- response
   )
   collected <- NULL
   error <- NULL
@@ -133,6 +190,45 @@ testthat::test_that("the reader Agent stream exposes its latest partial text", {
   testthat::expect_null(error)
   testthat::expect_identical(collected, list("Source ", "evidence."))
   testthat::expect_identical(partials, c("Source ", "Source evidence."))
+  testthat::expect_identical(complete, "Source evidence.")
+})
+
+testthat::test_that("reader streaming supports current and legacy Deputy APIs", {
+  modern_call <- NULL
+  modern <- list(
+    run_shiny = function(prompt, run_context) {
+      modern_call <<- list(prompt = prompt, run_context = run_context)
+      "modern-stream"
+    },
+    stream_async = \(...) stop("legacy path must not run")
+  )
+  legacy_call <- NULL
+  legacy <- list(stream_async = function(prompt, stream, run_context) {
+    legacy_call <<- list(
+      prompt = prompt,
+      stream = stream,
+      run_context = run_context
+    )
+    "legacy-stream"
+  })
+  context <- list(rill_agent_run_id = "run-1")
+
+  testthat::expect_identical(
+    rill_agent_shiny_stream(modern, "What changed?", context),
+    "modern-stream"
+  )
+  testthat::expect_identical(
+    modern_call,
+    list(prompt = "What changed?", run_context = context)
+  )
+  testthat::expect_identical(
+    rill_agent_shiny_stream(legacy, "What changed?", context),
+    "legacy-stream"
+  )
+  testthat::expect_identical(
+    legacy_call,
+    list(prompt = "What changed?", stream = "content", run_context = context)
+  )
 })
 
 testthat::test_that("a Deputy Agent is pinned to the selected Document", {
@@ -151,11 +247,11 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
 
   testthat::expect_r6_class(agent, "Agent")
   testthat::expect_identical(
-    names(agent$get_tools()),
+    names(rill_agent_chat_call(agent, "get_tools", list())),
     "read_current_document"
   )
   testthat::expect_identical(
-    agent$get_system_prompt(),
+    rill_agent_chat_call(agent, "get_system_prompt"),
     rill_agent_system_prompt()
   )
   testthat::expect_identical(
@@ -169,6 +265,10 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
   )
   testthat::expect_identical(
     rill_agent_runtime_identity(agent, "openai"),
-    list(model = "gpt-5.4", data_destination = "OpenAI")
+    list(
+      model = "gpt-5.4",
+      data_destination = "OpenAI",
+      data_destination_id = rill_agent_data_destination_details("openai")$id
+    )
   )
 })

@@ -48,6 +48,36 @@ document_http_url <- function(value, argument) {
   httr2::url_build(parsed)
 }
 
+rill_document_original_source_url <- function(document) {
+  canonical_url <- document_optional_string(document$canonical_url)
+  if (!is.na(canonical_url)) {
+    return(canonical_url)
+  }
+  document_optional_string(document$source_url)
+}
+
+rill_document_limitations <- function(document) {
+  switch(
+    document$acquisition_method %||% "",
+    sample = "Bundled demo content cannot support real-world claims.",
+    feed_fallback = paste(
+      "This reading copy contains stored feed content and may be incomplete."
+    ),
+    web_extraction = paste(
+      "Automated extraction may omit or reorder material from the",
+      "Original Source."
+    ),
+    browser_capture = paste(
+      "This browser capture reflects the Original Source at capture time",
+      "and may omit unavailable or interactive content."
+    ),
+    paste(
+      "This reading copy may not include all material from the",
+      "Original Source."
+    )
+  )
+}
+
 new_rill_document <- function(
   entry_id,
   source_url,
