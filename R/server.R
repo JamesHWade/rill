@@ -246,7 +246,7 @@ rill_server <- function(config, store) {
       event <- list(
         event_id = event_id %||%
           rill_id("event", session_id, type, utc_now(), stats::runif(1)),
-        actor_id = actor_id,
+        reader_id = actor_id,
         entry_id = entry_id,
         session_id = session_id,
         event_type = type,
@@ -2921,7 +2921,7 @@ rill_server <- function(config, store) {
             message = "Finding and reading the feed",
             value = 0.5,
             {
-              ingest_feed_url(store, url)
+              ingest_feed_url(store, actor_id, url)
             }
           ),
           error = function(error) error
@@ -2996,6 +2996,82 @@ rill_server <- function(config, store) {
           "feed_renamed",
           surface = "sidebar",
           payload = list(feed_id = feed_id, title = title)
+        )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$move_feed,
+      {
+        feed_id <- selected_feed()
+        folder <- trimws(input$feed_folder %||% "")
+        if (is.null(feed_id) || !nzchar(folder)) {
+          status_kind("error")
+          status_text("Select a feed and enter a folder.")
+          shiny::showNotification(
+            "Select a feed and enter a folder.",
+            type = "warning"
+          )
+          return()
+        }
+
+        result <- tryCatch(
+          store_move_feed(store, actor_id, feed_id, folder),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text(conditionMessage(result))
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error"
+          )
+          return()
+        }
+
+        status_kind("success")
+        status_text(paste("Moved feed to", folder))
+        record_event(
+          "feed_moved",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id, folder = folder)
+        )
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$unsubscribe_feed,
+      {
+        feed_id <- selected_feed()
+        if (is.null(feed_id)) {
+          return()
+        }
+        result <- tryCatch(
+          store_unsubscribe_feed(store, actor_id, feed_id),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          status_kind("error")
+          status_text(conditionMessage(result))
+          shiny::showNotification(
+            conditionMessage(result),
+            type = "error"
+          )
+          return()
+        }
+
+        selected_feed(NULL)
+        clear_selection(force = TRUE)
+        status_kind("success")
+        status_text("Unsubscribed. Reading state was preserved.")
+        record_event(
+          "feed_unsubscribed",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id)
         )
         bump_refresh()
       },

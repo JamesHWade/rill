@@ -34,7 +34,11 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     )
   )
   store <- structure(
-    list(mode = "postgres", pool = database_pool),
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = "reader-1"
+    ),
     class = "rill_store"
   )
   withr::defer(rill_store_close(store))
@@ -42,7 +46,14 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
 
   sample <- sample_rill_data()
   for (index in seq_len(nrow(sample$feeds))) {
-    store_upsert_feed(store, as.list(sample$feeds[index, , drop = FALSE]))
+    feed <- as.list(sample$feeds[index, , drop = FALSE])
+    store_upsert_feed(store, feed)
+    store_subscribe_feed(
+      store,
+      "reader-1",
+      feed$feed_id,
+      folder = feed$folder
+    )
   }
   store_upsert_entries(store, sample$entries[1:3, , drop = FALSE])
   for (index in seq_len(3L)) {
@@ -275,7 +286,8 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
       "005_orientation_data_destination_settings",
       "006_deferred_reader_questions",
       "007_agent_run_response",
-      "008_reader_identities"
+      "008_reader_identities",
+      "009_reader_library"
     )
   )
 })

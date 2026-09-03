@@ -1,6 +1,6 @@
 testthat::test_that("the memory store tracks reading state", {
-  store <- rill_store(list(demo_mode = TRUE))
   actor_id <- "test-reader"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))
   entry_id <- store$memory$entries$entry_id[[1]]
 
   unread <- store_list_entries(store, actor_id, view = "unread")
@@ -19,8 +19,8 @@ testthat::test_that("the memory store tracks reading state", {
 })
 
 testthat::test_that("marking unread preserves evidence that a story was opened", {
-  store <- rill_store(list(demo_mode = TRUE))
   actor_id <- "test-reader"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))
   entry_id <- store$memory$entries$entry_id[[1]]
 
   store_mark_opened(store, actor_id, entry_id)
@@ -41,8 +41,8 @@ testthat::test_that("marking unread preserves evidence that a story was opened",
 })
 
 testthat::test_that("bulk read state records its reason and respects scope", {
-  store <- rill_store(list(demo_mode = TRUE))
   actor_id <- "test-reader"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))
   feed_id <- store$memory$feeds$feed_id[[1]]
   feed_entries <- store$memory$entries$entry_id[
     store$memory$entries$feed_id == feed_id
@@ -90,8 +90,8 @@ testthat::test_that("bulk read state records its reason and respects scope", {
 })
 
 testthat::test_that("reader feed labels survive source refreshes", {
-  store <- rill_store(list(demo_mode = TRUE))
   actor_id <- "test-reader"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))
   feed_id <- store$memory$feeds$feed_id[[1]]
   refreshed_feed <- as.list(store$memory$feeds[1, , drop = FALSE])
 
@@ -120,8 +120,57 @@ testthat::test_that("reader feed labels survive source refreshes", {
   testthat::expect_identical(restored$display_title, NA_character_)
 
   other_reader <- store_list_feeds(store, "other-reader")
-  other_reader <- other_reader[other_reader$feed_id == feed_id, , drop = FALSE]
-  testthat::expect_identical(other_reader$title, "The upstream R blog")
+  testthat::expect_equal(nrow(other_reader), 0L)
+})
+
+testthat::test_that("Reader Libraries isolate shared Feed membership and state", {
+  reader_one <- "reader-one"
+  reader_two <- "reader-two"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = reader_one))
+  store_ensure_reader(store, reader_two)
+  store$memory$subscriptions <- store$memory$subscriptions[0, , drop = FALSE]
+  feed_id <- store$memory$feeds$feed_id[[1L]]
+  entry_id <- store$memory$entries$entry_id[
+    store$memory$entries$feed_id == feed_id
+  ][[1L]]
+
+  store_subscribe_feed(store, reader_one, feed_id, folder = "Research")
+  store_subscribe_feed(store, reader_two, feed_id, folder = "Morning")
+  store_rename_feed(store, reader_one, feed_id, "Work reading")
+
+  library_one <- store_list_feeds(store, reader_one)
+  library_two <- store_list_feeds(store, reader_two)
+  testthat::expect_identical(library_one$folder, "Research")
+  testthat::expect_identical(library_one$title, "Work reading")
+  testthat::expect_identical(library_two$folder, "Morning")
+  testthat::expect_identical(library_two$title, library_two$source_title)
+
+  store_mark_opened(store, reader_one, entry_id)
+  testthat::expect_disjoint(
+    store_list_entries(store, reader_one, view = "unread")$entry_id,
+    entry_id
+  )
+  testthat::expect_in(
+    entry_id,
+    store_list_entries(store, reader_two, view = "unread")$entry_id
+  )
+
+  store_unsubscribe_feed(store, reader_one, feed_id)
+  testthat::expect_equal(nrow(store_list_feeds(store, reader_one)), 0L)
+  testthat::expect_null(store_get_entry(store, reader_one, entry_id))
+  testthat::expect_error(
+    store_toggle_state(store, reader_one, entry_id, "saved"),
+    class = "rill_entry_forbidden"
+  )
+
+  store_subscribe_feed(store, reader_one, feed_id)
+  restored <- store_list_feeds(store, reader_one)
+  testthat::expect_identical(restored$folder, "Research")
+  testthat::expect_identical(restored$title, "Work reading")
+  testthat::expect_disjoint(
+    store_list_entries(store, reader_one, view = "unread")$entry_id,
+    entry_id
+  )
 })
 
 testthat::test_that("the memory store sorts stories across queue dimensions", {

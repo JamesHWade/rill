@@ -6,9 +6,9 @@
 #' Identity adapter resolves exact issuer and `sub` pairs to durable internal
 #' Readers. Configured `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private
 #' Reader in `RILL_ACTOR_ID`; unknown identities remain denied with one pending
-#' admission record. Until Reader-owned Library isolation is complete,
-#' admissions can attach only to that configured private Reader. Email and
-#' other profile claims are mutable metadata, not identity keys.
+#' admission record. Until captured Document and reading-copy isolation is
+#' complete, admissions can attach only to that configured private Reader.
+#' Email and other profile claims are mutable metadata, not identity keys.
 #' When `RILL_CAPTURE_TOKEN` is set, the same application accepts authenticated
 #' browser documents at `/api/v1/captures`. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and

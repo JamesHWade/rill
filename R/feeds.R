@@ -328,9 +328,15 @@ fetch_feed <- function(
   parsed
 }
 
-ingest_feed_url <- function(store, url, folder = "Unsorted") {
+ingest_feed_url <- function(store, reader_id, url, folder = "Unsorted") {
   result <- fetch_feed(url, folder = folder)
   store_upsert_feed(store, result$feed)
+  store_subscribe_feed(
+    store,
+    reader_id,
+    result$feed$feed_id,
+    folder = folder
+  )
   store_upsert_entries(store, result$entries)
   list(feed = result$feed, added = nrow(result$entries), not_modified = FALSE)
 }

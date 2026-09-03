@@ -576,7 +576,7 @@ store_select_orientation_card <- function(
       store$pool,
       paste(
         "SELECT entry_id FROM entry_state",
-        "WHERE actor_id = $1 AND entry_id = $2 FOR UPDATE"
+        "WHERE reader_id = $1 AND entry_id = $2 FOR UPDATE"
       ),
       params = list(reader_id, card$entry_id)
     )
@@ -630,7 +630,7 @@ store_select_orientation_card <- function(
   )
   event <- list(
     event_id = orientation_string(event_id, "event_id"),
-    actor_id = reader_id,
+    reader_id = reader_id,
     entry_id = card$entry_id,
     session_id = orientation_string(session_id, "session_id"),
     event_type = "entry_opened",

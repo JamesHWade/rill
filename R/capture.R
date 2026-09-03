@@ -222,12 +222,19 @@ capture_document <- function(
   } else {
     entry <- store_find_entry_by_url(
       store,
+      actor_id,
       capture$source_url,
       capture$canonical_url
     )
     if (is.null(entry)) {
       feed <- capture_feed()
       store_upsert_feed(store, feed)
+      store_subscribe_feed(
+        store,
+        actor_id,
+        feed$feed_id,
+        folder = feed$folder
+      )
       entry <- capture_entry(capture, feed, received_at)
       store_upsert_entries(store, entry)
       entry_id <- entry$entry_id[[1]]
@@ -246,7 +253,7 @@ capture_document <- function(
 
   event <- list(
     event_id = rill_id("capture-event", actor_id, document_id),
-    actor_id = actor_id,
+    reader_id = actor_id,
     entry_id = entry_id,
     session_id = rill_id("capture-session", actor_id, capture$capture_id),
     event_type = "document_captured",

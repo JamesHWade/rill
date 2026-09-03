@@ -281,7 +281,11 @@ local_orientation_backend_store <- function(
     )
   )
   store <- structure(
-    list(mode = "postgres", pool = database_pool),
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = reader_id
+    ),
     class = "rill_store"
   )
   withr::defer(rill_store_close(store), envir = env)
@@ -289,7 +293,9 @@ local_orientation_backend_store <- function(
 
   sample <- sample_rill_data()
   for (index in seq_len(nrow(sample$feeds))) {
-    store_upsert_feed(store, as.list(sample$feeds[index, , drop = FALSE]))
+    feed <- as.list(sample$feeds[index, , drop = FALSE])
+    store_upsert_feed(store, feed)
+    store_subscribe_feed(store, reader_id, feed$feed_id, folder = feed$folder)
   }
   store_upsert_entries(store, sample$entries)
   for (document in sample$documents) {
@@ -379,14 +385,14 @@ orientation_backend_open_events <- function(store, reader_id) {
       store$pool,
       paste(
         "SELECT entry_id, event_type, surface, position, payload::text AS payload",
-        "FROM events WHERE actor_id = $1 AND event_type = 'entry_opened'",
+        "FROM events WHERE reader_id = $1 AND event_type = 'entry_opened'",
         "ORDER BY happened_at, event_id"
       ),
       params = list(reader_id)
     ))
   }
   store$memory$events[
-    store$memory$events$actor_id == reader_id &
+    store$memory$events$reader_id == reader_id &
       store$memory$events$event_type == "entry_opened",
     c("entry_id", "event_type", "surface", "position", "payload"),
     drop = FALSE
@@ -398,16 +404,16 @@ orientation_backend_entry_state <- function(store, reader_id, entry_id) {
     return(DBI::dbGetQuery(
       store$pool,
       paste(
-        "SELECT actor_id, entry_id, read_at, read_reason, last_opened_at",
-        "FROM entry_state WHERE actor_id = $1 AND entry_id = $2"
+        "SELECT reader_id, entry_id, read_at, read_reason, last_opened_at",
+        "FROM entry_state WHERE reader_id = $1 AND entry_id = $2"
       ),
       params = list(reader_id, entry_id)
     ))
   }
   store$memory$state[
-    store$memory$state$actor_id == reader_id &
+    store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id,
-    c("actor_id", "entry_id", "read_at", "read_reason", "last_opened_at"),
+    c("reader_id", "entry_id", "read_at", "read_reason", "last_opened_at"),
     drop = FALSE
   ]
 }
@@ -458,7 +464,7 @@ expect_orientation_selection_event_conflict <- function(store, reader_id) {
     store,
     list(
       event_id = event_id,
-      actor_id = reader_id,
+      reader_id = reader_id,
       entry_id = card$entry_id,
       session_id = "other-session",
       event_type = "entry_saved",
@@ -501,13 +507,13 @@ expect_orientation_selection_event_conflict <- function(store, reader_id) {
       store$pool,
       paste(
         "SELECT event_id, event_type FROM events",
-        "WHERE actor_id = $1 ORDER BY event_id"
+        "WHERE reader_id = $1 ORDER BY event_id"
       ),
       params = list(reader_id)
     )
   } else {
     events <- store$memory$events[
-      store$memory$events$actor_id == reader_id,
+      store$memory$events$reader_id == reader_id,
       c("event_id", "event_type"),
       drop = FALSE
     ]

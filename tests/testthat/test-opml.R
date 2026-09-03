@@ -115,6 +115,28 @@ testthat::test_that("OPML imports add and reorganize subscriptions", {
     feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
     "Newsletters"
   )
+
+  store_ensure_reader(store, "other-reader")
+  import_opml_subscriptions(
+    store,
+    "other-reader",
+    data.frame(
+      title = "My R Weekly",
+      feed_url = "https://rweekly.org/atom.xml",
+      site_url = "https://rweekly.org/",
+      folder = "Morning",
+      stringsAsFactors = FALSE
+    ),
+    refresh = FALSE
+  )
+  other_library <- store_list_feeds(store, "other-reader")
+  feeds <- store_list_feeds(store, config$actor_id)
+  testthat::expect_identical(other_library$folder, "Morning")
+  testthat::expect_identical(other_library$title, "My R Weekly")
+  testthat::expect_identical(
+    feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
+    "Newsletters"
+  )
 })
 
 testthat::test_that("OPML imports skip subscriptions Rill cannot fetch", {

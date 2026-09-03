@@ -978,7 +978,7 @@ feed_tools_ui <- function() {
     shiny::tags$summary("Manage feeds"),
     shiny::tags$div(
       class = "feed-tool-section rename-feed-tools",
-      shiny::tags$p(class = "feed-tool-label", "Rename selected feed"),
+      shiny::tags$p(class = "feed-tool-label", "Organize selected feed"),
       shiny::uiOutput("rename_feed_control")
     ),
     shiny::tags$div(
@@ -1029,7 +1029,7 @@ rename_feed_control_ui <- function(feed = NULL) {
   if (is.null(feed)) {
     return(shiny::tags$p(
       class = "feed-tool-help",
-      "Select a feed above to give it a different name."
+      "Select a feed above to rename, move, or unsubscribe."
     ))
   }
 
@@ -1049,9 +1049,28 @@ rename_feed_control_ui <- function(feed = NULL) {
       "Rename feed",
       class = "btn-rename-feed"
     ),
+    shiny::textInput(
+      "feed_folder",
+      label = "Folder",
+      value = feed$folder,
+      placeholder = "Folder"
+    ),
+    shiny::actionButton(
+      "move_feed",
+      "Move feed",
+      class = "btn-move-feed"
+    ),
+    shiny::actionButton(
+      "unsubscribe_feed",
+      "Unsubscribe",
+      class = "btn-unsubscribe-feed"
+    ),
     shiny::tags$p(
       class = "feed-tool-help",
-      "The source title and feed URL stay unchanged."
+      paste(
+        "The source stays shared. Unsubscribing hides it from this Library",
+        "but preserves reading state for restoration."
+      )
     )
   )
 }

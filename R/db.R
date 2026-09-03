@@ -62,7 +62,15 @@ postgres_connection_args <- function(database_url) {
   args
 }
 
+store_scalar_string <- function(value) {
+  is.character(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    nzchar(trimws(value))
+}
+
 rill_store <- function(config) {
+  legacy_reader_id <- config$actor_id %||% "reader"
   if (requireNamespace("otel", quietly = TRUE)) {
     try(
       otel::start_local_active_span(
@@ -88,8 +96,9 @@ rill_store <- function(config) {
       vapply(sample$documents, `[[`, character(1), "entry_id")
     )
     memory$state <- data.frame(
-      actor_id = character(),
+      reader_id = character(),
       entry_id = character(),
+      feed_id = character(),
       read_at = character(),
       read_reason = character(),
       starred = logical(),
@@ -104,10 +113,27 @@ rill_store <- function(config) {
       display_title = character(),
       stringsAsFactors = FALSE
     )
+    subscription_feeds <- sample$feeds[
+      sample$feeds$source_kind == "subscription",
+      ,
+      drop = FALSE
+    ]
+    memory$subscriptions <- data.frame(
+      reader_id = rep(legacy_reader_id, nrow(subscription_feeds)),
+      feed_id = subscription_feeds$feed_id,
+      folder = subscription_feeds$folder,
+      display_title = NA_character_,
+      status = "active",
+      subscribed_at = subscription_feeds$created_at,
+      updated_at = subscription_feeds$created_at,
+      deactivated_at = NA_character_,
+      stringsAsFactors = FALSE
+    )
     memory$events <- data.frame(
       event_id = character(),
-      actor_id = character(),
+      reader_id = character(),
       entry_id = character(),
+      feed_id = character(),
       session_id = character(),
       event_type = character(),
       happened_at = character(),
@@ -120,12 +146,13 @@ rill_store <- function(config) {
     memory$orientations <- list()
     memory$orientation_destination_settings <- list()
     memory$deferred_reader_questions <- list()
+    created_at <- utc_now()
     memory$readers <- data.frame(
-      reader_id = character(),
-      status = character(),
-      created_at = character(),
-      updated_at = character(),
-      disabled_at = character(),
+      reader_id = legacy_reader_id,
+      status = "active",
+      created_at = created_at,
+      updated_at = created_at,
+      disabled_at = NA_character_,
       stringsAsFactors = FALSE
     )
     memory$reader_identities <- data.frame(
@@ -165,13 +192,13 @@ rill_store <- function(config) {
       list(
         mode = "memory",
         memory = memory,
-        private_reader_id = config$actor_id
+        private_reader_id = legacy_reader_id
       ),
       class = "rill_store"
     )
     orientation <- sample_rill_orientation(
       store,
-      config$actor_id %||% "reader"
+      legacy_reader_id
     )
     run <- sample_rill_orientation_run(orientation)
     memory$agent_runs[[run$run_id]] <- run
@@ -212,12 +239,12 @@ rill_store <- function(config) {
     list(
       mode = "postgres",
       pool = database_pool,
-      private_reader_id = config$actor_id
+      private_reader_id = legacy_reader_id
     ),
     class = "rill_store"
   )
-  store_apply_schema(store)
-  store_migrate_legacy_feed_titles(store, config$actor_id)
+  store_apply_schema(store, legacy_reader_id = legacy_reader_id)
+  store_migrate_legacy_feed_titles(store, legacy_reader_id)
   store
 }
 
@@ -228,7 +255,10 @@ rill_store_close <- function(store) {
   invisible(NULL)
 }
 
-store_apply_schema <- function(store) {
+store_apply_schema <- function(
+  store,
+  legacy_reader_id = store$private_reader_id %||% "reader"
+) {
   if (!identical(store$mode, "postgres")) {
     return(invisible(NULL))
   }
@@ -243,10 +273,21 @@ store_apply_schema <- function(store) {
       silent = TRUE
     )
   }
+  if (!store_scalar_string(legacy_reader_id)) {
+    cli::cli_abort(
+      "The legacy Reader identifier must be a non-empty string.",
+      class = "rill_schema_legacy_reader_invalid"
+    )
+  }
   pool::poolWithTransaction(store$pool, function(connection) {
     DBI::dbExecute(
       connection,
       "SELECT pg_advisory_xact_lock(hashtext('rill:schema-migrations'))"
+    )
+    DBI::dbExecute(
+      connection,
+      "SELECT set_config('rill.legacy_reader_id', $1, true)",
+      params = list(legacy_reader_id)
     )
     DBI::dbExecute(
       connection,
@@ -500,38 +541,61 @@ store_migrate_legacy_feed_titles <- function(store, reader_id) {
     )
     DBI::dbExecute(
       connection,
+      paste(
+        "UPDATE subscriptions s SET display_title = f.display_title,",
+        "updated_at = now() FROM feeds f",
+        "WHERE s.reader_id = $1 AND s.feed_id = f.feed_id",
+        "AND f.display_title IS NOT NULL AND f.display_title <> ''"
+      ),
+      params = list(reader_id)
+    )
+    DBI::dbExecute(
+      connection,
       "UPDATE feeds SET display_title = NULL WHERE display_title IS NOT NULL"
     )
   })
   invisible(NULL)
 }
 
-store_list_feeds <- function(store, actor_id, source_kind = NULL) {
+store_list_feeds <- function(
+  store,
+  reader_id,
+  source_kind = NULL,
+  active_only = TRUE
+) {
   if (identical(store$mode, "postgres")) {
+    clauses <- c("s.reader_id = $1")
+    if (isTRUE(active_only)) {
+      clauses <- c(clauses, "s.status = 'active'")
+    }
     feeds <- DBI::dbGetQuery(
       store$pool,
       paste(
         paste(
-          "SELECT f.feed_id, f.feed_url, f.site_url, f.title, f.folder,",
+          "SELECT f.feed_id, f.feed_url, f.site_url, f.title, s.folder,",
           "f.source_kind, f.etag, f.last_modified, f.poll_status,",
-          "f.last_polled_at, f.created_at, p.display_title,"
+          "f.last_polled_at, f.created_at, s.display_title, s.status,",
+          "s.subscribed_at, s.updated_at, s.deactivated_at,"
         ),
-        "COUNT(e.entry_id) FILTER (WHERE s.read_at IS NULL)::integer AS unread_count,",
+        "COUNT(e.entry_id) FILTER (WHERE st.read_at IS NULL)::integer AS unread_count,",
         "COUNT(e.entry_id)::integer AS entry_count",
-        "FROM feeds f",
-        paste(
-          "LEFT JOIN subscription_preferences p ON p.feed_id = f.feed_id",
-          "AND p.reader_id = $1"
-        ),
+        "FROM subscriptions s",
+        "JOIN feeds f ON f.feed_id = s.feed_id",
         "LEFT JOIN entries e ON e.feed_id = f.feed_id",
-        "LEFT JOIN entry_state s ON s.entry_id = e.entry_id AND s.actor_id = $1",
-        "GROUP BY f.feed_id, p.display_title",
         paste(
-          "ORDER BY lower(f.folder),",
-          "lower(COALESCE(NULLIF(p.display_title, ''), f.title))"
+          "LEFT JOIN entry_state st ON st.entry_id = e.entry_id",
+          "AND st.reader_id = $1"
+        ),
+        "WHERE",
+        paste(clauses, collapse = " AND "),
+        "GROUP BY f.feed_id, s.reader_id, s.folder, s.display_title,",
+        "s.status, s.subscribed_at, s.updated_at, s.deactivated_at",
+        paste(
+          "ORDER BY lower(s.folder),",
+          "lower(COALESCE(NULLIF(s.display_title, ''), f.title))"
         )
       ),
-      params = list(actor_id)
+      params = list(reader_id)
     )
     feeds <- resolve_feed_titles(feeds)
     if (!is.null(source_kind)) {
@@ -541,11 +605,23 @@ store_list_feeds <- function(store, actor_id, source_kind = NULL) {
   }
 
   feeds <- store$memory$feeds
-  preferences <- store$memory$subscription_preferences
-  preferences <- preferences[preferences$reader_id == actor_id, , drop = FALSE]
-  feeds$display_title <- preferences$display_title[
-    match(feeds$feed_id, preferences$feed_id)
+  subscriptions <- store$memory$subscriptions
+  subscriptions <- subscriptions[
+    subscriptions$reader_id == reader_id &
+      (!isTRUE(active_only) | subscriptions$status == "active"),
+    ,
+    drop = FALSE
   ]
+  feeds <- merge(
+    feeds,
+    subscriptions,
+    by = "feed_id",
+    all = FALSE,
+    sort = FALSE,
+    suffixes = c("", "_subscription")
+  )
+  feeds$folder <- feeds$folder_subscription
+  feeds$folder_subscription <- NULL
   feeds <- resolve_feed_titles(feeds)
   feeds$unread_count <- vapply(
     feeds$feed_id,
@@ -554,7 +630,7 @@ store_list_feeds <- function(store, actor_id, source_kind = NULL) {
         store$memory$entries$feed_id == feed_id
       ]
       read_ids <- store$memory$state$entry_id[
-        store$memory$state$actor_id == actor_id &
+        store$memory$state$reader_id == reader_id &
           !is.na(store$memory$state$read_at) &
           nzchar(store$memory$state$read_at)
       ]
@@ -573,6 +649,135 @@ store_list_feeds <- function(store, actor_id, source_kind = NULL) {
   feeds[order(tolower(feeds$folder), tolower(feeds$title)), , drop = FALSE]
 }
 
+store_subscribe_feed <- function(
+  store,
+  reader_id,
+  feed_id,
+  folder = NULL,
+  now = utc_now()
+) {
+  folder <- if (is.null(folder)) NULL else normalize_subscription_folder(folder)
+  if (identical(store$mode, "postgres")) {
+    subscribed <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "INSERT INTO subscriptions (",
+        paste(
+          "reader_id, feed_id, folder, status, subscribed_at, updated_at,",
+          "deactivated_at"
+        ),
+        ") SELECT $1, f.feed_id, COALESCE($3, 'Unsorted'), 'active',",
+        "$4, $4, NULL FROM feeds f WHERE f.feed_id = $2",
+        "ON CONFLICT (reader_id, feed_id) DO UPDATE SET",
+        "folder = COALESCE($3, subscriptions.folder), status = 'active',",
+        "updated_at = $4, deactivated_at = NULL",
+        "RETURNING feed_id"
+      ),
+      params = list(reader_id, feed_id, folder %||% NA_character_, now)
+    )
+    if (nrow(subscribed) != 1L) {
+      cli::cli_abort(
+        "That feed no longer exists.",
+        class = "rill_feed_missing"
+      )
+    }
+    return(invisible(feed_id))
+  }
+
+  if (!feed_id %in% store$memory$feeds$feed_id) {
+    cli::cli_abort(
+      "That feed no longer exists.",
+      class = "rill_feed_missing"
+    )
+  }
+  subscriptions <- store$memory$subscriptions
+  index <- which(
+    subscriptions$reader_id == reader_id &
+      subscriptions$feed_id == feed_id
+  )
+  if (length(index)) {
+    index <- index[[1L]]
+    if (!is.null(folder)) {
+      subscriptions$folder[[index]] <- folder
+    }
+    subscriptions$status[[index]] <- "active"
+    subscriptions$updated_at[[index]] <- now
+    subscriptions$deactivated_at[[index]] <- NA_character_
+    store$memory$subscriptions <- subscriptions
+    return(invisible(feed_id))
+  }
+  store$memory$subscriptions <- rbind(
+    subscriptions,
+    data.frame(
+      reader_id = reader_id,
+      feed_id = feed_id,
+      folder = folder %||% "Unsorted",
+      display_title = NA_character_,
+      status = "active",
+      subscribed_at = now,
+      updated_at = now,
+      deactivated_at = NA_character_,
+      stringsAsFactors = FALSE
+    )
+  )
+  invisible(feed_id)
+}
+
+store_unsubscribe_feed <- function(
+  store,
+  reader_id,
+  feed_id,
+  now = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    updated <- DBI::dbExecute(
+      store$pool,
+      paste(
+        "UPDATE subscriptions SET status = 'inactive',",
+        "updated_at = $3, deactivated_at = $3",
+        "WHERE reader_id = $1 AND feed_id = $2 AND status = 'active'"
+      ),
+      params = list(reader_id, feed_id, now)
+    )
+    if (!identical(updated, 1L)) {
+      cli::cli_abort(
+        "That Subscription is not active.",
+        class = "rill_subscription_inactive"
+      )
+    }
+    return(invisible(feed_id))
+  }
+
+  subscriptions <- store$memory$subscriptions
+  index <- which(
+    subscriptions$reader_id == reader_id &
+      subscriptions$feed_id == feed_id &
+      subscriptions$status == "active"
+  )
+  if (!length(index)) {
+    cli::cli_abort(
+      "That Subscription is not active.",
+      class = "rill_subscription_inactive"
+    )
+  }
+  index <- index[[1L]]
+  subscriptions$status[[index]] <- "inactive"
+  subscriptions$updated_at[[index]] <- now
+  subscriptions$deactivated_at[[index]] <- now
+  store$memory$subscriptions <- subscriptions
+  invisible(feed_id)
+}
+
+normalize_subscription_folder <- function(folder) {
+  if (!store_scalar_string(folder)) {
+    cli::cli_abort(
+      "Subscription folders must be non-empty strings.",
+      class = "rill_subscription_folder_invalid"
+    )
+  }
+  trimws(folder)
+}
+
 resolve_feed_titles <- function(feeds) {
   if (!"display_title" %in% names(feeds)) {
     feeds$display_title <- NA_character_
@@ -586,7 +791,7 @@ resolve_feed_titles <- function(feeds) {
 
 store_list_entries <- function(
   store,
-  actor_id,
+  reader_id,
   view = "unread",
   feed_id = NULL,
   limit = 100L,
@@ -600,8 +805,12 @@ store_list_entries <- function(
   window <- entry_view_window(view, now, timezone)
 
   if (identical(store$mode, "postgres")) {
-    parameters <- list(actor_id)
-    clauses <- c("COALESCE(s.hidden, false) = false")
+    parameters <- list(reader_id)
+    clauses <- c(
+      "sub.reader_id = $1",
+      "sub.status = 'active'",
+      "COALESCE(s.hidden, false) = false"
+    )
 
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
@@ -640,18 +849,15 @@ store_list_entries <- function(
     query <- paste(
       "SELECT e.*,",
       paste(
-        "COALESCE(NULLIF(p.display_title, ''), f.title) AS feed_title,",
-        "f.title AS source_feed_title, f.folder,"
+        "COALESCE(NULLIF(sub.display_title, ''), f.title) AS feed_title,",
+        "f.title AS source_feed_title, sub.folder,"
       ),
       "s.read_at, s.read_reason, COALESCE(s.starred, false) AS starred,",
       "COALESCE(s.saved, false) AS saved, s.last_opened_at",
       "FROM entries e",
       "JOIN feeds f ON f.feed_id = e.feed_id",
-      paste(
-        "LEFT JOIN subscription_preferences p ON p.feed_id = e.feed_id",
-        "AND p.reader_id = $1"
-      ),
-      "LEFT JOIN entry_state s ON s.entry_id = e.entry_id AND s.actor_id = $1",
+      "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+      "LEFT JOIN entry_state s ON s.entry_id = e.entry_id AND s.reader_id = $1",
       "WHERE",
       paste(clauses, collapse = " AND "),
       "ORDER BY",
@@ -662,12 +868,12 @@ store_list_entries <- function(
     return(DBI::dbGetQuery(store$pool, query, params = parameters))
   }
 
-  memory_feeds <- store_list_feeds(store, actor_id)
+  memory_feeds <- store_list_feeds(store, reader_id)
   entries <- merge(
     store$memory$entries,
     memory_feeds[c("feed_id", "title", "source_title", "folder")],
     by = "feed_id",
-    all.x = TRUE,
+    all = FALSE,
     sort = FALSE,
     suffixes = c("", "_feed")
   )
@@ -675,7 +881,7 @@ store_list_entries <- function(
   names(entries)[names(entries) == "source_title"] <- "source_feed_title"
 
   state <- store$memory$state[
-    store$memory$state$actor_id == actor_id,
+    store$memory$state$reader_id == reader_id,
     ,
     drop = FALSE
   ]
@@ -688,12 +894,12 @@ store_list_entries <- function(
       sort = FALSE
     )
   } else {
-    entries$read_at <- NA_character_
-    entries$read_reason <- NA_character_
-    entries$starred <- FALSE
-    entries$saved <- FALSE
-    entries$hidden <- FALSE
-    entries$last_opened_at <- NA_character_
+    entries$read_at <- rep(NA_character_, nrow(entries))
+    entries$read_reason <- rep(NA_character_, nrow(entries))
+    entries$starred <- rep(FALSE, nrow(entries))
+    entries$saved <- rep(FALSE, nrow(entries))
+    entries$hidden <- rep(FALSE, nrow(entries))
+    entries$last_opened_at <- rep(NA_character_, nrow(entries))
   }
   entries$starred[is.na(entries$starred)] <- FALSE
   entries$saved[is.na(entries$saved)] <- FALSE
@@ -815,7 +1021,7 @@ entry_sort_sql <- function(sort) {
     ),
     feed = paste(
       paste0(
-        "lower(COALESCE(NULLIF(p.display_title, ''), f.title)) ",
+        "lower(COALESCE(NULLIF(sub.display_title, ''), f.title)) ",
         "COLLATE \"C\","
       ),
       "COALESCE(e.published_at, e.inserted_at) DESC, e.entry_id"
@@ -869,27 +1075,26 @@ entry_sort_index <- function(entries, sort) {
   )
 }
 
-store_get_entry <- function(store, actor_id, entry_id) {
+store_get_entry <- function(store, reader_id, entry_id) {
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
         "SELECT e.*,",
         paste(
-          "COALESCE(NULLIF(p.display_title, ''), f.title) AS feed_title,",
+          "COALESCE(NULLIF(sub.display_title, ''), f.title) AS feed_title,",
           "f.title AS source_feed_title, f.site_url,"
         ),
         "s.read_at, s.read_reason, COALESCE(s.starred, false) AS starred,",
         "COALESCE(s.saved, false) AS saved, s.last_opened_at",
         "FROM entries e JOIN feeds f ON f.feed_id = e.feed_id",
-        paste(
-          "LEFT JOIN subscription_preferences p ON p.feed_id = e.feed_id",
-          "AND p.reader_id = $1"
-        ),
-        "LEFT JOIN entry_state s ON s.entry_id = e.entry_id AND s.actor_id = $1",
-        "WHERE e.entry_id = $2"
+        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
+        "AND s.reader_id = $1",
+        "WHERE e.entry_id = $2 AND sub.reader_id = $1",
+        "AND sub.status = 'active'"
       ),
-      params = list(actor_id, entry_id)
+      params = list(reader_id, entry_id)
     )
     if (!nrow(rows)) {
       return(NULL)
@@ -897,7 +1102,7 @@ store_get_entry <- function(store, actor_id, entry_id) {
     return(as.list(rows[1, , drop = FALSE]))
   }
 
-  entries <- store_list_entries(store, actor_id, view = "all", limit = 500L)
+  entries <- store_list_entries(store, reader_id, view = "all", limit = 500L)
   row <- entries[entries$entry_id == entry_id, , drop = FALSE]
   if (!nrow(row)) {
     return(NULL)
@@ -911,6 +1116,7 @@ store_get_entry <- function(store, actor_id, entry_id) {
 
 store_find_entry_by_url <- function(
   store,
+  reader_id,
   source_url,
   canonical_url = source_url
 ) {
@@ -918,11 +1124,13 @@ store_find_entry_by_url <- function(
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "SELECT * FROM entries",
-        "WHERE url IN ($1, $2) OR canonical_url IN ($1, $2)",
-        "ORDER BY inserted_at, entry_id LIMIT 1"
+        "SELECT e.* FROM entries e",
+        "JOIN subscriptions s ON s.feed_id = e.feed_id",
+        "WHERE s.reader_id = $1 AND s.status = 'active'",
+        "AND (e.url IN ($2, $3) OR e.canonical_url IN ($2, $3))",
+        "ORDER BY e.inserted_at, e.entry_id LIMIT 1"
       ),
-      params = list(source_url, canonical_url)
+      params = list(reader_id, source_url, canonical_url)
     )
     if (!nrow(rows)) {
       return(NULL)
@@ -931,9 +1139,16 @@ store_find_entry_by_url <- function(
   }
 
   entries <- store$memory$entries
+  subscriptions <- store$memory$subscriptions
+  feed_ids <- subscriptions$feed_id[
+    subscriptions$reader_id == reader_id &
+      subscriptions$status == "active"
+  ]
   canonical_matches <- !is.na(entries$canonical_url) &
     entries$canonical_url %in% c(source_url, canonical_url)
-  matches <- entries$url %in% c(source_url, canonical_url) | canonical_matches
+  matches <- entries$feed_id %in%
+    feed_ids &
+    (entries$url %in% c(source_url, canonical_url) | canonical_matches)
   row <- entries[matches, , drop = FALSE]
   if (!nrow(row)) {
     return(NULL)
@@ -1192,23 +1407,59 @@ store_save_document_if_missing_head <- function(store, document) {
   store_save_document(store, document)
 }
 
+store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT e.feed_id FROM entries e",
+        "JOIN subscriptions s ON s.feed_id = e.feed_id",
+        "WHERE e.entry_id = $2 AND s.reader_id = $1",
+        "AND s.status = 'active'"
+      ),
+      params = list(reader_id, entry_id)
+    )
+    if (nrow(rows) == 1L) {
+      return(rows$feed_id[[1L]])
+    }
+  } else {
+    entries <- store$memory$entries
+    entry_index <- match(entry_id, entries$entry_id)
+    if (!is.na(entry_index)) {
+      feed_id <- entries$feed_id[[entry_index]]
+      subscriptions <- store$memory$subscriptions
+      allowed <- subscriptions$reader_id == reader_id &
+        subscriptions$feed_id == feed_id &
+        subscriptions$status == "active"
+      if (any(allowed)) {
+        return(feed_id)
+      }
+    }
+  }
+  cli::cli_abort(
+    "That Feed Entry is not available in this Reader's Library.",
+    class = "rill_entry_forbidden"
+  )
+}
+
 store_mark_opened <- function(
   store,
-  actor_id,
+  reader_id,
   entry_id,
   opened_at = utc_now()
 ) {
   now <- opened_at
+  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
     DBI::dbExecute(
       store$pool,
       paste(
         paste(
           "INSERT INTO entry_state",
-          "(actor_id, entry_id, read_at, read_reason, last_opened_at)"
+          "(reader_id, entry_id, feed_id, read_at, read_reason, last_opened_at)"
         ),
-        "VALUES ($1, $2, $3, 'opened', $3)",
-        "ON CONFLICT (actor_id, entry_id) DO UPDATE SET",
+        "VALUES ($1, $2, $3, $4, 'opened', $4)",
+        "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
         "read_at = COALESCE(entry_state.read_at, EXCLUDED.read_at),",
         paste(
           "read_reason = CASE WHEN entry_state.read_at IS NULL",
@@ -1216,21 +1467,22 @@ store_mark_opened <- function(
         ),
         "last_opened_at = EXCLUDED.last_opened_at"
       ),
-      params = list(actor_id, entry_id, now)
+      params = list(reader_id, entry_id, feed_id, now)
     )
     return(invisible(NULL))
   }
 
   index <- which(
-    store$memory$state$actor_id == actor_id &
+    store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
   )
   if (!length(index)) {
     store$memory$state <- rbind(
       store$memory$state,
       data.frame(
-        actor_id = actor_id,
+        reader_id = reader_id,
         entry_id = entry_id,
+        feed_id = feed_id,
         read_at = now,
         read_reason = "opened",
         starred = FALSE,
@@ -1253,22 +1505,23 @@ store_mark_opened <- function(
   invisible(NULL)
 }
 
-store_mark_unread <- function(store, actor_id, entry_id) {
+store_mark_unread <- function(store, reader_id, entry_id) {
+  store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
     changed <- DBI::dbGetQuery(
       store$pool,
       paste(
         "UPDATE entry_state SET read_at = NULL, read_reason = NULL",
-        "WHERE actor_id = $1 AND entry_id = $2 AND read_at IS NOT NULL",
+        "WHERE reader_id = $1 AND entry_id = $2 AND read_at IS NOT NULL",
         "RETURNING entry_id"
       ),
-      params = list(actor_id, entry_id)
+      params = list(reader_id, entry_id)
     )
     return(nrow(changed) == 1L)
   }
 
   index <- which(
-    store$memory$state$actor_id == actor_id &
+    store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
   )
   if (!length(index)) {
@@ -1283,7 +1536,7 @@ store_mark_unread <- function(store, actor_id, entry_id) {
 
 store_mark_entries_read <- function(
   store,
-  actor_id,
+  reader_id,
   feed_id = NULL,
   before = NULL,
   reason
@@ -1302,8 +1555,10 @@ store_mark_entries_read <- function(
   now <- utc_now()
 
   if (identical(store$mode, "postgres")) {
-    parameters <- list(actor_id, now, reason)
+    parameters <- list(reader_id, now, reason)
     clauses <- c(
+      "sub.reader_id = $1",
+      "sub.status = 'active'",
       "s.read_at IS NULL",
       "COALESCE(s.hidden, false) = false"
     )
@@ -1327,17 +1582,18 @@ store_mark_entries_read <- function(
       paste(
         paste(
           "INSERT INTO entry_state",
-          "(actor_id, entry_id, read_at, read_reason)"
+          "(reader_id, entry_id, feed_id, read_at, read_reason)"
         ),
-        "SELECT $1, e.entry_id, $2, $3",
+        "SELECT $1, e.entry_id, e.feed_id, $2, $3",
         "FROM entries e",
+        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
         paste(
           "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
-          "AND s.actor_id = $1"
+          "AND s.reader_id = $1"
         ),
         "WHERE",
         paste(clauses, collapse = " AND "),
-        "ON CONFLICT (actor_id, entry_id) DO UPDATE SET",
+        "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
         "read_at = EXCLUDED.read_at, read_reason = EXCLUDED.read_reason",
         "WHERE entry_state.read_at IS NULL",
         "RETURNING entry_id"
@@ -1347,7 +1603,12 @@ store_mark_entries_read <- function(
     return(as.character(marked$entry_id))
   }
 
-  entries <- store$memory$entries
+  active_feeds <- store_list_feeds(store, reader_id)
+  entries <- store$memory$entries[
+    store$memory$entries$feed_id %in% active_feeds$feed_id,
+    ,
+    drop = FALSE
+  ]
   keep <- rep(TRUE, nrow(entries))
   if (!is.null(feed_id) && nzchar(feed_id)) {
     keep <- keep & entries$feed_id == feed_id
@@ -1359,27 +1620,28 @@ store_mark_entries_read <- function(
 
   state <- store$memory$state
   read_ids <- state$entry_id[
-    state$actor_id == actor_id &
+    state$reader_id == reader_id &
       !is.na(state$read_at) &
       nzchar(state$read_at)
   ]
   hidden_ids <- state$entry_id[
-    state$actor_id == actor_id & state$hidden
+    state$reader_id == reader_id & state$hidden
   ]
   entry_ids <- entries$entry_id[keep]
   entry_ids <- entry_ids[!entry_ids %in% c(read_ids, hidden_ids)]
 
   for (entry_id in entry_ids) {
     index <- which(
-      store$memory$state$actor_id == actor_id &
+      store$memory$state$reader_id == reader_id &
         store$memory$state$entry_id == entry_id
     )
     if (!length(index)) {
       store$memory$state <- rbind(
         store$memory$state,
         data.frame(
-          actor_id = actor_id,
+          reader_id = reader_id,
           entry_id = entry_id,
+          feed_id = entries$feed_id[match(entry_id, entries$entry_id)],
           read_at = now,
           read_reason = reason,
           starred = FALSE,
@@ -1397,20 +1659,21 @@ store_mark_entries_read <- function(
   as.character(entry_ids)
 }
 
-store_toggle_state <- function(store, actor_id, entry_id, field) {
+store_toggle_state <- function(store, reader_id, entry_id, field) {
   if (!field %in% c("starred", "saved")) {
     cli::cli_abort(
       "{.arg field} must be one of {.val starred} or {.val saved}, not {.val {field}}."
     )
   }
 
+  feed_id <- store_entry_feed_for_reader(store, reader_id, entry_id)
   if (identical(store$mode, "postgres")) {
     query <- paste0(
-      "INSERT INTO entry_state (actor_id, entry_id, ",
+      "INSERT INTO entry_state (reader_id, entry_id, feed_id, ",
       field,
       ") ",
-      "VALUES ($1, $2, true) ",
-      "ON CONFLICT (actor_id, entry_id) DO UPDATE SET ",
+      "VALUES ($1, $2, $3, true) ",
+      "ON CONFLICT (reader_id, entry_id) DO UPDATE SET ",
       field,
       " = NOT entry_state.",
       field,
@@ -1420,19 +1683,20 @@ store_toggle_state <- function(store, actor_id, entry_id, field) {
     result <- DBI::dbGetQuery(
       store$pool,
       query,
-      params = list(actor_id, entry_id)
+      params = list(reader_id, entry_id, feed_id)
     )
     return(isTRUE(result[[field]][[1]]))
   }
 
   index <- which(
-    store$memory$state$actor_id == actor_id &
+    store$memory$state$reader_id == reader_id &
       store$memory$state$entry_id == entry_id
   )
   if (!length(index)) {
     row <- data.frame(
-      actor_id = actor_id,
+      reader_id = reader_id,
       entry_id = entry_id,
+      feed_id = feed_id,
       read_at = NA_character_,
       read_reason = NA_character_,
       starred = FALSE,
@@ -1452,6 +1716,18 @@ store_toggle_state <- function(store, actor_id, entry_id, field) {
 }
 
 store_record_event <- function(store, event, require_new = FALSE) {
+  reader_id <- event$reader_id %||% event$actor_id
+  if (!store_scalar_string(reader_id)) {
+    cli::cli_abort(
+      "Reading History events require a Reader.",
+      class = "rill_event_reader_invalid"
+    )
+  }
+  feed_id <- if (is.null(event$entry_id)) {
+    NA_character_
+  } else {
+    store_entry_feed_for_reader(store, reader_id, event$entry_id)
+  }
   payload <- jsonlite::toJSON(
     event$payload %||% list(),
     auto_unbox = TRUE,
@@ -1463,14 +1739,18 @@ store_record_event <- function(store, event, require_new = FALSE) {
       store$pool,
       paste(
         "INSERT INTO events",
-        "(event_id, actor_id, entry_id, session_id, event_type, happened_at, surface, position, payload)",
-        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)",
+        paste(
+          "(event_id, reader_id, entry_id, feed_id, session_id, event_type,",
+          "happened_at, surface, position, payload)"
+        ),
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)",
         "ON CONFLICT (event_id) DO NOTHING"
       ),
       params = list(
         event$event_id,
-        event$actor_id,
+        reader_id,
         event$entry_id %||% NA_character_,
+        feed_id,
         event$session_id,
         event$event_type,
         event$happened_at,
@@ -1497,8 +1777,9 @@ store_record_event <- function(store, event, require_new = FALSE) {
     }
     row <- data.frame(
       event_id = event$event_id,
-      actor_id = event$actor_id,
+      reader_id = reader_id,
       entry_id = event$entry_id %||% NA_character_,
+      feed_id = feed_id,
       session_id = event$session_id,
       event_type = event$event_type,
       happened_at = event$happened_at,
@@ -1512,6 +1793,25 @@ store_record_event <- function(store, event, require_new = FALSE) {
   invisible(event)
 }
 
+store_find_feed_by_url <- function(store, feed_url) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT * FROM feeds WHERE feed_url = $1",
+      params = list(feed_url)
+    )
+    if (!nrow(rows)) {
+      return(NULL)
+    }
+    return(as.list(rows[1L, , drop = FALSE]))
+  }
+  index <- match(feed_url, store$memory$feeds$feed_url)
+  if (is.na(index)) {
+    return(NULL)
+  }
+  as.list(store$memory$feeds[index, , drop = FALSE])
+}
+
 store_upsert_feed <- function(store, feed) {
   if (identical(store$mode, "postgres")) {
     DBI::dbExecute(
@@ -1523,8 +1823,7 @@ store_upsert_feed <- function(store, feed) {
         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())",
         "ON CONFLICT (feed_id) DO UPDATE SET",
         "feed_url = EXCLUDED.feed_url, site_url = EXCLUDED.site_url,",
-        "title = EXCLUDED.title, folder = EXCLUDED.folder,",
-        "source_kind = EXCLUDED.source_kind,",
+        "title = EXCLUDED.title, source_kind = EXCLUDED.source_kind,",
         "etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified,",
         "poll_status = EXCLUDED.poll_status, last_polled_at = now()"
       ),
@@ -1533,7 +1832,7 @@ store_upsert_feed <- function(store, feed) {
         feed$feed_url,
         feed$site_url,
         feed$title,
-        feed$folder %||% "Unsorted",
+        "Unsorted",
         feed$source_kind %||% "subscription",
         feed$etag,
         feed$last_modified,
@@ -1552,7 +1851,7 @@ store_upsert_feed <- function(store, feed) {
     feed_url = feed$feed_url,
     site_url = feed$site_url,
     title = feed$title,
-    folder = feed$folder %||% "Unsorted",
+    folder = "Unsorted",
     source_kind = feed$source_kind %||% "subscription",
     etag = feed$etag,
     last_modified = feed$last_modified,
@@ -1563,6 +1862,7 @@ store_upsert_feed <- function(store, feed) {
   )
   if (length(index)) {
     row$created_at <- store$memory$feeds$created_at[[index[[1]]]]
+    row$folder <- store$memory$feeds$folder[[index[[1]]]]
     store$memory$feeds[index[[1]], ] <- row
   } else {
     store$memory$feeds <- rbind(store$memory$feeds, row)
@@ -1580,50 +1880,84 @@ store_rename_feed <- function(store, reader_id, feed_id, title) {
     updated <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "INSERT INTO subscription_preferences",
-        "(reader_id, feed_id, display_title)",
-        "SELECT $1, feed_id, NULLIF($3, title) FROM feeds WHERE feed_id = $2",
-        "ON CONFLICT (reader_id, feed_id) DO UPDATE SET",
-        "display_title = EXCLUDED.display_title",
-        "RETURNING feed_id"
+        "UPDATE subscriptions s",
+        "SET display_title = NULLIF($3, f.title), updated_at = now()",
+        "FROM feeds f",
+        "WHERE s.reader_id = $1 AND s.feed_id = $2",
+        "AND s.status = 'active' AND f.feed_id = s.feed_id",
+        "RETURNING s.feed_id"
       ),
       params = list(reader_id, feed_id, title)
     )
     if (nrow(updated) != 1L) {
-      cli::cli_abort("That feed no longer exists.")
+      cli::cli_abort(
+        "That Subscription is not active.",
+        class = "rill_subscription_inactive"
+      )
     }
     return(invisible(title))
   }
 
-  index <- match(feed_id, store$memory$feeds$feed_id)
-  if (is.na(index)) {
-    cli::cli_abort("That feed no longer exists.")
+  feed_index <- match(feed_id, store$memory$feeds$feed_id)
+  subscription_index <- which(
+    store$memory$subscriptions$reader_id == reader_id &
+      store$memory$subscriptions$feed_id == feed_id &
+      store$memory$subscriptions$status == "active"
+  )
+  if (is.na(feed_index) || !length(subscription_index)) {
+    cli::cli_abort(
+      "That Subscription is not active.",
+      class = "rill_subscription_inactive"
+    )
   }
-  source_title <- store$memory$feeds$title[[index]]
+  source_title <- store$memory$feeds$title[[feed_index]]
   display_title <- if (identical(title, source_title)) {
     NA_character_
   } else {
     title
   }
-  preference_index <- which(
-    store$memory$subscription_preferences$reader_id == reader_id &
-      store$memory$subscription_preferences$feed_id == feed_id
+  subscription_index <- subscription_index[[1L]]
+  store$memory$subscriptions$display_title[[subscription_index]] <-
+    display_title
+  store$memory$subscriptions$updated_at[[subscription_index]] <- utc_now()
+  invisible(title)
+}
+
+store_move_feed <- function(store, reader_id, feed_id, folder) {
+  folder <- normalize_subscription_folder(folder)
+  if (identical(store$mode, "postgres")) {
+    updated <- DBI::dbExecute(
+      store$pool,
+      paste(
+        "UPDATE subscriptions SET folder = $3, updated_at = now()",
+        "WHERE reader_id = $1 AND feed_id = $2 AND status = 'active'"
+      ),
+      params = list(reader_id, feed_id, folder)
+    )
+    if (!identical(updated, 1L)) {
+      cli::cli_abort(
+        "That Subscription is not active.",
+        class = "rill_subscription_inactive"
+      )
+    }
+    return(invisible(folder))
+  }
+
+  index <- which(
+    store$memory$subscriptions$reader_id == reader_id &
+      store$memory$subscriptions$feed_id == feed_id &
+      store$memory$subscriptions$status == "active"
   )
-  preference <- data.frame(
-    reader_id = reader_id,
-    feed_id = feed_id,
-    display_title = display_title,
-    stringsAsFactors = FALSE
-  )
-  if (length(preference_index)) {
-    store$memory$subscription_preferences[preference_index[[1]], ] <- preference
-  } else {
-    store$memory$subscription_preferences <- rbind(
-      store$memory$subscription_preferences,
-      preference
+  if (!length(index)) {
+    cli::cli_abort(
+      "That Subscription is not active.",
+      class = "rill_subscription_inactive"
     )
   }
-  invisible(title)
+  index <- index[[1L]]
+  store$memory$subscriptions$folder[[index]] <- folder
+  store$memory$subscriptions$updated_at[[index]] <- utc_now()
+  invisible(folder)
 }
 
 store_upsert_entries <- function(store, entries) {

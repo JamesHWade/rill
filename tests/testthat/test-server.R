@@ -236,7 +236,7 @@ testthat::test_that("a failed Orientation event leaves the selection unopened", 
     store$memory$state[
       0,
       c(
-        "actor_id",
+        "reader_id",
         "entry_id",
         "read_at",
         "read_reason",
@@ -3742,7 +3742,7 @@ testthat::test_that("changing views clears the current reader and retained queue
   })
 })
 
-testthat::test_that("renaming a selected feed updates its durable label", {
+testthat::test_that("organizing a selected feed updates its Subscription", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -3765,6 +3765,29 @@ testthat::test_that("renaming a selected feed updates its durable label", {
     testthat::expect_identical(
       tail(store$memory$events$event_type, 1L),
       "feed_renamed"
+    )
+
+    session$setInputs(feed_folder = "Research", move_feed = 1L)
+    session$flushReact()
+    moved <- store_list_feeds(store, config$actor_id)
+    moved <- moved[moved$feed_id == feed_id, , drop = FALSE]
+    testthat::expect_identical(moved$folder, "Research")
+    testthat::expect_identical(status_text(), "Moved feed to Research")
+    testthat::expect_identical(
+      tail(store$memory$events$event_type, 1L),
+      "feed_moved"
+    )
+
+    session$setInputs(unsubscribe_feed = 1L)
+    session$flushReact()
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      feed_id
+    )
+    testthat::expect_null(selected_feed())
+    testthat::expect_identical(
+      tail(store$memory$events$event_type, 1L),
+      "feed_unsubscribed"
     )
   })
 })

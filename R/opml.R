@@ -389,7 +389,12 @@ import_opml_subscriptions <- function(
     subscriptions,
     strict_urls = FALSE
   )
-  existing <- store_list_feeds(store, actor_id, source_kind = "subscription")
+  existing <- store_list_feeds(
+    store,
+    actor_id,
+    source_kind = "subscription",
+    active_only = FALSE
+  )
   summary <- list(
     total = nrow(subscriptions),
     imported = 0L,
@@ -418,34 +423,66 @@ import_opml_subscriptions <- function(
     }
 
     existing_index <- match(feed_url, existing$feed_url)
-    is_new <- is.na(existing_index)
-    existing_feed <- if (is_new) {
-      NULL
+    existing_feed <- if (is.na(existing_index)) {
+      store_find_feed_by_url(store, feed_url)
     } else {
       existing[existing_index, , drop = FALSE]
     }
+    is_new <- is.na(existing_index) ||
+      !identical(existing$status[[existing_index]], "active")
     feed <- list(
-      feed_id = if (is_new) {
+      feed_id = if (is.null(existing_feed)) {
         rill_id("feed", feed_url)
       } else {
         existing_feed$feed_id[[1]]
       },
       feed_url = feed_url,
-      site_url = opml_public_site_url(subscription$site_url[[1]]),
-      title = subscription$title[[1]],
+      site_url = if (is.null(existing_feed)) {
+        opml_public_site_url(subscription$site_url[[1]])
+      } else {
+        existing_feed$site_url[[1]]
+      },
+      title = if (is.null(existing_feed)) {
+        subscription$title[[1]]
+      } else {
+        existing_feed$title[[1]]
+      },
       folder = subscription$folder[[1]],
-      etag = if (is_new) NA_character_ else existing_feed$etag[[1]],
-      last_modified = if (is_new) {
+      source_kind = "subscription",
+      etag = if (is.null(existing_feed)) {
+        NA_character_
+      } else {
+        existing_feed$etag[[1]]
+      },
+      last_modified = if (is.null(existing_feed)) {
         NA_character_
       } else {
         existing_feed$last_modified[[1]]
       },
-      poll_status = if (is_new) "new" else existing_feed$poll_status[[1]]
+      poll_status = if (is.null(existing_feed)) {
+        "new"
+      } else {
+        existing_feed$poll_status[[1]]
+      }
     )
 
     stored <- tryCatch(
       {
-        store_upsert_feed(store, feed)
+        if (is.null(existing_feed)) {
+          store_upsert_feed(store, feed)
+        }
+        store_subscribe_feed(
+          store,
+          actor_id,
+          feed$feed_id,
+          folder = subscription$folder[[1]]
+        )
+        store_rename_feed(
+          store,
+          actor_id,
+          feed$feed_id,
+          subscription$title[[1]]
+        )
         TRUE
       },
       error = function(error) error

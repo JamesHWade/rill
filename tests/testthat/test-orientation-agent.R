@@ -1,5 +1,5 @@
 testthat::test_that("the Orientation Agent receives only bounded candidate Documents", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
 
   source_tool <- rill_orientation_source_tool(candidates)
@@ -108,7 +108,7 @@ testthat::test_that("the Orientation Agent receives only bounded candidate Docum
 })
 
 testthat::test_that("Orientation submission is typed, ordered, and singular", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   output <- list(
     status = "Nothing material cleared the threshold.",
@@ -155,7 +155,7 @@ testthat::test_that("Orientation submission is typed, ordered, and singular", {
 })
 
 testthat::test_that("Orientation bounds long reading copies before model use", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   candidates[[1L]]$document$markdown <- strrep("source ", 3000L)
 
@@ -173,7 +173,7 @@ testthat::test_that("Orientation bounds long reading copies before model use", {
 })
 
 testthat::test_that("Source Evidence must be inside the inspected text boundary", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   document <- candidates[[1L]]$document
   candidates[[1L]]$document$markdown <- paste0(
@@ -213,7 +213,7 @@ testthat::test_that("Source Evidence must be inside the inspected text boundary"
 })
 
 testthat::test_that("the complete Orientation tool stays below Deputy offload", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidate <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]
   candidates <- lapply(seq_len(12L), function(index) {
     copy <- candidate
@@ -235,7 +235,7 @@ testthat::test_that("the complete Orientation tool stays below Deputy offload", 
 })
 
 testthat::test_that("Orientation uses Deputy's governed asynchronous path", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
   boundary <- orientation_boundary(candidates)
   chat <- ellmer::chat_openai(
@@ -279,7 +279,7 @@ testthat::test_that("Orientation uses Deputy's governed asynchronous path", {
 })
 
 testthat::test_that("structured output becomes a validated source-linked Orientation", {
-  store <- rill_store(list(demo_mode = TRUE))
+  store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
   boundary <- orientation_boundary(candidates)
   document <- candidates[[1]]$document
