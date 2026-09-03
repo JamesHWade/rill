@@ -85,10 +85,16 @@ reader_identity_resolve <- function(adapter, request) {
   adapter$resolve(request)
 }
 
-store_ensure_reader <- function(store, reader_id, now = utc_now()) {
+store_ensure_reader <- function(
+  store,
+  reader_id,
+  now = utc_now(),
+  connection = NULL
+) {
   if (identical(store$mode, "postgres")) {
+    database <- if (is.null(connection)) store$pool else connection
     DBI::dbExecute(
-      store$pool,
+      database,
       paste(
         "INSERT INTO readers (reader_id, status, created_at, updated_at)",
         "VALUES ($1, 'active', $2, $2)",
@@ -395,15 +401,7 @@ store_admit_reader_identity <- function(
 ) {
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
-      DBI::dbExecute(
-        connection,
-        paste(
-          "INSERT INTO readers (reader_id, status, created_at, updated_at)",
-          "VALUES ($1, 'active', $2, $2)",
-          "ON CONFLICT (reader_id) DO NOTHING"
-        ),
-        params = list(reader_id, now)
-      )
+      store_ensure_reader(store, reader_id, now, connection)
       existing <- DBI::dbGetQuery(
         connection,
         paste(
@@ -522,21 +520,7 @@ store_admit_reader_identity <- function(
       class = "rill_reader_identity_conflict"
     )
   }
-  readers <- store$memory$readers
-  if (!reader_id %in% readers$reader_id) {
-    readers <- rbind(
-      readers,
-      data.frame(
-        reader_id = reader_id,
-        status = "active",
-        created_at = now,
-        updated_at = now,
-        disabled_at = NA_character_,
-        stringsAsFactors = FALSE
-      )
-    )
-    store$memory$readers <- readers
-  }
+  store_ensure_reader(store, reader_id, now)
   admissions <- store$memory$reader_admissions
   admission_index <- which(
     admissions$issuer == issuer & admissions$subject == subject
