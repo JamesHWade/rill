@@ -1164,6 +1164,109 @@ store_get_entry <- function(store, reader_id, entry_id) {
   result
 }
 
+store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT e.*,",
+        paste(
+          "COALESCE(NULLIF(sub.display_title, ''), f.title) AS feed_title,",
+          "f.title AS source_feed_title, f.site_url, sub.folder,"
+        ),
+        "s.read_at, s.read_reason, COALESCE(s.starred, false) AS starred,",
+        "COALESCE(s.saved, false) AS saved, s.last_opened_at",
+        "FROM documents d JOIN entries e ON e.entry_id = d.entry_id",
+        "JOIN feeds f ON f.feed_id = e.feed_id",
+        paste(
+          "LEFT JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+          "AND sub.reader_id = $1"
+        ),
+        "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
+        "AND s.reader_id = $1",
+        "WHERE d.document_id = $2 AND EXISTS (SELECT 1 FROM agent_runs ar",
+        paste(
+          "WHERE ar.reader_id = $1",
+          "AND ar.pinned_inputs ->> 'document_id' = $2)"
+        )
+      ),
+      params = list(reader_id, document_id)
+    )
+    if (!nrow(rows)) {
+      return(NULL)
+    }
+    return(as.list(rows[1L, , drop = FALSE]))
+  }
+
+  pinned <- any(vapply(
+    store$memory$agent_runs,
+    function(run) {
+      identical(run$reader_id, reader_id) &&
+        identical(run$pinned_inputs$document_id %||% NULL, document_id)
+    },
+    logical(1)
+  ))
+  if (!pinned) {
+    return(NULL)
+  }
+  document <- store_get_document_by_id(store, document_id)
+  if (is.null(document)) {
+    return(NULL)
+  }
+  entry_index <- match(document$entry_id, store$memory$entries$entry_id)
+  if (is.na(entry_index)) {
+    return(NULL)
+  }
+
+  entry <- as.list(store$memory$entries[entry_index, , drop = FALSE])
+  feed_index <- match(entry$feed_id, store$memory$feeds$feed_id)
+  subscription_index <- which(
+    store$memory$subscriptions$reader_id == reader_id &
+      store$memory$subscriptions$feed_id == entry$feed_id
+  )
+  state_index <- which(
+    store$memory$state$reader_id == reader_id &
+      store$memory$state$entry_id == entry$entry_id
+  )
+  feed <- store$memory$feeds[feed_index, , drop = FALSE]
+  subscription <- store$memory$subscriptions[
+    utils::tail(subscription_index, 1L),
+    ,
+    drop = FALSE
+  ]
+  entry$feed_title <- if (
+    nrow(subscription) &&
+      !is.na(subscription$display_title[[1L]]) &&
+      nzchar(subscription$display_title[[1L]])
+  ) {
+    subscription$display_title[[1L]]
+  } else {
+    feed$title[[1L]]
+  }
+  entry$source_feed_title <- feed$title[[1L]]
+  entry$site_url <- feed$site_url[[1L]]
+  entry$folder <- if (nrow(subscription)) {
+    subscription$folder[[1L]]
+  } else {
+    NA_character_
+  }
+  state_defaults <- list(
+    read_at = NA_character_,
+    read_reason = NA_character_,
+    starred = FALSE,
+    saved = FALSE,
+    last_opened_at = NA_character_
+  )
+  for (field in names(state_defaults)) {
+    entry[[field]] <- if (length(state_index)) {
+      store$memory$state[[field]][[state_index[[1L]]]]
+    } else {
+      state_defaults[[field]]
+    }
+  }
+  entry
+}
+
 store_find_entry_by_url <- function(
   store,
   reader_id,

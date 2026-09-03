@@ -120,6 +120,21 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     store_mark_opened(store, "reader-two", forbidden_entry),
     class = "rill_entry_forbidden"
   )
+  pinned_document <- new_rill_document(
+    entry_id = entry_id,
+    source_url = sample$entries$url[sample$entries$entry_id == entry_id],
+    markdown = "Pinned historical reading copy.",
+    acquisition_method = "web_extraction",
+    producer = "reader-library-test"
+  )
+  store_save_document(store, pinned_document)
+  store_start_agent_run(
+    store,
+    reader_id = "reader-one",
+    kind = "question",
+    request_key = "historical-document-pin",
+    pinned_inputs = list(document_id = pinned_document$document_id)
+  )
 
   store_unsubscribe_feed(store, "reader-one", shared_feed$feed_id)
   testthat::expect_in(
@@ -127,6 +142,17 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     store_list_active_feeds(store)$feed_id
   )
   testthat::expect_null(store_get_entry(store, "reader-one", entry_id))
+  pinned_entry <- store_get_entry_for_document_pin(
+    store,
+    "reader-one",
+    pinned_document$document_id
+  )
+  testthat::expect_identical(pinned_entry$entry_id, entry_id)
+  testthat::expect_null(store_get_entry_for_document_pin(
+    store,
+    "reader-two",
+    pinned_document$document_id
+  ))
   store_subscribe_feed(store, "reader-one", shared_feed$feed_id)
   restored <- store_list_feeds(store, "reader-one")
   restored <- restored[

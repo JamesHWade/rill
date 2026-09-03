@@ -1390,6 +1390,12 @@ testthat::test_that("a replacement session restores a completed question", {
     status = "completed",
     terminal_reason = "complete"
   )
+  entry_index <- match(document$entry_id, store$memory$entries$entry_id)
+  feed_id <- store$memory$entries$feed_id[[entry_index]]
+  store_unsubscribe_feed(store, config$actor_id, feed_id)
+  testthat::expect_null(
+    store_get_entry(store, config$actor_id, document$entry_id)
+  )
   appended <- character()
   testthat::local_mocked_bindings(
     rill_reader_agent = function(...) {
@@ -1412,6 +1418,10 @@ testthat::test_that("a replacement session restores a completed question", {
     testthat::expect_identical(active_agent_run()$run_id, run$run_id)
     testthat::expect_identical(active_agent_run()$status, "completed")
     testthat::expect_identical(selected_id(), document$entry_id)
+    testthat::expect_identical(
+      selected_document()$document_id,
+      document$document_id
+    )
     testthat::expect_identical(
       appended,
       "Answer completed before reconnection."

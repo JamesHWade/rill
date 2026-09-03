@@ -1905,7 +1905,15 @@ rill_server <- function(config, store) {
       entry_id <- selected_id()
       shiny::req(entry_id)
       refresh_tick()
-      store_get_entry(store, actor_id, entry_id)
+      entry <- store_get_entry(store, actor_id, entry_id)
+      if (is.null(entry) && !is.null(selected_document_id())) {
+        entry <- store_get_entry_for_document_pin(
+          store,
+          actor_id,
+          selected_document_id()
+        )
+      }
+      entry
     })
 
     selected_document <- shiny::reactive({
