@@ -120,8 +120,53 @@ rill_store <- function(config) {
     memory$orientations <- list()
     memory$orientation_destination_settings <- list()
     memory$deferred_reader_questions <- list()
+    memory$readers <- data.frame(
+      reader_id = character(),
+      status = character(),
+      created_at = character(),
+      updated_at = character(),
+      disabled_at = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$reader_identities <- data.frame(
+      issuer = character(),
+      subject = character(),
+      reader_id = character(),
+      email = character(),
+      display_name = character(),
+      created_at = character(),
+      last_seen_at = character(),
+      revoked_at = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$reader_admissions <- data.frame(
+      issuer = character(),
+      subject = character(),
+      status = character(),
+      email = character(),
+      display_name = character(),
+      first_seen_at = character(),
+      last_seen_at = character(),
+      attempt_count = integer(),
+      decided_at = character(),
+      stringsAsFactors = FALSE
+    )
+    memory$reader_identity_events <- data.frame(
+      event_sequence = integer(),
+      event_id = character(),
+      reader_id = character(),
+      action = character(),
+      responsible_id = character(),
+      reason = character(),
+      happened_at = character(),
+      stringsAsFactors = FALSE
+    )
     store <- structure(
-      list(mode = "memory", memory = memory),
+      list(
+        mode = "memory",
+        memory = memory,
+        private_reader_id = config$actor_id
+      ),
       class = "rill_store"
     )
     orientation <- sample_rill_orientation(
@@ -164,7 +209,11 @@ rill_store <- function(config) {
   )
 
   store <- structure(
-    list(mode = "postgres", pool = database_pool),
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = config$actor_id
+    ),
     class = "rill_store"
   )
   store_apply_schema(store)

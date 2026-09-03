@@ -1,8 +1,11 @@
 identity_test_request <- function(
   subject = NULL,
+  email = NULL,
+  display_name = NULL,
   path = "/",
   method = "GET",
-  authorization = NULL
+  authorization = NULL,
+  remote_addr = "127.0.0.1"
 ) {
   values <- list(
     PATH_INFO = path,
@@ -11,10 +14,17 @@ identity_test_request <- function(
     QUERY_STRING = "",
     SERVER_NAME = "localhost",
     SERVER_PORT = "80",
-    HTTP_HOST = "localhost"
+    HTTP_HOST = "localhost",
+    REMOTE_ADDR = remote_addr
   )
   if (!is.null(subject)) {
     values$HTTP_X_FORWARDED_USER <- subject
+  }
+  if (!is.null(email)) {
+    values$HTTP_X_FORWARDED_EMAIL <- email
+  }
+  if (!is.null(display_name)) {
+    values$HTTP_X_FORWARDED_PREFERRED_USERNAME <- display_name
   }
   if (!is.null(authorization)) {
     values$HTTP_AUTHORIZATION <- authorization

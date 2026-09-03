@@ -98,6 +98,10 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(unrelated$relation, "unrelated_records")
 
   DBI::dbExecute(store$pool, "DROP TABLE schema_migrations")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_identity_events")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_admission_requests")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_external_identities")
+  DBI::dbExecute(store$pool, "DROP TABLE readers")
   DBI::dbExecute(
     store$pool,
     "DROP TABLE orientation_destination_settings"
@@ -155,7 +159,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "004_orientations",
       "005_orientation_data_destination_settings",
       "006_deferred_reader_questions",
-      "007_agent_run_response"
+      "007_agent_run_response",
+      "008_reader_identities"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")

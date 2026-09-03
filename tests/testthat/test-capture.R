@@ -156,6 +156,7 @@ testthat::test_that("capture IDs cannot be reused for different evidence", {
 
 testthat::test_that("the HTTP endpoint authenticates and reports replays", {
   store <- rill_store(list(demo_mode = TRUE))
+  store_ensure_reader(store, "reader")
   base_calls <- 0L
   base_handler <- function(request) {
     base_calls <<- base_calls + 1L
@@ -205,6 +206,7 @@ testthat::test_that("the HTTP endpoint authenticates and reports replays", {
 
 testthat::test_that("invalid capture input returns a client error", {
   store <- rill_store(list(demo_mode = TRUE))
+  store_ensure_reader(store, "reader")
   handler <- capture_http_handler(
     function(request) NULL,
     store,
@@ -218,5 +220,28 @@ testthat::test_that("invalid capture input returns a client error", {
   testthat::expect_match(
     jsonlite::fromJSON(response$body)$error,
     "public HTTP or HTTPS URL"
+  )
+})
+
+testthat::test_that("the HTTP endpoint denies a disabled Reader", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store_ensure_reader(store, "reader")
+  store_disable_reader(
+    store,
+    "reader",
+    responsible_id = "operator:james",
+    reason = "access revoked"
+  )
+  handler <- capture_http_handler(
+    function(request) NULL,
+    store,
+    list(actor_id = "reader", capture_token = "test-secret")
+  )
+  response <- handler(capture_test_request(capture_test_payload()))
+
+  testthat::expect_identical(response$status, 403L)
+  testthat::expect_identical(
+    jsonlite::fromJSON(response$body)$error,
+    "Capture is disabled for this Reader."
   )
 })
