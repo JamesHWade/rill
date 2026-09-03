@@ -916,12 +916,33 @@ maintain_orientation_async <- function(
   )
 
   if (isTRUE(schedule_timeout)) {
+    read_current_agent_run <- function(context) {
+      tryCatch(
+        list(value = store_get_agent_run(store, reader_id, run$run_id)),
+        error = function(error) {
+          telemetry_log(
+            "warn",
+            "orientation.agent_run_read_failed",
+            list(
+              "read.context" = context,
+              "error.type" = class(error)[[1L]]
+            )
+          )
+          NULL
+        }
+      )
+    }
     watch_for_preemption <- NULL
     watch_for_preemption <- function() {
       cancel_preemption_watch <<- later::later(
         function() {
           cancel_preemption_watch <<- NULL
-          current <- store_get_agent_run(store, reader_id, run$run_id)
+          current_read <- read_current_agent_run("preemption_watch")
+          if (is.null(current_read)) {
+            watch_for_preemption()
+            return(NULL)
+          }
+          current <- current_read$value
           if (is.null(current)) {
             signal_interrupt("agent_run_missing")
           } else if (
@@ -945,7 +966,22 @@ maintain_orientation_async <- function(
     watch_for_preemption()
     cancel_deadline <- later::later(
       function() {
-        current <- store_get_agent_run(store, reader_id, run$run_id)
+        current_read <- read_current_agent_run("wall_time_deadline")
+        if (is.null(current_read)) {
+          tryCatch(
+            interrupt("wall_time_limit"),
+            error = function(error) {
+              telemetry_log(
+                "error",
+                "orientation.deadline_interrupt_failed",
+                list("error.type" = class(error)[[1L]])
+              )
+              signal_interrupt("wall_time_limit")
+            }
+          )
+          return(NULL)
+        }
+        current <- current_read$value
         if (
           is.null(current) ||
             current$status %in%
@@ -955,6 +991,7 @@ maintain_orientation_async <- function(
         } else {
           interrupt("wall_time_limit")
         }
+        NULL
       },
       delay = max(
         0,

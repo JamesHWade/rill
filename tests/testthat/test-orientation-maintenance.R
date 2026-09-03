@@ -362,6 +362,10 @@ testthat::test_that("durable preemption stops the Orientation owner", {
   resolve_output <- NULL
   reject_output <- NULL
   interrupted <- NULL
+  get_agent_run <- store_get_agent_run
+  agent_run_read <- new.env(parent = emptyenv())
+  agent_run_read$fail <- FALSE
+  agent_run_read$failures <- 0L
   last_result <- list(
     stop_reason = "complete",
     usage = deputy::AgentUsage(requests = 1L, tool_calls = 1L),
@@ -388,6 +392,19 @@ testthat::test_that("durable preemption stops the Orientation owner", {
     }
     agent
   }
+  testthat::local_mocked_bindings(
+    store_get_agent_run = function(...) {
+      if (isTRUE(agent_run_read$fail)) {
+        agent_run_read$fail <- FALSE
+        agent_run_read$failures <- agent_run_read$failures + 1L
+        cli::cli_abort(
+          "The preemption read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_agent_run(...)
+    }
+  )
   control <- maintain_orientation_async(
     store = store,
     reader_id = reader_id,
@@ -406,15 +423,17 @@ testthat::test_that("durable preemption stops the Orientation owner", {
     pinned_inputs = list(document_id = "document-1"),
     worker_id = "question-owner"
   )
-  resolve_output(list(status = "Ignored after preemption.", cards = list()))
+  agent_run_read$fail <- TRUE
   deadline <- Sys.time() + 2
   while (is.null(interrupted) && Sys.time() < deadline) {
     later::run_now(0.05)
   }
 
+  testthat::expect_identical(agent_run_read$failures, 1L)
   testthat::expect_identical(interrupted, "reader_question")
   testthat::expect_null(waiting$run)
   testthat::expect_identical(waiting$preempted$status, "cancelling")
+  resolve_output(list(status = "Ignored after preemption.", cards = list()))
   deadline <- Sys.time() + 2
   settled <- NULL
   while (is.null(settled) && Sys.time() < deadline) {
@@ -431,6 +450,73 @@ testthat::test_that("durable preemption stops the Orientation owner", {
     "deputy-orientation-preempted"
   )
   testthat::expect_null(store_get_orientation(store, reader_id))
+})
+
+testthat::test_that("Orientation deadline survives a transient state read", {
+  store <- rill_store(list(demo_mode = TRUE))
+  reader_id <- "reader-1"
+  resolve_run <- NULL
+  interrupts <- character()
+  get_agent_run <- store_get_agent_run
+  agent_run_read <- new.env(parent = emptyenv())
+  agent_run_read$fail <- FALSE
+  agent_run_read$failures <- 0L
+  agent_factory <- function(...) {
+    agent <- new.env(parent = emptyenv())
+    agent$get_model <- \() "gpt-test"
+    agent$get_provider <- \() stop("No provider object in this test.")
+    orientation_test_tool_state(agent)
+    agent$run_async <- function(...) {
+      promises::promise(function(resolve, reject) {
+        resolve_run <<- resolve
+      })
+    }
+    agent$interrupt <- function(reason) {
+      interrupts <<- c(interrupts, reason)
+      FALSE
+    }
+    agent
+  }
+  testthat::local_mocked_bindings(
+    rill_orientation_wall_time_seconds = \() 0,
+    store_get_agent_run = function(...) {
+      if (isTRUE(agent_run_read$fail)) {
+        agent_run_read$fail <- FALSE
+        agent_run_read$failures <- agent_run_read$failures + 1L
+        cli::cli_abort(
+          "The deadline read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_agent_run(...)
+    }
+  )
+  control <- maintain_orientation_async(
+    store = store,
+    reader_id = reader_id,
+    worker_id = "orientation-owner",
+    model = "openai/gpt-test",
+    candidate_limit = 3L,
+    destination_check = orientation_test_destination_check(store, reader_id),
+    agent_factory = agent_factory
+  )
+  agent_run_read$fail <- TRUE
+  deadline <- Sys.time() + 1
+  while (length(interrupts) == 0L && Sys.time() < deadline) {
+    later::run_now(0.01)
+  }
+  run <- get_agent_run(store, reader_id, control$run$run_id)
+
+  testthat::expect_identical(agent_run_read$failures, 1L)
+  testthat::expect_identical(interrupts, "wall_time_limit")
+  testthat::expect_identical(run$status, "failed")
+  testthat::expect_identical(run$terminal_reason, "wall_time_limit")
+
+  resolve_run(orientation_test_agent_result(
+    stop_reason = "wall_time_limit",
+    run_id = "deputy-orientation-deadline-read"
+  ))
+  later::run_now(0.01)
 })
 
 testthat::test_that("an inactive Orientation releases a deferred question", {

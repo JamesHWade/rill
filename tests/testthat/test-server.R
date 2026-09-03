@@ -1224,8 +1224,11 @@ testthat::test_that("a replacement session resumes a deferred question", {
   )
   appended <- character()
   get_deferred_reader_question <- store_get_deferred_reader_question
+  get_document_by_id <- store_get_document_by_id
   deferred_reads <- 0L
   deferred_read_failures_remaining <- 3L
+  document_reads <- 0L
+  document_read_failures_remaining <- 1L
   testthat::local_mocked_bindings(
     rill_reader_agent = function(on_stop, ...) {
       list(stream_async = function(prompt, stream, run_context) {
@@ -1258,6 +1261,18 @@ testthat::test_that("a replacement session resumes a deferred question", {
         )
       }
       get_deferred_reader_question(...)
+    },
+    store_get_document_by_id = function(...) {
+      document_reads <<- document_reads + 1L
+      if (document_read_failures_remaining > 0L) {
+        document_read_failures_remaining <<-
+          document_read_failures_remaining - 1L
+        cli::cli_abort(
+          "The deferred question document read failed.",
+          class = "test_database_error"
+        )
+      }
+      get_document_by_id(...)
     }
   )
 
@@ -1275,6 +1290,7 @@ testthat::test_that("a replacement session resumes a deferred question", {
 
     testthat::expect_identical(selected_id(), document$entry_id)
     testthat::expect_gte(deferred_reads, 4L)
+    testthat::expect_gte(document_reads, 2L)
     testthat::expect_identical(active_agent_run()$status, "completed")
     testthat::expect_identical(
       active_agent_run()$request_key,

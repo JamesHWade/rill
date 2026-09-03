@@ -119,6 +119,7 @@ rill_server <- function(config, store) {
     agent_run_terminal_intents <- rill_question_terminal_intents
     agent_run_stop_confirmations <- new.env(parent = emptyenv())
     pending_reader_question_cancel <- NULL
+    deferred_reader_question_resume_cancel <- NULL
     visible_agent_run_poll_cancel <- NULL
 
     existing_active_agent_run <- tryCatch(
@@ -1356,39 +1357,66 @@ rill_server <- function(config, store) {
       invisible(result)
     }
 
-    resume_deferred_reader_question <- NULL
-    resume_deferred_reader_question <- function() {
-      deferred_read <- tryCatch(
-        list(value = store_get_deferred_reader_question(store, actor_id)),
+    read_deferred_resume_value <- function(target, read) {
+      tryCatch(
+        list(value = read()),
         error = function(error) {
           telemetry_log(
             "warn",
             "agent_run.deferred_resume_failed",
-            list("error.type" = class(error)[[1L]])
+            list(
+              "read.target" = target,
+              "error.type" = class(error)[[1L]]
+            )
           )
           NULL
         }
       )
+    }
+    resume_deferred_reader_question <- NULL
+    schedule_deferred_reader_question_resume <- function(delay = 0.25) {
+      if (is.function(deferred_reader_question_resume_cancel)) {
+        return(invisible(NULL))
+      }
+      deferred_reader_question_resume_cancel <<- later::later(
+        function() {
+          deferred_reader_question_resume_cancel <<- NULL
+          if (!session$isClosed()) {
+            resume_deferred_reader_question()
+          }
+          NULL
+        },
+        delay = delay
+      )
+      invisible(NULL)
+    }
+    resume_deferred_reader_question <- function() {
+      deferred_read <- read_deferred_resume_value(
+        "deferred_question",
+        \() store_get_deferred_reader_question(store, actor_id)
+      )
       if (is.null(deferred_read)) {
-        later::later(
-          function() {
-            if (!session$isClosed()) {
-              resume_deferred_reader_question()
-            }
-            NULL
-          },
-          delay = 0.25
-        )
+        schedule_deferred_reader_question_resume()
         return(invisible(NULL))
       }
       deferred <- deferred_read$value
       if (is.null(deferred)) {
         return(invisible(NULL))
       }
-      document <- store_get_document_by_id(
-        store,
-        deferred$pinned_inputs$document_id
+      document_read <- read_deferred_resume_value(
+        "document",
+        \() {
+          store_get_document_by_id(
+            store,
+            deferred$pinned_inputs$document_id
+          )
+        }
       )
+      if (is.null(document_read)) {
+        schedule_deferred_reader_question_resume()
+        return(invisible(NULL))
+      }
+      document <- document_read$value
       if (is.null(document)) {
         telemetry_log(
           "error",
@@ -1397,15 +1425,25 @@ rill_server <- function(config, store) {
         )
         return(invisible(NULL))
       }
-      retry_of <- if (is.null(deferred$retry_of_run_id)) {
-        NULL
+      retry_of_read <- if (is.null(deferred$retry_of_run_id)) {
+        list(value = NULL)
       } else {
-        store_get_agent_run(
-          store,
-          actor_id,
-          deferred$retry_of_run_id
+        read_deferred_resume_value(
+          "retry_agent_run",
+          \() {
+            store_get_agent_run(
+              store,
+              actor_id,
+              deferred$retry_of_run_id
+            )
+          }
         )
       }
+      if (is.null(retry_of_read)) {
+        schedule_deferred_reader_question_resume()
+        return(invisible(NULL))
+      }
+      retry_of <- retry_of_read$value
       selected_id(document$entry_id)
       selected_document_id(document$document_id)
       resumed <- tryCatch(
@@ -3130,6 +3168,10 @@ rill_server <- function(config, store) {
       if (is.function(pending_reader_question_cancel)) {
         try(pending_reader_question_cancel(), silent = TRUE)
         pending_reader_question_cancel <<- NULL
+      }
+      if (is.function(deferred_reader_question_resume_cancel)) {
+        try(deferred_reader_question_resume_cancel(), silent = TRUE)
+        deferred_reader_question_resume_cancel <<- NULL
       }
       if (is.function(orientation_retry_cancel)) {
         try(orientation_retry_cancel(), silent = TRUE)
