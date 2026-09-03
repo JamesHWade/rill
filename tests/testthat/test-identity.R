@@ -322,6 +322,44 @@ testthat::test_that("operator approval attaches an identity to one Reader", {
   )
 })
 
+testthat::test_that("reattaching an identity creates a distinct audit event", {
+  local_proxy_identity()
+  config <- rill_config()
+  store <- rill_store(config)
+  reader_identity_adapter(config, store)
+  happened_at <- "2026-09-03 12:00:00 UTC"
+
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "github|reattached",
+    reader_id = "private-reader",
+    responsible_id = "operator:james",
+    reason = "initial attachment",
+    now = happened_at
+  )
+  identities <- store$memory$reader_identities
+  store$memory$reader_identities <- identities[
+    identities$subject != "github|reattached",
+  ]
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "github|reattached",
+    reader_id = "private-reader",
+    responsible_id = "operator:james",
+    reason = "reattachment",
+    now = happened_at
+  )
+
+  events <- store$memory$reader_identity_events
+  events <- events[
+    events$reason %in% c("initial attachment", "reattachment"),
+  ]
+  testthat::expect_identical(nrow(events), 2L)
+  testthat::expect_identical(length(unique(events$event_id)), 2L)
+})
+
 testthat::test_that("admission cannot create a second Reader", {
   local_proxy_identity(subjects = "github|reader")
   config <- rill_config()

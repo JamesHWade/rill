@@ -616,23 +616,36 @@ store_admit_reader_identity <- function(
         params = list(issuer, subject, now)
       )
       if (created > 0L) {
+        next_event <- DBI::dbGetQuery(
+          connection,
+          paste(
+            "SELECT nextval(pg_get_serial_sequence(",
+            "'reader_identity_events', 'event_sequence'",
+            "))::text AS event_sequence"
+          )
+        )
+        event_sequence <- next_event$event_sequence[[1L]]
         DBI::dbExecute(
           connection,
           paste(
             "INSERT INTO reader_identity_events (",
             paste(
-              "event_id, reader_id, issuer, subject, action, responsible_id,",
-              "reason, happened_at"
+              "event_sequence, event_id, reader_id, issuer, subject, action,",
+              "responsible_id, reason, happened_at"
             ),
-            ") VALUES ($1, $2, $3, $4, 'identity_attached', $5, $6, $7)"
+            ") OVERRIDING SYSTEM VALUE VALUES (",
+            "$1::bigint, $2, $3, $4, $5, 'identity_attached', $6, $7, $8",
+            ")"
           ),
           params = list(
+            event_sequence,
             rill_id(
               "reader-identity-event",
               reader_id,
               issuer,
               subject,
-              "identity_attached"
+              "identity_attached",
+              event_sequence
             ),
             reader_id,
             issuer,
@@ -690,16 +703,22 @@ store_admit_reader_identity <- function(
       )
     )
     events <- store$memory$reader_identity_events
+    event_sequence <- if (nrow(events)) {
+      max(events$event_sequence) + 1L
+    } else {
+      1L
+    }
     store$memory$reader_identity_events <- rbind(
       events,
       data.frame(
-        event_sequence = nrow(events) + 1L,
+        event_sequence = event_sequence,
         event_id = rill_id(
           "reader-identity-event",
           reader_id,
           issuer,
           subject,
-          "identity_attached"
+          "identity_attached",
+          event_sequence
         ),
         reader_id = reader_id,
         action = "identity_attached",

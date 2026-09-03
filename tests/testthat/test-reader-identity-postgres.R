@@ -218,6 +218,49 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     )
   )
 
+  reattach_subject <- "github|reattached"
+  reattach_time <- "2026-09-03 12:00:00 UTC"
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = reattach_subject,
+    reader_id = "reader-one",
+    responsible_id = "operator:james",
+    reason = "initial attachment",
+    now = reattach_time
+  )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "DELETE FROM reader_external_identities",
+      "WHERE issuer = $1 AND subject = $2"
+    ),
+    params = list(config$oidc_issuer, reattach_subject)
+  )
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = reattach_subject,
+    reader_id = "reader-one",
+    responsible_id = "operator:james",
+    reason = "reattachment",
+    now = reattach_time
+  )
+  reattach_events <- DBI::dbGetQuery(
+    store$pool,
+    paste(
+      "SELECT event_id FROM reader_identity_events",
+      "WHERE issuer = $1 AND subject = $2",
+      "ORDER BY event_sequence"
+    ),
+    params = list(config$oidc_issuer, reattach_subject)
+  )
+  testthat::expect_identical(nrow(reattach_events), 2L)
+  testthat::expect_identical(
+    length(unique(reattach_events$event_id)),
+    2L
+  )
+
   race_subject <- "google-oauth2|approval-race"
   blocker <- do.call(
     DBI::dbConnect,
