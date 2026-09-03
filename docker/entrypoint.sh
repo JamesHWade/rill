@@ -117,6 +117,7 @@ run_web() {
     --user-id-claim=sub \
     --skip-auth-strip-headers=true \
     --pass-user-headers=true \
+    --session-store-type=cookie \
     --session-cookie-minimal=true \
     --pass-basic-auth=false \
     --pass-access-token=false \

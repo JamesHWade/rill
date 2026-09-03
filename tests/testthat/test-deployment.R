@@ -76,6 +76,7 @@ testthat::test_that("the web role forwards only the verified OIDC subject", {
     "--user-id-claim=sub",
     "--skip-auth-strip-headers=true",
     "--pass-user-headers=true",
+    "--session-store-type=cookie",
     "--session-cookie-minimal=true",
     "--pass-access-token=false",
     "--pass-authorization-header=false",
