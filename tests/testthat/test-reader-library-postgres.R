@@ -179,7 +179,7 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
   if (!file.exists(file.path(package_path, "DESCRIPTION"))) {
     package_path <- NULL
   }
-  operations <- c("open", "unread", "save", "event")
+  operations <- c("open", "unread", "save", "event", "bulk")
   application_names <- paste0(
     "rill_library_revocation_",
     Sys.getpid(),
@@ -192,7 +192,8 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     schema_name,
     application_name,
     operation,
-    entry_id
+    entry_id,
+    feed_id
   ) {
     if (is.null(package_path)) {
       loadNamespace("rill")
@@ -216,7 +217,7 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     )
     tryCatch(
       {
-        switch(
+        value <- switch(
           operation,
           open = rill:::store_mark_opened(
             worker_store,
@@ -251,12 +252,18 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
               position = 1L,
               payload = list()
             )
+          ),
+          bulk = rill:::store_mark_entries_read(
+            worker_store,
+            "reader-one",
+            feed_id = feed_id,
+            reason = "bulk_all"
           )
         )
-        list(ok = TRUE, classes = character())
+        list(ok = TRUE, classes = character(), value = value)
       },
       error = function(error) {
-        list(ok = FALSE, classes = class(error))
+        list(ok = FALSE, classes = class(error), value = NULL)
       }
     )
   }
@@ -270,7 +277,8 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
           schema_name = schema_name,
           application_name = application_name,
           operation = operation,
-          entry_id = entry_id
+          entry_id = entry_id,
+          feed_id = shared_feed$feed_id
         ),
         stdout = "|",
         stderr = "|",
@@ -295,7 +303,7 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
       store$pool,
       paste(
         "SELECT application_name, wait_event_type FROM pg_stat_activity",
-        "WHERE application_name IN ($1, $2, $3, $4)"
+        "WHERE application_name IN ($1, $2, $3, $4, $5)"
       ),
       params = as.list(application_names)
     )
@@ -317,15 +325,23 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     worker$get_result()
   })
   workers <- list()
+  names(results) <- operations
   testthat::expect_all_equal(
-    vapply(results, `[[`, logical(1), "ok"),
+    vapply(
+      results[c("open", "unread", "save", "event")],
+      `[[`,
+      logical(1),
+      "ok"
+    ),
     FALSE
   )
   testthat::expect_all_true(vapply(
-    results,
+    results[c("open", "unread", "save", "event")],
     \(result) "rill_entry_forbidden" %in% result$classes,
     logical(1)
   ))
+  testthat::expect_identical(results$bulk$ok, TRUE)
+  testthat::expect_length(results$bulk$value, 0L)
 
   state_after_revocation <- DBI::dbGetQuery(
     store$pool,

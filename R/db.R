@@ -1650,18 +1650,22 @@ store_mark_entries_read <- function(
 
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id, now, reason)
-    clauses <- c(
+    entry_clauses <- character()
+    state_clauses <- c(
       "s.read_at IS NULL",
       "COALESCE(s.hidden, false) = false"
     )
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
-      clauses <- c(clauses, paste0("e.feed_id = $", length(parameters)))
+      entry_clauses <- c(
+        entry_clauses,
+        paste0("e.feed_id = $", length(parameters))
+      )
     }
     if (!is.null(before)) {
       parameters <- append(parameters, before)
-      clauses <- c(
-        clauses,
+      entry_clauses <- c(
+        entry_clauses,
         paste0(
           "COALESCE(e.published_at, e.inserted_at) < $",
           length(parameters)
@@ -1672,22 +1676,29 @@ store_mark_entries_read <- function(
     marked <- DBI::dbGetQuery(
       store$pool,
       paste(
+        "WITH authorized_entries AS (SELECT e.* FROM entries e",
+        paste(
+          "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+          "AND sub.reader_id = $1 AND sub.status = 'active'"
+        ),
+        if (length(entry_clauses)) {
+          paste("WHERE", paste(entry_clauses, collapse = " AND "))
+        } else {
+          ""
+        },
+        "FOR SHARE OF sub)",
         paste(
           "INSERT INTO entry_state",
           "(reader_id, entry_id, feed_id, read_at, read_reason)"
         ),
         "SELECT $1, e.entry_id, e.feed_id, $2, $3",
-        "FROM entries e",
-        paste(
-          "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
-          "AND sub.reader_id = $1 AND sub.status = 'active'"
-        ),
+        "FROM authorized_entries e",
         paste(
           "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
           "AND s.reader_id = $1"
         ),
         "WHERE",
-        paste(clauses, collapse = " AND "),
+        paste(state_clauses, collapse = " AND "),
         "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
         "read_at = EXCLUDED.read_at, read_reason = EXCLUDED.read_reason",
         "WHERE entry_state.read_at IS NULL",
