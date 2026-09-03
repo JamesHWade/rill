@@ -1,6 +1,6 @@
 # rill 0.0.0.9000
 
-* Hosted Rill now resolves verified external identities through a durable Reader Identity module, records deduplicated pending admissions and mutable profile metadata, and denies disabled Readers while retaining the fixed local adapter (#19).
+* Hosted Rill now resolves verified external identities through a durable Reader Identity module, records deduplicated pending admissions and mutable profile metadata, denies disabled Readers, and limits admission to the configured private Reader until Library isolation lands (#19).
 
 * Hosted Rill now admits only configured Auth0 subjects to one private Reader, keeps Shiny behind oauth2-proxy, strips forged identity headers, and provides complete sign-out without retaining or forwarding provider tokens (#29).
 

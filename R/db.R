@@ -162,7 +162,11 @@ rill_store <- function(config) {
       stringsAsFactors = FALSE
     )
     store <- structure(
-      list(mode = "memory", memory = memory),
+      list(
+        mode = "memory",
+        memory = memory,
+        private_reader_id = config$actor_id
+      ),
       class = "rill_store"
     )
     orientation <- sample_rill_orientation(
@@ -205,7 +209,11 @@ rill_store <- function(config) {
   )
 
   store <- structure(
-    list(mode = "postgres", pool = database_pool),
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = config$actor_id
+    ),
     class = "rill_store"
   )
   store_apply_schema(store)

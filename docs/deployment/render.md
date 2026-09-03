@@ -108,7 +108,9 @@ Rill persists the exact Auth0 issuer and `sub` pair separately from its opaque
 Reader identifier. The configured subject allowlist bootstraps the initial
 private Reader. A verified identity without a binding receives no Library
 access and creates one deduplicated pending admission; mutable email and profile
-claims never become ownership keys.
+claims never become ownership keys. Until Reader-owned Library isolation lands,
+Rill refuses to admit an identity to any Reader other than the configured
+private Reader.
 
 ## Verify before inviting a Reader
 

@@ -275,9 +275,19 @@ testthat::test_that("operator approval attaches an identity to one Reader", {
     store,
     issuer = config$oidc_issuer,
     subject = "google-oauth2|invited",
-    reader_id = "reader-invited",
+    reader_id = "private-reader",
     responsible_id = "operator:james",
-    reason = "invitation approved"
+    reason = "invitation approved",
+    now = "2026-09-03 12:00:00 UTC"
+  )
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "google-oauth2|invited",
+    reader_id = "private-reader",
+    responsible_id = "operator:james",
+    reason = "idempotent retry",
+    now = "2026-09-04 12:00:00 UTC"
   )
   active <- reader_identity_resolve(adapter, request)
   admission <- store_get_reader_admission(
@@ -285,47 +295,51 @@ testthat::test_that("operator approval attaches an identity to one Reader", {
     config$oidc_issuer,
     "google-oauth2|invited"
   )
-  events <- store_list_reader_identity_events(store, "reader-invited")
+  events <- store_list_reader_identity_events(store, "private-reader")
 
   testthat::expect_identical(pending$status, "pending")
   testthat::expect_identical(
     active[c("status", "reader_id")],
-    list(status = "active", reader_id = "reader-invited")
+    list(status = "active", reader_id = "private-reader")
   )
   testthat::expect_identical(admission$status, "approved")
   testthat::expect_identical(
-    events[c("action", "responsible_id", "reason")],
-    data.frame(
-      action = "identity_attached",
-      responsible_id = "operator:james",
-      reason = "invitation approved",
-      stringsAsFactors = FALSE
-    )
+    admission$decided_at,
+    "2026-09-03 12:00:00 UTC"
+  )
+  operator_event <- events[events$responsible_id == "operator:james", ]
+  testthat::expect_identical(
+    operator_event$action,
+    "identity_attached"
+  )
+  testthat::expect_identical(
+    operator_event$responsible_id,
+    "operator:james"
+  )
+  testthat::expect_identical(
+    operator_event$reason,
+    "invitation approved"
   )
 })
 
-testthat::test_that("an external identity cannot be relinked implicitly", {
+testthat::test_that("admission cannot create a second Reader", {
   local_proxy_identity(subjects = "github|reader")
   config <- rill_config()
   store <- rill_store(config)
-  adapter <- reader_identity_adapter(config, store)
+  reader_identity_adapter(config, store)
 
   testthat::expect_error(
     store_admit_reader_identity(
       store,
       issuer = config$oidc_issuer,
-      subject = "github|reader",
+      subject = "github|second-reader",
       reader_id = "another-reader",
       responsible_id = "operator:james",
-      reason = "unsafe relink"
+      reason = "unsafe admission"
     ),
-    class = "rill_reader_identity_conflict"
+    class = "rill_reader_isolation_incomplete"
   )
-  resolution <- reader_identity_resolve(
-    adapter,
-    identity_test_request("github|reader")
-  )
-  testthat::expect_identical(resolution$reader_id, "private-reader")
+  testthat::expect_disjoint(store$memory$readers$reader_id, "another-reader")
 })
 
 testthat::test_that("repeat OIDC resolution updates mutable profile metadata", {
@@ -404,26 +418,27 @@ testthat::test_that("disabled Readers fail closed at identity resolution", {
 
 testthat::test_that("identity audit events preserve tied insertion order", {
   withr::local_envvar(c(DATABASE_URL = "", RILL_IDENTITY_MODE = "local"))
-  store <- rill_store(rill_config())
+  config <- rill_config()
+  store <- rill_store(config)
   happened_at <- "2026-09-03 12:00:00 UTC"
   store_admit_reader_identity(
     store,
     issuer = "https://reader.example/",
     subject = "github|reader",
-    reader_id = "reader-audit",
+    reader_id = config$actor_id,
     responsible_id = "operator:james",
     reason = "invitation approved",
     now = happened_at
   )
   store_disable_reader(
     store,
-    "reader-audit",
+    config$actor_id,
     responsible_id = "operator:james",
     reason = "access revoked",
     now = happened_at
   )
 
-  events <- store_list_reader_identity_events(store, "reader-audit")
+  events <- store_list_reader_identity_events(store, config$actor_id)
 
   testthat::expect_identical(
     events$action,

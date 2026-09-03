@@ -199,6 +199,7 @@ identity_proxy_request_is_trusted <- function(request) {
 
 store_bootstrap_private_reader_identity <- function(store, config) {
   now <- utc_now()
+  store_ensure_reader(store, config$actor_id, now)
   for (subject in config$allowed_oidc_subjects) {
     store_admit_reader_identity(
       store,
@@ -367,7 +368,7 @@ store_get_reader_admission <- function(store, issuer, subject) {
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "SELECT status, email, display_name, attempt_count",
+        "SELECT status, email, display_name, attempt_count, decided_at",
         "FROM reader_admission_requests",
         "WHERE issuer = $1 AND subject = $2"
       ),
@@ -420,6 +421,18 @@ store_admit_reader_identity <- function(
   reason,
   now = utc_now()
 ) {
+  if (!identical(reader_id, store$private_reader_id)) {
+    cli::cli_abort(
+      c(
+        "Can't admit an identity to Reader {.val {reader_id}} yet.",
+        "i" = paste(
+          "Reader-owned Library isolation must land before admitting a",
+          "second Reader."
+        )
+      ),
+      class = "rill_reader_isolation_incomplete"
+    )
+  }
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
       store_ensure_reader(store, reader_id, now, connection)
@@ -492,7 +505,11 @@ store_admit_reader_identity <- function(
         connection,
         paste(
           "UPDATE reader_admission_requests",
-          "SET status = 'approved', decided_at = $3",
+          paste(
+            "SET decided_at = CASE WHEN status = 'approved'",
+            "THEN decided_at ELSE $3 END,"
+          ),
+          "status = 'approved'",
           "WHERE issuer = $1 AND subject = $2"
         ),
         params = list(issuer, subject, now)
@@ -594,8 +611,10 @@ store_admit_reader_identity <- function(
   }
   if (length(admission_index)) {
     index <- admission_index[[1L]]
+    if (!identical(admissions$status[[index]], "approved")) {
+      admissions$decided_at[[index]] <- now
+    }
     admissions$status[[index]] <- "approved"
-    admissions$decided_at[[index]] <- now
     store$memory$reader_admissions <- admissions
   }
   invisible(reader_id)

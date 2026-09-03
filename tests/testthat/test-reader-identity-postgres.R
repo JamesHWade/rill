@@ -44,18 +44,22 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
       list(minSize = 1, maxSize = 2, idleTimeout = 60)
     )
   )
-  store <- structure(
-    list(mode = "postgres", pool = database_pool),
-    class = "rill_store"
-  )
-  withr::defer(rill_store_close(store))
-  store_apply_schema(store)
   config <- list(
     identity_mode = "oidc_proxy",
     actor_id = "reader-one",
     oidc_issuer = "https://reader.us.auth0.com/",
     allowed_oidc_subjects = "github|reader"
   )
+  store <- structure(
+    list(
+      mode = "postgres",
+      pool = database_pool,
+      private_reader_id = config$actor_id
+    ),
+    class = "rill_store"
+  )
+  withr::defer(rill_store_close(store))
+  store_apply_schema(store)
   adapter <- reader_identity_adapter(config, store)
 
   active <- reader_identity_resolve(
@@ -99,13 +103,40 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     list(email = "reader@example.com", display_name = "Reader")
   )
 
+  testthat::expect_error(
+    store_admit_reader_identity(
+      store,
+      issuer = config$oidc_issuer,
+      subject = "google-oauth2|second-reader",
+      reader_id = "reader-two",
+      responsible_id = "operator:james",
+      reason = "unsafe admission"
+    ),
+    class = "rill_reader_isolation_incomplete"
+  )
+  reader_count <- DBI::dbGetQuery(
+    store$pool,
+    "SELECT COUNT(*) AS count FROM readers WHERE reader_id = 'reader-two'"
+  )
+  testthat::expect_identical(as.integer(reader_count$count[[1L]]), 0L)
+
   store_admit_reader_identity(
     store,
     issuer = config$oidc_issuer,
     subject = "google-oauth2|unknown",
-    reader_id = "reader-two",
+    reader_id = "reader-one",
     responsible_id = "operator:james",
-    reason = "invitation approved"
+    reason = "invitation approved",
+    now = "2026-09-03 12:00:00 UTC"
+  )
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "google-oauth2|unknown",
+    reader_id = "reader-one",
+    responsible_id = "operator:james",
+    reason = "idempotent retry",
+    now = "2026-09-04 12:00:00 UTC"
   )
   admitted <- reader_identity_resolve(
     adapter,
@@ -113,22 +144,42 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
   )
   testthat::expect_identical(
     admitted[c("status", "reader_id")],
-    list(status = "active", reader_id = "reader-two")
+    list(status = "active", reader_id = "reader-one")
+  )
+  approved_admission <- store_get_reader_admission(
+    store,
+    config$oidc_issuer,
+    "google-oauth2|unknown"
   )
   testthat::expect_identical(
-    store_get_reader_admission(
-      store,
-      config$oidc_issuer,
-      "google-oauth2|unknown"
-    )$status,
-    "approved"
+    approved_admission[c("status", "decided_at")],
+    list(
+      status = "approved",
+      decided_at = as.POSIXct("2026-09-03 12:00:00", tz = "UTC")
+    )
   )
 
+  happened_at <- "2099-09-03 12:00:00 UTC"
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "github|audit",
+    reader_id = "reader-one",
+    responsible_id = "operator:james",
+    reason = "audit order",
+    now = happened_at
+  )
   store_disable_reader(
     store,
     "reader-one",
     responsible_id = "operator:james",
-    reason = "access revoked"
+    reason = "access revoked",
+    now = happened_at
+  )
+  audit_events <- store_list_reader_identity_events(store, "reader-one")
+  testthat::expect_identical(
+    utils::tail(audit_events$action, 2L),
+    c("identity_attached", "reader_disabled")
   )
   disabled <- reader_identity_resolve(
     adapter,
@@ -150,27 +201,5 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
   testthat::expect_identical(
     local_disabled[c("status", "reader_id")],
     list(status = "disabled", reader_id = NULL)
-  )
-
-  happened_at <- "2026-09-03 12:00:00 UTC"
-  store_admit_reader_identity(
-    store,
-    issuer = config$oidc_issuer,
-    subject = "github|audit",
-    reader_id = "reader-audit",
-    responsible_id = "operator:james",
-    reason = "invitation approved",
-    now = happened_at
-  )
-  store_disable_reader(
-    store,
-    "reader-audit",
-    responsible_id = "operator:james",
-    reason = "access revoked",
-    now = happened_at
-  )
-  testthat::expect_identical(
-    store_list_reader_identity_events(store, "reader-audit")$action,
-    c("identity_attached", "reader_disabled")
   )
 })
