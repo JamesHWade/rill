@@ -81,12 +81,26 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.metadata.outputs.tags }}
 
-      - name: Verify installed image
-        if: github.event_name == 'pull_request'
+      - name: Resolve runtime image
+        id: runtime
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           IMAGE_NAME: ${{ steps.image.outputs.name }}
         run: |
-          image="$IMAGE_NAME:sha-${GITHUB_SHA}"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            image="$IMAGE_NAME@$IMAGE_DIGEST"
+            docker pull "$image"
+          else
+            image="$IMAGE_NAME:sha-${GITHUB_SHA}"
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Verify installed image
+        env:
+          IMAGE_REF: ${{ steps.runtime.outputs.image }}
+        run: |
+          image="$IMAGE_REF"
           test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
           docker run --rm --entrypoint Rscript "$image" \
             --vanilla -e 'stopifnot(
@@ -114,9 +128,8 @@ jobs:
             "Can't poll feeds without a durable store." <<< "$output"
 
       - name: Smoke test proxied web role
-        if: github.event_name == 'pull_request'
         env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_REF: ${{ steps.runtime.outputs.image }}
         run: |
           cleanup() {
             docker rm --force rill-web-smoke >/dev/null 2>&1 || true
@@ -132,7 +145,7 @@ jobs:
             --env OAUTH2_PROXY_REDIRECT_URL=http://127.0.0.1:10000/oauth2/callback \
             --env OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true \
             --env RILL_CAPTURE_TOKEN=test-secret \
-            "$IMAGE_NAME:sha-${GITHUB_SHA}" web
+            "$IMAGE_REF" web
 
           ready=false
           for _ in {1..60}; do
