@@ -1211,6 +1211,70 @@ testthat::test_that("a replacement session resumes a deferred question", {
   })
 })
 
+testthat::test_that("a replacement session restores a completed question", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  run <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "question",
+    request_key = "completed-before-reconnect",
+    pinned_inputs = list(document_id = document$document_id)
+  )
+  run <- store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = run$run_id,
+    worker_id = "departed-session",
+    lease_expires_at = Sys.time() + 120
+  )
+  store_record_agent_run_response(
+    store,
+    reader_id = config$actor_id,
+    run_id = run$run_id,
+    worker_id = "departed-session",
+    response_text = "Answer completed before reconnection."
+  )
+  store_finish_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = run$run_id,
+    worker_id = "departed-session",
+    status = "completed",
+    terminal_reason = "complete"
+  )
+  appended <- character()
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(...) {
+      list(get_model = \() config$agent_model)
+    },
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    deadline <- Sys.time() + 2
+    while (length(appended) == 0L && Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+
+    testthat::expect_identical(active_agent_run()$run_id, run$run_id)
+    testthat::expect_identical(active_agent_run()$status, "completed")
+    testthat::expect_identical(selected_id(), document$entry_id)
+    testthat::expect_identical(
+      appended,
+      "Answer completed before reconnection."
+    )
+  })
+})
+
 testthat::test_that("a replacement session polls an adopted question", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -2968,11 +3032,13 @@ testthat::test_that("a deadline read error still interrupts and settles", {
   store <- rill_store(config)
   entry_id <- store$memory$entries$entry_id[[1]]
   get_agent_run <- store_get_agent_run
+  request_cancel <- store_request_agent_run_cancel
   interrupted <- character()
   stop_callback <- NULL
   stream_context <- NULL
   state <- new.env(parent = emptyenv())
   state$fail_read <- FALSE
+  state$fail_cancel <- FALSE
 
   testthat::local_mocked_bindings(
     rill_agent_wall_time_seconds = \() 0,
@@ -2990,8 +3056,18 @@ testthat::test_that("a deadline read error still interrupts and settles", {
       )
     },
     append_reader_chat = function(response, session) {
-      state$fail_read <- TRUE
+      state$fail_cancel <- TRUE
       promises::promise_resolve(response)
+    },
+    store_request_agent_run_cancel = function(...) {
+      if (state$fail_cancel) {
+        state$fail_cancel <- FALSE
+        cli::cli_abort(
+          "The database read was interrupted.",
+          class = "test_database_error"
+        )
+      }
+      request_cancel(...)
     },
     store_get_agent_run = function(...) {
       if (state$fail_read) {

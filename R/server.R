@@ -140,8 +140,7 @@ rill_server <- function(config, store) {
     }
     if (
       !is.null(existing_agent_run) &&
-        identical(existing_agent_run$kind, "question") &&
-        !identical(existing_agent_run$status, "completed")
+        identical(existing_agent_run$kind, "question")
     ) {
       active_agent_run(existing_agent_run)
       document <- tryCatch(
@@ -335,7 +334,8 @@ rill_server <- function(config, store) {
 
     if (
       !is.null(existing_agent_run) &&
-        !existing_agent_run$status %in% terminal_agent_run_statuses
+        (!existing_agent_run$status %in% terminal_agent_run_statuses ||
+          identical(existing_agent_run$status, "completed"))
     ) {
       schedule_visible_agent_run_poll(existing_agent_run$run_id)
     }

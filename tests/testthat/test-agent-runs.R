@@ -823,7 +823,7 @@ testthat::test_that("terminal Agent Runs clear partial state and release the Rea
   testthat::expect_identical(next_run$status, "pending")
 })
 
-testthat::test_that("ordinary lease recovery only clears unstarted work", {
+testthat::test_that("ordinary lease recovery clears expired active work", {
   store <- rill_store(list(demo_mode = TRUE))
   requested_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")
   run <- store_start_agent_run(
@@ -866,6 +866,28 @@ testthat::test_that("ordinary lease recovery only clears unstarted work", {
     started_at = requested_at,
     lease_expires_at = requested_at + 300
   )
+  cancelling <- store_start_agent_run(
+    store,
+    reader_id = "reader-4",
+    kind = "question",
+    request_key = "question-cancelling-expired",
+    pinned_inputs = list(message_id = "message-cancelling-expired"),
+    requested_at = requested_at
+  )
+  cancelling <- store_claim_agent_run(
+    store,
+    reader_id = "reader-4",
+    run_id = cancelling$run_id,
+    worker_id = "worker-4",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 120
+  )
+  cancelling <- store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-4",
+    run_id = cancelling$run_id,
+    requested_at = requested_at + 90
+  )
   pending <- store_start_agent_run(
     store,
     reader_id = "reader-3",
@@ -878,16 +900,36 @@ testthat::test_that("ordinary lease recovery only clears unstarted work", {
 
   interrupted <- store_interrupt_expired_agent_runs(store, recovered_at)
 
-  testthat::expect_length(interrupted, 1L)
-  testthat::expect_identical(interrupted[[1]]$run_id, pending$run_id)
-  testthat::expect_identical(interrupted[[1]]$status, "interrupted")
-  testthat::expect_identical(interrupted[[1]]$terminal_at, recovered_at)
-  testthat::expect_identical(
-    interrupted[[1]]$terminal_reason,
-    "lease_expired"
+  testthat::expect_setequal(
+    vapply(interrupted, `[[`, character(1), "run_id"),
+    c(run$run_id, cancelling$run_id, pending$run_id)
   )
-  testthat::expect_null(interrupted[[1]]$partial_response)
-  testthat::expect_null(interrupted[[1]]$lease_expires_at)
+  testthat::expect_identical(
+    vapply(interrupted, `[[`, character(1), "status"),
+    rep("interrupted", 3L)
+  )
+  testthat::expect_equal(
+    vapply(
+      interrupted,
+      \(item) as.numeric(item$terminal_at),
+      numeric(1)
+    ),
+    rep(as.numeric(recovered_at), 3L)
+  )
+  testthat::expect_identical(
+    vapply(interrupted, `[[`, character(1), "terminal_reason"),
+    rep("lease_expired", 3L)
+  )
+  testthat::expect_all_true(vapply(
+    interrupted,
+    \(item) is.null(item$partial_response),
+    logical(1)
+  ))
+  testthat::expect_all_true(vapply(
+    interrupted,
+    \(item) is.null(item$lease_expires_at),
+    logical(1)
+  ))
   testthat::expect_length(
     store_interrupt_expired_agent_runs(store, recovered_at),
     0L
@@ -903,23 +945,18 @@ testthat::test_that("ordinary lease recovery only clears unstarted work", {
     ),
     class = "rill_agent_run_conflict"
   )
-  preserved <- store_get_agent_run(store, "reader-1", run$run_id)
-  testthat::expect_identical(preserved$status, "running")
-  testthat::expect_identical(
-    preserved$partial_response,
-    "This output will not survive"
+  recovered <- store_get_agent_run(store, "reader-1", run$run_id)
+  testthat::expect_identical(recovered$status, "interrupted")
+  testthat::expect_null(recovered$partial_response)
+  replacement <- store_start_agent_run(
+    store,
+    reader_id = "reader-1",
+    kind = "question",
+    request_key = "ask-rill-message-20",
+    pinned_inputs = list(message_id = "message-20"),
+    requested_at = recovered_at
   )
-  testthat::expect_error(
-    store_start_agent_run(
-      store,
-      reader_id = "reader-1",
-      kind = "question",
-      request_key = "ask-rill-message-20",
-      pinned_inputs = list(message_id = "message-20"),
-      requested_at = recovered_at
-    ),
-    class = "rill_agent_run_conflict"
-  )
+  testthat::expect_identical(replacement$status, "pending")
 })
 
 testthat::test_that("Retry creates a linked Run with the same pinned inputs", {

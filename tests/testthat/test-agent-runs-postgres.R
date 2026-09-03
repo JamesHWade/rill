@@ -639,6 +639,28 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     started_at = requested_at,
     lease_expires_at = requested_at + 1
   )
+  expired_cancelling <- store_start_agent_run(
+    store,
+    reader_id = "reader-cancelling-recovery",
+    kind = "question",
+    request_key = "expired-cancelling-question",
+    pinned_inputs = list(document_id = "document-expired-cancelling"),
+    requested_at = requested_at
+  )
+  expired_cancelling <- store_claim_agent_run(
+    store,
+    reader_id = "reader-cancelling-recovery",
+    run_id = expired_cancelling$run_id,
+    worker_id = "expired-cancelling-process",
+    started_at = requested_at,
+    lease_expires_at = requested_at + 1
+  )
+  expired_cancelling <- store_request_agent_run_cancel(
+    store,
+    reader_id = "reader-cancelling-recovery",
+    run_id = expired_cancelling$run_id,
+    requested_at = requested_at + 0.5
+  )
   expired_pending <- store_start_agent_run(
     store,
     reader_id = "reader-pending-recovery",
@@ -653,19 +675,17 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   testthat::expect_setequal(
     vapply(expired_recovery, `[[`, character(1), "run_id"),
-    expired_pending$run_id
+    c(expired$run_id, expired_cancelling$run_id, expired_pending$run_id)
   )
   expired <- store_get_agent_run(store, "reader-recovery", expired$run_id)
-  testthat::expect_identical(expired$status, "running")
+  testthat::expect_identical(expired$status, "interrupted")
+  testthat::expect_identical(expired$terminal_reason, "lease_expired")
   process_recovery <- store_interrupt_agent_runs(
     store,
     recovery = "process_restart",
     recovered_at = requested_at + 3
   )
-  testthat::expect_in(
-    expired$run_id,
-    vapply(process_recovery, `[[`, character(1), "run_id")
-  )
+  testthat::expect_length(process_recovery, 0L)
   replacement <- store_start_agent_run(
     store,
     reader_id = "reader-recovery",
@@ -676,7 +696,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   )
   expired <- store_get_agent_run(store, "reader-recovery", expired$run_id)
   testthat::expect_identical(expired$status, "interrupted")
-  testthat::expect_identical(expired$terminal_reason, "process_restarted")
+  testthat::expect_identical(expired$terminal_reason, "lease_expired")
   testthat::expect_identical(replacement$status, "pending")
   pending_replacement <- store_start_agent_run(
     store,

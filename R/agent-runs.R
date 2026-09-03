@@ -1110,7 +1110,7 @@ store_interrupt_agent_runs <- function(
       "WHERE status IN ('pending', 'running', 'cancelling')"
     } else {
       paste(
-        "WHERE status = 'pending'",
+        "WHERE status IN ('pending', 'running', 'cancelling')",
         "AND lease_expires_at <= $1"
       )
     }
@@ -1139,7 +1139,7 @@ store_interrupt_agent_runs <- function(
       !(if (process_restart) {
         run$status %in% c("pending", "running", "cancelling")
       } else {
-        identical(run$status, "pending")
+        run$status %in% c("pending", "running", "cancelling")
       }) ||
         (!process_restart &&
           (is.null(run$lease_expires_at) ||
