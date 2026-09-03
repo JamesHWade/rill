@@ -473,6 +473,7 @@ maintain_orientation_async <- function(
   cancel_interrupt_confirmation <- NULL
   settled_result <- NULL
   result_preceded_interrupt <- FALSE
+  durable_cancellation_seen <- FALSE
   clear_deadline <- function() {
     if (is.function(cancel_deadline)) {
       try(cancel_deadline(), silent = TRUE)
@@ -509,6 +510,13 @@ maintain_orientation_async <- function(
       return(stop_reason)
     }
     attr(error, "stop_reason") %||% orientation_failure_reason(error)
+  }
+  durable_cancellation_reason <- function() {
+    deferred <- tryCatch(
+      store_get_deferred_reader_question(store, reader_id),
+      error = \(error) NULL
+    )
+    if (is.null(deferred)) "cancelled" else "reader_question"
   }
   fail_run <- function(error, result = agent_result()) {
     current <- store_get_agent_run(store, reader_id, run$run_id)
@@ -690,7 +698,7 @@ maintain_orientation_async <- function(
     }
     if (identical(interrupted, FALSE)) {
       result <- agent_result()
-      if (!is.null(result)) {
+      if (!is.null(result) && !isTRUE(durable_cancellation_seen)) {
         result_preceded_interrupt <<- TRUE
       }
       if (
@@ -811,6 +819,15 @@ maintain_orientation_async <- function(
     response,
     onFulfilled = function(result) {
       settled_result <<- result
+      current <- store_get_agent_run(store, reader_id, run$run_id)
+      if (
+        !is.null(current) &&
+          identical(current$status, "cancelling") &&
+          is.null(terminal_intent)
+      ) {
+        durable_cancellation_seen <<- TRUE
+        signal_interrupt(durable_cancellation_reason())
+      }
       if (identical(terminal_intent, "wall_time_limit")) {
         return(finish_timed_out_run(result))
       }
@@ -861,7 +878,8 @@ maintain_orientation_async <- function(
             worker_id = worker_id,
             usage = orientation_agent_usage(result),
             terminal_reason = result$stop_reason,
-            deputy_run_id = result$run_id %||% NULL
+            deputy_run_id = result$run_id %||% NULL,
+            allow_cancelling = isTRUE(result_preceded_interrupt)
           )
           if (is.null(published)) {
             cli::cli_abort(
@@ -911,7 +929,12 @@ maintain_orientation_async <- function(
               c("completed", "failed", "cancelled", "interrupted")
           ) {
             signal_interrupt(current$terminal_reason %||% current$status)
-          } else if (current$status %in% c("running", "cancelling")) {
+          } else if (identical(current$status, "cancelling")) {
+            if (is.null(terminal_intent)) {
+              durable_cancellation_seen <<- TRUE
+              signal_interrupt(durable_cancellation_reason())
+            }
+          } else if (identical(current$status, "running")) {
             watch_for_preemption()
           }
           NULL

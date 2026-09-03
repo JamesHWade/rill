@@ -811,8 +811,14 @@ store_complete_orientation_run <- function(
   usage = list(),
   terminal_reason = "complete",
   deputy_run_id = NULL,
-  finished_at = Sys.time()
+  finished_at = Sys.time(),
+  allow_cancelling = FALSE
 ) {
+  publishable_statuses <- if (isTRUE(allow_cancelling)) {
+    c("running", "cancelling")
+  } else {
+    "running"
+  }
   run <- store_get_agent_run(
     store,
     orientation$reader_id,
@@ -821,7 +827,7 @@ store_complete_orientation_run <- function(
   if (
     is.null(run) ||
       !identical(run$kind, "orientation") ||
-      !run$status %in% c("running", "cancelling") ||
+      !run$status %in% publishable_statuses ||
       !identical(run$worker_id, worker_id) ||
       !identical(
         run$pinned_inputs$boundary_hash,
@@ -840,7 +846,7 @@ store_complete_orientation_run <- function(
     if (
       is.null(owned_run) ||
         !identical(owned_run$kind, "orientation") ||
-        !owned_run$status %in% c("running", "cancelling") ||
+        !owned_run$status %in% publishable_statuses ||
         !identical(owned_run$worker_id, worker_id) ||
         !identical(
           owned_run$pinned_inputs$boundary_hash,

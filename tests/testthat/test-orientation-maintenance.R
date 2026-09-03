@@ -356,14 +356,14 @@ testthat::test_that("a Reader's active question leaves Orientation maintenance b
   )
 })
 
-testthat::test_that("an external Reader question signals the Orientation owner", {
+testthat::test_that("durable preemption stops the Orientation owner", {
   store <- rill_store(list(demo_mode = TRUE))
   reader_id <- "reader-1"
   resolve_output <- NULL
   reject_output <- NULL
   interrupted <- NULL
   last_result <- list(
-    stop_reason = "cancelled",
+    stop_reason = "complete",
     usage = deputy::AgentUsage(requests = 1L, tool_calls = 1L),
     run_id = "deputy-orientation-preempted"
   )
@@ -397,6 +397,7 @@ testthat::test_that("an external Reader question signals the Orientation owner",
     destination_check = orientation_test_destination_check(store, reader_id),
     agent_factory = agent_factory
   )
+  rill_unregister_orientation_interrupt(control$run$run_id)
 
   waiting <- store_start_prioritized_reader_question(
     store,
@@ -405,6 +406,7 @@ testthat::test_that("an external Reader question signals the Orientation owner",
     pinned_inputs = list(document_id = "document-1"),
     worker_id = "question-owner"
   )
+  resolve_output(list(status = "Ignored after preemption.", cards = list()))
   deadline <- Sys.time() + 2
   while (is.null(interrupted) && Sys.time() < deadline) {
     later::run_now(0.05)
@@ -413,7 +415,6 @@ testthat::test_that("an external Reader question signals the Orientation owner",
   testthat::expect_identical(interrupted, "reader_question")
   testthat::expect_null(waiting$run)
   testthat::expect_identical(waiting$preempted$status, "cancelling")
-  resolve_output(list(status = "Ignored after preemption.", cards = list()))
   deadline <- Sys.time() + 2
   settled <- NULL
   while (is.null(settled) && Sys.time() < deadline) {
@@ -429,6 +430,7 @@ testthat::test_that("an external Reader question signals the Orientation owner",
     settled$deputy_run_id,
     "deputy-orientation-preempted"
   )
+  testthat::expect_null(store_get_orientation(store, reader_id))
 })
 
 testthat::test_that("an inactive Orientation releases a deferred question", {
