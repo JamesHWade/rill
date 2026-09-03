@@ -360,24 +360,34 @@ testthat::test_that("reattaching an identity creates a distinct audit event", {
   testthat::expect_identical(length(unique(events$event_id)), 2L)
 })
 
-testthat::test_that("admission cannot create a second Reader", {
+testthat::test_that("admission creates an isolated second Reader", {
   local_proxy_identity(subjects = "github|reader")
   config <- rill_config()
   store <- rill_store(config)
-  reader_identity_adapter(config, store)
+  adapter <- reader_identity_adapter(config, store)
 
-  testthat::expect_error(
-    store_admit_reader_identity(
-      store,
-      issuer = config$oidc_issuer,
-      subject = "github|second-reader",
-      reader_id = "another-reader",
-      responsible_id = "operator:james",
-      reason = "unsafe admission"
-    ),
-    class = "rill_reader_isolation_incomplete"
+  store_admit_reader_identity(
+    store,
+    issuer = config$oidc_issuer,
+    subject = "github|second-reader",
+    reader_id = "another-reader",
+    responsible_id = "operator:james",
+    reason = "invitation approved"
   )
-  testthat::expect_disjoint(store$memory$readers$reader_id, "another-reader")
+  admitted <- reader_identity_resolve(
+    adapter,
+    identity_test_request("github|second-reader")
+  )
+
+  testthat::expect_identical(
+    admitted[c("status", "reader_id")],
+    list(status = "active", reader_id = "another-reader")
+  )
+  testthat::expect_identical(
+    nrow(store_list_feeds(store, "another-reader")),
+    0L
+  )
+  testthat::expect_gt(nrow(store_list_feeds(store, "private-reader")), 0L)
 })
 
 testthat::test_that("an existing external identity cannot be relinked", {

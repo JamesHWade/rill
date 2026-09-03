@@ -12,10 +12,9 @@ job summary. Deploy the digest, such as
 `ghcr.io/jameshwade/rill@sha256:...`, rather than a mutable tag.
 
 This deployment shape implements the runtime boundary in
-[ADR 0001](../adr/0001-hosted-rill-runtime-and-identity.md). It does not make
-the current global schema safe for multiple Readers. Keep the deployment to
-one trusted Reader until the identity, ownership, and isolation tickets are
-complete.
+[ADR 0001](../adr/0001-hosted-rill-runtime-and-identity.md). Shared source
+acquisition remains distinct from each Reader's subscriptions, entry state,
+captures, and selected reading copies.
 
 ## Run the local composition
 
@@ -72,7 +71,7 @@ Set these secret environment variables on the web service:
 
 ```text
 DATABASE_URL=<Neon pooled URL ending in sslmode=require>
-RILL_ACTOR_ID=<stable single-Reader identifier>
+RILL_ACTOR_ID=<stable bootstrap Reader identifier>
 RILL_ALLOWED_OIDC_SUBJECTS=<comma-separated exact Auth0 sub values>
 RILL_ENV=production
 OAUTH2_PROXY_CLIENT_ID=<Auth0 client ID>
@@ -108,9 +107,10 @@ Rill persists the exact Auth0 issuer and `sub` pair separately from its opaque
 Reader identifier. The configured subject allowlist bootstraps the initial
 private Reader. A verified identity without a binding receives no Library
 access and creates one deduplicated pending admission; mutable email and profile
-claims never become ownership keys. Until Reader-owned Library isolation lands,
-Rill refuses to admit an identity to any Reader other than the configured
-private Reader.
+claims never become ownership keys. An operator can approve that admission for
+a new or existing Reader without exposing another Reader's Library. Rill does
+not yet include admission-management UI, so keep this an invitation-only
+operator workflow.
 
 ## Verify before inviting a Reader
 
@@ -122,14 +122,16 @@ Confirm all of these against the deployed digest:
 3. A manual `poll` cron run updates the same Neon database used by the web
    service and exits zero.
 4. Restarting the web service preserves Library state in Neon.
-5. Both configured Google and GitHub identities open the same private Library.
-6. An unconfigured identity receives the generic Rill access-denied page.
+5. Configured Google and GitHub identities open the bootstrap Reader's Library.
+6. An unconfigured identity receives the generic Rill access-denied page and
+   creates one pending admission.
 7. Supplying a forged `X-Forwarded-User` header to the public URL cannot bypass
    oauth2-proxy, and the loopback Shiny listener is externally unreachable.
 8. **Sign out** requires a fresh Auth0 login before the Library opens again.
 9. Restarting or deploying the web service reconnects to the same Library with
    no change to the configured Reader identity.
+10. An identity admitted to a second Reader starts with an empty Library and
+    cannot open the bootstrap Reader's captures or selected reading copies.
 
-This gate protects one configured private Reader. Cross-Reader data isolation
-still requires its own verified implementation before Rill can become a shared
-deployment.
+The configured allowlist intentionally maps its subjects to one bootstrap
+Reader. Additional Readers enter only through explicit, audited admission.

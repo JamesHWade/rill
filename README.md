@@ -303,18 +303,19 @@ The refresh button works inside the app. `scripts/poll.R` is the ingestion entry
 
 ## Hosted Rill direction
 
-Subscriptions, folders, Entry state, and Reading History are now Reader-owned,
-but captured Documents and selected reading copies are still global. The
-proposed invited-beta deployment uses a single Render Docker web process behind
-an OpenID Connect proxy, Auth0 as the first identity adapter, Neon PostgreSQL,
-and a separate Render cron process for feed polling. The production image,
-local composition, and exact environment contract are documented in the
+Subscriptions, folders, Entry state, Reading History, captured Documents, and
+selected reading copies are Reader-owned. Public source Documents remain
+shared, with immutable acquisition provenance. The invited-beta deployment
+uses a single Render Docker web process behind an OpenID Connect proxy, Auth0
+as the first identity adapter, Neon PostgreSQL, and a separate Render cron
+process for feed polling. The production image, local composition, and exact
+environment contract are documented in the
 [Render deployment guide](docs/deployment/render.md). See also the
 [proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
 [hosting research](docs/research/hosted-rill-platforms.md). The accepted
 [Reader ownership contract](docs/adr/0007-separate-shared-sources-from-reader-libraries.md)
-defines the required isolation and legacy migration. Do not enable a shared
-deployment until that contract is implemented and verified.
+defines the isolation and legacy migration. Additional Readers enter through
+an explicit, audited admission rather than the bootstrap allowlist.
 
 ## Package development
 

@@ -521,18 +521,6 @@ store_admit_reader_identity <- function(
   reason,
   now = utc_now()
 ) {
-  if (!identical(reader_id, store$private_reader_id)) {
-    cli::cli_abort(
-      c(
-        "Can't admit an identity to Reader {.val {reader_id}} yet.",
-        "i" = paste(
-          "Reader-owned Library isolation must land before admitting a",
-          "second Reader."
-        )
-      ),
-      class = "rill_reader_isolation_incomplete"
-    )
-  }
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
       store_lock_reader_identity(connection, issuer, subject)
