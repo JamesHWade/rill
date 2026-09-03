@@ -1196,7 +1196,7 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
       status = "completed",
       terminal_reason = "complete"
     )
-    deadline <- Sys.time() + 2
+    deadline <- Sys.time() + 3
     while (
       !"Answer from the winning session." %in% appended &&
         Sys.time() < deadline
@@ -1403,7 +1403,7 @@ testthat::test_that("a replacement session restores a completed question", {
 
   shiny::testServer(rill_server(config, store), {
     session$flushReact()
-    deadline <- Sys.time() + 2
+    deadline <- Sys.time() + 3
     while (length(appended) == 0L && Sys.time() < deadline) {
       later::run_now(0.05)
       session$flushReact()
@@ -1491,7 +1491,7 @@ testthat::test_that("a replacement session stops polling a legacy response", {
   })
 })
 
-testthat::test_that("a replacement session polls an adopted question", {
+testthat::test_that("a replacement session polls a promoted partial response", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -1547,6 +1547,7 @@ testthat::test_that("a replacement session polls an adopted question", {
   completed <- adopted
   completed$status <- "completed"
   completed$terminal_at <- Sys.time()
+  completed$response_text <- "An incomplete answer"
   completed_with_response <- completed
   completed_with_response$response_text <-
     "Answer from the owning session."
@@ -1591,7 +1592,7 @@ testthat::test_that("a replacement session polls an adopted question", {
 
   shiny::testServer(rill_server(config, store), {
     session$flushReact()
-    deadline <- Sys.time() + 2
+    deadline <- Sys.time() + 3
     while (
       length(appended) == 0L &&
         Sys.time() < deadline

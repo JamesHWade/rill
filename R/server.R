@@ -279,7 +279,6 @@ rill_server <- function(config, store) {
     completed_response_may_arrive <- function(run) {
       if (
         !identical(run$status, "completed") ||
-          !is.null(run$response_text) ||
           is.null(run$terminal_at)
       ) {
         return(FALSE)
