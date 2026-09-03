@@ -1736,6 +1736,66 @@ store_select_document <- function(
   invisible(document_id)
 }
 
+store_replace_selected_document <- function(
+  store,
+  reader_id,
+  expected_document_id,
+  replacement_document_id,
+  selected_at = utc_now()
+) {
+  if (identical(store$mode, "postgres")) {
+    updated <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "UPDATE reader_document_selections selected SET",
+        "document_id = replacement.document_id,",
+        "ownership_key = replacement.ownership_key, selected_at = $4",
+        "FROM documents replacement",
+        "WHERE selected.reader_id = $1",
+        "AND selected.document_id = $2",
+        "AND replacement.document_id = $3",
+        "AND replacement.entry_id = selected.entry_id",
+        "AND (replacement.reader_id IS NULL OR replacement.reader_id = $1)",
+        "RETURNING selected.entry_id"
+      ),
+      params = list(
+        reader_id,
+        expected_document_id,
+        replacement_document_id,
+        selected_at
+      )
+    )
+    return(nrow(updated) == 1L)
+  }
+
+  selections <- store$memory$document_selections
+  index <- which(
+    selections$reader_id == reader_id &
+      selections$document_id == expected_document_id
+  )
+  replacement <- store_get_document_by_id(
+    store,
+    reader_id,
+    replacement_document_id
+  )
+  if (
+    length(index) != 1L ||
+      is.null(replacement) ||
+      !identical(replacement$entry_id, selections$entry_id[[index]])
+  ) {
+    return(FALSE)
+  }
+  selections$document_id[[index]] <- replacement_document_id
+  selections$ownership_key[[index]] <- if (is.na(replacement$reader_id)) {
+    "public"
+  } else {
+    paste0("reader:", reader_id)
+  }
+  selections$selected_at[[index]] <- selected_at
+  store$memory$document_selections <- selections
+  TRUE
+}
+
 store_save_document <- function(store, document) {
   existing <- store_get_document_record(store, document$document_id)
   if (!is.null(existing)) {

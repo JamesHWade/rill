@@ -258,6 +258,19 @@ get_or_extract_document <- function(store, reader_id, entry, config) {
     }
   )
   store_save_document(store, document)
+  if (
+    !is.null(cached) &&
+      identical(cached$acquisition_method, "feed_fallback") &&
+      identical(cached$producer, "orientation-feed-copy")
+  ) {
+    store_replace_selected_document(
+      store,
+      reader_id,
+      cached$document_id,
+      document$document_id,
+      selected_at = document$received_at
+    )
+  }
   document
 }
 

@@ -97,6 +97,33 @@ testthat::test_that("PostgreSQL isolates private Documents and reading-copy sele
     store_select_document(store, "reader-two", captured$document_id),
     class = "rill_document_forbidden"
   )
+  store_select_document(store, "reader-two", public_document$document_id)
+  testthat::expect_identical(
+    store_replace_selected_document(
+      store,
+      "reader-two",
+      public_document$document_id,
+      newer_public$document_id
+    ),
+    TRUE
+  )
+  testthat::expect_identical(
+    store_replace_selected_document(
+      store,
+      "reader-two",
+      newer_public$document_id,
+      captured$document_id
+    ),
+    FALSE
+  )
+  testthat::expect_identical(
+    store_get_document(
+      store,
+      "reader-two",
+      entry$entry_id[[1L]]
+    )$document_id,
+    newer_public$document_id
+  )
   ownership_constraint <- DBI::dbGetQuery(
     store$pool,
     paste(

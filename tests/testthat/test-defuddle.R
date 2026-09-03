@@ -301,6 +301,39 @@ testthat::test_that("opening an Orientation feed copy upgrades it", {
   )
 })
 
+testthat::test_that("opening a selected Orientation copy upgrades its selection", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store$memory$documents <- list()
+  store$memory$document_heads <- character()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "orientation-feed-copy")
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    document_from_defuddle = function(entry, config) {
+      calls <<- calls + 1L
+      new_rill_document(
+        entry_id = entry$entry_id,
+        source_url = entry$url,
+        markdown = "The complete extracted article.",
+        acquisition_method = "web_extraction",
+        producer = "defuddle-test"
+      )
+    }
+  )
+
+  document <- get_or_extract_document(store, "reader", entry, list())
+  cached <- get_or_extract_document(store, "reader", entry, list())
+
+  testthat::expect_identical(calls, 1L)
+  testthat::expect_identical(cached$document_id, document$document_id)
+  testthat::expect_identical(
+    store$memory$document_selections$document_id,
+    document$document_id
+  )
+})
+
 testthat::test_that("opening an ordinary cached document does not extract", {
   store <- rill_store(list(demo_mode = TRUE))
   store$memory$documents <- list()
