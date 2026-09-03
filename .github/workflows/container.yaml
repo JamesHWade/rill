@@ -22,6 +22,9 @@ jobs:
 
       - name: Check local composition
         env:
+          ANTHROPIC_API_KEY: test-anthropic
+          AZURE_OPENAI_API_KEY: test-azure
+          GEMINI_API_KEY: test-gemini
           OAUTH2_PROXY_CLIENT_ID: test-client
           OAUTH2_PROXY_CLIENT_SECRET: test-secret
           OAUTH2_PROXY_COOKIE_SECRET: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
@@ -36,7 +39,11 @@ jobs:
             (.services.database.ports == null) and
             .services.web.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
             .services.poll.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
-            .services.web.environment.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT == "false"
+            .services.web.environment.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT == "false" and
+            .services.web.environment.ANTHROPIC_API_KEY == "test-anthropic" and
+            .services.web.environment.AZURE_OPENAI_API_KEY == "test-azure" and
+            .services.web.environment.GEMINI_API_KEY == "test-gemini" and
+            (.services.poll.environment.ANTHROPIC_API_KEY == null)
           '
 
       - uses: docker/setup-buildx-action@v3
@@ -87,6 +94,10 @@ jobs:
               requireNamespace("otel", quietly = TRUE),
               requireNamespace("otelsdk", quietly = TRUE)
             )'
+          test "$(docker run --rm --entrypoint sh "$image" \
+            -c 'printf %s "$OTEL_R_SUPPRESS_SCOPES"')" = "httr2"
+          test "$(docker run --rm --entrypoint sh "$image" \
+            -c 'printf %s "$OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"')" = "false"
           docker run --rm --entrypoint oauth2-proxy "$image" --version | \
             grep --fixed-strings 'v7.15.4'
           set +e
