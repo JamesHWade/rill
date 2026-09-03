@@ -138,4 +138,17 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     disabled[c("status", "reader_id")],
     list(status = "disabled", reader_id = NULL)
   )
+
+  local_adapter <- reader_identity_adapter(
+    list(identity_mode = "local", actor_id = "reader-one"),
+    store
+  )
+  local_disabled <- reader_identity_resolve(
+    local_adapter,
+    identity_test_request("forged-subject")
+  )
+  testthat::expect_identical(
+    local_disabled[c("status", "reader_id")],
+    list(status = "disabled", reader_id = NULL)
+  )
 })

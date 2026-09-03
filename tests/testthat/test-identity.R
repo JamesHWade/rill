@@ -117,6 +117,56 @@ testthat::test_that("the local identity adapter ignores forwarded claims", {
   )
 })
 
+testthat::test_that("the local identity adapter denies a disabled Reader", {
+  withr::local_envvar(c(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "local-reader",
+    RILL_IDENTITY_MODE = "local"
+  ))
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  store_disable_reader(
+    store,
+    "local-reader",
+    responsible_id = "operator:james",
+    reason = "access revoked"
+  )
+
+  resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_request("forged-subject")
+  )
+
+  testthat::expect_identical(
+    resolution[c("status", "reader_id")],
+    list(status = "disabled", reader_id = NULL)
+  )
+})
+
+testthat::test_that("the local adapter uses the shared server wrapper", {
+  withr::local_envvar(c(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "local-reader",
+    RILL_IDENTITY_MODE = "local"
+  ))
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  resolved_reader_id <- NULL
+  base_server <- function(input, output, session, reader_id) {
+    resolved_reader_id <<- reader_id
+  }
+  session <- list(
+    request = identity_test_request("forged-subject"),
+    close = \() testthat::fail("an active Reader session was closed")
+  )
+
+  identity_server_handler(base_server, adapter)(list(), list(), session)
+
+  testthat::expect_identical(resolved_reader_id, "local-reader")
+})
+
 testthat::test_that("configured OIDC identities resolve to the fixed Reader", {
   local_proxy_identity(paste(
     "google-oauth2|reader",
@@ -129,7 +179,7 @@ testthat::test_that("configured OIDC identities resolve to the fixed Reader", {
 
   resolutions <- lapply(
     c("google-oauth2|reader", "github|reader"),
-    \(subject) {
+    function(subject) {
       reader_identity_resolve(
         adapter,
         identity_test_request(subject)

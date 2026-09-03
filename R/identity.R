@@ -44,11 +44,12 @@ reader_identity_adapter <- function(config, store) {
   force(store)
   if (identical(config$identity_mode, "local")) {
     reader_id <- config$actor_id
+    store_ensure_reader(store, reader_id)
     return(structure(
       list(
         kind = "local",
         config = config,
-        resolve = \(request) reader_identity_resolution(reader_id)
+        resolve = \(request) store_resolve_reader(store, reader_id)
       ),
       class = "rill_reader_identity_adapter"
     ))
@@ -82,6 +83,64 @@ reader_identity_resolution <- function(reader_id, status = "active") {
 
 reader_identity_resolve <- function(adapter, request) {
   adapter$resolve(request)
+}
+
+store_ensure_reader <- function(store, reader_id, now = utc_now()) {
+  if (identical(store$mode, "postgres")) {
+    DBI::dbExecute(
+      store$pool,
+      paste(
+        "INSERT INTO readers (reader_id, status, created_at, updated_at)",
+        "VALUES ($1, 'active', $2, $2)",
+        "ON CONFLICT (reader_id) DO NOTHING"
+      ),
+      params = list(reader_id, now)
+    )
+    return(invisible(reader_id))
+  }
+  readers <- store$memory$readers
+  if (!reader_id %in% readers$reader_id) {
+    store$memory$readers <- rbind(
+      readers,
+      data.frame(
+        reader_id = reader_id,
+        status = "active",
+        created_at = now,
+        updated_at = now,
+        disabled_at = NA_character_,
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  invisible(reader_id)
+}
+
+store_resolve_reader <- function(store, reader_id) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT status FROM readers WHERE reader_id = $1",
+      params = list(reader_id)
+    )
+    if (!nrow(rows)) {
+      return(reader_identity_resolution(NULL, status = "missing"))
+    }
+    status <- rows$status[[1L]]
+    return(reader_identity_resolution(
+      if (identical(status, "active")) reader_id else NULL,
+      status = status
+    ))
+  }
+  readers <- store$memory$readers
+  index <- match(reader_id, readers$reader_id)
+  if (is.na(index)) {
+    return(reader_identity_resolution(NULL, status = "missing"))
+  }
+  status <- readers$status[[index]]
+  reader_identity_resolution(
+    if (identical(status, "active")) reader_id else NULL,
+    status = status
+  )
 }
 
 identity_claim_value <- function(value) {
