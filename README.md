@@ -305,9 +305,10 @@ Render cron process for feed polling. The production image, local composition,
 and exact environment contract are documented in the
 [Render deployment guide](docs/deployment/render.md). See also the
 [proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
-[hosting research](docs/research/hosted-rill-platforms.md). Do not enable a
-shared deployment until Reader ownership and cross-Reader isolation are
-implemented and verified.
+[hosting research](docs/research/hosted-rill-platforms.md). The accepted
+[Reader ownership contract](docs/adr/0007-separate-shared-sources-from-reader-libraries.md)
+defines the required isolation and legacy migration. Do not enable a shared
+deployment until that contract is implemented and verified.
 
 ## Package development
 

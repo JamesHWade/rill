@@ -16,15 +16,27 @@ A syndicated source of reading material that exists independently of any
 Reader's decision to follow it.
 _Avoid_: Subscription
 
+**Feed Entry**:
+A source-specific item published through a Feed. The same material published
+through two Feeds remains two Feed Entries with distinct provenance.
+_Avoid_: Story, Document
+
 **Subscription**:
-A Reader's decision to include a Feed in their Library, including their own
-organization and preferences for that Feed.
+A durable Reader-owned membership that includes a Feed in their Library,
+together with that Reader's organization and preferences. An inactive
+Subscription preserves those choices for later restoration.
 _Avoid_: Feed
 
 **Library**:
-A Reader's private collection of Subscriptions and the reading state associated
-with them.
+A Reader's private collection of Subscriptions, Captures, reading-copy
+selections, and reading state.
 _Avoid_: Tenant, workspace, account
+
+**Capture**:
+A Reader-owned inclusion of an Original Source in their Library, backed by a
+private immutable Document. It may refer to an accessible Feed Entry but never
+creates a Subscription implicitly.
+_Avoid_: Feed, Subscription, bookmark
 
 **Orientation**:
 A maintained editorial selection that identifies unread stories deserving the
@@ -97,6 +109,12 @@ _Avoid_: Document, Source Evidence
 An immutable reading copy captured from an Original Source together with the
 provenance and limitations of that capture.
 _Avoid_: Original Source, live page
+
+**Reading Copy Selection**:
+A Reader's sticky choice of which accessible Document represents a Feed Entry
+or Capture for reading. Without an explicit choice, the Reader follows the
+current public reading copy.
+_Avoid_: Document head, global selection
 
 **Source Evidence**:
 A specific passage in a Document used to inspect the support for an agent
