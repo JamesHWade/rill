@@ -128,8 +128,35 @@ testthat::test_that("a new run marks an interrupted predecessor failed", {
     store,
     "interrupted-run",
     started_at = "2026-09-03 10:00:00 UTC",
-    due_count = 1L,
+    due_count = 3L,
     failure_threshold = 5L
+  )
+  feed_ids <- store$memory$feeds$feed_id[1:2]
+  store_record_feed_poll_outcome(
+    store,
+    list(
+      run_id = "interrupted-run",
+      feed_id = feed_ids[[1L]],
+      status = "not_modified",
+      added_count = 0L,
+      error_class = NA_character_,
+      error_message = NA_character_
+    ),
+    started_at = utc_now(),
+    completed_at = utc_now()
+  )
+  store_record_feed_poll_outcome(
+    store,
+    list(
+      run_id = "interrupted-run",
+      feed_id = feed_ids[[2L]],
+      status = "failed",
+      added_count = 0L,
+      error_class = "rill_feed_unavailable",
+      error_message = "Feed unavailable."
+    ),
+    started_at = utc_now(),
+    completed_at = utc_now()
   )
 
   result <- run_due_feed_polling(
@@ -146,6 +173,8 @@ testthat::test_that("a new run marks an interrupted predecessor failed", {
 
   testthat::expect_identical(result$recovered_count, 1L)
   testthat::expect_identical(interrupted$status, "failed")
+  testthat::expect_identical(interrupted$succeeded_count, 1L)
+  testthat::expect_identical(interrupted$failed_count, 2L)
   testthat::expect_identical(
     interrupted$error_class,
     "rill_feed_poll_interrupted"
@@ -153,6 +182,40 @@ testthat::test_that("a new run marks an interrupted predecessor failed", {
   testthat::expect_identical(
     interrupted$completed_at,
     "2026-09-03 12:00:00 UTC"
+  )
+})
+
+testthat::test_that("poll_feeds reports skipped and successful runs", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  result <- list(
+    status = "skipped_overlap",
+    due_count = 0L,
+    failed_count = 0L,
+    failure_threshold = 5L
+  )
+  testthat::local_mocked_bindings(
+    rill_config = \() {
+      list(
+        demo_mode = FALSE,
+        poll_interval_minutes = 60L,
+        poll_failure_threshold = 5L
+      )
+    },
+    init_telemetry = \(config) NULL,
+    rill_store = \(config) store,
+    rill_store_close = \(store) NULL,
+    run_due_feed_polling = function(...) result
+  )
+
+  testthat::expect_message(
+    poll_feeds(),
+    "Another Feed polling run is active; skipped."
+  )
+  result$status <- "succeeded"
+  result$due_count <- 1L
+  testthat::expect_message(
+    poll_feeds(),
+    "Checked 1 due Feed; all succeeded."
   )
 })
 

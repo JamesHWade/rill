@@ -30,7 +30,9 @@ poll_feeds <- function() {
     failure_threshold = config$poll_failure_threshold
   )
   if (identical(result$status, "skipped_overlap")) {
-    cli::cli_inform("i" = "Another Feed polling run is active; skipped.")
+    cli::cli_inform(c(
+      "i" = "Another Feed polling run is active; skipped."
+    ))
     return(invisible(result))
   }
   if (identical(result$status, "failed")) {
@@ -57,9 +59,9 @@ poll_feeds <- function() {
       " due Feeds failed; recorded for retry."
     ))
   } else {
-    cli::cli_inform(
+    cli::cli_inform(c(
       "v" = "Checked {result$due_count} due Feed{?s}; all succeeded."
-    )
+    ))
   }
   invisible(result)
 }
@@ -106,13 +108,14 @@ run_due_feed_polling <- function(
           \(outcome) identical(outcome$status, "failed"),
           logical(1)
         )
+        succeeded_count <- length(outcomes) - sum(failed)
         try(
           store_finish_feed_poll_run(
             store,
             run_id,
             status = "failed",
-            succeeded_count = length(outcomes) - sum(failed),
-            failed_count = sum(failed),
+            succeeded_count = succeeded_count,
+            failed_count = nrow(feeds) - succeeded_count,
             error_class = class(error)[[1L]],
             error_message = conditionMessage(error)
           ),
@@ -188,9 +191,17 @@ store_recover_feed_poll_runs <- function(store, recovered_at) {
     recovered <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "UPDATE feed_poll_runs SET status = 'failed', completed_at = $1,",
-        "error_class = $2, error_message = $3 WHERE status = 'running'",
-        "RETURNING run_id"
+        "WITH outcome_counts AS (",
+        "SELECT runs.run_id, count(outcomes.feed_id) FILTER (",
+        "WHERE outcomes.status <> 'failed')::integer AS succeeded_count",
+        "FROM feed_poll_runs runs LEFT JOIN feed_poll_outcomes outcomes",
+        "ON outcomes.run_id = runs.run_id WHERE runs.status = 'running'",
+        "GROUP BY runs.run_id",
+        ") UPDATE feed_poll_runs AS runs SET status = 'failed',",
+        "completed_at = $1, succeeded_count = counts.succeeded_count,",
+        "failed_count = runs.due_count - counts.succeeded_count,",
+        "error_class = $2, error_message = $3 FROM outcome_counts counts",
+        "WHERE runs.run_id = counts.run_id RETURNING runs.run_id"
       ),
       params = list(recovered_at, error_class, error_message)
     )
@@ -204,6 +215,18 @@ store_recover_feed_poll_runs <- function(store, recovered_at) {
   store$memory$feed_poll_runs$completed_at[running] <- recovered_at
   store$memory$feed_poll_runs$error_class[running] <- error_class
   store$memory$feed_poll_runs$error_message[running] <- error_message
+  for (index in running) {
+    run_id <- store$memory$feed_poll_runs$run_id[[index]]
+    outcomes <- store$memory$feed_poll_outcomes[
+      store$memory$feed_poll_outcomes$run_id == run_id,
+      ,
+      drop = FALSE
+    ]
+    succeeded_count <- sum(outcomes$status != "failed")
+    store$memory$feed_poll_runs$succeeded_count[[index]] <- succeeded_count
+    store$memory$feed_poll_runs$failed_count[[index]] <-
+      store$memory$feed_poll_runs$due_count[[index]] - succeeded_count
+  }
   length(running)
 }
 
@@ -274,31 +297,19 @@ store_with_feed_poll_lock <- function(store, code) {
     return(list(acquired = TRUE, value = code()))
   }
 
-  connection <- pool::poolCheckout(store$pool)
-  acquired <- FALSE
-  on.exit(
-    {
-      if (acquired) {
-        try(
-          DBI::dbGetQuery(
-            connection,
-            "SELECT pg_advisory_unlock(hashtext('rill:feed-poll'))"
-          ),
-          silent = TRUE
-        )
-      }
-      pool::poolReturn(connection)
-    },
-    add = TRUE
-  )
-  acquired <- isTRUE(DBI::dbGetQuery(
-    connection,
-    "SELECT pg_try_advisory_lock(hashtext('rill:feed-poll')) AS acquired"
-  )$acquired[[1L]])
-  if (!acquired) {
-    return(list(acquired = FALSE, value = NULL))
-  }
-  list(acquired = TRUE, value = code())
+  pool::poolWithTransaction(store$pool, function(connection) {
+    acquired <- isTRUE(DBI::dbGetQuery(
+      connection,
+      paste(
+        "SELECT pg_try_advisory_xact_lock(",
+        "hashtext('rill:feed-poll')) AS acquired"
+      )
+    )$acquired[[1L]])
+    if (!acquired) {
+      return(list(acquired = FALSE, value = NULL))
+    }
+    list(acquired = TRUE, value = code())
+  })
 }
 
 store_list_due_feeds <- function(store, now, interval_minutes) {

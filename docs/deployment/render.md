@@ -65,8 +65,10 @@ Create one Render image-backed web service with:
 
 Create one Render image-backed cron job with the same image digest and the
 command `poll`. Choose the polling schedule in Render. Render prevents runs of
-one cron job from overlapping, and Rill also uses a PostgreSQL advisory lock so
-an accidental second scheduler exits successfully without fetching any Feed.
+one cron job from overlapping, and Rill also uses a transaction-scoped
+PostgreSQL advisory lock that remains safe through PgBouncer transaction
+pooling. An accidental second scheduler exits successfully without fetching any
+Feed.
 
 Set these secret environment variables on the web service:
 

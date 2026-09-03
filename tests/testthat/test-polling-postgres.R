@@ -65,9 +65,14 @@ testthat::test_that("PostgreSQL serializes and records Feed polling", {
     c(list(drv = RPostgres::Postgres()), connection_args)
   )
   withr::defer(DBI::dbDisconnect(blocker))
+  DBI::dbBegin(blocker)
+  withr::defer(try(DBI::dbRollback(blocker), silent = TRUE))
   acquired <- DBI::dbGetQuery(
     blocker,
-    "SELECT pg_try_advisory_lock(hashtext('rill:feed-poll')) AS acquired"
+    paste(
+      "SELECT pg_try_advisory_xact_lock(",
+      "hashtext('rill:feed-poll')) AS acquired"
+    )
   )$acquired[[1L]]
   testthat::expect_identical(acquired, TRUE)
   overlapping <- run_due_feed_polling(
@@ -78,17 +83,31 @@ testthat::test_that("PostgreSQL serializes and records Feed polling", {
     now = "2026-09-03 12:00:00 UTC"
   )
   testthat::expect_identical(overlapping$status, "skipped_overlap")
-  DBI::dbGetQuery(
-    blocker,
-    "SELECT pg_advisory_unlock(hashtext('rill:feed-poll'))"
-  )
+  DBI::dbRollback(blocker)
 
   store_start_feed_poll_run(
     store,
     "interrupted-run",
     started_at = "2026-09-03 11:00:00 UTC",
-    due_count = 1L,
+    due_count = 2L,
     failure_threshold = 5L
+  )
+  store_record_feed_poll_outcome(
+    store,
+    list(
+      run_id = "interrupted-run",
+      feed_id = feed$feed_id,
+      status = "not_modified",
+      added_count = 0L,
+      error_class = NA_character_,
+      error_message = NA_character_
+    ),
+    started_at = "2026-09-03 11:15:00 UTC",
+    completed_at = "2026-09-03 11:30:00 UTC"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "UPDATE feeds SET last_polled_at = '2026-09-03 10:00:00 UTC'"
   )
   result <- run_due_feed_polling(
     store,
@@ -117,7 +136,8 @@ testthat::test_that("PostgreSQL serializes and records Feed polling", {
   interrupted <- DBI::dbGetQuery(
     store$pool,
     paste(
-      "SELECT status, error_class FROM feed_poll_runs",
+      "SELECT status, succeeded_count, failed_count, error_class",
+      "FROM feed_poll_runs",
       "WHERE run_id = 'interrupted-run'"
     )
   )
@@ -130,6 +150,8 @@ testthat::test_that("PostgreSQL serializes and records Feed polling", {
   testthat::expect_identical(outcomes$status, "not_modified")
   testthat::expect_identical(stored_feed$poll_status, "not_modified")
   testthat::expect_identical(interrupted$status, "failed")
+  testthat::expect_identical(as.integer(interrupted$succeeded_count), 1L)
+  testthat::expect_identical(as.integer(interrupted$failed_count), 1L)
   testthat::expect_identical(
     interrupted$error_class,
     "rill_feed_poll_interrupted"
