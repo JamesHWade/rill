@@ -423,11 +423,7 @@ import_opml_subscriptions <- function(
     }
 
     existing_index <- match(feed_url, existing$feed_url)
-    existing_feed <- if (is.na(existing_index)) {
-      store_find_feed_by_url(store, feed_url)
-    } else {
-      existing[existing_index, , drop = FALSE]
-    }
+    existing_feed <- store_find_feed_by_url(store, feed_url)
     is_new <- is.na(existing_index) ||
       !identical(existing$status[[existing_index]], "active")
     feed <- list(
