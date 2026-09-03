@@ -10,9 +10,9 @@
 #' identity keys. When `RILL_CAPTURE_TOKEN` is set, the same application binds
 #' that credential to `RILL_ACTOR_ID` and accepts authenticated browser
 #' Documents at `/api/v1/captures`. Captures and reading-copy selection remain
-#' private to that Reader. `RILL_AGENT_MODEL` selects the [ellmer][ellmer::chat()]
-#' model used for source-grounded questions and Orientation. Its provider
-#' credential must also be available.
+#' private to that Reader. `RILL_AGENT_MODEL` selects the
+#' [ellmer][ellmer::chat()] model used for source-grounded questions and
+#' Orientation. Its provider credential must also be available.
 #' `RILL_AGENT_BASE_URL` selects a custom provider endpoint and is required
 #' when Rill cannot resolve the effective endpoint itself.
 #' `RILL_ORIENTATION_ENABLED=true` makes automatic Orientation available; each

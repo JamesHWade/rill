@@ -196,6 +196,28 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
     c(list(drv = RPostgres::Postgres()), connection_args)
   )
   withr::defer(DBI::dbDisconnect(connection))
+  payload <- capture_test_payload(
+    capture_id = "legacy-capture",
+    source_url = "https://example.com/entry",
+    canonical_url = "https://example.com/entry"
+  )
+  legacy_document_id <- rill_id(
+    "document",
+    "browser-capture",
+    "legacy-reader",
+    payload$capture_id
+  )
+  legacy_document <- document_from_capture(
+    normalize_capture_payload(payload),
+    "entry-1",
+    "legacy-reader",
+    "2026-09-01 12:00:00 UTC",
+    legacy_document_id
+  )
+  legacy_document$record_hash <- document_record_hash(
+    legacy_document,
+    include_reader = FALSE
+  )
   migrations <- schema_migration_files()
   run_migration <- function(migration_id) {
     migration <- migrations[[match(
@@ -253,6 +275,60 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
   DBI::dbExecute(
     connection,
     paste(
+      "INSERT INTO entries",
+      "(entry_id, feed_id, external_id, url, title)",
+      "VALUES ('entry-public', 'feed-1', 'entry-public',",
+      "'https://example.com/public', 'Public entry')"
+    )
+  )
+  DBI::dbExecute(
+    connection,
+    paste(
+      "INSERT INTO documents",
+      paste(
+        "(document_id, entry_id, source_url, canonical_url,",
+        "acquisition_method, producer, producer_version, producer_record_id,",
+        "captured_at, received_at, title, author, site, published_at,",
+        "markdown, word_count, content_hash, record_hash, provenance)"
+      ),
+      paste(
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,",
+        "$13, $14, $15, $16, $17, $18, $19::jsonb)"
+      )
+    ),
+    params = list(
+      legacy_document$document_id,
+      legacy_document$entry_id,
+      legacy_document$source_url,
+      legacy_document$canonical_url,
+      legacy_document$acquisition_method,
+      legacy_document$producer,
+      legacy_document$producer_version,
+      legacy_document$producer_record_id,
+      legacy_document$captured_at,
+      legacy_document$received_at,
+      legacy_document$title,
+      legacy_document$author,
+      legacy_document$site,
+      legacy_document$published_at,
+      legacy_document$markdown,
+      legacy_document$word_count,
+      legacy_document$content_hash,
+      legacy_document$record_hash,
+      document_provenance_json(legacy_document)
+    )
+  )
+  DBI::dbExecute(
+    connection,
+    paste(
+      "INSERT INTO entry_document_heads (entry_id, document_id)",
+      "VALUES ('entry-1', $1)"
+    ),
+    params = list(legacy_document$document_id)
+  )
+  DBI::dbExecute(
+    connection,
+    paste(
       "INSERT INTO documents",
       paste(
         "(document_id, entry_id, source_url, acquisition_method, producer,",
@@ -260,9 +336,9 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
         "provenance)"
       ),
       paste(
-        "VALUES ('capture-1', 'entry-1', 'https://example.com/entry',",
-        "'browser_capture', 'clipper', now(), 'Private copy', 2, 'content',",
-        "'record', '{\"captured_by\":\"legacy-reader\"}'::jsonb)"
+        "VALUES ('public-1', 'entry-public', 'https://example.com/public',",
+        "'web_extraction', 'extractor', now(), 'Public copy', 2, 'content',",
+        "'record', '{}'::jsonb)"
       )
     )
   )
@@ -270,7 +346,7 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
     connection,
     paste(
       "INSERT INTO entry_document_heads (entry_id, document_id)",
-      "VALUES ('entry-1', 'capture-1')"
+      "VALUES ('entry-public', 'public-1')"
     )
   )
   run_migration("009_reader_library")
@@ -279,7 +355,10 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
 
   document <- DBI::dbGetQuery(
     connection,
-    "SELECT reader_id FROM documents WHERE document_id = 'capture-1'"
+    paste(
+      "SELECT reader_id FROM documents WHERE document_id = $1"
+    ),
+    params = list(legacy_document$document_id)
   )
   selection <- DBI::dbGetQuery(
     connection,
@@ -292,9 +371,36 @@ testthat::test_that("the legacy reading-copy head migrates only to its Reader", 
     connection,
     "SELECT document_id FROM public_document_heads WHERE entry_id = 'entry-1'"
   )
+  public_selection <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT reader_id, document_id FROM reader_document_selections",
+      "WHERE entry_id = 'entry-public'"
+    )
+  )
+  retained_public_head <- DBI::dbGetQuery(
+    connection,
+    paste(
+      "SELECT document_id FROM public_document_heads",
+      "WHERE entry_id = 'entry-public'"
+    )
+  )
 
   testthat::expect_identical(document$reader_id, "legacy-reader")
   testthat::expect_identical(selection$reader_id, "legacy-reader")
-  testthat::expect_identical(selection$document_id, "capture-1")
+  testthat::expect_identical(
+    selection$document_id,
+    legacy_document$document_id
+  )
   testthat::expect_identical(nrow(public_head), 0L)
+  testthat::expect_identical(public_selection$reader_id, "legacy-reader")
+  testthat::expect_identical(public_selection$document_id, "public-1")
+  testthat::expect_identical(retained_public_head$document_id, "public-1")
+
+  migrated_store <- structure(
+    list(mode = "postgres", pool = connection),
+    class = "rill_store"
+  )
+  replayed <- capture_document(migrated_store, payload, "legacy-reader")
+  testthat::expect_identical(replayed$created, FALSE)
 })

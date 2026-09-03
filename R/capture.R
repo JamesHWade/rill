@@ -401,17 +401,6 @@ store_set_capture_credential <- function(
   invisible(reader_id)
 }
 
-store_has_capture_credentials <- function(store) {
-  if (identical(store$mode, "postgres")) {
-    rows <- DBI::dbGetQuery(
-      store$pool,
-      "SELECT EXISTS (SELECT 1 FROM reader_capture_credentials) AS present"
-    )
-    return(isTRUE(rows$present[[1L]]))
-  }
-  nrow(store$memory$capture_credentials) > 0L
-}
-
 store_resolve_capture_reader <- function(store, token) {
   if (!store_scalar_string(token)) {
     return(reader_identity_resolution(NULL, status = "missing"))
@@ -500,7 +489,7 @@ capture_http_handler <- function(base_handler, store, config) {
     if (!identical(request$PATH_INFO %||% "", capture_endpoint_path)) {
       return(base_handler(request))
     }
-    if (!store_has_capture_credentials(store)) {
+    if (!nzchar(config$capture_token %||% "")) {
       return(capture_json_response(404L, list(error = "Not found.")))
     }
 

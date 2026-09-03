@@ -158,7 +158,8 @@ RILL_ACTOR_ID=reader
 
 Set `RILL_CAPTURE_TOKEN` to enable local browser capture for the Reader named by
 `RILL_ACTOR_ID`. Use a long random value and keep it in the same secret-management
-flow as `DATABASE_URL`; Rill stores only its hash in PostgreSQL.
+flow as `DATABASE_URL`; Rill stores only its hash in PostgreSQL. Removing the
+variable disables the capture endpoint even if stored credential hashes remain.
 
 Neon is a good fit for this first version. Alternatives become attractive only for a specific reason: Supabase if bundled auth/storage is important, or a conventional managed Postgres instance if predictable always-on latency matters more than serverless scale-to-zero.
 

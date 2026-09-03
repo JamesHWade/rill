@@ -51,6 +51,7 @@ CREATE TABLE reader_document_selections (
   )
 );
 
+-- ADR 0007 gives every existing global selection only to the legacy Reader.
 INSERT INTO reader_document_selections (
   reader_id,
   feed_id,

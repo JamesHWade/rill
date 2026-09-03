@@ -149,6 +149,30 @@ testthat::test_that("capture IDs cannot be reused for different evidence", {
   )
 })
 
+testthat::test_that("legacy captured Document hashes remain replayable", {
+  store <- rill_store(list(demo_mode = TRUE))
+  payload <- capture_test_payload()
+  captured <- capture_document(store, payload, "reader")
+  legacy <- store_get_document_record(store, captured$document_id)
+  legacy$record_hash <- document_record_hash(
+    legacy,
+    include_reader = FALSE
+  )
+  store$memory$documents[[captured$document_id]] <- legacy
+
+  replayed <- capture_document(store, payload, "reader")
+
+  testthat::expect_identical(replayed$created, FALSE)
+  testthat::expect_error(
+    capture_document(
+      store,
+      capture_test_payload(markdown = "Different evidence."),
+      "reader"
+    ),
+    class = "rill_document_conflict"
+  )
+})
+
 testthat::test_that("private captures and reading copies stay with their Reader", {
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
   store_ensure_reader(store, "reader-two")
@@ -229,7 +253,7 @@ testthat::test_that("capture credentials resolve the owning Reader", {
   store_ensure_reader(store, "reader-two")
   store_set_capture_credential(store, "reader-two", "reader-two-secret")
   handler <- capture_http_handler(
-    function(request) NULL,
+    \(request) NULL,
     store,
     list(actor_id = "reader-one", capture_token = "reader-one-secret")
   )
@@ -310,7 +334,7 @@ testthat::test_that("invalid capture input returns a client error", {
   store <- rill_store(list(demo_mode = TRUE))
   store_ensure_reader(store, "reader")
   handler <- capture_http_handler(
-    function(request) NULL,
+    \(request) NULL,
     store,
     list(actor_id = "reader", capture_token = "test-secret")
   )
@@ -335,7 +359,7 @@ testthat::test_that("the HTTP endpoint denies a disabled Reader", {
     reason = "access revoked"
   )
   handler <- capture_http_handler(
-    function(request) NULL,
+    \(request) NULL,
     store,
     list(actor_id = "reader", capture_token = "test-secret")
   )
@@ -346,4 +370,22 @@ testthat::test_that("the HTTP endpoint denies a disabled Reader", {
     jsonlite::fromJSON(response$body)$error,
     "Capture is disabled for this Reader."
   )
+})
+
+testthat::test_that("removing the configured token disables capture", {
+  store <- rill_store(list(demo_mode = TRUE))
+  store_ensure_reader(store, "reader")
+  store_set_capture_credential(store, "reader", "persisted-secret")
+  handler <- capture_http_handler(
+    \(request) NULL,
+    store,
+    list(actor_id = "reader", capture_token = "")
+  )
+
+  response <- handler(capture_test_request(
+    capture_test_payload(),
+    token = "persisted-secret"
+  ))
+
+  testthat::expect_identical(response$status, 404L)
 })

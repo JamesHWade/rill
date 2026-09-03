@@ -599,6 +599,24 @@ memory_reader_visible_entry_ids <- function(store, reader_id) {
   ]
 }
 
+postgres_capture_entry_visible_sql <- function(
+  reader_parameter,
+  entry_alias = "e",
+  feed_alias = "f"
+) {
+  paste0(
+    "(",
+    feed_alias,
+    ".source_kind <> 'capture' OR EXISTS (",
+    "SELECT 1 FROM documents private_document ",
+    "WHERE private_document.entry_id = ",
+    entry_alias,
+    ".entry_id AND private_document.reader_id = ",
+    reader_parameter,
+    "))"
+  )
+}
+
 store_list_feeds <- function(
   store,
   reader_id,
@@ -624,10 +642,8 @@ store_list_feeds <- function(
         "FROM subscriptions s",
         "JOIN feeds f ON f.feed_id = s.feed_id",
         paste(
-          "LEFT JOIN entries e ON e.feed_id = f.feed_id AND (",
-          "f.source_kind <> 'capture' OR EXISTS (",
-          "SELECT 1 FROM documents owned WHERE owned.entry_id = e.entry_id",
-          "AND owned.reader_id = $1))"
+          "LEFT JOIN entries e ON e.feed_id = f.feed_id AND",
+          postgres_capture_entry_visible_sql("$1")
         ),
         paste(
           "LEFT JOIN entry_state st ON st.entry_id = e.entry_id",
@@ -911,11 +927,7 @@ store_list_entries <- function(
     parameters <- list(reader_id)
     clauses <- c(
       "COALESCE(s.hidden, false) = false",
-      paste(
-        "(f.source_kind <> 'capture' OR EXISTS (",
-        "SELECT 1 FROM documents owned WHERE owned.entry_id = e.entry_id",
-        "AND owned.reader_id = $1))"
-      )
+      postgres_capture_entry_visible_sql("$1")
     )
 
     if (!is.null(feed_id) && nzchar(feed_id)) {
@@ -1208,9 +1220,10 @@ store_get_entry <- function(store, reader_id, entry_id) {
         ),
         "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
         "AND s.reader_id = $1",
-        "WHERE e.entry_id = $2 AND (f.source_kind <> 'capture' OR EXISTS (",
-        "SELECT 1 FROM documents owned WHERE owned.entry_id = e.entry_id",
-        "AND owned.reader_id = $1))"
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1")
+        )
       ),
       params = list(reader_id, entry_id)
     )
@@ -1351,14 +1364,13 @@ store_find_entry_by_url <- function(
       store$pool,
       paste(
         "SELECT e.* FROM entries e",
+        "JOIN feeds f ON f.feed_id = e.feed_id",
         paste(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
         "WHERE (e.url IN ($2, $3) OR e.canonical_url IN ($2, $3))",
-        "AND (NOT EXISTS (SELECT 1 FROM feeds f WHERE f.feed_id = e.feed_id",
-        "AND f.source_kind = 'capture') OR EXISTS (SELECT 1 FROM documents d",
-        "WHERE d.entry_id = e.entry_id AND d.reader_id = $1))",
+        paste("AND", postgres_capture_entry_visible_sql("$1")),
         "ORDER BY e.inserted_at, e.entry_id LIMIT 1"
       ),
       params = list(reader_id, source_url, canonical_url)
@@ -1727,7 +1739,19 @@ store_select_document <- function(
 store_save_document <- function(store, document) {
   existing <- store_get_document_record(store, document$document_id)
   if (!is.null(existing)) {
-    if (!identical(existing$record_hash, document$record_hash)) {
+    legacy_replay <- identical(
+      existing$acquisition_method,
+      "browser_capture"
+    ) &&
+      identical(existing$reader_id, document$reader_id) &&
+      identical(
+        existing$record_hash,
+        document_record_hash(document, include_reader = FALSE)
+      )
+    if (
+      !identical(existing$record_hash, document$record_hash) &&
+        !legacy_replay
+    ) {
       document_conflict_abort(
         paste(
           "The producer record ID was already used for different content.",
@@ -1904,9 +1928,10 @@ store_entry_feed_for_reader <- function(store, reader_id, entry_id) {
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2 AND (f.source_kind <> 'capture' OR EXISTS (",
-        "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id",
-        "AND d.reader_id = $1))"
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1")
+        )
       ),
       params = list(reader_id, entry_id)
     )
@@ -1953,9 +1978,11 @@ store_mark_opened <- function(
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2 AND (f.source_kind <> 'capture' OR EXISTS (",
-        "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id",
-        "AND d.reader_id = $1)) FOR SHARE OF s)",
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1"),
+          "FOR SHARE OF s)"
+        ),
         paste(
           "INSERT INTO entry_state",
           "(reader_id, entry_id, feed_id, read_at, read_reason, last_opened_at)"
@@ -2029,9 +2056,11 @@ store_mark_unread <- function(store, reader_id, entry_id) {
           "JOIN subscriptions s ON s.feed_id = e.feed_id",
           "AND s.reader_id = $1 AND s.status = 'active'"
         ),
-        "WHERE e.entry_id = $2 AND (f.source_kind <> 'capture' OR EXISTS (",
-        "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id",
-        "AND d.reader_id = $1)) FOR SHARE OF s),",
+        paste(
+          "WHERE e.entry_id = $2 AND",
+          postgres_capture_entry_visible_sql("$1"),
+          "FOR SHARE OF s),"
+        ),
         "changed AS (UPDATE entry_state state SET",
         "read_at = NULL, read_reason = NULL FROM authorized",
         paste(
@@ -2089,11 +2118,7 @@ store_mark_entries_read <- function(
 
   if (identical(store$mode, "postgres")) {
     parameters <- list(reader_id, now, reason)
-    entry_clauses <- paste(
-      "(f.source_kind <> 'capture' OR EXISTS (",
-      "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id",
-      "AND d.reader_id = $1))"
-    )
+    entry_clauses <- postgres_capture_entry_visible_sql("$1")
     state_clauses <- c(
       "s.read_at IS NULL",
       "COALESCE(s.hidden, false) = false"
@@ -2225,9 +2250,9 @@ store_toggle_state <- function(store, reader_id, entry_id, field) {
       "FROM entries e JOIN feeds f ON f.feed_id = e.feed_id ",
       "JOIN subscriptions s ON s.feed_id = e.feed_id ",
       "AND s.reader_id = $1 AND s.status = 'active' ",
-      "WHERE e.entry_id = $2 AND (f.source_kind <> 'capture' OR EXISTS (",
-      "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id ",
-      "AND d.reader_id = $1)) FOR SHARE OF s) ",
+      "WHERE e.entry_id = $2 AND ",
+      postgres_capture_entry_visible_sql("$1"),
+      " FOR SHARE OF s) ",
       "INSERT INTO entry_state (reader_id, entry_id, feed_id, ",
       field,
       ") ",
@@ -2336,9 +2361,9 @@ store_record_event <- function(store, event, require_new = FALSE) {
           paste(
             "WHERE e.entry_id = $3",
             "AND NOT EXISTS (SELECT 1 FROM existing)",
-            "AND (f.source_kind <> 'capture' OR EXISTS (",
-            "SELECT 1 FROM documents d WHERE d.entry_id = e.entry_id",
-            "AND d.reader_id = $2)) FOR SHARE OF s),"
+            "AND",
+            postgres_capture_entry_visible_sql("$2"),
+            "FOR SHARE OF s),"
           ),
           "inserted AS (INSERT INTO events",
           paste(
