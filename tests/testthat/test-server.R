@@ -1422,6 +1422,10 @@ testthat::test_that("a replacement session restores a completed question", {
       selected_document()$document_id,
       document$document_id
     )
+    reader_header <- as.character(output$reader_header)
+    testthat::expect_no_match(reader_header, 'id="mark_unread"', fixed = TRUE)
+    testthat::expect_no_match(reader_header, 'id="toggle_star"', fixed = TRUE)
+    testthat::expect_no_match(reader_header, 'id="toggle_save"', fixed = TRUE)
     testthat::expect_identical(
       appended,
       "Answer completed before reconnection."

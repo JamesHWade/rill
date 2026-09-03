@@ -443,7 +443,7 @@ import_opml_subscriptions <- function(
         existing_feed$site_url[[1]]
       },
       title = if (is.null(existing_feed)) {
-        subscription$title[[1]]
+        feed_url
       } else {
         existing_feed$title[[1]]
       },

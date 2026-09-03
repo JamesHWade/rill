@@ -115,6 +115,14 @@ testthat::test_that("OPML imports add and reorganize subscriptions", {
     feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
     "Newsletters"
   )
+  testthat::expect_identical(
+    feeds$title[feeds$feed_url == "https://example.com/feed.xml"],
+    "New feed"
+  )
+  testthat::expect_identical(
+    feeds$source_title[feeds$feed_url == "https://example.com/feed.xml"],
+    "https://example.com/feed.xml"
+  )
 
   store_ensure_reader(store, "other-reader")
   import_opml_subscriptions(
