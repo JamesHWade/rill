@@ -1274,7 +1274,41 @@ rill_server <- function(config, store) {
             }
             durable_pending <- durable_pending_read$value
             if (is.null(durable_pending)) {
+              adopted_read <- tryCatch(
+                list(
+                  value = store_get_agent_run_by_request_key(
+                    store,
+                    actor_id,
+                    pending$request_key
+                  )
+                ),
+                error = function(error) {
+                  telemetry_log(
+                    "warn",
+                    "agent_run.deferred_poll_failed",
+                    list(
+                      "read.target" = "question_agent_run",
+                      "error.type" = class(error)[[1L]]
+                    )
+                  )
+                  NULL
+                }
+              )
+              if (is.null(adopted_read)) {
+                poll()
+                return(NULL)
+              }
               pending_reader_question(NULL)
+              adopted <- adopted_read$value
+              if (!is.null(adopted)) {
+                active_agent_run(adopted)
+                if (
+                  !adopted$status %in% terminal_agent_run_statuses ||
+                    identical(adopted$status, "completed")
+                ) {
+                  schedule_visible_agent_run_poll(adopted$run_id)
+                }
+              }
               return(NULL)
             }
             current_read <- tryCatch(

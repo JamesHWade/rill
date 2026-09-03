@@ -1143,17 +1143,69 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
       document$document_id
     )
 
-    resolve_orientation(list())
+    pending <- pending_reader_question()
+    store_finish_agent_run(
+      store,
+      reader_id = config$actor_id,
+      run_id = orientation_run$run_id,
+      worker_id = "other-session",
+      status = "cancelled",
+      terminal_reason = "reader_question"
+    )
+    adopted <- store_start_prioritized_reader_question(
+      store,
+      reader_id = config$actor_id,
+      request_key = pending$request_key,
+      pinned_inputs = pending$pinned_inputs,
+      requested_at = pending$requested_at,
+      worker_id = "other-question-session",
+      transition_at = Sys.time()
+    )$run
+    adopted <- store_claim_agent_run(
+      store,
+      reader_id = config$actor_id,
+      run_id = adopted$run_id,
+      worker_id = "other-question-session",
+      lease_expires_at = Sys.time() + 120
+    )
     deadline <- Sys.time() + 2
     while (
       (is.null(active_agent_run()) ||
-        !identical(active_agent_run()$status, "completed")) &&
+        !identical(active_agent_run()$run_id, adopted$run_id)) &&
         Sys.time() < deadline
     ) {
       later::run_now(0.05)
     }
 
     testthat::expect_null(pending_reader_question())
+    testthat::expect_identical(active_agent_run()$status, "running")
+    testthat::expect_identical(reader_response_in_flight(), TRUE)
+    testthat::expect_identical(selected_id(), document$entry_id)
+    store_record_agent_run_response(
+      store,
+      reader_id = config$actor_id,
+      run_id = adopted$run_id,
+      worker_id = "other-question-session",
+      response_text = "Answer from the winning session."
+    )
+    store_finish_agent_run(
+      store,
+      reader_id = config$actor_id,
+      run_id = adopted$run_id,
+      worker_id = "other-question-session",
+      status = "completed",
+      terminal_reason = "complete"
+    )
+    deadline <- Sys.time() + 2
+    while (
+      !"Answer from the winning session." %in% appended &&
+        Sys.time() < deadline
+    ) {
+      later::run_now(0.05)
+    }
+
+    resolve_orientation(list())
+    later::run_now(0.01)
     testthat::expect_null(
       store_get_deferred_reader_question(store, config$actor_id)
     )
@@ -1166,7 +1218,7 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
       "cancelled"
     )
     testthat::expect_identical(active_agent_run()$status, "completed")
-    testthat::expect_in("Answer after Orientation stopped.", appended)
+    testthat::expect_in("Answer from the winning session.", appended)
   })
 })
 
