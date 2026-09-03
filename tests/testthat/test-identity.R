@@ -117,6 +117,31 @@ testthat::test_that("the local identity adapter ignores forwarded claims", {
   )
 })
 
+testthat::test_that("the proxy adapter ignores non-loopback forwarded claims", {
+  local_proxy_identity(subjects = "github|reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+
+  resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_request(
+      "github|forged",
+      remote_addr = "203.0.113.10"
+    )
+  )
+
+  testthat::expect_identical(
+    resolution[c("status", "reader_id")],
+    list(status = "missing", reader_id = NULL)
+  )
+  testthat::expect_null(store_get_reader_admission(
+    store,
+    config$oidc_issuer,
+    "github|forged"
+  ))
+})
+
 testthat::test_that("the local identity adapter denies a disabled Reader", {
   withr::local_envvar(c(
     DATABASE_URL = "",
@@ -423,4 +448,32 @@ testthat::test_that("the server receives the Reader resolved by its adapter", {
   identity_server_handler(base_server, adapter)(list(), list(), session)
 
   testthat::expect_identical(resolved_reader_id, "private-reader")
+})
+
+testthat::test_that("an active session closes when its Reader is disabled", {
+  withr::local_envvar(c(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "local-reader",
+    RILL_IDENTITY_MODE = "local"
+  ))
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  session <- shiny::MockShinySession$new()
+  server <- identity_server_handler(
+    function(input, output, session, reader_id) invisible(NULL),
+    adapter
+  )
+  server(list(), list(), session)
+  session$flushReact()
+
+  store_disable_reader(
+    store,
+    "local-reader",
+    responsible_id = "operator:james",
+    reason = "access revoked"
+  )
+  session$elapse(1000)
+
+  testthat::expect_identical(session$isClosed(), TRUE)
 })

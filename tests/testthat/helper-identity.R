@@ -4,7 +4,8 @@ identity_test_request <- function(
   display_name = NULL,
   path = "/",
   method = "GET",
-  authorization = NULL
+  authorization = NULL,
+  remote_addr = "127.0.0.1"
 ) {
   values <- list(
     PATH_INFO = path,
@@ -13,7 +14,8 @@ identity_test_request <- function(
     QUERY_STRING = "",
     SERVER_NAME = "localhost",
     SERVER_PORT = "80",
-    HTTP_HOST = "localhost"
+    HTTP_HOST = "localhost",
+    REMOTE_ADDR = remote_addr
   )
   if (!is.null(subject)) {
     values$HTTP_X_FORWARDED_USER <- subject

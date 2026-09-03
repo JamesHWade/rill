@@ -45,32 +45,41 @@ reader_identity_adapter <- function(config, store) {
   if (identical(config$identity_mode, "local")) {
     reader_id <- config$actor_id
     store_ensure_reader(store, reader_id)
-    return(structure(
-      list(
-        kind = "local",
-        config = config,
-        resolve = \(request) store_resolve_reader(store, reader_id)
-      ),
-      class = "rill_reader_identity_adapter"
+    return(new_reader_identity_adapter(
+      "local",
+      config,
+      store,
+      resolve = \(request) store_resolve_reader(store, reader_id)
     ))
   }
   if (identical(config$identity_mode, "oidc_proxy")) {
     store_bootstrap_private_reader_identity(store, config)
-    return(structure(
-      list(
-        kind = "oidc_proxy",
-        config = config,
-        resolve = function(request) {
-          principal <- identity_proxy_principal(request, config)
-          store_resolve_reader_identity(store, principal)
-        }
-      ),
-      class = "rill_reader_identity_adapter"
+    return(new_reader_identity_adapter(
+      "oidc_proxy",
+      config,
+      store,
+      resolve = function(request) {
+        principal <- identity_proxy_principal(request, config)
+        store_resolve_reader_identity(store, principal)
+      }
     ))
   }
   cli::cli_abort(
     "No Reader Identity adapter exists for {.val {config$identity_mode}}.",
     class = "rill_identity_config_invalid"
+  )
+}
+
+new_reader_identity_adapter <- function(kind, config, store, resolve) {
+  force(store)
+  structure(
+    list(
+      kind = kind,
+      config = config,
+      resolve = resolve,
+      reader_status = \(reader_id) store_resolve_reader(store, reader_id)
+    ),
+    class = "rill_reader_identity_adapter"
   )
 }
 
@@ -162,6 +171,12 @@ identity_claim_value <- function(value) {
 }
 
 identity_proxy_principal <- function(request, config) {
+  if (!identity_proxy_request_is_trusted(request)) {
+    return(structure(
+      list(issuer = config$oidc_issuer, subject = ""),
+      class = "rill_identity"
+    ))
+  }
   subject <- identity_claim_value(request$HTTP_X_FORWARDED_USER) %||% ""
   structure(
     list(
@@ -174,6 +189,12 @@ identity_proxy_principal <- function(request, config) {
     ),
     class = "rill_identity"
   )
+}
+
+identity_proxy_request_is_trusted <- function(request) {
+  remote_addr <- identity_claim_value(request$REMOTE_ADDR)
+  !is.null(remote_addr) &&
+    remote_addr %in% c("127.0.0.1", "::1", "::ffff:127.0.0.1")
 }
 
 store_bootstrap_private_reader_identity <- function(store, config) {
@@ -729,8 +750,29 @@ identity_server_handler <- function(base_server, adapter) {
       session$close()
       return(invisible(NULL))
     }
+    reader_identity_guard_session(adapter, resolution$reader_id, session)
     base_server(input, output, session, resolution$reader_id)
   }
+}
+
+reader_identity_guard_session <- function(adapter, reader_id, session) {
+  if (!is.function(session$onSessionEnded)) {
+    return(invisible(NULL))
+  }
+  guard <- shiny::observe(
+    {
+      shiny::invalidateLater(1000, session)
+      resolution <- tryCatch(
+        adapter$reader_status(reader_id),
+        error = \(error) NULL
+      )
+      if (!is.null(resolution) && !identical(resolution$status, "active")) {
+        session$close()
+      }
+    },
+    domain = session
+  )
+  invisible(guard)
 }
 
 identity_sign_out_href <- function(config) {
