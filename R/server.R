@@ -3187,6 +3187,7 @@ rill_server <- function(config, store) {
               prepare_today_documents(
                 store,
                 config,
+                reader_id = actor_id,
                 progress = function(index, total, title) {
                   shiny::setProgress(
                     value = index / total,

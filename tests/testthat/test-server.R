@@ -3845,8 +3845,10 @@ testthat::test_that("preparing today reports progress and records the result", {
   config <- rill_config()
   store <- rill_store(config)
   progress_calls <- 0L
+  prepared_reader_id <- NULL
   testthat::local_mocked_bindings(
-    prepare_today_documents = function(store, config, progress) {
+    prepare_today_documents = function(store, config, reader_id, progress) {
+      prepared_reader_id <<- reader_id
       progress(1L, 2L, "First article")
       progress_calls <<- progress_calls + 1L
       list(
@@ -3866,6 +3868,7 @@ testthat::test_that("preparing today reports progress and records the result", {
     session$flushReact()
 
     testthat::expect_identical(progress_calls, 1L)
+    testthat::expect_identical(prepared_reader_id, config$actor_id)
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),

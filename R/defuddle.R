@@ -264,13 +264,14 @@ get_or_extract_document <- function(store, entry, config) {
 prepare_today_documents <- function(
   store,
   config,
+  reader_id = config$actor_id,
   progress = function(index, total, title) invisible(NULL),
   now = Sys.time(),
   timezone = Sys.timezone()
 ) {
   entries <- store_list_entries(
     store,
-    config$actor_id,
+    reader_id,
     view = "today",
     limit = 500L,
     now = now,
