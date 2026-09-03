@@ -146,11 +146,20 @@ capture_feed <- function() {
   )
 }
 
-capture_entry <- function(capture, feed, received_at) {
+capture_entry <- function(capture, feed, reader_id, received_at) {
   data.frame(
-    entry_id = rill_id("entry", feed$feed_id, capture$canonical_url),
+    entry_id = rill_id(
+      "entry",
+      feed$feed_id,
+      reader_id,
+      capture$canonical_url
+    ),
     feed_id = feed$feed_id,
-    external_id = capture$canonical_url,
+    external_id = rill_id(
+      "capture-entry",
+      reader_id,
+      capture$canonical_url
+    ),
     url = capture$source_url,
     canonical_url = capture$canonical_url,
     title = capture$title,
@@ -178,6 +187,7 @@ document_from_capture <- function(
     canonical_url = capture$canonical_url,
     acquisition_method = "browser_capture",
     producer = capture$producer,
+    reader_id = actor_id,
     producer_version = capture$producer_version,
     producer_record_id = capture$capture_id,
     title = capture$title,
@@ -208,7 +218,7 @@ capture_document <- function(
     capture$capture_id
   )
 
-  existing <- store_get_document_by_id(store, document_id)
+  existing <- store_get_document_record(store, document_id)
   if (!is.null(existing)) {
     document <- document_from_capture(
       capture,
@@ -235,7 +245,7 @@ capture_document <- function(
         feed$feed_id,
         folder = feed$folder
       )
-      entry <- capture_entry(capture, feed, received_at)
+      entry <- capture_entry(capture, feed, actor_id, received_at)
       store_upsert_entries(store, entry)
       entry_id <- entry$entry_id[[1]]
     } else {
@@ -310,14 +320,132 @@ capture_bearer_token <- function(request) {
   sub("^Bearer[[:space:]]+", "", authorization, ignore.case = TRUE)
 }
 
-capture_token_matches <- function(provided, expected) {
-  if (!nzchar(provided) || !nzchar(expected)) {
-    return(FALSE)
+capture_token_hash <- function(token) {
+  if (!store_scalar_string(token)) {
+    capture_abort(
+      "A capture token must be a non-empty string.",
+      class = "rill_capture_credential_invalid"
+    )
   }
-  identical(
-    rill_id("capture-token", provided),
-    rill_id("capture-token", expected)
+  rill_id("capture-token", token)
+}
+
+store_set_capture_credential <- function(
+  store,
+  reader_id,
+  token,
+  now = utc_now()
+) {
+  token_hash <- capture_token_hash(token)
+  if (identical(store$mode, "postgres")) {
+    conflict <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT reader_id FROM reader_capture_credentials",
+        "WHERE token_hash = $1 AND reader_id <> $2"
+      ),
+      params = list(token_hash, reader_id)
+    )
+    if (nrow(conflict)) {
+      capture_abort(
+        "That capture token is already assigned to another Reader.",
+        class = "rill_capture_credential_conflict"
+      )
+    }
+    DBI::dbExecute(
+      store$pool,
+      paste(
+        "INSERT INTO reader_capture_credentials",
+        "(reader_id, token_hash, created_at, updated_at)",
+        "VALUES ($1, $2, $3, $3)",
+        "ON CONFLICT (reader_id) DO UPDATE SET",
+        "token_hash = EXCLUDED.token_hash, updated_at = EXCLUDED.updated_at"
+      ),
+      params = list(reader_id, token_hash, now)
+    )
+    return(invisible(reader_id))
+  }
+
+  credentials <- store$memory$capture_credentials
+  conflict <- credentials$token_hash == token_hash &
+    credentials$reader_id != reader_id
+  if (any(conflict)) {
+    capture_abort(
+      "That capture token is already assigned to another Reader.",
+      class = "rill_capture_credential_conflict"
+    )
+  }
+  index <- match(reader_id, credentials$reader_id)
+  if (!is.na(index)) {
+    credentials$token_hash[[index]] <- token_hash
+    credentials$updated_at[[index]] <- now
+    store$memory$capture_credentials <- credentials
+    return(invisible(reader_id))
+  }
+  if (!reader_id %in% store$memory$readers$reader_id) {
+    capture_abort(
+      "A capture credential requires an existing Reader.",
+      class = "rill_capture_credential_invalid"
+    )
+  }
+  store$memory$capture_credentials <- rbind(
+    credentials,
+    data.frame(
+      reader_id = reader_id,
+      token_hash = token_hash,
+      created_at = now,
+      updated_at = now,
+      stringsAsFactors = FALSE
+    )
   )
+  invisible(reader_id)
+}
+
+store_has_capture_credentials <- function(store) {
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT EXISTS (SELECT 1 FROM reader_capture_credentials) AS present"
+    )
+    return(isTRUE(rows$present[[1L]]))
+  }
+  nrow(store$memory$capture_credentials) > 0L
+}
+
+store_resolve_capture_reader <- function(store, token) {
+  if (!store_scalar_string(token)) {
+    return(reader_identity_resolution(NULL, status = "missing"))
+  }
+  token_hash <- capture_token_hash(token)
+  if (identical(store$mode, "postgres")) {
+    rows <- DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT c.reader_id, r.status FROM reader_capture_credentials c",
+        "JOIN readers r ON r.reader_id = c.reader_id",
+        "WHERE c.token_hash = $1"
+      ),
+      params = list(token_hash)
+    )
+    if (!nrow(rows)) {
+      return(reader_identity_resolution(NULL, status = "missing"))
+    }
+    return(reader_identity_resolution(
+      if (identical(rows$status[[1L]], "active")) {
+        rows$reader_id[[1L]]
+      } else {
+        NULL
+      },
+      status = rows$status[[1L]]
+    ))
+  }
+
+  credentials <- store$memory$capture_credentials
+  index <- match(token_hash, credentials$token_hash)
+  if (is.na(index)) {
+    return(reader_identity_resolution(NULL, status = "missing"))
+  }
+  store_resolve_reader(store, credentials$reader_id[[index]])
 }
 
 capture_request_body <- function(request) {
@@ -360,12 +488,19 @@ capture_http_handler <- function(base_handler, store, config) {
   force(base_handler)
   force(store)
   force(config)
+  if (nzchar(config$capture_token %||% "")) {
+    store_set_capture_credential(
+      store,
+      config$actor_id,
+      config$capture_token
+    )
+  }
 
   function(request) {
     if (!identical(request$PATH_INFO %||% "", capture_endpoint_path)) {
       return(base_handler(request))
     }
-    if (!nzchar(config$capture_token %||% "")) {
+    if (!store_has_capture_credentials(store)) {
       return(capture_json_response(404L, list(error = "Not found.")))
     }
 
@@ -388,21 +523,8 @@ capture_http_handler <- function(base_handler, store, config) {
         headers = list("Allow" = "POST, OPTIONS")
       ))
     }
-    if (
-      !capture_token_matches(
-        capture_bearer_token(request),
-        config$capture_token
-      )
-    ) {
-      return(capture_json_response(
-        401L,
-        list(error = "Invalid capture token."),
-        headers = list("WWW-Authenticate" = "Bearer")
-      ))
-    }
-
     reader <- tryCatch(
-      store_resolve_reader(store, config$actor_id),
+      store_resolve_capture_reader(store, capture_bearer_token(request)),
       error = function(error) error
     )
     if (inherits(reader, "error")) {
@@ -416,6 +538,14 @@ capture_http_handler <- function(base_handler, store, config) {
         list(error = "Capture is temporarily unavailable.")
       ))
     }
+    if (identical(reader$status, "missing")) {
+      return(capture_json_response(
+        401L,
+        list(error = "Invalid capture token."),
+        headers = list("WWW-Authenticate" = "Bearer")
+      ))
+    }
+
     if (!identical(reader$status, "active")) {
       return(capture_json_response(
         403L,
@@ -427,7 +557,7 @@ capture_http_handler <- function(base_handler, store, config) {
       capture_document(
         store,
         capture_request_body(request),
-        config$actor_id
+        reader$reader_id
       ),
       error = function(error) error
     )

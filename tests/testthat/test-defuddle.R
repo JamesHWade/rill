@@ -214,7 +214,7 @@ testthat::test_that("today preparation leaves failed articles retryable", {
   )
 
   testthat::expect_identical(result$failed, 1L)
-  testthat::expect_length(store_list_documents(store), 0L)
+  testthat::expect_length(store_list_documents(store, "reader"), 0L)
 })
 
 testthat::test_that("today preparation retries feed fallbacks", {
@@ -257,7 +257,7 @@ testthat::test_that("today preparation retries feed fallbacks", {
   testthat::expect_identical(result$cached, 0L)
   testthat::expect_identical(result$prepared, 1L)
   testthat::expect_identical(
-    store_get_document(store, entry$entry_id)$acquisition_method,
+    store_get_document(store, "reader", entry$entry_id)$acquisition_method,
     "web_extraction"
   )
 })
@@ -283,16 +283,20 @@ testthat::test_that("opening an Orientation feed copy upgrades it", {
     }
   )
 
-  document <- get_or_extract_document(store, entry, list())
+  document <- get_or_extract_document(store, "reader", entry, list())
 
   testthat::expect_identical(calls, 1L)
   testthat::expect_identical(document$acquisition_method, "web_extraction")
   testthat::expect_identical(
-    store_get_document(store, entry$entry_id)$document_id,
+    store_get_document(store, "reader", entry$entry_id)$document_id,
     document$document_id
   )
   testthat::expect_identical(
-    store_get_document_by_id(store, fallback$document_id)$document_id,
+    store_get_document_by_id(
+      store,
+      "reader",
+      fallback$document_id
+    )$document_id,
     fallback$document_id
   )
 })
@@ -312,7 +316,7 @@ testthat::test_that("opening an ordinary cached document does not extract", {
     }
   )
 
-  document <- get_or_extract_document(store, entry, list())
+  document <- get_or_extract_document(store, "reader", entry, list())
 
   testthat::expect_identical(calls, 0L)
   testthat::expect_identical(document$document_id, cached$document_id)

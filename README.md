@@ -156,8 +156,9 @@ DATABASE_URL=postgresql://user:password@host.neon.tech/neondb?sslmode=require
 RILL_ACTOR_ID=reader
 ```
 
-Set `RILL_CAPTURE_TOKEN` to enable local browser capture. Use a long random
-value and keep it in the same secret-management flow as `DATABASE_URL`.
+Set `RILL_CAPTURE_TOKEN` to enable local browser capture for the Reader named by
+`RILL_ACTOR_ID`. Use a long random value and keep it in the same secret-management
+flow as `DATABASE_URL`; Rill stores only its hash in PostgreSQL.
 
 Neon is a good fit for this first version. Alternatives become attractive only for a specific reason: Supabase if bundled auth/storage is important, or a conventional managed Postgres instance if predictable always-on latency matters more than serverless scale-to-zero.
 
@@ -205,7 +206,8 @@ browser credentials.
 ## Browser capture
 
 When `RILL_CAPTURE_TOKEN` is set, the same application serves
-`POST /api/v1/captures`. A browser extension or local clipper sends already
+`POST /api/v1/captures`. The token resolves to its owning Reader rather than a
+process-wide identity. A browser extension or local clipper sends already
 extracted Markdown with a stable capture ID and producer identity:
 
 ```json
@@ -243,11 +245,14 @@ IDs; reusing a capture ID for different evidence returns `409 Conflict`.
 
 Rill attaches a capture to an existing feed entry when the canonical or source
 URL matches. Otherwise it creates an unread entry under **Local captures**.
-Documents are immutable: exact content, producer version and metadata, source
-URLs, producer record ID, capture time, receipt time, and hashes remain
-available while a separate head record selects the reading copy. That document
-interface now grounds Ask Rill and is also the input seam reserved for
-Orientation.
+Captured Documents, standalone capture entries, and selected reading copies are
+private to the Reader resolved from the token. A capture by one Reader cannot
+replace or reveal another Reader's reading copy. Public extractions remain
+shared, and Readers without a private selection follow the latest public copy.
+Documents remain immutable: exact content, producer version and metadata,
+source URLs, producer record ID, capture time, receipt time, and hashes remain
+available while separate public and Reader-owned selectors choose the reading
+copy. That Document interface grounds Ask Rill and Orientation.
 Demo-mode captures work but disappear when the R process restarts.
 
 ## Logfire and telemetry

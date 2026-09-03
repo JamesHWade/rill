@@ -234,8 +234,8 @@ document_fallback <- function(entry, reason = "feed-content") {
   )
 }
 
-get_or_extract_document <- function(store, entry, config) {
-  cached <- store_get_document(store, entry$entry_id)
+get_or_extract_document <- function(store, reader_id, entry, config) {
+  cached <- store_get_document(store, reader_id, entry$entry_id)
   if (
     !is.null(cached) &&
       !(identical(cached$acquisition_method, "feed_fallback") &&
@@ -277,7 +277,7 @@ prepare_today_documents <- function(
     now = now,
     timezone = timezone
   )
-  documents <- store_list_documents(store, entries$entry_id)
+  documents <- store_list_documents(store, reader_id, entries$entry_id)
   ready <- vapply(
     documents,
     \(document) !identical(document$acquisition_method, "feed_fallback"),

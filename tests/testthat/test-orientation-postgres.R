@@ -287,7 +287,8 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
       "006_deferred_reader_questions",
       "007_agent_run_response",
       "008_reader_identities",
-      "009_reader_library"
+      "009_reader_library",
+      "010_reader_documents"
     )
   )
 })
@@ -405,6 +406,7 @@ testthat::test_that("PostgreSQL creates one fallback for a missing head", {
     )
     saved <- rill:::store_save_document_if_missing_head(
       worker_store,
+      "reader-1",
       document
     )
     list(
@@ -474,7 +476,7 @@ testthat::test_that("PostgreSQL creates one fallback for a missing head", {
     paste(
       "SELECT d.document_id, h.document_id AS head_document_id",
       "FROM documents AS d",
-      "LEFT JOIN entry_document_heads AS h",
+      "LEFT JOIN public_document_heads AS h",
       "ON h.document_id = d.document_id",
       "WHERE d.entry_id = $1"
     ),

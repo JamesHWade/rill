@@ -44,3 +44,27 @@ testthat::test_that("Document limitations describe each acquisition method", {
 
   testthat::expect_identical(actual, expected)
 })
+
+testthat::test_that("Document ownership matches its acquisition method", {
+  testthat::expect_error(
+    new_rill_document(
+      entry_id = "entry-1",
+      source_url = "https://example.com/article",
+      markdown = "Private copy",
+      acquisition_method = "browser_capture",
+      producer = "clipper"
+    ),
+    class = "rill_document_invalid"
+  )
+  testthat::expect_error(
+    new_rill_document(
+      entry_id = "entry-1",
+      reader_id = "reader-one",
+      source_url = "https://example.com/article",
+      markdown = "Public copy",
+      acquisition_method = "web_extraction",
+      producer = "extractor"
+    ),
+    class = "rill_document_invalid"
+  )
+})

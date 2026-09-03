@@ -171,7 +171,8 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     source_url = sample$entries$url[sample$entries$entry_id == entry_id],
     markdown = "Reader-owned captured copy.",
     acquisition_method = "browser_capture",
-    producer = "reader-library-test"
+    producer = "reader-library-test",
+    reader_id = "reader-one"
   )
   store_save_document(store, captured_document)
   replay_event <- list(

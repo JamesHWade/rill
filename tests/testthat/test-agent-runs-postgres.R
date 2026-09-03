@@ -102,6 +102,37 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   testthat::expect_identical(unrelated$relation, "unrelated_records")
 
   DBI::dbExecute(store$pool, "DROP TABLE schema_migrations")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_capture_credentials")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_document_selections")
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "ALTER TABLE public_document_heads",
+      "DROP CONSTRAINT public_document_heads_document_fk"
+    )
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE public_document_heads DROP COLUMN ownership_key"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE public_document_heads RENAME TO entry_document_heads"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE documents DROP CONSTRAINT documents_selection_key"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE documents DROP CONSTRAINT documents_scope_check"
+  )
+  DBI::dbExecute(
+    store$pool,
+    "ALTER TABLE documents DROP CONSTRAINT documents_reader_fk"
+  )
+  DBI::dbExecute(store$pool, "ALTER TABLE documents DROP COLUMN ownership_key")
+  DBI::dbExecute(store$pool, "ALTER TABLE documents DROP COLUMN reader_id")
   DBI::dbExecute(store$pool, "DROP TABLE subscriptions CASCADE")
   DBI::dbExecute(
     store$pool,
@@ -199,7 +230,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "006_deferred_reader_questions",
       "007_agent_run_response",
       "008_reader_identities",
-      "009_reader_library"
+      "009_reader_library",
+      "010_reader_documents"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")

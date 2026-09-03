@@ -84,6 +84,7 @@ new_rill_document <- function(
   markdown,
   acquisition_method,
   producer,
+  reader_id = NA_character_,
   producer_version = NA_character_,
   producer_record_id = NA_character_,
   canonical_url = NA_character_,
@@ -138,10 +139,25 @@ new_rill_document <- function(
       class = "rill_document_invalid"
     )
   }
+  reader_id <- document_optional_string(reader_id)
+  is_private <- identical(acquisition_method, "browser_capture")
+  if (is_private && is.na(reader_id)) {
+    cli::cli_abort(
+      "A browser-captured Document requires a Reader owner.",
+      class = "rill_document_invalid"
+    )
+  }
+  if (!is_private && !is.na(reader_id)) {
+    cli::cli_abort(
+      "Only browser-captured Documents may have a Reader owner.",
+      class = "rill_document_invalid"
+    )
+  }
 
   content_hash <- rill_id("document-content", markdown)
   identity_fields <- list(
     entry_id = entry_id,
+    reader_id = reader_id,
     source_url = source_url,
     canonical_url = document_optional_string(canonical_url),
     acquisition_method = acquisition_method,
@@ -164,6 +180,7 @@ new_rill_document <- function(
       list(
         document_id = document_id,
         entry_id = entry_id,
+        reader_id = reader_id,
         source_url = source_url,
         canonical_url = document_optional_string(canonical_url),
         acquisition_method = acquisition_method,
@@ -206,6 +223,7 @@ document_from_store_row <- function(row) {
     )
   }
   record$provenance <- provenance
+  record$reader_id <- document_optional_string(record$reader_id)
   record$schema_version <- as.integer(record$schema_version %||% 1L)
   record$word_count <- as.integer(record$word_count %||% 0L)
   structure(record, class = c("rill_document", "list"))

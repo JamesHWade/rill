@@ -16,13 +16,13 @@ The production web container enables a private OIDC proxy gate. Its Reader
 Identity adapter resolves exact issuer and \code{sub} pairs to durable internal
 Readers. Configured \code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private
 Reader in \code{RILL_ACTOR_ID}; unknown identities remain denied with one pending
-admission record. Until captured Document and reading-copy isolation is
-complete, admissions can attach only to that configured private Reader.
-Email and other profile claims are mutable metadata, not identity keys.
-When \code{RILL_CAPTURE_TOKEN} is set, the same application accepts authenticated
-browser documents at \verb{/api/v1/captures}. \code{RILL_AGENT_MODEL} selects the
-\link[ellmer:chat]{ellmer} model used for source-grounded questions and
-Orientation. Its provider credential must also be available.
+admission record. Email and other profile claims are mutable metadata, not
+identity keys. When \code{RILL_CAPTURE_TOKEN} is set, the same application binds
+that credential to \code{RILL_ACTOR_ID} and accepts authenticated browser
+Documents at \verb{/api/v1/captures}. Captures and reading-copy selection remain
+private to that Reader. \code{RILL_AGENT_MODEL} selects the \link[ellmer:chat]{ellmer}
+model used for source-grounded questions and Orientation. Its provider
+credential must also be available.
 \code{RILL_AGENT_BASE_URL} selects a custom provider endpoint and is required
 when Rill cannot resolve the effective endpoint itself.
 \code{RILL_ORIENTATION_ENABLED=true} makes automatic Orientation available; each
