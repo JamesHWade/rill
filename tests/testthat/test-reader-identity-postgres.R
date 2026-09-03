@@ -120,6 +120,39 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
   )
   testthat::expect_identical(as.integer(reader_count$count[[1L]]), 0L)
 
+  store_ensure_reader(store, "other-reader")
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "INSERT INTO reader_external_identities (",
+      "issuer, subject, reader_id, created_at, updated_at",
+      ") VALUES ($1, $2, $3, $4, $4)"
+    ),
+    params = list(
+      config$oidc_issuer,
+      "github|conflict",
+      "other-reader",
+      "2026-09-03 12:00:00 UTC"
+    )
+  )
+  testthat::expect_error(
+    store_admit_reader_identity(
+      store,
+      issuer = config$oidc_issuer,
+      subject = "github|conflict",
+      reader_id = "reader-one",
+      responsible_id = "operator:james",
+      reason = "unsafe relink"
+    ),
+    class = "rill_reader_identity_conflict"
+  )
+  conflicting <- store_get_reader_identity(
+    store,
+    config$oidc_issuer,
+    "github|conflict"
+  )
+  testthat::expect_identical(conflicting$reader_id, "other-reader")
+
   store_admit_reader_identity(
     store,
     issuer = config$oidc_issuer,

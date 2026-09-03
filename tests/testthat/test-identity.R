@@ -342,6 +342,39 @@ testthat::test_that("admission cannot create a second Reader", {
   testthat::expect_disjoint(store$memory$readers$reader_id, "another-reader")
 })
 
+testthat::test_that("an existing external identity cannot be relinked", {
+  local_proxy_identity(subjects = "github|reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  reader_identity_adapter(config, store)
+  store_ensure_reader(store, "other-reader")
+  conflicting <- store$memory$reader_identities[1L, , drop = FALSE]
+  conflicting$subject <- "github|conflict"
+  conflicting$reader_id <- "other-reader"
+  store$memory$reader_identities <- rbind(
+    store$memory$reader_identities,
+    conflicting
+  )
+
+  testthat::expect_error(
+    store_admit_reader_identity(
+      store,
+      issuer = config$oidc_issuer,
+      subject = "github|conflict",
+      reader_id = "private-reader",
+      responsible_id = "operator:james",
+      reason = "unsafe relink"
+    ),
+    class = "rill_reader_identity_conflict"
+  )
+  identity <- store_get_reader_identity(
+    store,
+    config$oidc_issuer,
+    "github|conflict"
+  )
+  testthat::expect_identical(identity$reader_id, "other-reader")
+})
+
 testthat::test_that("repeat OIDC resolution updates mutable profile metadata", {
   local_proxy_identity(subjects = "github|reader")
   config <- rill_config()
