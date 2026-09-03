@@ -163,6 +163,18 @@ testthat::test_that("Reader Libraries isolate shared Feed membership and state",
     entry_id,
     store_list_entries(store, reader_two, view = "unread")$entry_id
   )
+  replay_event <- list(
+    event_id = "memory-capture-replay",
+    reader_id = reader_one,
+    entry_id = entry_id,
+    session_id = "capture-replay",
+    event_type = "document_captured",
+    happened_at = as.POSIXct("2026-09-03 12:00:00", tz = "UTC"),
+    surface = "capture_api",
+    position = NA_integer_,
+    payload = list()
+  )
+  store_record_event(store, replay_event)
 
   store_unsubscribe_feed(store, reader_one, feed_id)
   testthat::expect_in(feed_id, store_list_active_feeds(store)$feed_id)
@@ -171,6 +183,15 @@ testthat::test_that("Reader Libraries isolate shared Feed membership and state",
   testthat::expect_error(
     store_toggle_state(store, reader_one, entry_id, "saved"),
     class = "rill_entry_forbidden"
+  )
+  testthat::expect_no_error(store_record_event(store, replay_event))
+  testthat::expect_identical(
+    sum(store$memory$events$event_id == replay_event$event_id),
+    1L
+  )
+  testthat::expect_error(
+    store_record_event(store, replay_event, require_new = TRUE),
+    class = "rill_event_id_conflict"
   )
 
   store_subscribe_feed(store, reader_one, feed_id)

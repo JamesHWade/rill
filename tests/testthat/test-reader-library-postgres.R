@@ -140,6 +140,18 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     store_list_entries(store, "reader-one", view = "unread")$entry_id,
     entry_id
   )
+  replay_event <- list(
+    event_id = "postgres-capture-replay",
+    reader_id = "reader-one",
+    entry_id = entry_id,
+    session_id = "capture-replay",
+    event_type = "document_captured",
+    happened_at = as.POSIXct("2026-09-03 12:00:00", tz = "UTC"),
+    surface = "capture_api",
+    position = NA_integer_,
+    payload = list()
+  )
+  store_record_event(store, replay_event)
 
   state_before_revocation <- DBI::dbGetQuery(
     store$pool,
@@ -342,6 +354,11 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
   ))
   testthat::expect_identical(results$bulk$ok, TRUE)
   testthat::expect_length(results$bulk$value, 0L)
+  testthat::expect_no_error(store_record_event(store, replay_event))
+  testthat::expect_error(
+    store_record_event(store, replay_event, require_new = TRUE),
+    class = "rill_event_id_conflict"
+  )
 
   state_after_revocation <- DBI::dbGetQuery(
     store$pool,
@@ -354,7 +371,13 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
   testthat::expect_equal(state_after_revocation, state_before_revocation)
   events_after_revocation <- DBI::dbGetQuery(
     store$pool,
-    "SELECT event_id FROM events WHERE event_id = 'revoked-reader-event'"
+    paste(
+      "SELECT event_id FROM events",
+      "WHERE event_id IN ('revoked-reader-event', 'postgres-capture-replay')"
+    )
   )
-  testthat::expect_equal(nrow(events_after_revocation), 0L)
+  testthat::expect_identical(
+    events_after_revocation$event_id,
+    replay_event$event_id
+  )
 })

@@ -1871,14 +1871,21 @@ store_record_event <- function(store, event, require_new = FALSE) {
         store$pool,
         paste(
           paste(
-            "WITH authorized AS (SELECT e.entry_id, e.feed_id",
+            "WITH existing AS (SELECT event_id FROM events",
+            "WHERE event_id = $1 AND reader_id = $2 AND entry_id = $3),"
+          ),
+          paste(
+            "authorized AS (SELECT e.entry_id, e.feed_id",
             "FROM entries e"
           ),
           paste(
             "JOIN subscriptions s ON s.feed_id = e.feed_id",
             "AND s.reader_id = $2 AND s.status = 'active'"
           ),
-          "WHERE e.entry_id = $3 FOR SHARE OF s),",
+          paste(
+            "WHERE e.entry_id = $3",
+            "AND NOT EXISTS (SELECT 1 FROM existing) FOR SHARE OF s),"
+          ),
           "inserted AS (INSERT INTO events",
           paste(
             "(event_id, reader_id, entry_id, feed_id, session_id, event_type,",
@@ -1890,7 +1897,8 @@ store_record_event <- function(store, event, require_new = FALSE) {
           ),
           "ON CONFLICT (event_id) DO NOTHING RETURNING event_id)",
           paste(
-            "SELECT EXISTS (SELECT 1 FROM authorized) AS authorized,",
+            "SELECT EXISTS (SELECT 1 FROM existing) AS existing,",
+            "EXISTS (SELECT 1 FROM authorized) AS authorized,",
             "EXISTS (SELECT 1 FROM inserted) AS inserted"
           )
         ),
@@ -1906,7 +1914,10 @@ store_record_event <- function(store, event, require_new = FALSE) {
           payload
         )
       )
-      if (!isTRUE(result$authorized[[1L]])) {
+      if (
+        !isTRUE(result$existing[[1L]]) &&
+          !isTRUE(result$authorized[[1L]])
+      ) {
         store_abort_entry_forbidden()
       }
       inserted <- as.integer(isTRUE(result$inserted[[1L]]))
@@ -1918,12 +1929,31 @@ store_record_event <- function(store, event, require_new = FALSE) {
       )
     }
   } else {
+    existing_index <- match(event$event_id, store$memory$events$event_id)
+    existing_matches <- !is.na(existing_index) &&
+      identical(
+        store$memory$events$reader_id[[existing_index]],
+        reader_id
+      ) &&
+      identical(
+        store$memory$events$entry_id[[existing_index]],
+        event$entry_id %||% NA_character_
+      )
+    if (existing_matches) {
+      if (isTRUE(require_new)) {
+        cli::cli_abort(
+          "The Reading History event ID is already in use.",
+          class = "rill_event_id_conflict"
+        )
+      }
+      return(invisible(event))
+    }
     feed_id <- if (is.null(event$entry_id)) {
       NA_character_
     } else {
       store_entry_feed_for_reader(store, reader_id, event$entry_id)
     }
-    if (event$event_id %in% store$memory$events$event_id) {
+    if (!is.na(existing_index)) {
       if (isTRUE(require_new)) {
         cli::cli_abort(
           "The Reading History event ID is already in use.",
