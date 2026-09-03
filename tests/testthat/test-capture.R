@@ -145,6 +145,22 @@ testthat::test_that("capture uses an existing feed entry for the same URL", {
   testthat::expect_equal(nrow(store$memory$entries), 6L)
   testthat::expect_identical(current$document_id, result$document_id)
   testthat::expect_identical(current$markdown, payload$markdown)
+
+  store_unsubscribe_feed(store, "reader", entry$feed_id[[1L]])
+  testthat::expect_null(
+    store_get_entry(store, "reader", entry$entry_id[[1L]])
+  )
+  captured_entry <- store_get_entry_for_document_pin(
+    store,
+    "reader",
+    result$document_id
+  )
+  testthat::expect_identical(captured_entry$entry_id, result$entry_id)
+  testthat::expect_null(store_get_entry_for_document_pin(
+    store,
+    "other-reader",
+    result$document_id
+  ))
 })
 
 testthat::test_that("capture retries are idempotent", {

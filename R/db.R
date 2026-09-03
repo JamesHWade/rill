@@ -1184,10 +1184,15 @@ store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
         ),
         "LEFT JOIN entry_state s ON s.entry_id = e.entry_id",
         "AND s.reader_id = $1",
-        "WHERE d.document_id = $2 AND EXISTS (SELECT 1 FROM agent_runs ar",
+        "WHERE d.document_id = $2 AND (EXISTS (SELECT 1 FROM agent_runs ar",
         paste(
           "WHERE ar.reader_id = $1",
           "AND ar.pinned_inputs ->> 'document_id' = $2)"
+        ),
+        "OR EXISTS (SELECT 1 FROM events ev WHERE ev.reader_id = $1",
+        paste(
+          "AND ev.entry_id = d.entry_id AND ev.event_type = 'document_captured'",
+          "AND ev.payload ->> 'document_id' = $2))"
         )
       ),
       params = list(reader_id, document_id)
@@ -1198,7 +1203,7 @@ store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
     return(as.list(rows[1L, , drop = FALSE]))
   }
 
-  pinned <- any(vapply(
+  agent_run_pin <- any(vapply(
     store$memory$agent_runs,
     function(run) {
       identical(run$reader_id, reader_id) &&
@@ -1206,7 +1211,24 @@ store_get_entry_for_document_pin <- function(store, reader_id, document_id) {
     },
     logical(1)
   ))
-  if (!pinned) {
+  capture_events <- store$memory$events[
+    store$memory$events$reader_id == reader_id &
+      store$memory$events$event_type == "document_captured",
+    ,
+    drop = FALSE
+  ]
+  capture_pin <- any(vapply(
+    capture_events$payload,
+    function(payload) {
+      captured <- tryCatch(
+        jsonlite::fromJSON(payload, simplifyVector = FALSE),
+        error = \(error) list()
+      )
+      identical(captured$document_id %||% NULL, document_id)
+    },
+    logical(1)
+  ))
+  if (!agent_run_pin && !capture_pin) {
     return(NULL)
   }
   document <- store_get_document_by_id(store, document_id)

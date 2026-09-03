@@ -166,6 +166,14 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     store_list_entries(store, "reader-one", view = "unread")$entry_id,
     entry_id
   )
+  captured_document <- new_rill_document(
+    entry_id = entry_id,
+    source_url = sample$entries$url[sample$entries$entry_id == entry_id],
+    markdown = "Reader-owned captured copy.",
+    acquisition_method = "browser_capture",
+    producer = "reader-library-test"
+  )
+  store_save_document(store, captured_document)
   replay_event <- list(
     event_id = "postgres-capture-replay",
     reader_id = "reader-one",
@@ -175,7 +183,7 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
     happened_at = as.POSIXct("2026-09-03 12:00:00", tz = "UTC"),
     surface = "capture_api",
     position = NA_integer_,
-    payload = list()
+    payload = list(document_id = captured_document$document_id)
   )
   store_record_event(store, replay_event)
 
@@ -380,6 +388,17 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
   ))
   testthat::expect_identical(results$bulk$ok, TRUE)
   testthat::expect_length(results$bulk$value, 0L)
+  captured_entry <- store_get_entry_for_document_pin(
+    store,
+    "reader-one",
+    captured_document$document_id
+  )
+  testthat::expect_identical(captured_entry$entry_id, entry_id)
+  testthat::expect_null(store_get_entry_for_document_pin(
+    store,
+    "reader-two",
+    captured_document$document_id
+  ))
   testthat::expect_no_error(store_record_event(store, replay_event))
   testthat::expect_error(
     store_record_event(store, replay_event, require_new = TRUE),
