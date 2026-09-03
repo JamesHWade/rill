@@ -394,6 +394,28 @@ capture_http_handler <- function(base_handler, store, config) {
       ))
     }
 
+    reader <- tryCatch(
+      store_resolve_reader(store, config$actor_id),
+      error = function(error) error
+    )
+    if (inherits(reader, "error")) {
+      telemetry_log(
+        "error",
+        "capture.reader_status_failed",
+        list("error.type" = class(reader)[[1]])
+      )
+      return(capture_json_response(
+        503L,
+        list(error = "Capture is temporarily unavailable.")
+      ))
+    }
+    if (!identical(reader$status, "active")) {
+      return(capture_json_response(
+        403L,
+        list(error = "Capture is disabled for this Reader.")
+      ))
+    }
+
     result <- tryCatch(
       capture_document(
         store,

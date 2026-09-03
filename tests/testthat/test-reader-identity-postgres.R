@@ -404,10 +404,24 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     adapter,
     identity_test_request("github|reader")
   )
+  capture_handler <- capture_http_handler(
+    function(request) NULL,
+    store,
+    list(actor_id = "reader-one", capture_token = "test-secret")
+  )
+  capture_response <- capture_handler(list2env(
+    list(
+      PATH_INFO = capture_endpoint_path,
+      REQUEST_METHOD = "POST",
+      HTTP_AUTHORIZATION = "Bearer test-secret"
+    ),
+    parent = emptyenv()
+  ))
   testthat::expect_identical(
     disabled[c("status", "reader_id")],
     list(status = "disabled", reader_id = NULL)
   )
+  testthat::expect_identical(capture_response$status, 403L)
 
   local_adapter <- reader_identity_adapter(
     list(identity_mode = "local", actor_id = "reader-one"),
