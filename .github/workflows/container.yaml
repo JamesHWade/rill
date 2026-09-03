@@ -33,7 +33,10 @@ jobs:
             .services.web.command == ["web"] and
             .services.poll.command == ["poll"] and
             .services.web.ports[0].host_ip == "127.0.0.1" and
-            (.services.database.ports == null)
+            (.services.database.ports == null) and
+            .services.web.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
+            .services.poll.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
+            .services.web.environment.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT == "false"
           '
 
       - uses: docker/setup-buildx-action@v3
