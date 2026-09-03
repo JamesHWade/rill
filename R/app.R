@@ -49,10 +49,11 @@ rill_app <- function() {
   app
 }
 
-#' Poll every configured feed
+#' Poll every active Feed
 #'
-#' `poll_feeds()` refreshes every feed in the durable PostgreSQL store. It is
-#' intended for scheduled jobs and reports progress with structured cli output.
+#' `poll_feeds()` refreshes each shared Feed with at least one active
+#' Subscription once. It is intended for scheduled jobs and reports progress
+#' with structured cli output.
 #'
 #' @return Invisibly, a list containing one refresh result per feed.
 #' @export
@@ -69,7 +70,7 @@ poll_feeds <- function() {
   store <- rill_store(config)
   on.exit(rill_store_close(store), add = TRUE)
 
-  results <- refresh_all_feeds(store, config$actor_id)
+  results <- refresh_all_feeds(store)
   failed <- vapply(results, function(result) !is.null(result$error), logical(1))
 
   if (any(failed)) {

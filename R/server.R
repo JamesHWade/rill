@@ -2031,17 +2031,17 @@ rill_server <- function(config, store) {
       shiny::tagList(links)
     })
 
-    output$rename_feed_control <- shiny::renderUI({
+    output$feed_organization_control <- shiny::renderUI({
       feed_id <- selected_feed()
       if (is.null(feed_id)) {
-        return(rename_feed_control_ui())
+        return(feed_organization_control_ui())
       }
       feed_rows <- feeds()
       selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
       if (!nrow(selected)) {
-        return(rename_feed_control_ui())
+        return(feed_organization_control_ui())
       }
-      rename_feed_control_ui(as.list(selected[1, , drop = FALSE]))
+      feed_organization_control_ui(as.list(selected[1, , drop = FALSE]))
     })
 
     output$orientation_destination_settings <- shiny::renderUI({

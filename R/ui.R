@@ -979,7 +979,7 @@ feed_tools_ui <- function() {
     shiny::tags$div(
       class = "feed-tool-section rename-feed-tools",
       shiny::tags$p(class = "feed-tool-label", "Organize selected feed"),
-      shiny::uiOutput("rename_feed_control")
+      shiny::uiOutput("feed_organization_control")
     ),
     shiny::tags$div(
       class = "feed-tool-section",
@@ -1025,7 +1025,7 @@ feed_tools_ui <- function() {
   )
 }
 
-rename_feed_control_ui <- function(feed = NULL) {
+feed_organization_control_ui <- function(feed = NULL) {
   if (is.null(feed)) {
     return(shiny::tags$p(
       class = "feed-tool-help",
@@ -1060,17 +1060,23 @@ rename_feed_control_ui <- function(feed = NULL) {
       "Move feed",
       class = "btn-move-feed"
     ),
-    shiny::actionButton(
-      "unsubscribe_feed",
-      "Unsubscribe",
-      class = "btn-unsubscribe-feed"
-    ),
+    if (identical(feed$source_kind %||% "subscription", "subscription")) {
+      shiny::actionButton(
+        "unsubscribe_feed",
+        "Unsubscribe",
+        class = "btn-unsubscribe-feed"
+      )
+    },
     shiny::tags$p(
       class = "feed-tool-help",
-      paste(
-        "The source stays shared. Unsubscribing hides it from this Library",
-        "but preserves reading state for restoration."
-      )
+      if (identical(feed$source_kind %||% "subscription", "subscription")) {
+        paste(
+          "The source stays shared. Unsubscribing hides it from this Library",
+          "but preserves reading state for restoration."
+        )
+      } else {
+        "Captured items are Reader-owned and cannot be unsubscribed as a Feed."
+      }
     )
   )
 }

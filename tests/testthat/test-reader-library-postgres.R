@@ -122,6 +122,10 @@ testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
   )
 
   store_unsubscribe_feed(store, "reader-one", shared_feed$feed_id)
+  testthat::expect_in(
+    shared_feed$feed_id,
+    store_list_active_feeds(store)$feed_id
+  )
   testthat::expect_null(store_get_entry(store, "reader-one", entry_id))
   store_subscribe_feed(store, "reader-one", shared_feed$feed_id)
   restored <- store_list_feeds(store, "reader-one")

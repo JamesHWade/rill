@@ -649,6 +649,34 @@ store_list_feeds <- function(
   feeds[order(tolower(feeds$folder), tolower(feeds$title)), , drop = FALSE]
 }
 
+store_list_active_feeds <- function(store, source_kind = "subscription") {
+  if (identical(store$mode, "postgres")) {
+    return(DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT f.* FROM feeds f",
+        "WHERE f.source_kind = $1 AND EXISTS (",
+        "SELECT 1 FROM subscriptions s",
+        "WHERE s.feed_id = f.feed_id AND s.status = 'active'",
+        ") ORDER BY lower(f.title), f.feed_id"
+      ),
+      params = list(source_kind)
+    ))
+  }
+
+  active_feed_ids <- unique(store$memory$subscriptions$feed_id[
+    store$memory$subscriptions$status == "active"
+  ])
+  feeds <- store$memory$feeds[
+    store$memory$feeds$feed_id %in%
+      active_feed_ids &
+      store$memory$feeds$source_kind == source_kind,
+    ,
+    drop = FALSE
+  ]
+  feeds[order(tolower(feeds$title), feeds$feed_id), , drop = FALSE]
+}
+
 store_subscribe_feed <- function(
   store,
   reader_id,
@@ -730,6 +758,17 @@ store_unsubscribe_feed <- function(
   now = utc_now()
 ) {
   if (identical(store$mode, "postgres")) {
+    source <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT source_kind FROM feeds WHERE feed_id = $1",
+      params = list(feed_id)
+    )
+    if (nrow(source) && !identical(source$source_kind[[1L]], "subscription")) {
+      cli::cli_abort(
+        "Only subscribed Feeds can be unsubscribed.",
+        class = "rill_subscription_source_invalid"
+      )
+    }
     updated <- DBI::dbExecute(
       store$pool,
       paste(
@@ -748,6 +787,16 @@ store_unsubscribe_feed <- function(
     return(invisible(feed_id))
   }
 
+  feed_index <- match(feed_id, store$memory$feeds$feed_id)
+  if (
+    !is.na(feed_index) &&
+      !identical(store$memory$feeds$source_kind[[feed_index]], "subscription")
+  ) {
+    cli::cli_abort(
+      "Only subscribed Feeds can be unsubscribed.",
+      class = "rill_subscription_source_invalid"
+    )
+  }
   subscriptions <- store$memory$subscriptions
   index <- which(
     subscriptions$reader_id == reader_id &

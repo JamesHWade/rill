@@ -59,19 +59,31 @@ testthat::test_that("feed management exposes OPML import and export", {
   html <- htmltools::renderTags(feed_tools_ui())$html
 
   testthat::expect_match(html, "Manage feeds", fixed = TRUE)
-  testthat::expect_match(html, 'id="rename_feed_control"', fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'id="feed_organization_control"',
+    fixed = TRUE
+  )
   testthat::expect_match(html, 'id="import_opml"', fixed = TRUE)
   testthat::expect_match(html, "Import OPML", fixed = TRUE)
   testthat::expect_match(html, 'id="export_opml"', fixed = TRUE)
   testthat::expect_match(html, "Export OPML", fixed = TRUE)
 
-  selected <- htmltools::renderTags(rename_feed_control_ui(list(
+  selected <- htmltools::renderTags(feed_organization_control_ui(list(
     title = "R Weekly",
-    folder = "Research"
+    folder = "Research",
+    source_kind = "subscription"
   )))$html
   testthat::expect_match(selected, 'id="feed_folder"', fixed = TRUE)
   testthat::expect_match(selected, 'id="move_feed"', fixed = TRUE)
   testthat::expect_match(selected, 'id="unsubscribe_feed"', fixed = TRUE)
+
+  capture <- htmltools::renderTags(feed_organization_control_ui(list(
+    title = "Local captures",
+    folder = "Captured",
+    source_kind = "capture"
+  )))$html
+  testthat::expect_no_match(capture, 'id="unsubscribe_feed"', fixed = TRUE)
 })
 
 testthat::test_that("populated story output remains a scroll container", {

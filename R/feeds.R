@@ -328,8 +328,8 @@ fetch_feed <- function(
   parsed
 }
 
-ingest_feed_url <- function(store, reader_id, url, folder = "Unsorted") {
-  result <- fetch_feed(url, folder = folder)
+ingest_feed_url <- function(store, reader_id, url, folder = NULL) {
+  result <- fetch_feed(url, folder = folder %||% "Unsorted")
   store_upsert_feed(store, result$feed)
   store_subscribe_feed(
     store,
@@ -370,8 +370,8 @@ refresh_feed <- function(store, feed) {
   )
 }
 
-refresh_all_feeds <- function(store, actor_id) {
-  feeds <- store_list_feeds(store, actor_id, source_kind = "subscription")
+refresh_all_feeds <- function(store) {
+  feeds <- store_list_active_feeds(store)
   results <- lapply(seq_len(nrow(feeds)), function(index) {
     feed <- as.list(feeds[index, , drop = FALSE])
     tryCatch(

@@ -156,6 +156,7 @@ testthat::test_that("Reader Libraries isolate shared Feed membership and state",
   )
 
   store_unsubscribe_feed(store, reader_one, feed_id)
+  testthat::expect_in(feed_id, store_list_active_feeds(store)$feed_id)
   testthat::expect_equal(nrow(store_list_feeds(store, reader_one)), 0L)
   testthat::expect_null(store_get_entry(store, reader_one, entry_id))
   testthat::expect_error(
