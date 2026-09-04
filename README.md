@@ -344,8 +344,10 @@ rill::approve_reader_admission(
 )
 ```
 
-Each approval creates a new empty Library. It never grants access to another
+Approving a pending request creates a new empty Library; retrying that approval
+keeps the existing Reader and Library. Approval never grants access to another
 Reader's Subscriptions, reading state, Captures, or selected reading copies.
+Unlinked requests expire 30 days after their most recent sign-in.
 
 ## Package development
 

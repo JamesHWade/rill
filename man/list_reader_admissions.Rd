@@ -17,6 +17,7 @@ does not expose external identity subjects.
 \description{
 \code{list_reader_admissions()} lists access requests recorded when an
 authenticated person opens Hosted Rill without an attached Reader. The
-returned request ID is safe to use with \code{\link[=approve_reader_admission]{approve_reader_admission()}} without
-copying the provider's external subject identifier.
+returned request ID is safe to use with \code{\link[=approve_reader_admission]{approve_reader_admission()}}
+without copying the provider's external subject identifier.
+Unlinked requests expire 30 days after their most recent sign-in.
 }

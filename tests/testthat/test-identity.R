@@ -563,6 +563,98 @@ testthat::test_that("operator approval uses opaque requests", {
   )
 })
 
+testthat::test_that("admission maintenance expires unlinked requests", {
+  local_proxy_identity(subjects = "github|reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  issuer <- config$oidc_issuer
+  old <- structure(
+    list(
+      issuer = issuer,
+      subject = "google-oauth2|old-request",
+      email = "old@example.com",
+      display_name = "Old Request"
+    ),
+    class = "rill_identity"
+  )
+  recent <- structure(
+    list(
+      issuer = issuer,
+      subject = "google-oauth2|recent-request",
+      email = "recent@example.com",
+      display_name = "Recent Request"
+    ),
+    class = "rill_identity"
+  )
+  linked <- structure(
+    list(
+      issuer = issuer,
+      subject = "google-oauth2|linked-request",
+      email = "linked@example.com",
+      display_name = "Linked Request"
+    ),
+    class = "rill_identity"
+  )
+  store_resolve_reader_identity(
+    store,
+    old,
+    now = "2026-09-01 12:00:00 UTC"
+  )
+  store_resolve_reader_identity(
+    store,
+    recent,
+    now = "2026-09-15 12:00:00 UTC"
+  )
+  store_resolve_reader_identity(
+    store,
+    linked,
+    now = "2026-09-01 12:00:00 UTC"
+  )
+  store_admit_reader_identity(
+    store,
+    issuer = issuer,
+    subject = linked$subject,
+    reader_id = "linked-reader",
+    responsible_id = "operator:james",
+    reason = "invitation approved",
+    now = "2026-09-01 12:00:00 UTC"
+  )
+
+  expired_count <- store_expire_reader_admissions(
+    store,
+    now = "2026-10-01 12:00:00 UTC"
+  )
+  admissions <- store_list_reader_admissions(
+    store,
+    status = "pending",
+    now = "2026-10-01 12:00:00 UTC"
+  )
+  old <- admissions[admissions$subject == old$subject, , drop = FALSE]
+  recent <- admissions[
+    admissions$subject == recent$subject,
+    ,
+    drop = FALSE
+  ]
+  stored_old <- store_get_reader_admission(
+    store,
+    issuer,
+    "google-oauth2|old-request"
+  )
+  stored_linked <- store_get_reader_admission(
+    store,
+    issuer,
+    "google-oauth2|linked-request"
+  )
+
+  testthat::expect_identical(expired_count, 1L)
+  testthat::expect_identical(nrow(old), 0L)
+  testthat::expect_null(stored_old)
+  testthat::expect_identical(recent$email, "recent@example.com")
+  testthat::expect_identical(recent$display_name, "Recent Request")
+  testthat::expect_identical(stored_linked$email, "linked@example.com")
+  testthat::expect_identical(stored_linked$display_name, "Linked Request")
+})
+
 testthat::test_that("operator approval rejects unknown request IDs", {
   local_proxy_identity()
   store <- rill_store(rill_config())

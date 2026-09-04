@@ -181,6 +181,53 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
     nrow(store_list_feeds(store, operator_approval$reader_id)),
     0L
   )
+  DBI::dbExecute(
+    store$pool,
+    paste(
+      "UPDATE reader_admission_requests SET last_seen_at = $3",
+      "WHERE issuer = $1 AND subject = $2"
+    ),
+    params = list(
+      config$oidc_issuer,
+      operator_subject,
+      "2026-09-01 12:00:00 UTC"
+    )
+  )
+
+  expired_subject <- "google-oauth2|expired-request"
+  store_resolve_reader_identity(
+    store,
+    structure(
+      list(
+        issuer = config$oidc_issuer,
+        subject = expired_subject,
+        email = "expired@example.com",
+        display_name = "Expired Request"
+      ),
+      class = "rill_identity"
+    ),
+    now = "2026-09-01 12:00:00 UTC"
+  )
+  expired_count <- store_expire_reader_admissions(
+    store,
+    now = "2026-10-01 12:00:00 UTC"
+  )
+  stored_expired_request <- store_get_reader_admission(
+    store,
+    config$oidc_issuer,
+    expired_subject
+  )
+  stored_operator_request <- store_get_reader_admission(
+    store,
+    config$oidc_issuer,
+    operator_subject
+  )
+  testthat::expect_identical(expired_count, 1L)
+  testthat::expect_null(stored_expired_request)
+  testthat::expect_identical(
+    stored_operator_request$email,
+    "invited@example.com"
+  )
 
   store_ensure_reader(store, "other-reader")
   DBI::dbExecute(
@@ -456,6 +503,167 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
   }
   testthat::expect_identical(raced_identity$reader_id, "reader-one")
   testthat::expect_in(admission_status, c("missing", "approved"))
+
+  approval_race_worker <- function(
+    package_path,
+    connection_args,
+    application_name,
+    request_id
+  ) {
+    if (is.null(package_path)) {
+      loadNamespace("rill")
+    } else {
+      pkgload::load_all(package_path, quiet = TRUE)
+    }
+    connection_args$application_name <- application_name
+    database_pool <- do.call(
+      pool::dbPool,
+      c(
+        list(drv = RPostgres::Postgres()),
+        connection_args,
+        list(minSize = 1, maxSize = 1, idleTimeout = 60)
+      )
+    )
+    on.exit(pool::poolClose(database_pool), add = TRUE)
+    worker_store <- structure(
+      list(
+        mode = "postgres",
+        pool = database_pool,
+        private_reader_id = "reader-one"
+      ),
+      class = "rill_store"
+    )
+    tryCatch(
+      {
+        rill:::store_approve_reader_admission(
+          worker_store,
+          request_id,
+          responsible_id = "operator:james",
+          reason = "idempotent retry"
+        )
+        character()
+      },
+      error = \(error) class(error)
+    )
+  }
+  run_approval_state_race <- function(action) {
+    application_name <- paste0(
+      "rill_approval_state_race_",
+      Sys.getpid(),
+      "_",
+      action
+    )
+    DBI::dbBegin(blocker)
+    blocker_active <<- TRUE
+    DBI::dbGetQuery(
+      blocker,
+      paste(
+        "SELECT pg_advisory_xact_lock(",
+        "hashtext($1::text), hashtext($2::text))"
+      ),
+      params = list(config$oidc_issuer, operator_subject)
+    )
+    worker <- callr::r_bg(
+      approval_race_worker,
+      args = list(
+        package_path = package_path,
+        connection_args = connection_args,
+        application_name = application_name,
+        request_id = request$request_id[[1L]]
+      ),
+      stdout = "|",
+      stderr = "|",
+      supervise = TRUE
+    )
+    withr::defer({
+      if (worker$is_alive()) {
+        worker$kill_tree()
+      }
+    })
+    blocked <- FALSE
+    deadline <- Sys.time() + 20
+    while (Sys.time() < deadline) {
+      activity <- DBI::dbGetQuery(
+        store$pool,
+        paste(
+          "SELECT wait_event_type FROM pg_stat_activity",
+          "WHERE application_name = $1"
+        ),
+        params = list(application_name)
+      )
+      blocked <- nrow(activity) > 0L &&
+        any(activity$wait_event_type == "Lock")
+      if (blocked) {
+        break
+      }
+      Sys.sleep(0.05)
+    }
+    if (identical(action, "revoke")) {
+      DBI::dbExecute(
+        blocker,
+        paste(
+          "UPDATE reader_external_identities SET revoked_at = $3",
+          "WHERE issuer = $1 AND subject = $2"
+        ),
+        params = list(
+          config$oidc_issuer,
+          operator_subject,
+          "2026-09-04 12:00:00 UTC"
+        )
+      )
+    } else {
+      DBI::dbExecute(
+        blocker,
+        paste(
+          "UPDATE readers SET status = 'disabled',",
+          "disabled_at = $2, updated_at = $2 WHERE reader_id = $1"
+        ),
+        params = list(
+          operator_approval$reader_id,
+          "2026-09-04 12:00:00 UTC"
+        )
+      )
+    }
+    DBI::dbCommit(blocker)
+    blocker_active <<- FALSE
+    worker$wait(timeout = 20000)
+    result <- list(
+      blocked = blocked,
+      worker_alive = worker$is_alive(),
+      error_classes = worker$get_result()
+    )
+    if (identical(action, "revoke")) {
+      DBI::dbExecute(
+        store$pool,
+        paste(
+          "UPDATE reader_external_identities SET revoked_at = NULL",
+          "WHERE issuer = $1 AND subject = $2"
+        ),
+        params = list(config$oidc_issuer, operator_subject)
+      )
+    } else {
+      DBI::dbExecute(
+        store$pool,
+        paste(
+          "UPDATE readers SET status = 'active', disabled_at = NULL,",
+          "updated_at = $2 WHERE reader_id = $1"
+        ),
+        params = list(operator_approval$reader_id, utc_now())
+      )
+    }
+    result
+  }
+  revoked_race <- run_approval_state_race("revoke")
+  disabled_race <- run_approval_state_race("disable")
+  testthat::expect_identical(revoked_race$blocked, TRUE)
+  testthat::expect_identical(revoked_race$worker_alive, FALSE)
+  testthat::expect_in(
+    "rill_reader_identity_revoked",
+    revoked_race$error_classes
+  )
+  testthat::expect_identical(disabled_race$blocked, TRUE)
+  testthat::expect_identical(disabled_race$worker_alive, FALSE)
+  testthat::expect_in("rill_reader_not_active", disabled_race$error_classes)
 
   happened_at <- "2099-09-03 12:00:00 UTC"
   store_admit_reader_identity(
