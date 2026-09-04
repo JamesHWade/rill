@@ -84,10 +84,12 @@ streams an export without retaining a server-side copy when the runtime permits
 it. When asynchronous generation requires storage, the export job, partial
 files, completed archive, and download credentials are Reader-owned. Partial
 files are purged when generation completes, and failed or cancelled jobs and
-their artifacts are purged within 24 hours. A completed archive, its job record,
-and its download credentials share one expiry and are purged together within 24
-hours of the first successful download or seven days after archive creation,
-whichever comes first.
+their artifacts are purged within 24 hours. A queued or running export job has
+a maximum lifetime of 24 hours from creation. A reaper marks an overdue job as
+failed and purges its partial files within 24 hours of that deadline. A
+completed archive, its job record, and its download credentials share one
+expiry and are purged together within 24 hours of the first successful download
+or seven days after archive creation, whichever comes first.
 
 Export remains available when a Reader reaches a capacity signal. A requested
 export must finish or fail visibly before the associated permanent purge
