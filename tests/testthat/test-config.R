@@ -4,6 +4,10 @@ testthat::test_that("configuration defaults to the bundled demo", {
     RILL_ACTOR_ID = NA,
     RILL_IDENTITY_MODE = NA,
     RILL_ALLOWED_OIDC_SUBJECTS = NA,
+    AUTH0_DOMAIN = NA,
+    AUTH0_CLIENT_ID = NA,
+    AUTH0_CLIENT_SECRET = NA,
+    AUTH0_REDIRECT_URI = NA,
     OAUTH2_PROXY_CLIENT_ID = NA,
     OAUTH2_PROXY_OIDC_ISSUER_URL = NA,
     OAUTH2_PROXY_REDIRECT_URL = NA,
@@ -33,6 +37,10 @@ testthat::test_that("configuration defaults to the bundled demo", {
   testthat::expect_identical(config$oidc_issuer, "")
   testthat::expect_identical(config$oidc_logout_redirect_url, "")
   testthat::expect_identical(config$allowed_oidc_subjects, character())
+  testthat::expect_identical(config$auth0_domain, "")
+  testthat::expect_identical(config$auth0_client_id, "")
+  testthat::expect_identical(config$auth0_client_secret, "")
+  testthat::expect_identical(config$auth0_redirect_uri, "")
   testthat::expect_identical(config$demo_mode, TRUE)
   testthat::expect_identical(config$defuddle_backend, "hosted")
   testthat::expect_identical(config$defuddle_command, "defuddle")
@@ -127,6 +135,75 @@ testthat::test_that("polling configuration requires positive whole numbers", {
   testthat::expect_error(rill_config(), class = "rill_config_invalid")
 })
 
+testthat::test_that("configuration reads an in-app Auth0 identity gate", {
+  withr::local_envvar(c(
+    RILL_ACTOR_ID = "  james  ",
+    RILL_IDENTITY_MODE = "auth0",
+    RILL_ALLOWED_OIDC_SUBJECTS = "auth0|james",
+    AUTH0_DOMAIN = "https://Reader.us.auth0.com/",
+    AUTH0_CLIENT_ID = "reader-client",
+    AUTH0_CLIENT_SECRET = "reader-secret",
+    AUTH0_REDIRECT_URI = "https://rill.share.connect.posit.cloud/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  config <- rill_config()
+
+  testthat::expect_identical(config$actor_id, "james")
+  testthat::expect_identical(config$identity_mode, "auth0")
+  testthat::expect_identical(config$auth0_domain, "reader.us.auth0.com")
+  testthat::expect_identical(config$auth0_client_id, "reader-client")
+  testthat::expect_identical(config$auth0_client_secret, "reader-secret")
+  testthat::expect_identical(
+    config$auth0_redirect_uri,
+    "https://rill.share.connect.posit.cloud/"
+  )
+  testthat::expect_identical(
+    config$oidc_issuer,
+    "https://reader.us.auth0.com/"
+  )
+})
+
+testthat::test_that("the in-app Auth0 gate requires complete settings", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "auth0",
+    RILL_ALLOWED_OIDC_SUBJECTS = "auth0|reader",
+    AUTH0_DOMAIN = "reader.us.auth0.com",
+    AUTH0_CLIENT_ID = "reader-client",
+    AUTH0_CLIENT_SECRET = "",
+    AUTH0_REDIRECT_URI = "https://reader.example/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
+testthat::test_that("the in-app Auth0 gate rejects unsafe URLs", {
+  withr::local_envvar(c(
+    RILL_IDENTITY_MODE = "local",
+    AUTH0_DOMAIN = "http://reader.us.auth0.com",
+    AUTH0_REDIRECT_URI = NA,
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+
+  withr::local_envvar(c(
+    AUTH0_DOMAIN = NA,
+    AUTH0_REDIRECT_URI = "https://reader:secret@example.com/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+})
+
 testthat::test_that("the proxy gate requires a safe HTTPS issuer", {
   withr::local_envvar(c(
     RILL_IDENTITY_MODE = "oidc_proxy",
@@ -188,7 +265,7 @@ testthat::test_that("the proxy gate requires complete logout configuration", {
 
 testthat::test_that("configuration rejects an unknown identity mode", {
   withr::local_envvar(c(
-    RILL_IDENTITY_MODE = "auth0",
+    RILL_IDENTITY_MODE = "oidc",
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
   ))
 

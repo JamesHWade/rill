@@ -1,5 +1,6 @@
 ^\.env\.example$
 ^\.env\.hosted\.example$
+^\.rscignore$
 ^\.dockerignore$
 ^\.git$
 ^\.github$
@@ -17,6 +18,7 @@
 ^design-qa\.md$
 ^docs$
 ^LICENSE\.md$
+^manifest\.json$
 ^rill\.Rproj$
 ^scripts$
 ^[.]?air[.]toml$

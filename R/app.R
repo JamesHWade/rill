@@ -2,15 +2,19 @@
 #'
 #' `rill_app()` creates the Shiny application using configuration read from
 #' environment variables. With no `DATABASE_URL`, it uses bundled demo data.
-#' The production web container enables a private OIDC proxy gate. Its Reader
-#' Identity adapter resolves exact issuer and `sub` pairs to durable internal
-#' Readers. Configured `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private
-#' Reader in `RILL_ACTOR_ID`; unknown identities remain denied with one pending
-#' admission record. Email and other profile claims are mutable metadata, not
-#' identity keys. When `RILL_CAPTURE_TOKEN` is set, the same application binds
-#' that credential to `RILL_ACTOR_ID` and accepts authenticated browser
-#' Documents at `/api/v1/captures`. Captures and reading-copy selection remain
-#' private to that Reader. `RILL_AGENT_MODEL` selects the
+#' `RILL_IDENTITY_MODE=auth0` enables an in-app Auth0 gate for hosts such as
+#' Posit Connect Cloud, while `oidc_proxy` keeps the production container's
+#' upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
+#' `sub` pairs to durable internal Readers. Configured
+#' `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private Reader in
+#' `RILL_ACTOR_ID`. The in-app gate rejects subjects outside that allowlist
+#' before Library database access; the proxy adapter records one pending
+#' admission while denying Library access. Email and other profile claims are
+#' mutable metadata, not identity keys. When `RILL_CAPTURE_TOKEN` is set, the
+#' same application binds that credential to `RILL_ACTOR_ID` and accepts
+#' authenticated browser Documents at
+#' `/api/v1/captures`. Captures and reading-copy selection remain private to
+#' that Reader. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and
 #' Orientation. Its provider credential must also be available.
 #' `RILL_AGENT_BASE_URL` selects a custom provider endpoint and is required

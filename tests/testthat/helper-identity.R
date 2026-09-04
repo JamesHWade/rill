@@ -50,3 +50,39 @@ local_proxy_identity <- function(
     .local_envir = parent.frame()
   )
 }
+
+local_auth0_identity <- function(subjects = "auth0|reader") {
+  withr::local_envvar(
+    c(
+      DATABASE_URL = "",
+      RILL_ACTOR_ID = "private-reader",
+      RILL_IDENTITY_MODE = "auth0",
+      RILL_ALLOWED_OIDC_SUBJECTS = subjects,
+      AUTH0_DOMAIN = "reader.us.auth0.com",
+      AUTH0_CLIENT_ID = "test-client",
+      AUTH0_CLIENT_SECRET = "test-secret",
+      AUTH0_REDIRECT_URI = "https://reader.example/"
+    ),
+    .local_envir = parent.frame()
+  )
+  testthat::local_mocked_bindings(
+    identity_auth0_client = \(config) "test-oauth-client",
+    .env = parent.frame()
+  )
+}
+
+identity_test_auth0_token <- function(
+  subject,
+  email = NULL,
+  display_name = NULL
+) {
+  shinyOAuth::OAuthToken(
+    access_token = "test-access-token",
+    token_type = "Bearer",
+    userinfo = list(
+      sub = subject,
+      email = email,
+      name = display_name
+    )
+  )
+}

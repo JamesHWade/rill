@@ -1,5 +1,8 @@
 rill_ui <- function(config) {
   bslib::page_fillable(
+    if (identical(config$identity_mode, "auth0")) {
+      shinyOAuth::use_shinyOAuth()
+    },
     theme = bslib::bs_theme(
       version = 5,
       brand = brand.yml::read_brand_yml(

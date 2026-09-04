@@ -44,20 +44,91 @@ normalize_identity_mode <- function(value) {
   if (
     length(value) != 1L ||
       is.na(value) ||
-      !value %in% c("local", "oidc_proxy")
+      !value %in% c("local", "oidc_proxy", "auth0")
   ) {
     cli::cli_abort(
       c(
         "Invalid Reader identity mode {.val {value}}.",
         "i" = paste(
           "Set {.envvar RILL_IDENTITY_MODE} to {.val local} or",
-          "{.val oidc_proxy}."
+          "{.val oidc_proxy} or {.val auth0}."
         )
       ),
       class = "rill_identity_config_invalid"
     )
   }
   value
+}
+
+normalize_auth0_domain <- function(value) {
+  value <- trimws(value %||% "")
+  if (!nzchar(value)) {
+    return("")
+  }
+  parsed <- tryCatch(
+    httr2::url_parse(
+      if (grepl("^https://", value)) {
+        value
+      } else {
+        paste0("https://", value)
+      }
+    ),
+    error = \(error) NULL
+  )
+  if (
+    is.null(parsed) ||
+      !identical(tolower(parsed$scheme %||% ""), "https") ||
+      !nzchar(parsed$hostname %||% "") ||
+      nzchar(parsed$username %||% "") ||
+      nzchar(parsed$password %||% "") ||
+      nzchar(parsed$port %||% "") ||
+      !(parsed$path %||% "") %in% c("", "/") ||
+      length(parsed$query %||% list()) ||
+      nzchar(parsed$fragment %||% "")
+  ) {
+    cli::cli_abort(
+      paste(
+        "{.envvar AUTH0_DOMAIN} must be an HTTPS Auth0 hostname without",
+        "credentials, a port, path, query, or fragment."
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  tolower(parsed$hostname)
+}
+
+normalize_auth0_redirect_uri <- function(value) {
+  value <- trimws(value %||% "")
+  if (!nzchar(value)) {
+    return("")
+  }
+  parsed <- tryCatch(
+    httr2::url_parse(value),
+    error = \(error) NULL
+  )
+  scheme <- tolower(parsed$scheme %||% "")
+  hostname <- tolower(parsed$hostname %||% "")
+  local_http <- identical(scheme, "http") &&
+    hostname %in% c("127.0.0.1", "localhost", "::1")
+  if (
+    is.null(parsed) ||
+      (!identical(scheme, "https") && !local_http) ||
+      !nzchar(hostname) ||
+      nzchar(parsed$username %||% "") ||
+      nzchar(parsed$password %||% "") ||
+      length(parsed$query %||% list()) ||
+      nzchar(parsed$fragment %||% "")
+  ) {
+    cli::cli_abort(
+      paste(
+        "{.envvar AUTH0_REDIRECT_URI} must be a complete HTTPS URL without",
+        "credentials, a query, or a fragment. Loopback HTTP is permitted",
+        "for local development."
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  httr2::url_build(parsed)
 }
 
 parse_oidc_subjects <- function(value) {
@@ -199,6 +270,22 @@ rill_config <- function() {
     "RILL_ALLOWED_OIDC_SUBJECTS",
     unset = ""
   ))
+  auth0_domain <- normalize_auth0_domain(Sys.getenv(
+    "AUTH0_DOMAIN",
+    unset = ""
+  ))
+  auth0_client_id <- trimws(Sys.getenv("AUTH0_CLIENT_ID", unset = ""))
+  auth0_client_secret <- trimws(Sys.getenv(
+    "AUTH0_CLIENT_SECRET",
+    unset = ""
+  ))
+  auth0_redirect_uri <- normalize_auth0_redirect_uri(Sys.getenv(
+    "AUTH0_REDIRECT_URI",
+    unset = ""
+  ))
+  if (identical(identity_mode, "auth0") && nzchar(auth0_domain)) {
+    oidc_issuer <- paste0("https://", auth0_domain, "/")
+  }
   actor_id <- Sys.getenv("RILL_ACTOR_ID", unset = "reader")
   if (
     identical(identity_mode, "oidc_proxy") &&
@@ -222,7 +309,30 @@ rill_config <- function() {
       class = "rill_identity_config_invalid"
     )
   }
-  if (identical(identity_mode, "oidc_proxy")) {
+  if (
+    identical(identity_mode, "auth0") &&
+      (!nzchar(trimws(actor_id)) ||
+        !nzchar(auth0_domain) ||
+        !nzchar(auth0_client_id) ||
+        !nzchar(auth0_client_secret) ||
+        !nzchar(auth0_redirect_uri) ||
+        !length(allowed_oidc_subjects))
+  ) {
+    cli::cli_abort(
+      c(
+        "The in-app Auth0 identity gate is incomplete.",
+        "i" = paste(
+          "Set {.envvar RILL_ACTOR_ID},",
+          "{.envvar RILL_ALLOWED_OIDC_SUBJECTS},",
+          "{.envvar AUTH0_DOMAIN}, {.envvar AUTH0_CLIENT_ID},",
+          "{.envvar AUTH0_CLIENT_SECRET}, and",
+          "{.envvar AUTH0_REDIRECT_URI}."
+        )
+      ),
+      class = "rill_identity_config_invalid"
+    )
+  }
+  if (identity_mode %in% c("oidc_proxy", "auth0")) {
     actor_id <- trimws(actor_id)
   }
 
@@ -235,6 +345,10 @@ rill_config <- function() {
     oidc_issuer = oidc_issuer,
     oidc_logout_redirect_url = oidc_logout_redirect_url,
     allowed_oidc_subjects = allowed_oidc_subjects,
+    auth0_domain = auth0_domain,
+    auth0_client_id = auth0_client_id,
+    auth0_client_secret = auth0_client_secret,
+    auth0_redirect_uri = auth0_redirect_uri,
     database_url = database_url,
     demo_mode = identical(database_url, ""),
     defuddle_backend = normalize_defuddle_backend(Sys.getenv(

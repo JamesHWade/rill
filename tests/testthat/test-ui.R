@@ -145,6 +145,29 @@ testthat::test_that("the private gate offers a complete sign-out path", {
   )
 })
 
+testthat::test_that("the in-app Auth0 gate loads OAuth and signs out completely", {
+  local_auth0_identity()
+  withr::local_envvar(
+    AUTH0_REDIRECT_URI = "https://rill.share.connect.posit.cloud/"
+  )
+  config <- rill_config()
+  dependencies <- htmltools::findDependencies(rill_ui(config))
+  html <- htmltools::renderTags(navigation_sidebar_ui(config))$html
+
+  testthat::expect_contains(
+    vapply(dependencies, `[[`, character(1), "name"),
+    "shinyOAuth"
+  )
+  testthat::expect_match(
+    html,
+    paste0(
+      'href="https://reader.us.auth0.com/v2/logout?client_id=test-client',
+      '&amp;returnTo=https%3A%2F%2Frill.share.connect.posit.cloud%2F"'
+    ),
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("Orientation settings disclose their Data Destination", {
   store <- local_orientation_backend_store("memory", "reader-1")
   config <- orientation_destination_test_config()
