@@ -1251,6 +1251,13 @@
 
     const key = event.key.toLowerCase();
     if (isEditableTarget(event.target)) return;
+    if (
+      compactReaderMode.matches &&
+      compactSurface === "library" &&
+      key !== "escape"
+    ) {
+      return;
+    }
 
     let handled = false;
     if (key === "j") handled = moveStory(1);

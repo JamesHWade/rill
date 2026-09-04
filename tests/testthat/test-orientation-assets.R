@@ -289,6 +289,11 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
     'compactSurface === "library"',
     fixed = TRUE
   )
+  testthat::expect_match(
+    javascript,
+    'key !== "escape"',
+    fixed = TRUE
+  )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
   compact_styles <- strsplit(
