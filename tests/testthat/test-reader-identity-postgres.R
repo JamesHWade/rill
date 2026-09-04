@@ -152,6 +152,36 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
   testthat::expect_identical(as.integer(reader_count$count[[1L]]), 1L)
   testthat::expect_identical(nrow(store_list_feeds(store, "reader-two")), 0L)
 
+  operator_subject <- "google-oauth2|operator-workflow"
+  reader_identity_resolve(
+    adapter,
+    identity_test_request(
+      operator_subject,
+      email = "invited@example.com",
+      display_name = "Invited Reader"
+    )
+  )
+  requests <- store_list_reader_admissions(store, "pending")
+  request <- requests[requests$subject == operator_subject, , drop = FALSE]
+  operator_approval <- store_approve_reader_admission(
+    store,
+    request$request_id[[1L]],
+    responsible_id = "operator:james",
+    reason = "invitation approved"
+  )
+  operator_resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_request(operator_subject)
+  )
+  testthat::expect_identical(
+    operator_resolution[c("status", "reader_id")],
+    list(status = "active", reader_id = operator_approval$reader_id)
+  )
+  testthat::expect_identical(
+    nrow(store_list_feeds(store, operator_approval$reader_id)),
+    0L
+  )
+
   store_ensure_reader(store, "other-reader")
   DBI::dbExecute(
     store$pool,

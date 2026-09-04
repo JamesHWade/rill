@@ -167,8 +167,10 @@ Neon is a good fit for this first version. Alternatives become attractive only f
 
 Rill supports an in-app Auth0 gate for Posit Connect Cloud, where Free content
 remains public at the platform edge. The gate prevents Rill's Reader server,
-Library queries, and Agent actions from starting until Auth0 validates an exact
-allowlisted `sub`. The application shell and static assets remain public.
+Library queries, and Agent actions from starting until Auth0 validates an
+identity attached to a Reader. A verified identity without a binding receives
+an access-request confirmation while Rill records one pending admission. The
+application shell and static assets remain public.
 
 See [the Connect Cloud deployment runbook](docs/deployment/connect-cloud.md) for
 the manifest, Auth0 callback, Neon, OpenAI, and hourly GitHub Actions polling
@@ -330,6 +332,20 @@ defines the isolation and legacy migration, while the
 defines export, deletion, shared-source retention, and capacity signals.
 Additional Readers enter through an explicit, audited admission rather than
 the bootstrap allowlist.
+
+An operator with the deployment's `DATABASE_URL` can approve a recorded request
+without copying its external identity subject:
+
+```r
+requests <- rill::list_reader_admissions()
+rill::approve_reader_admission(
+  requests$request_id[[1]],
+  responsible_id = "operator:james"
+)
+```
+
+Each approval creates a new empty Library. It never grants access to another
+Reader's Subscriptions, reading state, Captures, or selected reading copies.
 
 ## Package development
 

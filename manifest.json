@@ -2758,7 +2758,7 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "f7db8129db3d20d6e8167129e0cfff06"
+      "checksum": "738962f5bbc4276fb1068c7bdc6572cd"
     },
     "R/agent-runs.R": {
       "checksum": "3e19969be1c87666a89f92232be43277"
@@ -2767,7 +2767,7 @@
       "checksum": "efa560e90a333c7e504156c825527f99"
     },
     "R/app.R": {
-      "checksum": "bfd38c3305662b40bfd42825f595e0c8"
+      "checksum": "1b69fae0dc676dd9cb514031cc647d30"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2788,7 +2788,7 @@
       "checksum": "b3a70a9e96e8fba87a4c90807639d0c1"
     },
     "R/identity.R": {
-      "checksum": "dd5358adc7248da85fe245439f1e41fe"
+      "checksum": "d4c7c947fea64bb5f2a919a2f4b1f150"
     },
     "R/opml.R": {
       "checksum": "c9fe82988299e886d1c647083b031ded"
@@ -2807,6 +2807,9 @@
     },
     "R/polling.R": {
       "checksum": "a6e6ffacc08f8869b1c965210d6e6f0b"
+    },
+    "R/reader-admissions.R": {
+      "checksum": "3c34bbdef51d8c427eb012de3d4fc5ea"
     },
     "R/rill-package.R": {
       "checksum": "931b381347f39d9a5534f464a6dc8849"

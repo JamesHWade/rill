@@ -1,4 +1,4 @@
-testthat::test_that("the private gate denies an unapproved proxy identity", {
+testthat::test_that("the proxy gate records and explains pending access", {
   local_proxy_identity(subjects = "google-oauth2|approved")
   app <- rill_app()
 
@@ -8,6 +8,11 @@ testthat::test_that("the private gate denies an unapproved proxy identity", {
   testthat::expect_no_match(
     response$content,
     "github|unapproved",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    response$content,
+    "Your sign-in worked. Rill recorded an access request",
     fixed = TRUE
   )
   testthat::expect_match(
@@ -154,15 +159,19 @@ testthat::test_that("the in-app gate starts Rill only after authentication", {
   })
 })
 
-testthat::test_that("the in-app gate denies unknown subjects before DB access", {
+testthat::test_that("the in-app gate records unknown subjects for approval", {
   local_auth0_identity(subjects = "auth0|approved")
   config <- rill_config()
   store <- rill_store(config)
   adapter <- reader_identity_adapter(config, store)
   auth <- shiny::reactiveValues(authenticated = FALSE, token = NULL)
   started <- FALSE
+  denied_status <- NULL
   testthat::local_mocked_bindings(
-    identity_oauth_module_server = function(...) auth
+    identity_oauth_module_server = function(...) auth,
+    identity_show_denied_modal = function(config, status) {
+      denied_status <<- status
+    }
   )
   server <- identity_server_handler(
     function(...) started <<- TRUE,
@@ -174,11 +183,13 @@ testthat::test_that("the in-app gate denies unknown subjects before DB access", 
     auth$authenticated <- TRUE
     session$flushReact()
     testthat::expect_identical(started, FALSE)
-    testthat::expect_null(store_get_reader_admission(
+    admission <- store_get_reader_admission(
       store,
       config$oidc_issuer,
       "auth0|unknown"
-    ))
+    )
+    testthat::expect_identical(admission$status, "pending")
+    testthat::expect_identical(denied_status, "pending")
   })
 })
 
@@ -490,6 +501,129 @@ testthat::test_that("admission creates an isolated second Reader", {
     0L
   )
   testthat::expect_gt(nrow(store_list_feeds(store, "private-reader")), 0L)
+})
+
+testthat::test_that("operator approval uses opaque requests", {
+  local_proxy_identity(subjects = "github|reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  request <- identity_test_request(
+    "google-oauth2|invited",
+    email = "invited@example.com",
+    display_name = "Invited Reader"
+  )
+  reader_identity_resolve(adapter, request)
+
+  pending <- store_list_reader_admissions(store, "pending")
+  summary <- reader_admission_summary(pending)
+  approved <- store_approve_reader_admission(
+    store,
+    pending$request_id[[1L]],
+    responsible_id = "operator:james",
+    reason = "invitation approved",
+    now = "2026-09-04 12:00:00 UTC"
+  )
+  repeated <- store_approve_reader_admission(
+    store,
+    pending$request_id[[1L]],
+    responsible_id = "operator:james",
+    reason = "idempotent retry",
+    now = "2026-09-04 12:01:00 UTC"
+  )
+  resolution <- reader_identity_resolve(adapter, request)
+  events <- store_list_reader_identity_events(store, approved$reader_id)
+
+  testthat::expect_named(
+    summary,
+    c(
+      "request_id",
+      "email",
+      "display_name",
+      "status",
+      "attempt_count",
+      "first_seen_at",
+      "last_seen_at",
+      "decided_at"
+    )
+  )
+  testthat::expect_identical(summary$email, "invited@example.com")
+  testthat::expect_identical(approved$reader_id, repeated$reader_id)
+  testthat::expect_identical(
+    resolution[c("status", "reader_id")],
+    list(status = "active", reader_id = approved$reader_id)
+  )
+  testthat::expect_identical(
+    nrow(store_list_feeds(store, approved$reader_id)),
+    0L
+  )
+  testthat::expect_identical(
+    sum(events$action == "identity_attached"),
+    1L
+  )
+})
+
+testthat::test_that("operator approval rejects unknown request IDs", {
+  local_proxy_identity()
+  store <- rill_store(rill_config())
+
+  testthat::expect_error(
+    store_approve_reader_admission(
+      store,
+      "unknown-request",
+      responsible_id = "operator:james",
+      reason = "invitation approved"
+    ),
+    class = "rill_reader_admission_not_found"
+  )
+})
+
+testthat::test_that("operator approval cannot restore revoked access", {
+  local_proxy_identity()
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  request <- identity_test_request("google-oauth2|revoked-invitation")
+  reader_identity_resolve(adapter, request)
+  pending <- store_list_reader_admissions(store, "pending")
+  approved <- store_approve_reader_admission(
+    store,
+    pending$request_id[[1L]],
+    responsible_id = "operator:james",
+    reason = "invitation approved"
+  )
+  identity_index <- which(
+    store$memory$reader_identities$subject == "google-oauth2|revoked-invitation"
+  )
+  store$memory$reader_identities$revoked_at[[identity_index]] <- utc_now()
+
+  testthat::expect_error(
+    store_approve_reader_admission(
+      store,
+      pending$request_id[[1L]],
+      responsible_id = "operator:james",
+      reason = "invitation approved"
+    ),
+    class = "rill_reader_identity_revoked"
+  )
+
+  store$memory$reader_identities$revoked_at[[identity_index]] <- NA_character_
+  store_disable_reader(
+    store,
+    approved$reader_id,
+    responsible_id = "operator:james",
+    reason = "access revoked"
+  )
+
+  testthat::expect_error(
+    store_approve_reader_admission(
+      store,
+      pending$request_id[[1L]],
+      responsible_id = "operator:james",
+      reason = "invitation approved"
+    ),
+    class = "rill_reader_not_active"
+  )
 })
 
 testthat::test_that("an existing external identity cannot be relinked", {

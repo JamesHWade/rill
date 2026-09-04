@@ -8,6 +8,8 @@ reference:
     desc: Launch the reader or refresh its subscriptions.
     contents:
       - rill_app
+      - list_reader_admissions
+      - approve_reader_admission
       - poll_feeds
       - prepare_today
 
