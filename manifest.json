@@ -2710,7 +2710,7 @@
       "checksum": "d7cb42f526858d9fe498feb03121f135"
     },
     "inst/app/www/app.js": {
-      "checksum": "afa6dc185af0fde0755415529e2965b5"
+      "checksum": "2c21377a1993e7183bc6367f97486364"
     },
     "inst/app/www/rill-duck-dark.png": {
       "checksum": "21486198a27f8f81c131d9363b207eee"
@@ -2824,7 +2824,7 @@
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "d30df97017211af575726dda50a8d456"
+      "checksum": "cb39dccb6a9b9f6376d238bbf8cba93c"
     }
   },
   "users": null

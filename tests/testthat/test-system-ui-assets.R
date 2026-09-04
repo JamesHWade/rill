@@ -16,6 +16,7 @@ testthat::test_that("system status starts with an accessible recovery contract",
     'href="#rill-primary-surface"',
     fixed = TRUE
   )
+  testthat::expect_match(skip, "Skip to primary content", fixed = TRUE)
   testthat::expect_match(
     reader,
     'id="rill-primary-surface"',
@@ -176,7 +177,7 @@ testthat::test_that("core text colors meet WCAG AA contrast", {
   testthat::expect_gte(min(ratios), 4.5)
 })
 
-testthat::test_that("Escape closes Ask Rill before leaving Reading", {
+testthat::test_that("Escape preserves compact Reading before leaving it", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
     collapse = "\n"
@@ -191,8 +192,39 @@ testthat::test_that("Escape closes Ask Rill before leaving Reading", {
     'setSidebarExpanded\\("reader_agent_sidebar", false\\)',
     shortcut
   )[[1]]
+  compact_reader <- regexpr(
+    'compactSurface === "reader"',
+    shortcut,
+    fixed = TRUE
+  )[[1]]
+  queue_open <- regexpr("window.rillOpenQueue()", shortcut, fixed = TRUE)[[1]]
   reader_close <- regexpr("window.rillCloseReader\\(\\)", shortcut)[[1]]
 
   testthat::expect_gt(agent_close, 0L)
-  testthat::expect_gt(reader_close, agent_close)
+  testthat::expect_gt(compact_reader, agent_close)
+  testthat::expect_gt(queue_open, compact_reader)
+  testthat::expect_gt(reader_close, queue_open)
+})
+
+testthat::test_that("the skip link follows the visible compact surface", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    "function handleSkipLink(event)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'target.closest(".rill-skip-link")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "focusCompactSurface(surface, hasReader)",
+    fixed = TRUE
+  )
 })

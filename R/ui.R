@@ -65,7 +65,7 @@ rill_skip_link_ui <- function() {
   shiny::tags$a(
     class = "rill-skip-link",
     href = "#rill-primary-surface",
-    "Skip to the reading surface"
+    "Skip to primary content"
   )
 }
 
