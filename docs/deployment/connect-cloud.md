@@ -15,8 +15,11 @@ OIDC token's exact issuer and `sub` resolve to the configured Reader.
 
 Use the fresh Neon project provisioned for this trial and keep its pooled
 connection string with `sslmode=require`. The Connect Cloud deployment and the
-Render spike may share this database: they are two front ends for the same
-single-Reader trial, not independent environments. Keep both deployments on a
+Render spike may reuse this database sequentially, but must never be live
+against it at the same time. Starting either web process interrupts unfinished
+Agent Runs as restart recovery, including runs started by another process.
+Suspend one deployment and confirm its sessions and Agent Runs have stopped
+before attaching the database to the other. Keep both deployments on a
 compatible schema revision, use the same `RILL_ACTOR_ID`, and configure only
 one scheduled Feed poller. Do not reuse or migrate the local database in place.
 
