@@ -18,7 +18,13 @@ rill_ui <- function(config) {
       shiny::tags$link(
         rel = "icon",
         type = "image/png",
-        href = "rill-assets/rill-duck.png"
+        sizes = "32x32",
+        href = "rill-assets/favicon-32.png"
+      ),
+      shiny::tags$link(
+        rel = "apple-touch-icon",
+        sizes = "180x180",
+        href = "rill-assets/apple-touch-icon.png"
       ),
       shiny::tags$title("Rill \u2014 personal reader"),
       shiny::includeScript(rill_package_file("app", "www", "app.js")),
@@ -118,7 +124,7 @@ compact_app_bar_ui <- function(config) {
     ),
     shiny::tags$div(
       class = "compact-app-brand",
-      rill_duck_mark("compact-brand-mark"),
+      rill_otter_mark("compact-brand-mark"),
       shiny::tags$strong(config$app_name)
     ),
     shiny::tags$button(
@@ -147,7 +153,7 @@ navigation_sidebar_ui <- function(config) {
     ),
     shiny::tags$div(
       class = "brand",
-      rill_duck_mark("brand-mark"),
+      rill_otter_mark("brand-mark"),
       shiny::tags$div(
         shiny::tags$strong(config$app_name),
         shiny::tags$small("Personal reader")
@@ -879,6 +885,7 @@ orientation_ui <- function(
   if (is.null(orientation)) {
     return(shiny::tags$section(
       class = "orientation-canvas orientation-quiet",
+      rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
       shiny::tags$h1("Choose something worth reading"),
       shiny::tags$p(
@@ -911,6 +918,7 @@ orientation_ui <- function(
   if (!length(cards)) {
     return(shiny::tags$section(
       class = "orientation-canvas orientation-quiet",
+      rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
       shiny::tags$h1("No current Orientation selection"),
       shiny::tags$p(
@@ -1297,20 +1305,28 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
   )
 }
 
-rill_duck_mark <- function(class) {
+rill_otter_mark <- function(class) {
   shiny::tags$span(
     class = class,
     `aria-hidden` = "true",
     shiny::tags$img(
-      class = "theme-logo theme-logo-light",
-      src = "rill-assets/rill-duck.png",
-      alt = ""
-    ),
-    shiny::tags$img(
-      class = "theme-logo theme-logo-dark",
-      src = "rill-assets/rill-duck-dark.png",
-      alt = ""
+      class = "brand-logo",
+      src = "rill-assets/rill-otter-mark.png",
+      alt = "",
+      width = 48,
+      height = 48
     )
+  )
+}
+
+rill_reading_otter <- function(class) {
+  shiny::tags$img(
+    class = class,
+    src = "rill-assets/rill-otter-reading.png",
+    alt = "",
+    `aria-hidden` = "true",
+    width = 200,
+    height = 200
   )
 }
 
@@ -1576,6 +1592,7 @@ empty_story_list <- function(view, feed_title = NULL) {
 
   shiny::tags$div(
     class = "empty-list",
+    rill_reading_otter("empty-otter"),
     shiny::tags$p(class = "empty-eyebrow", "Reading queue"),
     shiny::tags$h3(state$title),
     shiny::tags$p(state$body)

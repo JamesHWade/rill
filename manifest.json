@@ -2698,7 +2698,7 @@
   },
   "files": {
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "2b7d2c31a6b97f082331a70e9262bde6"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2707,7 +2707,7 @@
       "checksum": "94126c47d7ce62dcd3471f151f0e4e70"
     },
     "inst/app/_brand.yml": {
-      "checksum": "d7cb42f526858d9fe498feb03121f135"
+      "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
       "checksum": "2c21377a1993e7183bc6367f97486364"
@@ -2719,7 +2719,7 @@
       "checksum": "13eca81e135c048173520d80046ee2b4"
     },
     "inst/app/www/styles.css": {
-      "checksum": "3cb32bc1b6b94867b58c9626bbfb6007"
+      "checksum": "a962028fc20ffee70ac497cfb0b34083"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2824,7 +2824,19 @@
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "cb39dccb6a9b9f6376d238bbf8cba93c"
+      "checksum": "496a9820657385c4ab9ea9150d2ec987"
+    },
+    "inst/app/www/rill-otter-mark.png": {
+      "checksum": "aa7ba1b5d4e9c8a12c916fc4e33b5eaa"
+    },
+    "inst/app/www/rill-otter-reading.png": {
+      "checksum": "0efce38dec762eec522fa9f7312f054a"
+    },
+    "inst/app/www/favicon-32.png": {
+      "checksum": "ac0768a009686e8f63029ef703e3b34e"
+    },
+    "inst/app/www/apple-touch-icon.png": {
+      "checksum": "a2534797bdc8e1728b8f3c2cf7a79b06"
     }
   },
   "users": null

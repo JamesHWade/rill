@@ -24,3 +24,6 @@
 ^[.]?air[.]toml$
 ^AGENTS[.]md$
 ^[.]claude$
+^tools/hex-sticker$
+^tools/app-brand$
+^pkgdown$

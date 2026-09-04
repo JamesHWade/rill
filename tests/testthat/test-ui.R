@@ -700,17 +700,26 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
   testthat::expect_no_match(queue_html, "orientation-step", fixed = TRUE)
 })
 
-testthat::test_that("the application shell uses the Rill duck mark", {
+testthat::test_that("the application shell uses accessible Rill otter branding", {
   config <- rill_config()
   ui <- rill_ui(config)
   marks <- htmltools::tagQuery(ui)$find(
-    ".brand-mark .theme-logo"
+    ".brand-mark .brand-logo"
   )$selectedTags()
 
-  testthat::expect_length(marks, 2L)
+  testthat::expect_length(marks, 1L)
   testthat::expect_setequal(
     vapply(marks, function(mark) mark$attribs$src, character(1)),
-    c("rill-assets/rill-duck.png", "rill-assets/rill-duck-dark.png")
+    "rill-assets/rill-otter-mark.png"
+  )
+  testthat::expect_identical(marks[[1L]]$attribs$alt, "")
+  compact_marks <- htmltools::tagQuery(ui)$find(
+    ".compact-brand-mark .brand-logo"
+  )$selectedTags()
+  testthat::expect_length(compact_marks, 1L)
+  testthat::expect_identical(
+    compact_marks[[1L]]$attribs$src,
+    marks[[1L]]$attribs$src
   )
   favicon <- Filter(
     \(tag) identical(tag$attribs$rel, "icon"),
@@ -719,8 +728,30 @@ testthat::test_that("the application shell uses the Rill duck mark", {
   testthat::expect_length(favicon, 1L)
   testthat::expect_identical(
     favicon[[1L]]$attribs$href,
-    "rill-assets/rill-duck.png"
+    "rill-assets/favicon-32.png"
   )
+  touch_icon <- Filter(
+    \(tag) identical(tag$attribs$rel, "apple-touch-icon"),
+    htmltools::tagQuery(ui)$find("link")$selectedTags()
+  )
+  testthat::expect_length(touch_icon, 1L)
+  testthat::expect_identical(
+    touch_icon[[1L]]$attribs$href,
+    "rill-assets/apple-touch-icon.png"
+  )
+})
+
+testthat::test_that("quiet reading states show a decorative reading otter", {
+  for (ui in list(orientation_ui(NULL, list()), empty_story_list("all"))) {
+    images <- htmltools::tagQuery(ui)$find("img")$selectedTags()
+    testthat::expect_length(images, 1L)
+    testthat::expect_identical(
+      images[[1L]]$attribs$src,
+      "rill-assets/rill-otter-reading.png"
+    )
+    testthat::expect_identical(images[[1L]]$attribs$alt, "")
+    testthat::expect_identical(images[[1L]]$attribs[["aria-hidden"]], "true")
+  }
 })
 
 testthat::test_that("appearance control offers system, light, and dark modes", {

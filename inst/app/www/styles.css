@@ -3,18 +3,18 @@
   --paper: #fffdf7;
   --paper-deep: #f4eedc;
   --queue: #f8f5ec;
-  --duck-egg: #deeceb;
-  --duck-egg-deep: #cddfdd;
+  --river-mist: #deeceb;
+  --river-mist-deep: #cddfdd;
   --ink: #243936;
   --muted: #65726c;
   --line: rgba(36, 57, 54, 0.14);
-  --green: #587b69;
-  --green-deep: #2d5045;
+  --green: #2f746d;
+  --green-deep: #124c50;
   --green-soft: #e8f0eb;
   --amber: #c08a32;
   --amber-soft: #f3e7cc;
   --danger: #934a3c;
-  --sidebar-background: linear-gradient(135deg, #e5f1f0 0%, var(--duck-egg) 100%);
+  --sidebar-background: linear-gradient(135deg, #e5f1f0 0%, var(--river-mist) 100%);
   --sidebar-border: rgba(45, 80, 69, 0.1);
   --sidebar-copy: #536b64;
   --sidebar-muted: #536b64;
@@ -60,13 +60,13 @@
   --paper: #0e0f0d;
   --paper-deep: #0b0c0a;
   --queue: #11130f;
-  --duck-egg: #151d14;
-  --duck-egg-deep: #1b2519;
+  --river-mist: #151d14;
+  --river-mist-deep: #1b2519;
   --ink: #e6d7c3;
   --muted: #aaa08f;
   --line: rgba(230, 215, 195, 0.15);
-  --green: #9eaf87;
-  --green-deep: #c7c8a9;
+  --green: #9fcec2;
+  --green-deep: #c3e2d8;
   --green-soft: #293225;
   --amber: #e1a23a;
   --amber-soft: #4c391b;
@@ -319,23 +319,11 @@ body.bslib-page-fill {
   place-items: center;
 }
 
-.theme-logo {
+.brand-logo {
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-.theme-logo-dark {
-  display: none;
-}
-
-[data-bs-theme="dark"] .theme-logo-light {
-  display: none;
-}
-
-[data-bs-theme="dark"] .theme-logo-dark {
-  display: block;
 }
 
 .brand strong,
@@ -1173,7 +1161,7 @@ div.story-list.shiny-html-output {
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--duck-egg) 22%, transparent),
+      color-mix(in srgb, var(--river-mist) 22%, transparent),
       transparent 42%
     ),
     var(--paper);
@@ -2931,5 +2919,29 @@ div.story-list.shiny-html-output {
   .reader-action,
   .orientation-step {
     border: 1px solid CanvasText !important;
+  }
+}
+
+/* The mascot belongs to branding and quiet states, outside article content. */
+.orientation-quiet > .welcome-otter {
+  display: block;
+  width: min(180px, 45vw);
+  height: auto;
+  margin-bottom: 20px;
+  object-fit: contain;
+}
+
+.empty-otter {
+  display: block;
+  width: min(132px, 100%);
+  height: auto;
+  margin: 0 auto 20px;
+  object-fit: contain;
+}
+
+@media (max-width: 575px) {
+  .orientation-quiet > .welcome-otter {
+    width: 120px;
+    margin-bottom: 12px;
   }
 }

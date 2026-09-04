@@ -161,7 +161,7 @@ testthat::test_that("core text colors meet WCAG AA contrast", {
   pairs <- list(
     c(token("ink"), token("paper")),
     c(token("muted"), token("queue")),
-    c(token("sidebar-muted"), token("duck-egg")),
+    c(token("sidebar-muted"), token("river-mist")),
     c(token("on-primary"), token("green")),
     c(token("danger"), token("paper")),
     c(token("ink", 2L), token("paper", 2L)),
