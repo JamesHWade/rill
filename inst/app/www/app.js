@@ -2,7 +2,12 @@
   const themeStorageKey = "rill-theme-mode";
   const themeModes = new Set(["system", "light", "dark"]);
   const systemDarkMode = window.matchMedia("(prefers-color-scheme: dark)");
-  const desktopReaderMode = window.matchMedia("(min-width: 576px)");
+  const compactReaderMode = window.matchMedia("(max-width: 767.98px)");
+  const mediumReaderMode = window.matchMedia(
+    "(min-width: 768px) and (max-width: 1099.98px)"
+  );
+  const wideReaderMode = window.matchMedia("(min-width: 1100px)");
+  const desktopReaderMode = window.matchMedia("(min-width: 768px)");
 
   function storedThemeMode() {
     try {
@@ -68,6 +73,8 @@
   let orientationActionMessagesRegistered = false;
   let chatSubmissionIndex = 0;
   let orientationModalWasOpen = false;
+  let compactSurface = null;
+  let compactReturnSurface = "queue";
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -200,7 +207,7 @@
         focusOrientation();
       } else {
         focusStory(entryId, {
-          reveal: window.matchMedia("(max-width: 900px)").matches
+          reveal: compactReaderMode.matches
         });
       }
     }, 300);
@@ -235,7 +242,7 @@
     }
 
     focusStory(null, {
-      reveal: window.matchMedia("(max-width: 900px)").matches
+      reveal: compactReaderMode.matches
     });
   }
 
@@ -338,31 +345,142 @@
     return containsFocus;
   }
 
+  function compactReaderAvailable(hasReader, hasOrientation) {
+    return hasReader || hasOrientation;
+  }
+
+  function normalizedCompactSurface(surface, hasReader, hasOrientation) {
+    if (surface === "library") return "library";
+    if (
+      surface === "reader" &&
+      compactReaderAvailable(hasReader, hasOrientation)
+    ) {
+      return "reader";
+    }
+    return "queue";
+  }
+
+  function syncCompactSurfaceControls(shell, hasReader) {
+    const libraryTrigger = document.querySelector(".compact-library-trigger");
+    if (libraryTrigger) {
+      libraryTrigger.setAttribute(
+        "aria-expanded",
+        String(shell.dataset.compactSurface === "library")
+      );
+    }
+
+    document.querySelectorAll(".compact-reader-return").forEach(
+      function (button) {
+        button.hidden = !hasReader;
+      }
+    );
+  }
+
+  function focusLibrary() {
+    window.requestAnimationFrame(function () {
+      const heading = document.querySelector(".compact-library-header h1");
+      if (!heading) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    });
+  }
+
+  function focusCompactSurface(surface, hasReader) {
+    if (surface === "library") {
+      focusLibrary();
+    } else if (surface === "reader") {
+      if (hasReader) {
+        focusReader();
+      } else {
+        focusOrientation();
+      }
+    } else {
+      focusStory(activeEntryId, { reveal: false });
+    }
+  }
+
+  function showCompactSurface(surface, options = {}) {
+    if (!compactReaderMode.matches) return;
+
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return;
+    const hasReader = Boolean(document.getElementById("reader-document"));
+    const hasOrientation = Boolean(document.getElementById("rill-orientation"));
+    const nextSurface = normalizedCompactSurface(
+      surface,
+      hasReader,
+      hasOrientation
+    );
+    if (options.remember === true && compactSurface !== nextSurface) {
+      compactReturnSurface = compactSurface || "queue";
+    }
+    compactSurface = nextSurface;
+    syncMobileSurfaces(shell, hasReader, hasOrientation);
+    if (options.focus !== false) {
+      focusCompactSurface(nextSurface, hasReader);
+    }
+  }
+
   function syncMobileSurfaces(shell, hasReader, hasOrientation) {
     if (!shell) return;
 
     const readerPane = document.querySelector(".reader-pane");
     const navigationSidebar = document.querySelector(".nav-sidebar");
     const storyPane = document.querySelector(".story-pane");
-    const orientationVisible = Boolean(
-      !desktopReaderMode.matches &&
-        !hasReader &&
-        hasOrientation &&
-        !shell.classList.contains("orientation-queue-visible")
-    );
+    if (!compactReaderMode.matches) {
+      delete shell.dataset.compactSurface;
+      compactSurface = null;
+      setSurfaceCovered(readerPane, false);
+      setSidebarCovered(navigationSidebar, false);
+      setSidebarCovered(storyPane, false);
+      return;
+    }
 
-    const readerPaneHidden = Boolean(
-      !desktopReaderMode.matches && !hasReader && !orientationVisible
+    if (!compactSurface) {
+      compactSurface = compactReaderAvailable(hasReader, hasOrientation)
+        ? "reader"
+        : "queue";
+    }
+    if (
+      shell.classList.contains("orientation-queue-visible") &&
+      !hasReader
+    ) {
+      compactSurface = "queue";
+    } else if (
+      hasOrientation &&
+      !hasReader &&
+      compactSurface !== "library"
+    ) {
+      compactSurface = "reader";
+    }
+    compactSurface = normalizedCompactSurface(
+      compactSurface,
+      hasReader,
+      hasOrientation
     );
-    setSurfaceCovered(readerPane, readerPaneHidden);
+    shell.dataset.compactSurface = compactSurface;
+    syncCompactSurfaceControls(shell, hasReader);
+
     const navigationHadFocus = setSidebarCovered(
       navigationSidebar,
-      orientationVisible
+      compactSurface !== "library"
     );
-    const queueHadFocus = setSidebarCovered(storyPane, orientationVisible);
+    const queueHadFocus = setSidebarCovered(
+      storyPane,
+      compactSurface !== "queue"
+    );
+    const readerHadFocus = Boolean(
+      readerPane &&
+        (readerPane === document.activeElement ||
+          readerPane.contains(document.activeElement))
+    );
+    setSurfaceCovered(readerPane, compactSurface !== "reader");
 
-    if (orientationVisible && (navigationHadFocus || queueHadFocus)) {
-      focusOrientation();
+    if (
+      (navigationHadFocus || queueHadFocus || readerHadFocus) &&
+      focusWasLost()
+    ) {
+      focusCompactSurface(compactSurface, hasReader);
     }
   }
 
@@ -376,6 +494,12 @@
     const hasOrientation = Boolean(orientation);
     const hasReader = Boolean(nextId);
     const shell = document.querySelector(".app-shell");
+    const selectionChanged = Boolean(
+      nextId &&
+        (nextId !== activeEntryId ||
+          nextDocumentId !== activeDocumentId ||
+          nextSurface !== activeEntrySurface)
+    );
     localizeOrientationTimes();
     syncOrientationModalFocus();
     if (shell) {
@@ -383,6 +507,24 @@
       shell.classList.toggle("has-orientation", hasOrientation);
       if (!hasOrientation && !hasReader) {
         shell.classList.remove("orientation-queue-visible");
+      }
+    }
+    if (compactReaderMode.matches && selectionChanged) {
+      compactSurface = "reader";
+    } else if (
+      compactReaderMode.matches &&
+      !nextId &&
+      activeEntryId &&
+      pendingEntrySurface === null
+    ) {
+      if (activeEntrySurface === "orientation" && hasOrientation) {
+        if (shell) shell.classList.remove("orientation-queue-visible");
+        compactSurface = "reader";
+      } else {
+        if (shell && hasOrientation) {
+          shell.classList.add("orientation-queue-visible");
+        }
+        compactSurface = "queue";
       }
     }
     syncMobileSurfaces(shell, hasReader, hasOrientation);
@@ -421,7 +563,7 @@
         focusWasLost()
       ) {
         focusStory(null, {
-          reveal: window.matchMedia("(max-width: 900px)").matches
+          reveal: compactReaderMode.matches
         });
       }
       return;
@@ -431,9 +573,12 @@
       nextDocumentId === activeDocumentId &&
       nextSurface === activeEntrySurface
     ) {
+      const readerSurfaceVisible =
+        !compactReaderMode.matches || compactSurface === "reader";
       if (
-        pendingReaderFocus ||
-        (nextSurface === "orientation" && focusWasLost())
+        readerSurfaceVisible &&
+        (pendingReaderFocus ||
+          (nextSurface === "orientation" && focusWasLost()))
       ) {
         pendingReaderFocus = true;
         focusReader();
@@ -444,7 +589,8 @@
     activeEntryId = nextId;
     activeDocumentId = nextDocumentId;
     activeEntrySurface = nextSurface;
-    pendingReaderFocus = activeEntrySurface === "orientation";
+    pendingReaderFocus =
+      compactReaderMode.matches || activeEntrySurface === "orientation";
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
     openedAt = Date.now();
@@ -554,9 +700,12 @@
 
   function revealOrientationQueue(_message) {
     const shell = document.querySelector(".app-shell");
-    if (shell) shell.classList.add("orientation-queue-visible");
+    if (shell) {
+      shell.classList.add("orientation-queue-visible");
+      if (compactReaderMode.matches) compactSurface = "queue";
+    }
     syncReader();
-    const reveal = window.matchMedia("(max-width: 900px)").matches;
+    const reveal = compactReaderMode.matches;
     focusStory(null, { reveal });
     window.setTimeout(function () {
       const currentShell = document.querySelector(".app-shell");
@@ -583,11 +732,42 @@
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
     if (shell) shell.classList.remove("orientation-queue-visible");
+    if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
     focusOrientation();
   };
 
+  window.rillOpenLibrary = function () {
+    showCompactSurface("library", { remember: true });
+  };
+
+  window.rillCloseLibrary = function () {
+    const destination = compactReturnSurface;
+    compactReturnSurface = "queue";
+    showCompactSurface(destination);
+  };
+
+  window.rillOpenQueue = function () {
+    const shell = document.querySelector(".app-shell");
+    if (shell && document.getElementById("rill-orientation")) {
+      shell.classList.add("orientation-queue-visible");
+    }
+    showCompactSurface("queue", { remember: true });
+  };
+
+  window.rillReturnToReading = function () {
+    const shell = document.querySelector(".app-shell");
+    if (shell) shell.classList.remove("orientation-queue-visible");
+    showCompactSurface("reader");
+  };
+
   window.rillSelectFeed = function (id) {
+    if (!window.Shiny) return;
+    const shell = document.querySelector(".app-shell");
+    if (shell && document.getElementById("rill-orientation")) {
+      shell.classList.add("orientation-queue-visible");
+    }
+    showCompactSurface("queue", { focus: false });
     window.Shiny.setInputValue(
       "select_feed",
       { id, nonce: Math.random() },
@@ -622,7 +802,7 @@
   function moveStory(direction) {
     const shell = document.querySelector(".app-shell");
     if (
-      window.matchMedia("(max-width: 900px)").matches &&
+      compactReaderMode.matches &&
       shell &&
       shell.classList.contains("has-orientation") &&
       !shell.classList.contains("orientation-queue-visible") &&
@@ -687,7 +867,17 @@
     if (key === "f") handled = toggleReaderAction("toggle_star");
     if (key === "escape") {
       const shell = document.querySelector(".app-shell");
-      if (activeEntryId) {
+      if (compactReaderMode.matches && compactSurface === "library") {
+        window.rillCloseLibrary();
+        handled = true;
+      } else if (
+        compactReaderMode.matches &&
+        compactSurface === "queue" &&
+        activeEntryId
+      ) {
+        window.rillReturnToReading();
+        handled = true;
+      } else if (activeEntryId) {
         window.rillCloseReader();
         handled = true;
       } else if (
@@ -845,20 +1035,75 @@
     syncThemeControl(document.documentElement.dataset.rillThemeMode || "system");
   }
 
-  function initializeCompactSidebarState() {
-    const compactDesktop = window.matchMedia(
-      "(min-width: 576px) and (max-width: 1050px)"
-    );
-    if (!compactDesktop.matches) return;
+  function setSidebarExpanded(id, expanded) {
+    const sidebar = document.getElementById(id);
+    const layout = sidebar && sidebar.parentElement;
+    const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
+    if (!layout || !toggle) return;
+    const collapsed = layout.classList.contains("sidebar-collapsed");
+    if (collapsed === expanded) toggle.click();
+  }
 
-    ["navigation_sidebar", "reader_agent_sidebar"].forEach(function (id) {
-      const sidebar = document.getElementById(id);
-      const layout = sidebar && sidebar.parentElement;
-      const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
-      if (layout && toggle && !layout.classList.contains("sidebar-collapsed")) {
-        toggle.click();
-      }
+  function syncResponsiveSidebarState() {
+    if (mediumReaderMode.matches) {
+      setSidebarExpanded("navigation_sidebar", false);
+      setSidebarExpanded("story_sidebar", true);
+      setSidebarExpanded("reader_agent_sidebar", false);
+      return;
+    }
+    if (!wideReaderMode.matches) return;
+
+    ["navigation_sidebar", "story_sidebar"].forEach(function (id) {
+      setSidebarExpanded(id, true);
     });
+  }
+
+  function handleResponsiveLayoutChange() {
+    window.setTimeout(syncResponsiveSidebarState, 0);
+    syncReader();
+  }
+
+  function closeCompactLibraryAfterViewChange(event) {
+    if (
+      compactReaderMode.matches &&
+      event.target.matches('input[name="view"]')
+    ) {
+      const shell = document.querySelector(".app-shell");
+      if (shell && document.getElementById("rill-orientation")) {
+        shell.classList.add("orientation-queue-visible");
+      }
+      showCompactSurface("queue", { focus: false });
+    }
+  }
+
+  function initializeResponsiveSidebarState() {
+    if (!mediumReaderMode.matches && !wideReaderMode.matches) return;
+
+    window.requestAnimationFrame(function () {
+      syncResponsiveSidebarState();
+    });
+    window.setTimeout(function () {
+      syncResponsiveSidebarState();
+    }, 250);
+  }
+
+  function watchSidebarInitialization() {
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return;
+    new MutationObserver(function (_records, observer) {
+      const initialized = [
+        "navigation_sidebar",
+        "story_sidebar",
+        "reader_agent_sidebar"
+      ].every(function (id) {
+        const sidebar = document.getElementById(id);
+        const layout = sidebar && sidebar.parentElement;
+        return layout && !layout.hasAttribute("data-bslib-sidebar-init");
+      });
+      if (!initialized) return;
+      observer.disconnect();
+      syncResponsiveSidebarState();
+    }).observe(shell, { attributes: true, subtree: true });
   }
 
   function handleSystemThemeChange() {
@@ -874,9 +1119,13 @@
   }
 
   if (typeof desktopReaderMode.addEventListener === "function") {
-    desktopReaderMode.addEventListener("change", syncReader);
+    desktopReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    mediumReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    wideReaderMode.addEventListener("change", handleResponsiveLayoutChange);
   } else {
-    desktopReaderMode.addListener(syncReader);
+    desktopReaderMode.addListener(handleResponsiveLayoutChange);
+    mediumReaderMode.addListener(handleResponsiveLayoutChange);
+    wideReaderMode.addListener(handleResponsiveLayoutChange);
   }
 
   window.addEventListener("storage", function (event) {
@@ -887,7 +1136,8 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     registerAppearanceControl();
-    window.setTimeout(initializeCompactSidebarState, 100);
+    initializeResponsiveSidebarState();
+    watchSidebarInitialization();
     window.setTimeout(syncReader, 200);
     watchScroll();
     syncReader();
@@ -912,6 +1162,7 @@
   });
 
   document.addEventListener("keydown", handleShortcut);
+  document.addEventListener("change", closeCompactLibraryAfterViewChange);
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden" && activeEntryId) {
