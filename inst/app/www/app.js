@@ -67,6 +67,7 @@
   let pendingOrientationReturnFocus = null;
   let openedAt = 0;
   let lastHeartbeatAt = 0;
+  let readingTelemetryPaused = false;
   let milestones = new Set();
   let fileResetRegistered = false;
   let chatSubmissionRegistered = false;
@@ -701,11 +702,34 @@
     }
   }
 
+  function resetReadingTelemetryClock() {
+    openedAt = Date.now();
+    lastHeartbeatAt = openedAt;
+  }
+
+  function setReadingTelemetryPaused(paused) {
+    const nextPaused = Boolean(paused);
+    if (readingTelemetryPaused && !nextPaused && activeEntryId) {
+      resetReadingTelemetryClock();
+    }
+    readingTelemetryPaused = nextPaused;
+  }
+
+  function readingTelemetryActive() {
+    return Boolean(
+      activeEntryId &&
+        !readingTelemetryPaused &&
+        document.visibilityState === "visible"
+    );
+  }
+
   function restoreFocusFromCompactChrome(hasReader, hasOrientation) {
     const active = document.activeElement;
     if (
       !(active instanceof Element) ||
-      !active.closest(".compact-library-header, .compact-app-bar")
+      !active.closest(
+        ".compact-library-header, .compact-app-bar, .mobile-back"
+      )
     ) {
       return;
     }
@@ -725,6 +749,7 @@
     const navigationSidebar = document.querySelector(".nav-sidebar");
     const storyPane = document.querySelector(".story-pane");
     if (!compactReaderMode.matches) {
+      setReadingTelemetryPaused(false);
       delete shell.dataset.compactSurface;
       compactSurface = null;
       setSurfaceCovered(readerPane, false);
@@ -757,6 +782,7 @@
       hasOrientation
     );
     shell.dataset.compactSurface = compactSurface;
+    setReadingTelemetryPaused(compactSurface !== "reader");
     syncCompactSurfaceControls(shell, hasReader);
 
     const navigationHadFocus = setSidebarCovered(
@@ -1143,7 +1169,7 @@
     return true;
   }
 
-  function handleShortcut(event) {
+  function handleAskRillEscape(event) {
     if (
       event.defaultPrevented ||
       event.isComposing ||
@@ -1151,12 +1177,32 @@
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
-      isEditableTarget(event.target)
+      event.key.toLowerCase() !== "escape"
+    ) {
+      return;
+    }
+
+    const { layout } = readerAgentElements();
+    if (!layout || layout.classList.contains("sidebar-collapsed")) return;
+    setSidebarExpanded("reader_agent_sidebar", false);
+    event.preventDefault();
+  }
+
+  function handleShortcut(event) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
     ) {
       return;
     }
 
     const key = event.key.toLowerCase();
+    if (isEditableTarget(event.target)) return;
+
     let handled = false;
     if (key === "j") handled = moveStory(1);
     if (key === "k") handled = moveStory(-1);
@@ -1165,14 +1211,10 @@
     if (key === "f") handled = toggleReaderAction("toggle_star");
     if (key === "escape") {
       const shell = document.querySelector(".app-shell");
-      const { layout: agentLayout } = readerAgentElements();
       if (
-        agentLayout &&
-        !agentLayout.classList.contains("sidebar-collapsed")
+        compactReaderMode.matches &&
+        compactSurface === "library"
       ) {
-        setSidebarExpanded("reader_agent_sidebar", false);
-        handled = true;
-      } else if (compactReaderMode.matches && compactSurface === "library") {
         window.rillCloseLibrary();
         handled = true;
       } else if (
@@ -1211,7 +1253,7 @@
     scrollPane.addEventListener(
       "scroll",
       function () {
-        if (!activeEntryId) return;
+        if (!readingTelemetryActive()) return;
         const available = scrollPane.scrollHeight - scrollPane.clientHeight;
         if (available <= 0) return;
         const percent = Math.min(100, Math.round((scrollPane.scrollTop / available) * 100));
@@ -1230,7 +1272,7 @@
   }
 
   function heartbeat() {
-    if (!activeEntryId || document.visibilityState !== "visible") return;
+    if (!readingTelemetryActive()) return;
     const now = Date.now();
     const seconds = Math.round((now - lastHeartbeatAt) / 1000);
     lastHeartbeatAt = now;
@@ -1298,6 +1340,11 @@
           pendingReaderFocus = true;
           focusReader();
           recoverReaderFocus();
+        } else if (
+          compactReaderMode.matches &&
+          document.getElementById("reader-document")
+        ) {
+          showCompactSurface("reader");
         }
       }
     );
@@ -1660,6 +1707,7 @@
     );
   });
 
+  document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("click", handleSkipLink);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
@@ -1679,12 +1727,20 @@
   }, true);
 
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden" && activeEntryId) {
+    if (
+      document.visibilityState === "hidden" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
       send("page_hidden", {
         dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
       });
-    } else if (document.visibilityState === "visible") {
-      lastHeartbeatAt = Date.now();
+    } else if (
+      document.visibilityState === "visible" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
+      resetReadingTelemetryClock();
     }
   });
 })();
