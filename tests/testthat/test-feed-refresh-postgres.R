@@ -1,6 +1,9 @@
-test_that("background workers use independent PostgreSQL connections and shared polling locks", {
+testthat::test_that("background workers use independent PostgreSQL connections and shared polling locks", {
   database_url <- Sys.getenv("RILL_TEST_DATABASE_URL", unset = "")
-  skip_if(!nzchar(database_url), "RILL_TEST_DATABASE_URL is not configured")
+  testthat::skip_if(
+    !nzchar(database_url),
+    "RILL_TEST_DATABASE_URL is not configured"
+  )
   gate <- withr::local_tempfile()
   local_feed_refresh_worker(gate = gate)
   connection_args <- postgres_connection_args(database_url)
@@ -39,7 +42,10 @@ test_that("background workers use independent PostgreSQL connections and shared 
   withr::defer(try(DBI::dbRollback(admin), silent = TRUE))
   skipped <- start_feed_refresh(config, store, config$actor_id)
   withr::defer(close_feed_refresh(skipped))
-  expect_identical(wait_for_feed_refresh(skipped)$status, "skipped_overlap")
+  testthat::expect_identical(
+    wait_for_feed_refresh(skipped)$status,
+    "skipped_overlap"
+  )
   DBI::dbRollback(admin)
 
   job <- start_feed_refresh(config, store, config$actor_id, feed$feed_id)
@@ -56,10 +62,10 @@ test_that("background workers use independent PostgreSQL connections and shared 
     }
     later::run_now(0.01)
   }
-  expect_identical(progress$status, "running")
-  expect_equal(progress$total, 1L)
+  testthat::expect_identical(progress$status, "running")
+  testthat::expect_equal(progress$total, 1L)
   DBI::dbBegin(admin)
-  expect_identical(
+  testthat::expect_identical(
     DBI::dbGetQuery(
       admin,
       "SELECT pg_try_advisory_xact_lock(hashtext('rill:feed-poll')) AS acquired"
@@ -70,14 +76,17 @@ test_that("background workers use independent PostgreSQL connections and shared 
   store_rename_feed(store, config$actor_id, feed$feed_id, "My feed")
   file.create(gate)
   result <- wait_for_feed_refresh(job)
-  expect_identical(result$status, "succeeded")
-  expect_equal(result$outcomes[[1L]]$added_count, 1L)
-  expect_identical(store_list_feeds(store, config$actor_id)$title, "My feed")
-  expect_identical(
+  testthat::expect_identical(result$status, "succeeded")
+  testthat::expect_equal(result$outcomes[[1L]]$added_count, 1L)
+  testthat::expect_identical(
+    store_list_feeds(store, config$actor_id)$title,
+    "My feed"
+  )
+  testthat::expect_identical(
     store_list_entries(store, config$actor_id, view = "all")$title,
     "A new entry"
   )
-  expect_identical(
+  testthat::expect_identical(
     DBI::dbGetQuery(store$pool, "SELECT status FROM feed_poll_runs")$status,
     "succeeded"
   )
@@ -85,5 +94,5 @@ test_that("background workers use independent PostgreSQL connections and shared 
   store_unsubscribe_feed(store, config$actor_id, feed$feed_id)
   inactive <- start_feed_refresh(config, store, config$actor_id, feed$feed_id)
   withr::defer(close_feed_refresh(inactive))
-  expect_equal(wait_for_feed_refresh(inactive)$due_count, 0L)
+  testthat::expect_equal(wait_for_feed_refresh(inactive)$due_count, 0L)
 })
