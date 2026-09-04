@@ -79,7 +79,7 @@ html[data-agent-variant="D"][data-agent-mode="reader"] .prototype-d-opener {
   padding: 17px 18px 16px;
   overflow-y: auto;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--duck-egg) 35%, var(--queue));
+  background: color-mix(in srgb, var(--river-mist) 35%, var(--queue));
 }
 
 .prototype-section-heading {
@@ -190,7 +190,7 @@ html[data-agent-variant="D"][data-agent-mode="reader"] .prototype-d-opener {
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--duck-egg) 22%, transparent),
+      color-mix(in srgb, var(--river-mist) 22%, transparent),
       transparent 42%
     ),
     var(--paper);
