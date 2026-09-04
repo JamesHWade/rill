@@ -78,6 +78,7 @@
   let orientationModalWasOpen = false;
   let compactSurface = null;
   let compactReturnSurface = "queue";
+  let pendingCompactQueue = false;
   let agentReturnFocus = null;
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
@@ -696,6 +697,8 @@
     if (options.remember === true && compactSurface !== nextSurface) {
       compactReturnSurface = compactSurface || "queue";
     }
+    if (nextSurface === "queue") pendingCompactQueue = true;
+    if (nextSurface === "reader") pendingCompactQueue = false;
     compactSurface = nextSurface;
     syncMobileSurfaces(shell, hasReader, hasOrientation);
     if (options.focus !== false) {
@@ -793,7 +796,9 @@
         ? "reader"
         : "queue";
     }
-    if (
+    if (pendingCompactQueue && !hasReader) {
+      compactSurface = "queue";
+    } else if (
       shell.classList.contains("orientation-queue-visible") &&
       !hasReader
     ) {
@@ -864,13 +869,18 @@
     }
     if (compactReaderMode.matches && selectionChanged) {
       compactSurface = "reader";
+      pendingCompactQueue = false;
     } else if (
       compactReaderMode.matches &&
       !nextId &&
       activeEntryId &&
       pendingEntrySurface === null
     ) {
-      if (activeEntrySurface === "orientation" && hasOrientation) {
+      if (
+        activeEntrySurface === "orientation" &&
+        hasOrientation &&
+        !pendingCompactQueue
+      ) {
         if (shell) shell.classList.remove("orientation-queue-visible");
         compactSurface = "reader";
       } else {
@@ -985,6 +995,7 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    pendingCompactQueue = false;
     pendingEntrySurface = normalizeSelectionSurface(surface);
     pendingOrientationSelectionCardId =
       pendingEntrySurface === "orientation" && provenance
@@ -1056,7 +1067,10 @@
     const shell = document.querySelector(".app-shell");
     if (shell) {
       shell.classList.add("orientation-queue-visible");
-      if (compactReaderMode.matches) compactSurface = "queue";
+      if (compactReaderMode.matches) {
+        compactSurface = "queue";
+        pendingCompactQueue = true;
+      }
     }
     syncReader();
     const reveal = compactReaderMode.matches;
@@ -1085,6 +1099,7 @@
 
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
+    pendingCompactQueue = false;
     if (shell) shell.classList.remove("orientation-queue-visible");
     if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
@@ -1118,6 +1133,7 @@
   window.rillSelectFeed = function (id) {
     if (!window.Shiny) return;
     const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
       shell.classList.add("orientation-queue-visible");
     }
@@ -1155,6 +1171,9 @@
 
   function moveStory(direction) {
     const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches && compactSurface === "library") {
+      return false;
+    }
     if (
       compactReaderMode.matches &&
       shell &&
@@ -1584,6 +1603,7 @@
       event.target.matches('input[name="view"]')
     ) {
       const shell = document.querySelector(".app-shell");
+      pendingCompactQueue = true;
       if (shell && document.getElementById("rill-orientation")) {
         shell.classList.add("orientation-queue-visible");
       }

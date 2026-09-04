@@ -273,6 +273,22 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
     'showCompactSurface("reader")',
     fixed = TRUE
   )
+  testthat::expect_match(
+    javascript,
+    "let pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "!pendingCompactQueue", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'compactSurface === "library"',
+    fixed = TRUE
+  )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
   compact_styles <- strsplit(
