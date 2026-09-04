@@ -103,6 +103,7 @@ testthat::test_that("populated story output remains a scroll container", {
 testthat::test_that("the reading queue offers story sort dimensions", {
   html <- htmltools::renderTags(story_sidebar_ui())$html
 
+  testthat::expect_match(html, "bslib-toolbar", fixed = TRUE)
   testthat::expect_match(html, 'id="story_sort"', fixed = TRUE)
   testthat::expect_match(html, 'value="newest" selected', fixed = TRUE)
   testthat::expect_match(html, 'value="oldest"', fixed = TRUE)
@@ -122,6 +123,27 @@ testthat::test_that("navigation offers local calendar views", {
   testthat::expect_match(html, "This week", fixed = TRUE)
   testthat::expect_match(html, 'value="month"', fixed = TRUE)
   testthat::expect_match(html, "This month", fixed = TRUE)
+  testthat::expect_match(html, "feed-list", fixed = TRUE)
+  testthat::expect_match(html, 'aria-label="Feeds"', fixed = TRUE)
+})
+
+testthat::test_that("compact navigation exposes Library and Reading returns", {
+  html <- htmltools::renderTags(
+    compact_app_bar_ui(list(app_name = "Rill"))
+  )$html
+  library <- htmltools::renderTags(
+    navigation_sidebar_ui(list(app_name = "Rill", demo_mode = FALSE))
+  )$html
+
+  testthat::expect_match(html, "rillOpenLibrary()", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'aria-controls="navigation_sidebar"',
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "rillReturnToReading()", fixed = TRUE)
+  testthat::expect_match(library, "rillCloseLibrary()", fixed = TRUE)
+  testthat::expect_match(library, ">Library<", fixed = TRUE)
 })
 
 testthat::test_that("the private gate offers a complete sign-out path", {
@@ -642,13 +664,29 @@ testthat::test_that("the application panes use native resizable sidebars", {
 
   testthat::expect_length(layouts, 3L)
   testthat::expect_length(sidebars, 3L)
-  testthat::expect_true(all(vapply(
+  testthat::expect_all_true(vapply(
     sidebars,
     function(sidebar) "data-resizable" %in% names(sidebar$attribs),
     logical(1)
-  )))
+  ))
   testthat::expect_setequal(
     vapply(sidebars, function(sidebar) sidebar$attribs$id, character(1)),
     c("navigation_sidebar", "story_sidebar", "reader_agent_sidebar")
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      layouts,
+      function(layout) layout$attribs$`data-open-mobile`,
+      character(1)
+    )),
+    rep("closed", 3L)
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      layouts,
+      function(layout) layout$attribs$`data-open-desktop`,
+      character(1)
+    )),
+    c("open", "open", "closed")
   )
 })

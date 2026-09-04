@@ -2710,7 +2710,7 @@
       "checksum": "d7cb42f526858d9fe498feb03121f135"
     },
     "inst/app/www/app.js": {
-      "checksum": "fc3a9a1263573c15b1b8dd59de405148"
+      "checksum": "c158d7989096a6417420a492a3fc74fc"
     },
     "inst/app/www/rill-duck-dark.png": {
       "checksum": "21486198a27f8f81c131d9363b207eee"
@@ -2719,7 +2719,7 @@
       "checksum": "13eca81e135c048173520d80046ee2b4"
     },
     "inst/app/www/styles.css": {
-      "checksum": "8ccb255c72817b3f1ec13377270505f4"
+      "checksum": "1d18b2d6d9d6e463bf1f44ce5ead000b"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2815,13 +2815,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "5cb9c3b966a03720916e7abc8c3d7ad4"
+      "checksum": "9dfa50eb602a198dcd62ce3946d54ad1"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "44f3db463320d9c8496816dd260c8db4"
+      "checksum": "f08b694dad1fcea9d19795150b455046"
     }
   },
   "users": null

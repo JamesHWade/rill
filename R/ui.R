@@ -27,6 +27,8 @@ rill_ui <- function(config) {
     bslib::as_fill_carrier(
       shiny::tags$main(
         class = "app-shell",
+        `data-compact-surface` = "queue",
+        compact_app_bar_ui(config),
         bslib::layout_sidebar(
           bslib::layout_sidebar(
             reader_pane_ui(config),
@@ -55,8 +57,47 @@ rill_ui <- function(config) {
   )
 }
 
+compact_app_bar_ui <- function(config) {
+  shiny::tags$header(
+    class = "compact-app-bar",
+    shiny::tags$button(
+      type = "button",
+      class = "compact-app-action compact-library-trigger",
+      onclick = "rillOpenLibrary()",
+      `aria-controls` = "navigation_sidebar",
+      `aria-expanded` = "false",
+      bsicons::bs_icon("collection"),
+      shiny::tags$span("Library")
+    ),
+    shiny::tags$div(
+      class = "compact-app-brand",
+      rill_duck_mark("compact-brand-mark"),
+      shiny::tags$strong(config$app_name)
+    ),
+    shiny::tags$button(
+      type = "button",
+      class = "compact-app-action compact-reader-return",
+      onclick = "rillReturnToReading()",
+      hidden = TRUE,
+      bsicons::bs_icon("book"),
+      shiny::tags$span("Reading")
+    )
+  )
+}
+
 navigation_sidebar_ui <- function(config) {
   bslib::sidebar(
+    shiny::tags$header(
+      class = "compact-library-header",
+      shiny::tags$button(
+        type = "button",
+        class = "compact-surface-back",
+        onclick = "rillCloseLibrary()",
+        bsicons::bs_icon("arrow-left"),
+        shiny::tags$span("Back")
+      ),
+      shiny::tags$h1("Library")
+    ),
     shiny::tags$div(
       class = "brand",
       rill_duck_mark("brand-mark"),
@@ -135,7 +176,12 @@ navigation_sidebar_ui <- function(config) {
         `aria-label` = "Refresh feeds"
       )
     ),
-    shiny::uiOutput("feed_nav", container = shiny::tags$nav),
+    shiny::uiOutput(
+      "feed_nav",
+      container = shiny::tags$nav,
+      class = "feed-list",
+      `aria-label` = "Feeds"
+    ),
     shiny::tags$div(
       class = "sidebar-footer",
       shiny::uiOutput("orientation_destination_settings"),
@@ -152,7 +198,7 @@ navigation_sidebar_ui <- function(config) {
     id = "navigation_sidebar",
     class = "nav-sidebar",
     width = "230px",
-    open = list(desktop = "open", mobile = "always-above"),
+    open = list(desktop = "open", mobile = "closed"),
     resizable = TRUE,
     fillable = TRUE,
     padding = 0,
@@ -350,43 +396,47 @@ story_sidebar_ui <- function() {
     shiny::tags$header(
       class = "pane-header",
       shiny::tags$div(
+        class = "queue-title",
         shiny::tags$p(class = "eyebrow", "Reading queue"),
         shiny::uiOutput("list_title", container = shiny::tags$div)
       ),
-      shiny::tags$div(
-        class = "queue-controls",
-        shiny::uiOutput(
-          "prepare_today_control",
-          container = shiny::tags$div,
-          class = "prepare-today-control"
-        ),
-        shiny::uiOutput(
-          "read_actions",
-          container = shiny::tags$div,
-          class = "read-actions"
-        ),
-        shiny::tags$div(
-          class = "story-sort",
-          shiny::selectInput(
-            "story_sort",
-            label = shiny::tags$span(
-              class = "visually-hidden",
-              "Sort stories"
-            ),
-            choices = c(
-              "Newest" = "newest",
-              "Oldest" = "oldest",
-              "Recently added" = "recently_added",
-              "Feed A\u2013Z" = "feed",
-              "Title A\u2013Z" = "title"
-            ),
-            selected = "newest",
-            selectize = FALSE,
-            width = "126px"
-          )
-        ),
-        shiny::uiOutput("story_count", container = shiny::tags$div)
-      )
+      htmltools::tagQuery(
+        bslib::toolbar(
+          shiny::uiOutput(
+            "prepare_today_control",
+            container = shiny::tags$div,
+            class = "prepare-today-control"
+          ),
+          shiny::uiOutput(
+            "read_actions",
+            container = shiny::tags$div,
+            class = "read-actions"
+          ),
+          shiny::tags$div(
+            class = "story-sort",
+            shiny::selectInput(
+              "story_sort",
+              label = shiny::tags$span(
+                class = "visually-hidden",
+                "Sort stories"
+              ),
+              choices = c(
+                "Newest" = "newest",
+                "Oldest" = "oldest",
+                "Recently added" = "recently_added",
+                "Feed A\u2013Z" = "feed",
+                "Title A\u2013Z" = "title"
+              ),
+              selected = "newest",
+              selectize = FALSE,
+              width = "126px"
+            )
+          ),
+          shiny::uiOutput("story_count", container = shiny::tags$div),
+          align = "right",
+          gap = "8px"
+        )
+      )$addClass("queue-controls")$allTags()
     ),
     shiny::uiOutput(
       "orientation_queue_status",
@@ -402,7 +452,7 @@ story_sidebar_ui <- function() {
     id = "story_sidebar",
     class = "story-pane",
     width = "385px",
-    open = list(desktop = "open", mobile = "always-above"),
+    open = list(desktop = "open", mobile = "closed"),
     resizable = TRUE,
     fillable = TRUE,
     padding = 0,
@@ -508,7 +558,7 @@ reader_pane_ui <- function(config) {
       class = "reader-agent-sidebar",
       width = "380px",
       position = "right",
-      open = list(desktop = "open", mobile = "closed"),
+      open = list(desktop = "closed", mobile = "closed"),
       resizable = TRUE,
       fillable = TRUE,
       padding = 0,

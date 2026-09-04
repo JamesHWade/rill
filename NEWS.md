@@ -18,7 +18,7 @@
 
 * Rill now has a duck-and-ripple identity, paired duck-egg daylight and warm ink-and-reed dark palettes, a system-aware appearance control, and an Atkinson Hyperlegible/Literata type system tuned for efficient navigation and comfortable reading.
 
-* Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that can be resized or collapsed on desktop and stack above content on mobile.
+* Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that resize on wide screens, reduce to Queue plus reading canvas at medium widths, and become separate Library, Queue, and Reading surfaces on phones without discarding the selected Document (#47, #48).
 
 * Feed navigation and the reading queue now remain independently scrollable when their contents exceed the viewport (#28).
 

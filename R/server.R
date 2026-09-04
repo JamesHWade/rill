@@ -2181,9 +2181,9 @@ rill_server <- function(config, store) {
             type = "button",
             class = "reader-action mobile-back",
             `aria-keyshortcuts` = "Escape",
-            onclick = "rillCloseReader()",
+            onclick = "rillOpenQueue()",
             bsicons::bs_icon("arrow-left"),
-            "Stories"
+            "Queue"
           ),
           if (isTRUE(entry$library_access)) {
             shiny::tagList(

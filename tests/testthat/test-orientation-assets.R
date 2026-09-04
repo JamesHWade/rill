@@ -120,12 +120,17 @@ testthat::test_that("Orientation browser actions preserve their source surface",
   )
   testthat::expect_match(
     javascript,
-    "queueHadFocus = setSidebarCovered(storyPane, orientationVisible)",
+    "const queueHadFocus = setSidebarCovered(",
     fixed = TRUE
   )
   testthat::expect_match(
     javascript,
-    "!desktopReaderMode.matches && !hasReader && !orientationVisible",
+    'compactSurface !== "queue"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'setSurfaceCovered(readerPane, compactSurface !== "reader")',
     fixed = TRUE
   )
   testthat::expect_match(
@@ -161,7 +166,7 @@ testthat::test_that("Orientation browser actions preserve their source surface",
   testthat::expect_no_match(javascript, "syncAgentSidebar", fixed = TRUE)
 })
 
-testthat::test_that("Orientation has a responsive queue escape", {
+testthat::test_that("Orientation participates in the compact surface router", {
   styles <- paste(
     readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
     collapse = "\n"
@@ -183,14 +188,14 @@ testthat::test_that("Orientation has a responsive queue escape", {
   )
   testthat::expect_match(
     styles,
-    ".app-shell.has-orientation:not(.orientation-queue-visible)",
+    '.app-shell[data-compact-surface="queue"] .story-pane',
     fixed = TRUE
   )
   testthat::expect_match(
     compact_styles,
     paste(
-      ".reading-shell > .bslib-sidebar-layout {",
-      "grid-template-columns: 0 minmax(0, 1fr) !important"
+      '.app-shell[data-compact-surface="reader"]',
+      ".reader-pane {"
     ),
     fixed = TRUE
   )
@@ -202,4 +207,36 @@ testthat::test_that("Orientation has a responsive queue escape", {
     ),
     fixed = TRUE
   )
+})
+
+testthat::test_that("compact surfaces retain reader state across navigation", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'window.matchMedia("(max-width: 767.98px)")',
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "window.rillOpenLibrary", fixed = TRUE)
+  testthat::expect_match(javascript, "window.rillCloseLibrary", fixed = TRUE)
+  testthat::expect_match(javascript, "window.rillOpenQueue", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "window.rillReturnToReading",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'shell.dataset.compactSurface = compactSurface',
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
+  testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
 })
