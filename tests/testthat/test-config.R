@@ -140,10 +140,10 @@ testthat::test_that("configuration reads an in-app Auth0 identity gate", {
     RILL_ACTOR_ID = "  james  ",
     RILL_IDENTITY_MODE = "auth0",
     RILL_ALLOWED_OIDC_SUBJECTS = "auth0|james",
-    AUTH0_DOMAIN = "https://Reader.us.auth0.com/",
+    AUTH0_DOMAIN = "HTTPS://Reader.us.auth0.com/",
     AUTH0_CLIENT_ID = "reader-client",
     AUTH0_CLIENT_SECRET = "reader-secret",
-    AUTH0_REDIRECT_URI = "https://rill.share.connect.posit.cloud/",
+    AUTH0_REDIRECT_URI = "HTTPS://rill.share.connect.posit.cloud/",
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
   ))
 
@@ -196,6 +196,16 @@ testthat::test_that("the in-app Auth0 gate rejects unsafe URLs", {
   withr::local_envvar(c(
     AUTH0_DOMAIN = NA,
     AUTH0_REDIRECT_URI = "https://reader:secret@example.com/",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+  testthat::expect_error(
+    rill_config(),
+    class = "rill_identity_config_invalid"
+  )
+
+  withr::local_envvar(c(
+    AUTH0_DOMAIN = NA,
+    AUTH0_REDIRECT_URI = "https://%",
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
   ))
   testthat::expect_error(
