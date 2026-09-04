@@ -105,6 +105,11 @@ testthat::test_that("the reading queue offers story sort dimensions", {
 
   testthat::expect_match(html, "bslib-toolbar", fixed = TRUE)
   testthat::expect_match(html, 'id="story_sort"', fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'aria-label="Sort stories"',
+    fixed = TRUE
+  )
   testthat::expect_match(html, 'value="newest" selected', fixed = TRUE)
   testthat::expect_match(html, 'value="oldest"', fixed = TRUE)
   testthat::expect_match(html, 'value="recently_added"', fixed = TRUE)
@@ -389,6 +394,12 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
 
   testthat::expect_match(header_html, "bslib-toolbar", fixed = TRUE)
   testthat::expect_match(header_html, "Stored reading copy", fixed = TRUE)
+  testthat::expect_match(header_html, "Prepared by rill", fixed = TRUE)
+  testthat::expect_no_match(
+    header_html,
+    "provenance and limitations below",
+    fixed = TRUE
+  )
   testthat::expect_match(header_html, "Ask Rill", fixed = TRUE)
   testthat::expect_match(
     header_html,

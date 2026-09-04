@@ -2719,7 +2719,7 @@
       "checksum": "13eca81e135c048173520d80046ee2b4"
     },
     "inst/app/www/styles.css": {
-      "checksum": "e739cfe84b1d0d29a05e40c12457d5c6"
+      "checksum": "cc85dd66a95add618be65be3733478d8"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2821,7 +2821,7 @@
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "bcf5c8afd60d82896a8a41d74b7f1356"
+      "checksum": "d30df97017211af575726dda50a8d456"
     }
   },
   "users": null
