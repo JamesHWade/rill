@@ -461,23 +461,24 @@ story_sidebar_ui <- function() {
           ),
           shiny::tags$div(
             class = "story-sort",
-            shiny::selectInput(
-              "story_sort",
-              label = shiny::tags$span(
-                class = "visually-hidden",
-                "Sort stories"
-              ),
-              choices = c(
-                "Newest" = "newest",
-                "Oldest" = "oldest",
-                "Recently added" = "recently_added",
-                "Feed A\u2013Z" = "feed",
-                "Title A\u2013Z" = "title"
-              ),
-              selected = "newest",
-              selectize = FALSE,
-              width = "126px"
-            )
+            htmltools::tagQuery(
+              shiny::selectInput(
+                "story_sort",
+                label = NULL,
+                choices = c(
+                  "Newest" = "newest",
+                  "Oldest" = "oldest",
+                  "Recently added" = "recently_added",
+                  "Feed A\u2013Z" = "feed",
+                  "Title A\u2013Z" = "title"
+                ),
+                selected = "newest",
+                selectize = FALSE,
+                width = "126px"
+              )
+            )$find("select")$addAttrs(
+              `aria-label` = "Sort stories"
+            )$allTags()
           ),
           shiny::uiOutput("story_count", container = shiny::tags$div),
           align = "right",
@@ -769,16 +770,16 @@ reader_article_header_ui <- function(entry, document) {
     ),
     shiny::tags$div(
       class = "article-copy-status",
+      `aria-label` = paste(
+        "Stored reading copy prepared by",
+        document$producer %||% "feed fallback",
+        "with details below"
+      ),
       bsicons::bs_icon("file-earmark-text"),
-      shiny::tags$div(
-        shiny::tags$strong("Stored reading copy"),
-        shiny::tags$span(
-          paste(
-            "Prepared by",
-            document$producer %||% "feed fallback",
-            "\u00b7 provenance and limitations below"
-          )
-        )
+      shiny::tags$strong("Stored reading copy"),
+      shiny::tags$span(
+        class = "article-copy-producer",
+        paste("Prepared by", document$producer %||% "feed fallback")
       )
     )
   )
