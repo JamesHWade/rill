@@ -107,6 +107,32 @@ testthat::test_that("system styles cover reflow and user display preferences", {
   testthat::expect_match(styles, "env(safe-area-inset-bottom)", fixed = TRUE)
 })
 
+testthat::test_that("reading typography keeps titles and separators compact", {
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    styles,
+    "clamp(34px, 3.5vw, 50px)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "clamp(31px, 9vw, 40px)",
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, ":has(+ hr)", fixed = TRUE)
+  testthat::expect_match(styles, ".reader-document hr", fixed = TRUE)
+  testthat::expect_match(
+    styles,
+    "hr + :is(p, blockquote, ul, ol)",
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, "margin: 0.45em 0", fixed = TRUE)
+})
+
 testthat::test_that("core text colors meet WCAG AA contrast", {
   styles <- paste(
     readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),

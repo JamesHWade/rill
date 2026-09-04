@@ -95,4 +95,60 @@ No open P0, P1, or P2 findings remained in the baseline pass.
 - The full reading-copy boundary remains available in the native bslib
   “About this reading copy” accordion.
 
+## Article title and thematic-break density
+
+### Source truth
+
+- User feedback in this task: article titles felt oversized and thematic breaks
+  carried too much surrounding space.
+- Reproduced baseline at commit `39e7192`:
+  - `/private/tmp/rill-article-type-qa-20260904/before-mobile.png`
+  - `/private/tmp/rill-article-type-qa-20260904/before-desktop.png`
+
+### Implementation captures
+
+- Updated mobile reader:
+  `/private/tmp/rill-article-type-qa-20260904/after-mobile.png`
+- Updated desktop reader:
+  `/private/tmp/rill-article-type-qa-20260904/after-desktop.png`
+- Same-state title comparisons:
+  - `/private/tmp/rill-article-type-qa-20260904/title-comparison-mobile.png`
+  - `/private/tmp/rill-article-type-qa-20260904/title-comparison-desktop.png`
+- Focused thematic-break comparison:
+  `/private/tmp/rill-article-type-qa-20260904/hr-comparison.png`
+
+### Viewports and state
+
+- Desktop: 1169 × 863 CSS pixels, DPR 1, 1169 × 863 output pixels, light
+  appearance, navigation and queue open, “Deploying a small stateful
+  application” selected.
+- Mobile: 423 × 863 CSS pixels, DPR 2, screenshots normalized to 423 × 863
+  output pixels, light appearance, Reading open on the same story.
+- Focused divider frame: 1280 × 720 output pixels, light appearance, the
+  production `.reader-document` stylesheet with paired before/after fixtures.
+
+### Comparison history
+
+1. Captured the title baseline from `39e7192` at both target viewports.
+2. Captured the updated reader in the same viewport, appearance, and story
+   state, then compared the full views side by side.
+3. Rendered the production article stylesheet around a thematic break and
+   compared the original 1 rem rhythm against the new compact rhythm.
+4. Measured the affected elements in the rendered DOM and checked both target
+   viewports for page-level overflow.
+
+### Findings
+
+- P0: none.
+- P1: none.
+- P2: none.
+- Mobile title size fell from 42.3 px to 38.07 px, and the article header
+  became 9.55 px shorter.
+- Desktop title size fell from 46.76 px to 40.915 px; the same two-line title
+  remains readable without crowding the metadata or reading-copy cue.
+- The thematic-break gap is now 8.1 px on both sides instead of 16 px. The
+  adjacent paragraph/list margins are constrained as well as the `hr` itself,
+  so margin collapsing cannot restore the larger gap.
+- Both target viewports have no horizontal overflow.
+
 final result: passed
