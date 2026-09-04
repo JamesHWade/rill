@@ -169,21 +169,6 @@ rill_server <- function(config, store) {
       )
     }
 
-    orientation_state_token <- function(state) {
-      cards <- vapply(
-        state$orientation$cards %||% list(),
-        `[[`,
-        character(1),
-        "basis_hash"
-      )
-      rill_id(
-        "orientation-state",
-        state$orientation$revision_id %||% "",
-        state$boundary$hash,
-        paste(cards, collapse = "\u241f")
-      )
-    }
-
     schedule_orientation_retry <- function(delay = 2) {
       if (is.function(orientation_retry_cancel)) {
         return(invisible(NULL))
@@ -1613,7 +1598,7 @@ rill_server <- function(config, store) {
     }
 
     shiny::observe({
-      shiny::invalidateLater(1000, session)
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
       state <- tryCatch(
         orientation_destination_state(store, actor_id, config),
         error = \(error) NULL
@@ -1638,20 +1623,22 @@ rill_server <- function(config, store) {
     orientation_state <- shiny::reactive({
       refresh_tick()
       state <- orientation_status(store, actor_id)
-      orientation_poll_token <<- orientation_state_token(state)
+      orientation_poll_token <<- tryCatch(
+        store_orientation_poll_token(store, actor_id, state),
+        error = \(error) NULL
+      )
       state
     })
 
     shiny::observe({
-      shiny::invalidateLater(1000, session)
-      state <- tryCatch(
-        orientation_status(store, actor_id),
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
+      token <- tryCatch(
+        store_orientation_poll_token(store, actor_id),
         error = \(error) NULL
       )
-      if (is.null(state)) {
+      if (is.null(token)) {
         return()
       }
-      token <- orientation_state_token(state)
       previous <- orientation_poll_token
       orientation_poll_token <<- token
       if (!is.null(previous) && !identical(token, previous)) {

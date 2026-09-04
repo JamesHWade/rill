@@ -103,6 +103,7 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     finished_at = orientation$evaluated_at
   )
   restored <- store_get_orientation(store, "reader-1")
+  poll_token <- store_orientation_poll_token(store, "reader-1")
 
   testthat::expect_identical(completed$run$status, "completed")
   testthat::expect_identical(
@@ -120,6 +121,7 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     as.numeric(restored$evaluated_at),
     as.numeric(orientation$evaluated_at)
   )
+  testthat::expect_match(poll_token, "^[[:xdigit:]]{32}$")
   testthat::expect_null(store_get_orientation(store, "reader-2"))
 
   evaluation_column <- DBI::dbGetQuery(
@@ -201,6 +203,7 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     orientation$cards[[1L]]$rationale_hash,
     event = dismissal_event
   )
+  dismissed_poll_token <- store_orientation_poll_token(store, "reader-1")
   replayed <- store_dismiss_orientation_card(
     store,
     "reader-1",
@@ -219,6 +222,7 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
   current <- orientation_status(store, "reader-1", limit = 3L)
 
   testthat::expect_identical(replayed$basis_hash, dismissed$basis_hash)
+  testthat::expect_length(unique(c(dismissed_poll_token, poll_token)), 2L)
   testthat::expect_identical(nrow(dismissal_rows), 1L)
   dismissal_payload <- jsonlite::fromJSON(dismissal_rows$payload[[1L]])
   testthat::expect_identical(

@@ -2773,7 +2773,7 @@
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
     },
     "R/config.R": {
-      "checksum": "45951496e1eb6e0f3a2b176918f3728c"
+      "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
       "checksum": "cf60f2849dac19ed1c0b3620ed9f8266"
@@ -2788,7 +2788,7 @@
       "checksum": "b3a70a9e96e8fba87a4c90807639d0c1"
     },
     "R/identity.R": {
-      "checksum": "bf63589f13e33fcbab2cab638f4329c6"
+      "checksum": "4aff9651a6e63427a2dbf792b4900e32"
     },
     "R/opml.R": {
       "checksum": "c9fe82988299e886d1c647083b031ded"
@@ -2803,7 +2803,7 @@
       "checksum": "44258a3aa3f730d61355f88f2d2dcc9f"
     },
     "R/orientation.R": {
-      "checksum": "12c5031aa9bea6215abf06b081223d60"
+      "checksum": "1823c7a4753acc7254a23af45ab2f3b8"
     },
     "R/polling.R": {
       "checksum": "a6e6ffacc08f8869b1c965210d6e6f0b"
@@ -2815,7 +2815,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "5cb9c3b966a03720916e7abc8c3d7ad4"
+      "checksum": "9ac58e024aa7b7e97970b604c711354e"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
