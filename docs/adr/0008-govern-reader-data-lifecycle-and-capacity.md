@@ -90,13 +90,13 @@ creation. A reaper marks an overdue job as failed and applies the same artifact
 cleanup.
 
 After artifact cleanup, Rill retains only a content-free terminal result with
-the job status, timestamps, and a sanitized reason. An active Reader's result
-remains until the Reader observes it or for seven days, whichever comes first.
-During deletion pending, an unobserved result remains available until the
-deletion deadline. Permanent purge removes it. A completed archive, its job
-record, and its download credentials share one expiry and are purged together
-within 24 hours of the first successful download or seven days after archive
-creation, whichever comes first.
+the job status, timestamps, and a sanitized reason. An active or disabled
+Reader's result remains until the Reader observes it or for seven days,
+whichever comes first. During deletion pending, an unobserved result remains
+available until the deletion deadline. Permanent purge removes it. A completed
+archive, its job record, and its download credentials share one expiry and are
+purged together within 24 hours of the first successful download or seven days
+after archive creation, whichever comes first.
 
 Export remains available when a Reader reaches a capacity signal. A requested
 export must finish or fail visibly before the associated permanent purge
