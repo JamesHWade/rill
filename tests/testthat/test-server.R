@@ -3819,11 +3819,8 @@ testthat::test_that("feed management keeps browsing separate and restores subscr
     store_list_feeds(store, config$actor_id)$feed_id,
     reading_feed
   )[[1L]]
-  refresh_calls <- character()
-  testthat::local_mocked_bindings(refresh_feed = function(store, feed) {
-    refresh_calls <<- c(refresh_calls, feed$feed_id)
-    list(added = 0L, not_modified = TRUE)
-  })
+  gate <- withr::local_tempfile()
+  local_feed_refresh_worker(gate = gate)
 
   shiny::testServer(rill_server(config, store), {
     session$setInputs(
@@ -3849,15 +3846,35 @@ testthat::test_that("feed management keeps browsing separate and restores subscr
     )
 
     session$setInputs(refresh_selected_feed = 1L)
-    testthat::expect_identical(refresh_calls, managed_id)
+    testthat::expect_identical(refresh_result()$status, "running")
+    current_job <- \() environment(refresh_feeds_now)$refresh_job
+    worker_pid <- current_job()$process$get_pid()
+    session$setInputs(refresh_selected_feed = 2L)
+    testthat::expect_identical(current_job()$process$get_pid(), worker_pid)
     testthat::expect_identical(selected_id(), entry_id)
-    testthat::expect_identical(
-      status_text(),
-      "1 feed checked \u00b7 0 new stories."
-    )
 
     session$setInputs(unsubscribe_feed = 1L)
     testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      managed_id
+    )
+    deadline <- Sys.time() + 30
+    file.create(gate)
+    while (!is.null(current_job()) && Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+    testthat::expect_null(current_job())
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_identical(
+      status_text(),
+      "1 feed checked \u00b7 1 new story."
+    )
+    testthat::expect_identical(
+      store$memory$feed_poll_outcomes$feed_id,
+      managed_id
+    )
     testthat::expect_disjoint(
       store_list_feeds(store, config$actor_id)$feed_id,
       managed_id
@@ -3876,6 +3893,27 @@ testthat::test_that("feed management keeps browsing separate and restores subscr
       "unowned"
     )
   })
+})
+
+testthat::test_that("background refresh finishes after its Shiny session closes", {
+  withr::local_envvar(DATABASE_URL = "")
+  gate <- withr::local_tempfile()
+  local_feed_refresh_worker(gate = gate)
+  config <- rill_config()
+  store <- rill_store(config)
+  shiny::testServer(rill_server(config, store), {
+    refresh_feeds_now(feed_ids = store$memory$feeds$feed_id[[1L]])
+    testthat::expect_identical(refresh_result()$status, "running")
+    session$close()
+  })
+  file.create(gate)
+  deadline <- Sys.time() + 30
+  while (isTRUE(store$memory$feed_poll_locked) && Sys.time() < deadline) {
+    later::run_now(0.05)
+  }
+  testthat::expect_identical(store$memory$feed_poll_locked, FALSE)
+  testthat::expect_identical(store$memory$feed_poll_runs$status, "succeeded")
+  testthat::expect_in("background-entry", store$memory$entries$external_id)
 })
 
 testthat::test_that("changing story sort reorders the queue and clears the reader", {

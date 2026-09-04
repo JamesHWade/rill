@@ -229,6 +229,7 @@ navigation_sidebar_ui <- function(config) {
         `aria-label` = "Refresh feeds"
       )
     ),
+    shiny::uiOutput("feed_refresh_activity"),
     shiny::uiOutput(
       "feed_nav",
       container = shiny::tags$nav,
@@ -1365,6 +1366,37 @@ appearance_control_ui <- function() {
   )
 }
 
+feed_refresh_status_ui <- function(result) {
+  if (is.null(result)) {
+    return(shiny::tags$p("Refresh checks for new stories in your Library."))
+  }
+  if (!identical(result$status, "running")) {
+    return(shiny::tags$p(role = "status", feed_refresh_summary(result)))
+  }
+  shiny::tags$div(
+    role = "status",
+    `aria-live` = "polite",
+    shiny::tags$p(
+      if (is.null(result$total)) {
+        "Starting background refresh. You can keep reading."
+      } else {
+        paste0(
+          result$index,
+          " of ",
+          result$total,
+          " feeds checked \u00b7 ",
+          result$title
+        )
+      }
+    ),
+    shiny::tags$progress(
+      `aria-label` = "Feed refresh progress",
+      value = result$index,
+      max = result$total
+    )
+  )
+}
+
 feed_manager_choices <- function(feeds) {
   labels <- paste(feeds$title, "\u00b7", feeds$folder)
   labels <- paste0(
@@ -1397,8 +1429,16 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
       class = "feed-tool-section",
       shiny::tags$h3("Refresh your Library"),
       shiny::uiOutput("feed_refresh_status"),
-      bslib::input_task_button("refresh_library", "Refresh all feeds"),
-      bslib::input_task_button("retry_failed_feeds", "Retry failed feeds")
+      bslib::input_task_button(
+        "refresh_library",
+        "Refresh all feeds",
+        auto_reset = FALSE
+      ),
+      bslib::input_task_button(
+        "retry_failed_feeds",
+        "Retry failed feeds",
+        auto_reset = FALSE
+      )
     ),
     shiny::tags$div(
       class = "feed-tool-section rename-feed-tools",
@@ -1493,7 +1533,11 @@ feed_organization_control_ui <- function(feed = NULL, folders = character()) {
             paste("Last checked:", feed$last_polled_at)
           }
         ),
-        bslib::input_task_button("refresh_selected_feed", "Refresh this feed")
+        bslib::input_task_button(
+          "refresh_selected_feed",
+          "Refresh this feed",
+          auto_reset = FALSE
+        )
       )
     },
     shiny::textInput(

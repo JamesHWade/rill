@@ -803,3 +803,25 @@ testthat::test_that("the application panes use native resizable sidebars", {
     c("open", "open", "closed")
   )
 })
+test_that("background refresh exposes accessible progress and manual-reset task buttons", {
+  starting <- as.character(feed_refresh_status_ui(list(status = "running")))
+  expect_match(starting, "You can keep reading", fixed = TRUE)
+  progress <- as.character(feed_refresh_status_ui(list(
+    status = "running",
+    index = 1L,
+    total = 3L,
+    title = "<Example>"
+  )))
+  expect_match(progress, 'role="status"', fixed = TRUE)
+  expect_match(progress, 'value="1"', fixed = TRUE)
+  expect_match(progress, 'max="3"', fixed = TRUE)
+  expect_match(progress, "&lt;Example&gt;", fixed = TRUE)
+  controls <- as.character(feed_tools_ui())
+  document <- xml2::read_html(controls)
+  buttons <- xml2::xml_find_all(
+    document,
+    "//button[@id='refresh_library' or @id='retry_failed_feeds']"
+  )
+  expect_length(buttons, 2L)
+  expect_all_true(is.na(xml2::xml_attr(buttons, "data-auto-reset")))
+})

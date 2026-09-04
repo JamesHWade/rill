@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Library refresh now runs in a separate background process with live progress, so you can keep reading, navigate, or close Manage feeds while new stories are fetched; refresh completion preserves your current reading and Subscription choices.
+
 * Manage feeds now opens a searchable dialog with per-feed status, single-feed refresh, retry for failed feeds, existing-folder suggestions, and restoration of unsubscribed feeds; manual refresh records polling outcomes and reports only genuinely new stories.
 
 * `approve_reader_admission()` and `list_reader_admissions()` provide a privacy-safe operator workflow for admitting a verified identity to a new isolated Reader, while both hosted Auth0 adapters now record pending access requests and explain the next step to the invited person (#26, #45).

@@ -2981,3 +2981,7 @@ div.story-list.shiny-html-output {
     margin-bottom: 12px;
   }
 }
+#feed_refresh_activity {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}

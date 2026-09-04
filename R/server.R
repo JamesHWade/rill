@@ -1955,7 +1955,9 @@ rill_server <- function(config, store) {
     })
 
     refresh_result <- shiny::reactiveVal(NULL)
-    refresh_feeds_now <- function(feed_ids = NULL, failed_only = FALSE) {
+    refresh_job <- NULL
+    shiny::observe({
+      busy <- identical(refresh_result()$status, "running")
       buttons <- c(
         "refresh_library",
         "retry_failed_feeds",
@@ -1967,42 +1969,22 @@ rill_server <- function(config, store) {
         logical(1)
       )]
       for (id in buttons) {
-        bslib::update_task_button(id, state = "busy", session = session)
+        bslib::update_task_button(
+          id,
+          state = if (busy) "busy" else "ready",
+          session = session
+        )
       }
-      on.exit(
-        {
-          for (id in buttons) {
-            bslib::update_task_button(id, state = "ready", session = session)
-          }
-        },
-        add = TRUE
-      )
-      result <- tryCatch(
-        shiny::withProgress(message = "Refreshing feeds", value = 0, {
-          refresh_reader_feeds(
-            store,
-            actor_id,
-            feed_ids = feed_ids,
-            failed_only = failed_only,
-            progress = function(index, total, title) {
-              shiny::setProgress(
-                value = index / total,
-                detail = paste0(index, " of ", total, " checked \u00b7 ", title)
-              )
-            }
-          )
-        }),
-        error = function(error) error
-      )
-      if (inherits(result, "error")) {
-        refresh_result(list(status = "error"))
+    })
+    finish_refresh <- function(result) {
+      refresh_result(result)
+      if (identical(result$status, "error")) {
         status_kind("error")
         status_text("Refresh stopped. Please try again.")
         shiny::showNotification(status_text(), type = "error")
         bump_refresh(feeds_changed = TRUE)
         return(invisible(NULL))
       }
-      refresh_result(result)
       status_text(feed_refresh_summary(result))
       status_kind(if (result$failed_count) "warning" else "success")
       shiny::showNotification(
@@ -2021,6 +2003,49 @@ rill_server <- function(config, store) {
       )
       bump_refresh(feeds_changed = TRUE)
       invisible(result)
+    }
+    poll_refresh <- function() {
+      result <- tryCatch(
+        poll_feed_refresh(refresh_job),
+        error = function(error) {
+          close_feed_refresh(refresh_job)
+          list(status = "error")
+        }
+      )
+      if (identical(result$status, "running")) {
+        if (!session$isClosed()) {
+          shiny::withReactiveDomain(
+            session,
+            shiny::isolate(refresh_result(result))
+          )
+        }
+        shiny::withReactiveDomain(NULL, later::later(poll_refresh, 0.25))
+      } else {
+        refresh_job <<- NULL
+        if (!session$isClosed()) {
+          shiny::withReactiveDomain(
+            session,
+            shiny::isolate(finish_refresh(result))
+          )
+        }
+      }
+      invisible(NULL)
+    }
+    refresh_feeds_now <- function(feed_ids = NULL, failed_only = FALSE) {
+      if (!is.null(refresh_job)) {
+        return(invisible(NULL))
+      }
+      refresh_job <<- tryCatch(
+        start_feed_refresh(config, store, actor_id, feed_ids, failed_only),
+        error = \(error) NULL
+      )
+      if (is.null(refresh_job)) {
+        finish_refresh(list(status = "error"))
+        return(invisible(NULL))
+      }
+      refresh_result(list(status = "running"))
+      shiny::withReactiveDomain(NULL, later::later(poll_refresh, 0))
+      invisible(NULL)
     }
 
     output$feed_nav <- shiny::renderUI({
@@ -2108,11 +2133,12 @@ rill_server <- function(config, store) {
     )
 
     output$feed_refresh_status <- shiny::renderUI({
+      feed_refresh_status_ui(refresh_result())
+    })
+
+    output$feed_refresh_activity <- shiny::renderUI({
       result <- refresh_result()
-      if (is.null(result)) {
-        return(shiny::tags$p("Refresh checks for new stories in your Library."))
-      }
-      shiny::tags$p(role = "status", feed_refresh_summary(result))
+      if (identical(result$status, "running")) feed_refresh_status_ui(result)
     })
 
     output$feed_organization_control <- shiny::renderUI({
