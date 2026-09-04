@@ -42,9 +42,10 @@ The purge removes the Reader, external identity bindings, capture credentials,
 personal admission data, Subscriptions, organization, Entry state, Reading
 History, private Capture Entries and Documents, reading-copy selections,
 Orientations, Agent Runs, Data Destination settings, deferred questions, and
-future Reader-owned Conversations, Reading Artifacts, Reader Memory,
-Approvals, and Action Receipts. A private Capture Entry is Reader-owned even
-when an implementation stores it in a shared table.
+Reader export jobs, partial files, completed archives, and download
+credentials. It also removes future Reader-owned Conversations, Reading
+Artifacts, Reader Memory, Approvals, and Action Receipts. A private Capture
+Entry is Reader-owned even when an implementation stores it in a shared table.
 
 Shared Feeds, Feed Entries, and public Documents survive only according to the
 shared-source policy below. Deleting one Reader never removes source material
@@ -78,9 +79,31 @@ A Reader export is a versioned, checksummed archive containing:
   Artifacts, identified as export dependencies rather than Reader-owned data;
 - a manifest describing schemas, omissions, checksums, and Data Destinations.
 
-The archive excludes secrets, credential hashes, and provider tokens. Export
-remains available when a Reader reaches a capacity signal. A requested export
-must finish or fail visibly before the associated permanent purge begins.
+The archive excludes secrets, credential hashes, and provider tokens. Rill
+streams an export without retaining a server-side copy when the runtime permits
+it. When asynchronous generation requires storage, the export job, partial
+files, completed archive, and download credentials are Reader-owned. Partial
+files are purged when generation completes. For a failed or cancelled job,
+content-bearing artifacts and download credentials are purged within 24 hours.
+A queued or running export job has a maximum lifetime of 24 hours from
+creation. A reaper marks an overdue job as failed and applies the same artifact
+cleanup.
+
+After artifact cleanup, Rill retains only a content-free terminal result with
+the job status, timestamps, and a sanitized reason. An active or disabled
+Reader's result remains until the Reader observes it or for seven days,
+whichever comes first. During deletion pending, an unobserved result remains
+available until the deletion deadline. Permanent purge removes it. A completed
+archive, its job record, and its download credentials share one expiry and are
+purged together within 24 hours of the first successful download or seven days
+after archive creation, whichever comes first.
+
+Export remains available when a Reader reaches a capacity signal. A requested
+export must finish or fail visibly before the associated permanent purge
+begins. At the deletion deadline, an unfinished export fails visibly and is
+purged. Deletion proceeds whether or not the Reader downloaded a completed
+archive. Export storage never extends the deletion window, and the purge removes
+every remaining export artifact and credential.
 
 ## Shared-source retention
 
