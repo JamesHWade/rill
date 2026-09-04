@@ -188,10 +188,6 @@ testthat::test_that("Escape preserves compact Reading before leaving it", {
     fixed = TRUE
   )[[1]][[2]]
 
-  agent_close <- regexpr(
-    'setSidebarExpanded\\("reader_agent_sidebar", false\\)',
-    shortcut
-  )[[1]]
   compact_reader <- regexpr(
     'compactSurface === "reader"',
     shortcut,
@@ -200,10 +196,62 @@ testthat::test_that("Escape preserves compact Reading before leaving it", {
   queue_open <- regexpr("window.rillOpenQueue()", shortcut, fixed = TRUE)[[1]]
   reader_close <- regexpr("window.rillCloseReader\\(\\)", shortcut)[[1]]
 
-  testthat::expect_gt(agent_close, 0L)
-  testthat::expect_gt(compact_reader, agent_close)
+  testthat::expect_match(
+    javascript,
+    "function handleAskRillEscape(event)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'document.addEventListener("keydown", handleAskRillEscape, true)',
+    fixed = TRUE
+  )
+  testthat::expect_gt(compact_reader, 0L)
   testthat::expect_gt(queue_open, compact_reader)
   testthat::expect_gt(reader_close, queue_open)
+})
+
+testthat::test_that("reading telemetry follows the visible reader surface", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    "function readingTelemetryActive()",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "if (!readingTelemetryActive()) return;",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "!readingTelemetryPaused",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "pauseReadingTelemetryClock(true);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "accumulatedReadingMs +=",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'send("dwell_heartbeat", { dwell_seconds: seconds })',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "resumeReadingTelemetryClock();",
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("the skip link follows the visible compact surface", {

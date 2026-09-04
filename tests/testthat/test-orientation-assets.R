@@ -252,7 +252,41 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(
     javascript,
-    '.closest(".compact-library-header, .compact-app-bar")',
+    paste(
+      '".compact-library-header, .compact-app-bar,',
+      '.mobile-back"'
+    ),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'setReadingTelemetryPaused(compactSurface !== "reader")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'document.getElementById("reader-document")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'showCompactSurface("reader")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "let pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "!pendingCompactQueue", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'compactSurface === "library"',
     fixed = TRUE
   )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
@@ -288,7 +322,17 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   )
   testthat::expect_match(
     javascript,
-    "setSurfaceCovered(main, expanded && overlaidAgentMode.matches)",
+    "const coversMain = expanded && overlaidAgentMode.matches",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "main.contains(document.activeElement)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "if (mainHadFocus) agentFocusPending = true",
     fixed = TRUE
   )
   testthat::expect_match(

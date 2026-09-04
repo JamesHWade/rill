@@ -67,6 +67,8 @@
   let pendingOrientationReturnFocus = null;
   let openedAt = 0;
   let lastHeartbeatAt = 0;
+  let accumulatedReadingMs = 0;
+  let readingTelemetryPaused = false;
   let milestones = new Set();
   let fileResetRegistered = false;
   let chatSubmissionRegistered = false;
@@ -76,6 +78,7 @@
   let orientationModalWasOpen = false;
   let compactSurface = null;
   let compactReturnSurface = "queue";
+  let pendingCompactQueue = false;
   let agentReturnFocus = null;
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
@@ -694,6 +697,8 @@
     if (options.remember === true && compactSurface !== nextSurface) {
       compactReturnSurface = compactSurface || "queue";
     }
+    if (nextSurface === "queue") pendingCompactQueue = true;
+    if (nextSurface === "reader") pendingCompactQueue = false;
     compactSurface = nextSurface;
     syncMobileSurfaces(shell, hasReader, hasOrientation);
     if (options.focus !== false) {
@@ -701,11 +706,62 @@
     }
   }
 
+  function readingDwellSeconds(now = Date.now()) {
+    const currentSegment = openedAt > 0 ? Math.max(0, now - openedAt) : 0;
+    return Math.max(
+      0,
+      Math.round((accumulatedReadingMs + currentSegment) / 1000)
+    );
+  }
+
+  function pauseReadingTelemetryClock(flushHeartbeat = false) {
+    if (!activeEntryId || openedAt === 0) return;
+    const now = Date.now();
+    accumulatedReadingMs += Math.max(0, now - openedAt);
+    openedAt = 0;
+    if (flushHeartbeat) {
+      const seconds = Math.max(
+        0,
+        Math.round((now - lastHeartbeatAt) / 1000)
+      );
+      if (seconds > 0) send("dwell_heartbeat", { dwell_seconds: seconds });
+    }
+    lastHeartbeatAt = now;
+  }
+
+  function resumeReadingTelemetryClock() {
+    if (!activeEntryId || openedAt > 0) return;
+    openedAt = Date.now();
+    lastHeartbeatAt = openedAt;
+  }
+
+  function setReadingTelemetryPaused(paused) {
+    const nextPaused = Boolean(paused);
+    if (!readingTelemetryPaused && nextPaused) {
+      pauseReadingTelemetryClock(true);
+    }
+    readingTelemetryPaused = nextPaused;
+    if (!nextPaused && document.visibilityState === "visible") {
+      resumeReadingTelemetryClock();
+    }
+  }
+
+  function readingTelemetryActive() {
+    return Boolean(
+      activeEntryId &&
+        !readingTelemetryPaused &&
+        openedAt > 0 &&
+        document.visibilityState === "visible"
+    );
+  }
+
   function restoreFocusFromCompactChrome(hasReader, hasOrientation) {
     const active = document.activeElement;
     if (
       !(active instanceof Element) ||
-      !active.closest(".compact-library-header, .compact-app-bar")
+      !active.closest(
+        ".compact-library-header, .compact-app-bar, .mobile-back"
+      )
     ) {
       return;
     }
@@ -725,6 +781,7 @@
     const navigationSidebar = document.querySelector(".nav-sidebar");
     const storyPane = document.querySelector(".story-pane");
     if (!compactReaderMode.matches) {
+      setReadingTelemetryPaused(false);
       delete shell.dataset.compactSurface;
       compactSurface = null;
       setSurfaceCovered(readerPane, false);
@@ -739,7 +796,9 @@
         ? "reader"
         : "queue";
     }
-    if (
+    if (pendingCompactQueue && !hasReader) {
+      compactSurface = "queue";
+    } else if (
       shell.classList.contains("orientation-queue-visible") &&
       !hasReader
     ) {
@@ -757,6 +816,7 @@
       hasOrientation
     );
     shell.dataset.compactSurface = compactSurface;
+    setReadingTelemetryPaused(compactSurface !== "reader");
     syncCompactSurfaceControls(shell, hasReader);
 
     const navigationHadFocus = setSidebarCovered(
@@ -809,13 +869,18 @@
     }
     if (compactReaderMode.matches && selectionChanged) {
       compactSurface = "reader";
+      pendingCompactQueue = false;
     } else if (
       compactReaderMode.matches &&
       !nextId &&
       activeEntryId &&
       pendingEntrySurface === null
     ) {
-      if (activeEntrySurface === "orientation" && hasOrientation) {
+      if (
+        activeEntrySurface === "orientation" &&
+        hasOrientation &&
+        !pendingCompactQueue
+      ) {
         if (shell) shell.classList.remove("orientation-queue-visible");
         compactSurface = "reader";
       } else {
@@ -891,6 +956,7 @@
       compactReaderMode.matches || activeEntrySurface === "orientation";
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
+    accumulatedReadingMs = 0;
     openedAt = Date.now();
     lastHeartbeatAt = openedAt;
     milestones = new Set();
@@ -929,6 +995,7 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    pendingCompactQueue = false;
     pendingEntrySurface = normalizeSelectionSurface(surface);
     pendingOrientationSelectionCardId =
       pendingEntrySurface === "orientation" && provenance
@@ -1000,7 +1067,10 @@
     const shell = document.querySelector(".app-shell");
     if (shell) {
       shell.classList.add("orientation-queue-visible");
-      if (compactReaderMode.matches) compactSurface = "queue";
+      if (compactReaderMode.matches) {
+        compactSurface = "queue";
+        pendingCompactQueue = true;
+      }
     }
     syncReader();
     const reveal = compactReaderMode.matches;
@@ -1029,6 +1099,7 @@
 
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
+    pendingCompactQueue = false;
     if (shell) shell.classList.remove("orientation-queue-visible");
     if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
@@ -1062,6 +1133,7 @@
   window.rillSelectFeed = function (id) {
     if (!window.Shiny) return;
     const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
       shell.classList.add("orientation-queue-visible");
     }
@@ -1085,7 +1157,7 @@
 
   window.rillTrack = function (type) {
     send(type, {
-      dwell_seconds: Math.max(0, Math.round((Date.now() - openedAt) / 1000))
+      dwell_seconds: readingDwellSeconds()
     });
   };
 
@@ -1099,6 +1171,9 @@
 
   function moveStory(direction) {
     const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches && compactSurface === "library") {
+      return false;
+    }
     if (
       compactReaderMode.matches &&
       shell &&
@@ -1143,7 +1218,7 @@
     return true;
   }
 
-  function handleShortcut(event) {
+  function handleAskRillEscape(event) {
     if (
       event.defaultPrevented ||
       event.isComposing ||
@@ -1151,12 +1226,32 @@
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
-      isEditableTarget(event.target)
+      event.key.toLowerCase() !== "escape"
+    ) {
+      return;
+    }
+
+    const { layout } = readerAgentElements();
+    if (!layout || layout.classList.contains("sidebar-collapsed")) return;
+    setSidebarExpanded("reader_agent_sidebar", false);
+    event.preventDefault();
+  }
+
+  function handleShortcut(event) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
     ) {
       return;
     }
 
     const key = event.key.toLowerCase();
+    if (isEditableTarget(event.target)) return;
+
     let handled = false;
     if (key === "j") handled = moveStory(1);
     if (key === "k") handled = moveStory(-1);
@@ -1165,14 +1260,10 @@
     if (key === "f") handled = toggleReaderAction("toggle_star");
     if (key === "escape") {
       const shell = document.querySelector(".app-shell");
-      const { layout: agentLayout } = readerAgentElements();
       if (
-        agentLayout &&
-        !agentLayout.classList.contains("sidebar-collapsed")
+        compactReaderMode.matches &&
+        compactSurface === "library"
       ) {
-        setSidebarExpanded("reader_agent_sidebar", false);
-        handled = true;
-      } else if (compactReaderMode.matches && compactSurface === "library") {
         window.rillCloseLibrary();
         handled = true;
       } else if (
@@ -1211,7 +1302,7 @@
     scrollPane.addEventListener(
       "scroll",
       function () {
-        if (!activeEntryId) return;
+        if (!readingTelemetryActive()) return;
         const available = scrollPane.scrollHeight - scrollPane.clientHeight;
         if (available <= 0) return;
         const percent = Math.min(100, Math.round((scrollPane.scrollTop / available) * 100));
@@ -1220,7 +1311,7 @@
             milestones.add(milestone);
             send("scroll_milestone", {
               scroll_percent: milestone,
-              dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+              dwell_seconds: readingDwellSeconds()
             });
           }
         });
@@ -1230,7 +1321,7 @@
   }
 
   function heartbeat() {
-    if (!activeEntryId || document.visibilityState !== "visible") return;
+    if (!readingTelemetryActive()) return;
     const now = Date.now();
     const seconds = Math.round((now - lastHeartbeatAt) / 1000);
     lastHeartbeatAt = now;
@@ -1298,6 +1389,11 @@
           pendingReaderFocus = true;
           focusReader();
           recoverReaderFocus();
+        } else if (
+          compactReaderMode.matches &&
+          document.getElementById("reader-document")
+        ) {
+          showCompactSurface("reader");
         }
       }
     );
@@ -1426,7 +1522,14 @@
         trigger.setAttribute("aria-expanded", String(expanded));
       }
     );
-    setSurfaceCovered(main, expanded && overlaidAgentMode.matches);
+    const coversMain = expanded && overlaidAgentMode.matches;
+    const mainHadFocus = Boolean(
+      coversMain &&
+        main &&
+        (main === document.activeElement || main.contains(document.activeElement))
+    );
+    setSurfaceCovered(main, coversMain);
+    if (mainHadFocus) agentFocusPending = true;
     if (agentSidebarExpanded && !expanded) restoreAgentFocus();
     if (
       expanded &&
@@ -1500,6 +1603,7 @@
       event.target.matches('input[name="view"]')
     ) {
       const shell = document.querySelector(".app-shell");
+      pendingCompactQueue = true;
       if (shell && document.getElementById("rill-orientation")) {
         shell.classList.add("orientation-queue-visible");
       }
@@ -1660,6 +1764,7 @@
     );
   });
 
+  document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("click", handleSkipLink);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
@@ -1679,12 +1784,21 @@
   }, true);
 
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden" && activeEntryId) {
+    if (
+      document.visibilityState === "hidden" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
+      pauseReadingTelemetryClock();
       send("page_hidden", {
-        dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+        dwell_seconds: readingDwellSeconds()
       });
-    } else if (document.visibilityState === "visible") {
-      lastHeartbeatAt = Date.now();
+    } else if (
+      document.visibilityState === "visible" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
+      resumeReadingTelemetryClock();
     }
   });
 })();
