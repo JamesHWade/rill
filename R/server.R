@@ -1986,6 +1986,11 @@ rill_server <- function(config, store) {
         return(invisible(NULL))
       }
       status_text(feed_refresh_summary(result))
+      if (identical(result$status, "skipped_overlap")) {
+        status_kind("info")
+        shiny::showNotification(status_text(), type = "default", duration = 8)
+        return(invisible(result))
+      }
       status_kind(if (result$failed_count) "warning" else "success")
       shiny::showNotification(
         status_text(),
