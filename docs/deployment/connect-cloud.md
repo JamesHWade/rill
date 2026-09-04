@@ -1,15 +1,17 @@
 # Run a real-use trial on Posit Connect Cloud
 
-This deployment is a single-Reader product trial. It asks whether hosted Rill
-is useful for daily reading with real Feeds, Orientation, and Ask Rill. It does
-not replace the Render/two-Reader isolation proof in issue #24 or change the
-proposed invited-beta architecture in ADR 0001.
+This deployment is an invitation-only product trial. It asks whether hosted
+Rill is useful for daily reading with real Feeds, Orientation, and Ask Rill. It
+does not replace the Render/two-Reader isolation proof in issue #24 or change
+the proposed invited-beta architecture in ADR 0001.
 
 Posit Connect Cloud Free content remains public at the platform edge. Rill
 therefore enforces Auth0 inside the Shiny application. The public URL, initial
 Shiny connection, application shell, and static assets remain reachable. Rill's
 Reader server does not start, query the Library, or make Agent calls until the
-OIDC token's exact issuer and `sub` resolve to the configured Reader.
+OIDC token's exact issuer and `sub` resolve to a Reader. A verified identity
+without a binding creates one pending access request while remaining outside
+every Library.
 
 ## Prepare the services
 
@@ -41,11 +43,12 @@ Add both exact URLs to **Allowed Callback URLs** and **Allowed Logout URLs**.
 Do not use wildcard or ephemeral preview URLs. Both deployments share
 `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_CLIENT_SECRET`, but each sets
 `AUTH0_REDIRECT_URI` to its own exact public URL. Use the same
-`RILL_ALLOWED_OIDC_SUBJECTS` value on both deployments. Sign in once, then copy
-the exact Auth0 `user_id`/OIDC `sub` from the Auth0 user record. Rill compares
-it case-sensitively and never uses email as an identity key. Split the Auth0
-clients before expanding beyond this bounded prototype so one deployment can
-be rotated or revoked independently.
+`RILL_ALLOWED_OIDC_SUBJECTS` value on both deployments for the bootstrap
+Reader. Sign in once, then copy that Reader's exact Auth0 `user_id`/OIDC `sub`
+from the Auth0 user record. Rill compares it case-sensitively and never uses
+email as an identity key. Additional verified identities request separate
+Readers through the app. Split the Auth0 clients before expanding beyond this
+bounded prototype so one deployment can be rotated or revoked independently.
 
 ## Configure Connect Cloud
 
@@ -108,11 +111,24 @@ Before importing the real Library, verify all of the following:
 
 1. An unauthenticated top-level visit redirects to Auth0.
 2. The allowlisted identity opens an empty Library.
-3. Another valid Auth0 identity receives the generic access-denied dialog and
-   cannot invoke any Rill action.
-4. Sign out clears the Auth0 session and requires a fresh login.
-5. A process restart reconnects to the same empty Neon Library.
-6. A manual `Poll feeds` workflow run succeeds against that database.
+3. Another valid Auth0 identity receives an access-request dialog, creates one
+   pending admission, and cannot invoke any Rill action.
+4. In an R process configured with the deployment's `DATABASE_URL`, approve the
+   opaque request ID:
+
+   ```r
+   requests <- rill::list_reader_admissions()
+   rill::approve_reader_admission(
+     requests$request_id[[1]],
+     responsible_id = "operator:james"
+   )
+   ```
+
+5. After reloading, the approved identity opens a new empty Library and cannot
+   access the bootstrap Reader's Library.
+6. Sign out clears the Auth0 session and requires a fresh login.
+7. A process restart reconnects to the same empty Neon Library.
+8. A manual `Poll feeds` workflow run succeeds against that database.
 
 Only then import Subscriptions, Feed Entries, current reading state, and public
 Documents. Exclude credentials, Captures, Reading History from before the

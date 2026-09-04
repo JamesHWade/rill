@@ -2,6 +2,8 @@ testthat::test_that("the package exposes a focused application API", {
   testthat::expect_setequal(
     getNamespaceExports("rill"),
     c(
+      "approve_reader_admission",
+      "list_reader_admissions",
       "poll_feeds",
       "prepare_today",
       "read_opml",

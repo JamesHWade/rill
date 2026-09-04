@@ -2758,7 +2758,7 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "f7db8129db3d20d6e8167129e0cfff06"
+      "checksum": "738962f5bbc4276fb1068c7bdc6572cd"
     },
     "R/agent-runs.R": {
       "checksum": "3e19969be1c87666a89f92232be43277"
@@ -2767,7 +2767,7 @@
       "checksum": "efa560e90a333c7e504156c825527f99"
     },
     "R/app.R": {
-      "checksum": "bfd38c3305662b40bfd42825f595e0c8"
+      "checksum": "1b69fae0dc676dd9cb514031cc647d30"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2776,7 +2776,7 @@
       "checksum": "45951496e1eb6e0f3a2b176918f3728c"
     },
     "R/db.R": {
-      "checksum": "cf60f2849dac19ed1c0b3620ed9f8266"
+      "checksum": "2aea03eb4396dae15633c9d2ab6e24a2"
     },
     "R/defuddle.R": {
       "checksum": "d6d297aa63894100510202c3e47fced8"
@@ -2788,7 +2788,7 @@
       "checksum": "b3a70a9e96e8fba87a4c90807639d0c1"
     },
     "R/identity.R": {
-      "checksum": "dd5358adc7248da85fe245439f1e41fe"
+      "checksum": "28f4a7f5f26801f4a6db68679a91b399"
     },
     "R/opml.R": {
       "checksum": "c9fe82988299e886d1c647083b031ded"
@@ -2807,6 +2807,9 @@
     },
     "R/polling.R": {
       "checksum": "a6e6ffacc08f8869b1c965210d6e6f0b"
+    },
+    "R/reader-admissions.R": {
+      "checksum": "a36b28f095430f2cc08d770807fbc478"
     },
     "R/rill-package.R": {
       "checksum": "931b381347f39d9a5534f464a6dc8849"

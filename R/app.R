@@ -7,12 +7,11 @@
 #' upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
 #' `sub` pairs to durable internal Readers. Configured
 #' `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private Reader in
-#' `RILL_ACTOR_ID`. The in-app gate rejects subjects outside that allowlist
-#' before Library database access; the proxy adapter records one pending
-#' admission while denying Library access. Email and other profile claims are
-#' mutable metadata, not identity keys. When `RILL_CAPTURE_TOKEN` is set, the
-#' same application binds that credential to `RILL_ACTOR_ID` and accepts
-#' authenticated browser Documents at
+#' `RILL_ACTOR_ID`. Both adapters record one pending admission for a verified
+#' identity without a Reader binding while denying Library access. Email and
+#' other profile claims are mutable metadata, not identity keys. When
+#' `RILL_CAPTURE_TOKEN` is set, the same application binds that credential to
+#' `RILL_ACTOR_ID` and accepts authenticated browser Documents at
 #' `/api/v1/captures`. Captures and reading-copy selection remain private to
 #' that Reader. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and

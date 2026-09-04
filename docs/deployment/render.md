@@ -116,9 +116,19 @@ Reader identifier. The configured subject allowlist bootstraps the initial
 private Reader. A verified identity without a binding receives no Library
 access and creates one deduplicated pending admission; mutable email and profile
 claims never become ownership keys. An operator can approve that admission for
-a new or existing Reader without exposing another Reader's Library. Rill does
-not yet include admission-management UI, so keep this an invitation-only
-operator workflow.
+a new isolated Reader without exposing another Reader's Library. In an R
+process configured with the deployment's `DATABASE_URL`, list and approve the
+opaque request ID without copying the Auth0 subject:
+
+```r
+requests <- rill::list_reader_admissions()
+rill::approve_reader_admission(
+  requests$request_id[[1]],
+  responsible_id = "operator:james"
+)
+```
+
+Keep this an invitation-only operator workflow.
 
 ## Verify before inviting a Reader
 
@@ -131,8 +141,8 @@ Confirm all of these against the deployed digest:
    service and exits zero.
 4. Restarting the web service preserves Library state in Neon.
 5. Configured Google and GitHub identities open the bootstrap Reader's Library.
-6. An unconfigured identity receives the generic Rill access-denied page and
-   creates one pending admission.
+6. An unconfigured identity receives the Rill access-request page and creates
+   one pending admission.
 7. Supplying a forged `X-Forwarded-User` header to the public URL cannot bypass
    oauth2-proxy, and the loopback Shiny listener is externally unreachable.
 8. **Sign out** requires a fresh Auth0 login before the Library opens again.

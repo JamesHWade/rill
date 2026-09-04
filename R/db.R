@@ -286,6 +286,7 @@ rill_store <- function(config) {
   )
   store_apply_schema(store, legacy_reader_id = legacy_reader_id)
   store_migrate_legacy_feed_titles(store, legacy_reader_id)
+  store_expire_reader_admissions(store)
   store
 }
 
