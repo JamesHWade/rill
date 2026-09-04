@@ -107,6 +107,7 @@ rill_server <- function(config, store) {
     retained_ids <- shiny::reactiveVal(character())
     retained_context <- shiny::reactiveVal(NULL)
     refresh_tick <- shiny::reactiveVal(0L)
+    feed_management_tick <- shiny::reactiveVal(0L)
     status_text <- shiny::reactiveVal(NULL)
     status_kind <- shiny::reactiveVal("info")
     reader_agent <- shiny::reactiveVal(NULL)
@@ -158,8 +159,11 @@ rill_server <- function(config, store) {
       }
     }
 
-    bump_refresh <- function() {
+    bump_refresh <- function(feeds_changed = FALSE) {
       refresh_tick(shiny::isolate(refresh_tick()) + 1L)
+      if (feeds_changed) {
+        feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
+      }
     }
 
     acknowledge_orientation_queue <- function() {
@@ -1950,53 +1954,72 @@ rill_server <- function(config, store) {
       )
     })
 
-    refresh_feeds_now <- function() {
-      result <- shiny::withProgress(message = "Refreshing feeds", value = 0, {
-        feed_rows <- store_list_feeds(
-          store,
-          actor_id,
-          source_kind = "subscription"
-        )
-        if (!nrow(feed_rows)) {
-          return(list())
-        }
-        output <- vector("list", nrow(feed_rows))
-        for (index in seq_len(nrow(feed_rows))) {
-          shiny::incProgress(
-            1 / nrow(feed_rows),
-            detail = feed_rows$title[[index]]
-          )
-          output[[index]] <- tryCatch(
-            refresh_feed(store, as.list(feed_rows[index, , drop = FALSE])),
-            error = function(error) list(error = conditionMessage(error))
-          )
-        }
-        output
-      })
-      failures <- sum(vapply(
-        result,
-        function(item) !is.null(item$error),
-        logical(1)
-      ))
-      status_text(
-        if (failures) {
-          paste0(
-            failures,
-            " feed",
-            if (failures == 1L) "" else "s",
-            " failed to refresh"
-          )
-        } else {
-          "Feeds are up to date"
-        }
+    refresh_result <- shiny::reactiveVal(NULL)
+    refresh_feeds_now <- function(feed_ids = NULL, failed_only = FALSE) {
+      buttons <- c(
+        "refresh_library",
+        "retry_failed_feeds",
+        "refresh_selected_feed"
       )
-      status_kind(if (failures) "error" else "success")
+      buttons <- buttons[vapply(
+        buttons,
+        \(id) !is.null(input[[id]]),
+        logical(1)
+      )]
+      for (id in buttons) {
+        bslib::update_task_button(id, state = "busy", session = session)
+      }
+      on.exit(
+        {
+          for (id in buttons) {
+            bslib::update_task_button(id, state = "ready", session = session)
+          }
+        },
+        add = TRUE
+      )
+      result <- tryCatch(
+        shiny::withProgress(message = "Refreshing feeds", value = 0, {
+          refresh_reader_feeds(
+            store,
+            actor_id,
+            feed_ids = feed_ids,
+            failed_only = failed_only,
+            progress = function(index, total, title) {
+              shiny::setProgress(
+                value = index / total,
+                detail = paste0(index, " of ", total, " checked \u00b7 ", title)
+              )
+            }
+          )
+        }),
+        error = function(error) error
+      )
+      if (inherits(result, "error")) {
+        refresh_result(list(status = "error"))
+        status_kind("error")
+        status_text("Refresh stopped. Please try again.")
+        shiny::showNotification(status_text(), type = "error")
+        bump_refresh(feeds_changed = TRUE)
+        return(invisible(NULL))
+      }
+      refresh_result(result)
+      status_text(feed_refresh_summary(result))
+      status_kind(if (result$failed_count) "warning" else "success")
+      shiny::showNotification(
+        status_text(),
+        type = if (result$failed_count) "warning" else "message",
+        duration = 8
+      )
       record_event(
         "feeds_refreshed",
         surface = "sidebar",
-        payload = list(failures = failures)
+        payload = list(
+          failures = result$failed_count,
+          checked = result$due_count,
+          status = result$status
+        )
       )
-      bump_refresh()
+      bump_refresh(feeds_changed = TRUE)
       invisible(result)
     }
 
@@ -2048,17 +2071,64 @@ rill_server <- function(config, store) {
       shiny::tagList(links)
     })
 
+    management_feed_id <- shiny::reactive({
+      if (is.null(input$managed_feed)) selected_feed() else input$managed_feed
+    })
+
+    management_feeds <- shiny::reactive({
+      feed_management_tick()
+      store_list_feeds(store, actor_id, active_only = FALSE)
+    })
+
+    shiny::observeEvent(
+      input$manage_feeds,
+      {
+        feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
+        shiny::showModal(feed_manager_ui(
+          management_feeds(),
+          management_feed_id()
+        ))
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      feed_management_tick(),
+      {
+        shiny::req(input$manage_feeds)
+        rows <- management_feeds()
+        shiny::updateSelectizeInput(
+          session,
+          "managed_feed",
+          choices = feed_manager_choices(rows),
+          selected = management_feed_id() %||% ""
+        )
+      },
+      ignoreInit = TRUE
+    )
+
+    output$feed_refresh_status <- shiny::renderUI({
+      result <- refresh_result()
+      if (is.null(result)) {
+        return(shiny::tags$p("Refresh checks for new stories in your Library."))
+      }
+      shiny::tags$p(role = "status", feed_refresh_summary(result))
+    })
+
     output$feed_organization_control <- shiny::renderUI({
-      feed_id <- selected_feed()
+      feed_id <- management_feed_id()
       if (is.null(feed_id)) {
         return(feed_organization_control_ui())
       }
-      feed_rows <- feeds()
+      feed_rows <- management_feeds()
       selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
       if (!nrow(selected)) {
         return(feed_organization_control_ui())
       }
-      feed_organization_control_ui(as.list(selected[1, , drop = FALSE]))
+      feed_organization_control_ui(
+        as.list(selected[1, , drop = FALSE]),
+        folders = unique(feed_rows$folder)
+      )
     })
 
     output$orientation_destination_settings <- shiny::renderUI({
@@ -2911,7 +2981,7 @@ rill_server <- function(config, store) {
           surface = "sidebar",
           payload = list(feed_id = result$feed$feed_id)
         )
-        bump_refresh()
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )
@@ -2919,7 +2989,7 @@ rill_server <- function(config, store) {
     shiny::observeEvent(
       input$rename_feed,
       {
-        feed_id <- selected_feed()
+        feed_id <- management_feed_id()
         title <- trimws(input$feed_title %||% "")
         if (is.null(feed_id) || !nzchar(title)) {
           status_kind("error")
@@ -2964,7 +3034,7 @@ rill_server <- function(config, store) {
           surface = "sidebar",
           payload = list(feed_id = feed_id, title = title)
         )
-        bump_refresh()
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )
@@ -2972,7 +3042,7 @@ rill_server <- function(config, store) {
     shiny::observeEvent(
       input$move_feed,
       {
-        feed_id <- selected_feed()
+        feed_id <- management_feed_id()
         folder <- trimws(input$feed_folder %||% "")
         if (is.null(feed_id) || !nzchar(folder)) {
           status_kind("error")
@@ -3017,7 +3087,7 @@ rill_server <- function(config, store) {
           surface = "sidebar",
           payload = list(feed_id = feed_id, folder = folder)
         )
-        bump_refresh()
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )
@@ -3025,10 +3095,11 @@ rill_server <- function(config, store) {
     shiny::observeEvent(
       input$unsubscribe_feed,
       {
-        feed_id <- selected_feed()
+        feed_id <- management_feed_id()
         if (is.null(feed_id)) {
           return()
         }
+        entry <- tryCatch(selected_entry(), error = function(error) NULL)
         result <- tryCatch(
           store_unsubscribe_feed(store, actor_id, feed_id),
           error = function(error) error
@@ -3043,8 +3114,12 @@ rill_server <- function(config, store) {
           return()
         }
 
-        selected_feed(NULL)
-        clear_selection(force = TRUE)
+        if (identical(selected_feed(), feed_id)) {
+          selected_feed(NULL)
+        }
+        if (identical(entry$feed_id, feed_id)) {
+          clear_selection(force = TRUE)
+        }
         status_kind("success")
         status_text("Unsubscribed. Reading state was preserved.")
         record_event(
@@ -3052,7 +3127,7 @@ rill_server <- function(config, store) {
           surface = "sidebar",
           payload = list(feed_id = feed_id)
         )
-        bump_refresh()
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )
@@ -3141,7 +3216,7 @@ rill_server <- function(config, store) {
           )
         )
         session$sendCustomMessage("rill-reset-file", "import_opml")
-        bump_refresh()
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )
@@ -3150,6 +3225,64 @@ rill_server <- function(config, store) {
       input$refresh_feeds,
       {
         refresh_feeds_now()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$refresh_library,
+      {
+        refresh_feeds_now()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$refresh_selected_feed,
+      {
+        shiny::req(nzchar(management_feed_id() %||% ""))
+        refresh_feeds_now(feed_ids = management_feed_id())
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$retry_failed_feeds,
+      {
+        refresh_feeds_now(failed_only = TRUE)
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$restore_feed,
+      {
+        rows <- management_feeds()
+        feed_id <- management_feed_id()
+        restorable <- rows$feed_id[
+          rows$status == "inactive" & rows$source_kind == "subscription"
+        ]
+        shiny::req(feed_id %in% restorable)
+        result <- tryCatch(
+          store_subscribe_feed(store, actor_id, feed_id),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          shiny::showNotification(
+            "Couldn't restore this subscription. Try again.",
+            type = "error"
+          )
+          return()
+        }
+        status_kind("success")
+        status_text("Subscription restored with its folder and reading state.")
+        shiny::showNotification(status_text())
+        record_event(
+          "feed_restored",
+          surface = "sidebar",
+          payload = list(feed_id = feed_id)
+        )
+        bump_refresh(feeds_changed = TRUE)
       },
       ignoreInit = TRUE
     )

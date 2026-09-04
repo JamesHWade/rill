@@ -2718,10 +2718,11 @@ store_upsert_entries <- function(store, entries) {
   }
 
   if (identical(store$mode, "postgres")) {
-    pool::poolWithTransaction(store$pool, function(connection) {
+    added <- pool::poolWithTransaction(store$pool, function(connection) {
+      added <- 0L
       for (index in seq_len(nrow(entries))) {
         entry <- entries[index, , drop = FALSE]
-        DBI::dbExecute(
+        result <- DBI::dbGetQuery(
           connection,
           paste(
             "INSERT INTO entries",
@@ -2732,7 +2733,8 @@ store_upsert_entries <- function(store, entries) {
             "url = EXCLUDED.url, canonical_url = EXCLUDED.canonical_url,",
             "title = EXCLUDED.title, author = EXCLUDED.author,",
             "summary = EXCLUDED.summary, feed_content = EXCLUDED.feed_content,",
-            "published_at = EXCLUDED.published_at, content_hash = EXCLUDED.content_hash"
+            "published_at = EXCLUDED.published_at, content_hash = EXCLUDED.content_hash",
+            "RETURNING (xmax = 0) AS inserted"
           ),
           params = unname(as.list(entry[c(
             "entry_id",
@@ -2748,11 +2750,14 @@ store_upsert_entries <- function(store, entries) {
             "content_hash"
           )]))
         )
+        added <- added + sum(result$inserted)
       }
+      added
     })
-    return(invisible(nrow(entries)))
+    return(invisible(as.integer(added)))
   }
 
+  added <- 0L
   for (index in seq_len(nrow(entries))) {
     entry <- entries[index, , drop = FALSE]
     existing <- which(
@@ -2764,7 +2769,8 @@ store_upsert_entries <- function(store, entries) {
       store$memory$entries[existing[[1]], ] <- entry
     } else {
       store$memory$entries <- rbind(store$memory$entries, entry)
+      added <- added + 1L
     }
   }
-  invisible(nrow(entries))
+  invisible(added)
 }

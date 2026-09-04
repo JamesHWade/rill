@@ -247,3 +247,97 @@ testthat::test_that("poll_feeds reports the configured failure threshold", {
     class = "rill_feed_poll_failure_threshold"
   )
 })
+testthat::test_that("manual refresh checks only active feeds in this Library", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  ids <- store_list_feeds(store, "reader-one")$feed_id
+  store_unsubscribe_feed(store, "reader-one", ids[[2L]])
+  store_subscribe_feed(store, "reader-two", ids[[2L]])
+  checked <- character()
+  progress <- integer()
+
+  result <- refresh_reader_feeds(
+    store,
+    "reader-one",
+    feed_ids = c(ids[1:2], "unowned"),
+    refresh = function(store, feed) {
+      checked <<- c(checked, feed$feed_id)
+      list(added = 0L, not_modified = TRUE)
+    },
+    progress = function(index, total, title) {
+      progress <<- c(progress, index)
+    }
+  )
+
+  testthat::expect_identical(checked, ids[[1L]])
+  testthat::expect_identical(progress, c(0L, 1L))
+  testthat::expect_identical(result$due_count, 1L)
+  testthat::expect_identical(
+    store$memory$feed_poll_outcomes$status,
+    "not_modified"
+  )
+  feed <- store_list_feeds(store, "reader-one")
+  feed <- feed[feed$feed_id == ids[[1L]], , drop = FALSE]
+  testthat::expect_identical(feed$poll_status, "not_modified")
+  testthat::expect_match(feed$last_polled_at, "UTC", fixed = TRUE)
+})
+
+testthat::test_that("manual refresh retries failed feeds and respects polling overlap", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  ids <- store_list_feeds(store, "reader")$feed_id
+  first <- refresh_reader_feeds(
+    store,
+    "reader",
+    refresh = function(store, feed) {
+      if (identical(feed$feed_id, ids[[1L]])) {
+        cli::cli_abort("Feed unavailable", class = "rill_test_feed_unavailable")
+      }
+      list(added = 2L, not_modified = FALSE)
+    }
+  )
+  testthat::expect_identical(first$failed_count, 1L)
+  testthat::expect_match(feed_refresh_summary(first), "1 failed", fixed = TRUE)
+
+  checked <- character()
+  retry <- refresh_reader_feeds(
+    store,
+    "reader",
+    failed_only = TRUE,
+    refresh = function(store, feed) {
+      checked <<- c(checked, feed$feed_id)
+      list(added = 1L, not_modified = FALSE)
+    }
+  )
+  testthat::expect_identical(checked, ids[[1L]])
+  testthat::expect_identical(retry$failed_count, 0L)
+  testthat::expect_identical(
+    feed_refresh_summary(retry),
+    "1 feed checked \u00b7 1 new story."
+  )
+
+  none <- refresh_reader_feeds(
+    store,
+    "reader",
+    failed_only = TRUE,
+    refresh = function(...) stop("No failures remain")
+  )
+  testthat::expect_identical(none$due_count, 0L)
+  testthat::expect_identical(
+    feed_refresh_summary(none),
+    "No feeds need checking in this selection."
+  )
+  testthat::expect_identical(
+    feed_refresh_summary(list(status = "error")),
+    "Refresh stopped. Please try again."
+  )
+
+  store$memory$feed_poll_locked <- TRUE
+  overlap <- refresh_reader_feeds(store, "reader", refresh = function(...) {
+    stop("The poller holds the lock")
+  })
+  testthat::expect_identical(overlap$status, "skipped_overlap")
+  testthat::expect_match(
+    feed_refresh_summary(overlap),
+    "Another refresh",
+    fixed = TRUE
+  )
+})

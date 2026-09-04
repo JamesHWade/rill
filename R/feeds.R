@@ -337,8 +337,8 @@ ingest_feed_url <- function(store, reader_id, url, folder = NULL) {
     result$feed$feed_id,
     folder = folder
   )
-  store_upsert_entries(store, result$entries)
-  list(feed = result$feed, added = nrow(result$entries), not_modified = FALSE)
+  added <- store_upsert_entries(store, result$entries)
+  list(feed = result$feed, added = added, not_modified = FALSE)
 }
 
 refresh_feed <- function(store, feed) {
@@ -362,10 +362,10 @@ refresh_feed <- function(store, feed) {
     character(1)
   )
   store_upsert_feed(store, result$feed)
-  store_upsert_entries(store, result$entries)
+  added <- store_upsert_entries(store, result$entries)
   list(
     feed_id = feed$feed_id,
-    added = nrow(result$entries),
+    added = added,
     not_modified = FALSE
   )
 }

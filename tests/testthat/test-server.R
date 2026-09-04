@@ -3809,6 +3809,75 @@ testthat::test_that("organizing a selected feed updates its Subscription", {
   })
 })
 
+testthat::test_that("feed management keeps browsing separate and restores subscriptions", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1L]]
+  reading_feed <- store$memory$entries$feed_id[[1L]]
+  managed_id <- setdiff(
+    store_list_feeds(store, config$actor_id)$feed_id,
+    reading_feed
+  )[[1L]]
+  refresh_calls <- character()
+  testthat::local_mocked_bindings(refresh_feed = function(store, feed) {
+    refresh_calls <<- c(refresh_calls, feed$feed_id)
+    list(added = 0L, not_modified = TRUE)
+  })
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      select_entry = NULL,
+      managed_feed = "",
+      restore_feed = 0L,
+      unsubscribe_feed = 0L,
+      refresh_selected_feed = 0L,
+      rename_feed = 0L
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$setInputs(managed_feed = managed_id)
+    session$setInputs(feed_title = "Renamed in manager", rename_feed = 1L)
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_null(selected_feed())
+    rows <- store_list_feeds(store, config$actor_id)
+    testthat::expect_identical(
+      rows$title[rows$feed_id == managed_id],
+      "Renamed in manager"
+    )
+
+    session$setInputs(refresh_selected_feed = 1L)
+    testthat::expect_identical(refresh_calls, managed_id)
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_identical(
+      status_text(),
+      "1 feed checked \u00b7 0 new stories."
+    )
+
+    session$setInputs(unsubscribe_feed = 1L)
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      managed_id
+    )
+    session$setInputs(restore_feed = 1L)
+    rows <- store_list_feeds(store, config$actor_id)
+    testthat::expect_in(managed_id, rows$feed_id)
+    testthat::expect_identical(
+      rows$title[rows$feed_id == managed_id],
+      "Renamed in manager"
+    )
+
+    session$setInputs(managed_feed = "unowned", restore_feed = 2L)
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      "unowned"
+    )
+  })
+})
+
 testthat::test_that("changing story sort reorders the queue and clears the reader", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

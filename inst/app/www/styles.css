@@ -675,6 +675,42 @@ body.bslib-page-fill {
   padding: 4px 4px 10px;
 }
 
+.btn-manage-feeds {
+  width: 100%;
+  text-align: left;
+}
+
+.feed-tools {
+  min-width: 0;
+}
+
+.feed-tools h3 {
+  font-family: var(--bs-body-font-family);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.feed-tools .shiny-input-container {
+  width: 100%;
+}
+
+.feed-tools .feed-tool-help {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.feed-tools .btn {
+  min-height: 44px;
+  margin-bottom: 6px;
+  white-space: normal;
+}
+
+.feed-source-url {
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
 .feed-tool-section + .feed-tool-section {
   padding-top: 12px;
   border-top: 1px solid var(--sidebar-border);

@@ -58,7 +58,7 @@ testthat::test_that("invalid story times render without a label", {
 testthat::test_that("feed management exposes OPML import and export", {
   html <- htmltools::renderTags(feed_tools_ui())$html
 
-  testthat::expect_match(html, "Manage feeds", fixed = TRUE)
+  testthat::expect_match(html, 'id="managed_feed"', fixed = TRUE)
   testthat::expect_match(
     html,
     'id="feed_organization_control"',
@@ -84,6 +84,12 @@ testthat::test_that("feed management exposes OPML import and export", {
     source_kind = "capture"
   )))$html
   testthat::expect_no_match(capture, 'id="unsubscribe_feed"', fixed = TRUE)
+
+  inactive <- htmltools::renderTags(feed_organization_control_ui(list(
+    status = "inactive"
+  )))$html
+  testthat::expect_match(inactive, 'id="restore_feed"', fixed = TRUE)
+  testthat::expect_no_match(inactive, 'id="unsubscribe_feed"', fixed = TRUE)
 })
 
 testthat::test_that("populated story output remains a scroll container", {
