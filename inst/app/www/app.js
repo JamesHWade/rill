@@ -968,8 +968,12 @@
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
     accumulatedReadingMs = 0;
-    openedAt = Date.now();
-    lastHeartbeatAt = openedAt;
+    const now = Date.now();
+    openedAt =
+      readingTelemetryPaused || document.visibilityState !== "visible"
+        ? 0
+        : now;
+    lastHeartbeatAt = now;
     milestones = new Set();
     const scrollPane = document.querySelector(".reader-scroll");
     if (scrollPane) scrollPane.scrollTop = 0;
@@ -1277,9 +1281,9 @@
     if (isEditableTarget(event.target)) return;
     if (key === "escape" && dialogOwnedEscapeEvents.has(event)) return;
     if (
-      compactReaderMode.matches &&
-      compactSurface === "library" &&
-      key !== "escape"
+      key !== "escape" &&
+      (askRillReadingTelemetryPaused ||
+        (compactReaderMode.matches && compactSurface === "library"))
     ) {
       return;
     }
@@ -1637,6 +1641,11 @@
     syncAskRillControls();
   }
 
+  function syncReaderSurfaces() {
+    syncReader();
+    syncAskRillControls();
+  }
+
   function closeCompactLibraryAfterViewChange(event) {
     if (
       compactReaderMode.matches &&
@@ -1726,7 +1735,7 @@
     registerSystemEvents();
     registerInputValidity();
     enhanceNativeFeedback();
-    new MutationObserver(syncReader).observe(document.body, {
+    new MutationObserver(syncReaderSurfaces).observe(document.body, {
       childList: true,
       subtree: true
     });
