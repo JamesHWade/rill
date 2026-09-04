@@ -234,7 +234,22 @@ testthat::test_that("reading telemetry follows the visible reader surface", {
   )
   testthat::expect_match(
     javascript,
-    "resetReadingTelemetryClock();",
+    "pauseReadingTelemetryClock(true);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "accumulatedReadingMs +=",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'send("dwell_heartbeat", { dwell_seconds: seconds })',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "resumeReadingTelemetryClock();",
     fixed = TRUE
   )
 })

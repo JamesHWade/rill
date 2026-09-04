@@ -67,6 +67,7 @@
   let pendingOrientationReturnFocus = null;
   let openedAt = 0;
   let lastHeartbeatAt = 0;
+  let accumulatedReadingMs = 0;
   let readingTelemetryPaused = false;
   let milestones = new Set();
   let fileResetRegistered = false;
@@ -702,23 +703,51 @@
     }
   }
 
-  function resetReadingTelemetryClock() {
+  function readingDwellSeconds(now = Date.now()) {
+    const currentSegment = openedAt > 0 ? Math.max(0, now - openedAt) : 0;
+    return Math.max(
+      0,
+      Math.round((accumulatedReadingMs + currentSegment) / 1000)
+    );
+  }
+
+  function pauseReadingTelemetryClock(flushHeartbeat = false) {
+    if (!activeEntryId || openedAt === 0) return;
+    const now = Date.now();
+    accumulatedReadingMs += Math.max(0, now - openedAt);
+    openedAt = 0;
+    if (flushHeartbeat) {
+      const seconds = Math.max(
+        0,
+        Math.round((now - lastHeartbeatAt) / 1000)
+      );
+      if (seconds > 0) send("dwell_heartbeat", { dwell_seconds: seconds });
+    }
+    lastHeartbeatAt = now;
+  }
+
+  function resumeReadingTelemetryClock() {
+    if (!activeEntryId || openedAt > 0) return;
     openedAt = Date.now();
     lastHeartbeatAt = openedAt;
   }
 
   function setReadingTelemetryPaused(paused) {
     const nextPaused = Boolean(paused);
-    if (readingTelemetryPaused && !nextPaused && activeEntryId) {
-      resetReadingTelemetryClock();
+    if (!readingTelemetryPaused && nextPaused) {
+      pauseReadingTelemetryClock(true);
     }
     readingTelemetryPaused = nextPaused;
+    if (!nextPaused && document.visibilityState === "visible") {
+      resumeReadingTelemetryClock();
+    }
   }
 
   function readingTelemetryActive() {
     return Boolean(
       activeEntryId &&
         !readingTelemetryPaused &&
+        openedAt > 0 &&
         document.visibilityState === "visible"
     );
   }
@@ -917,6 +946,7 @@
       compactReaderMode.matches || activeEntrySurface === "orientation";
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
+    accumulatedReadingMs = 0;
     openedAt = Date.now();
     lastHeartbeatAt = openedAt;
     milestones = new Set();
@@ -1111,7 +1141,7 @@
 
   window.rillTrack = function (type) {
     send(type, {
-      dwell_seconds: Math.max(0, Math.round((Date.now() - openedAt) / 1000))
+      dwell_seconds: readingDwellSeconds()
     });
   };
 
@@ -1262,7 +1292,7 @@
             milestones.add(milestone);
             send("scroll_milestone", {
               scroll_percent: milestone,
-              dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+              dwell_seconds: readingDwellSeconds()
             });
           }
         });
@@ -1473,7 +1503,14 @@
         trigger.setAttribute("aria-expanded", String(expanded));
       }
     );
-    setSurfaceCovered(main, expanded && overlaidAgentMode.matches);
+    const coversMain = expanded && overlaidAgentMode.matches;
+    const mainHadFocus = Boolean(
+      coversMain &&
+        main &&
+        (main === document.activeElement || main.contains(document.activeElement))
+    );
+    setSurfaceCovered(main, coversMain);
+    if (mainHadFocus) agentFocusPending = true;
     if (agentSidebarExpanded && !expanded) restoreAgentFocus();
     if (
       expanded &&
@@ -1732,15 +1769,16 @@
       activeEntryId &&
       !readingTelemetryPaused
     ) {
+      pauseReadingTelemetryClock();
       send("page_hidden", {
-        dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+        dwell_seconds: readingDwellSeconds()
       });
     } else if (
       document.visibilityState === "visible" &&
       activeEntryId &&
       !readingTelemetryPaused
     ) {
-      resetReadingTelemetryClock();
+      resumeReadingTelemetryClock();
     }
   });
 })();

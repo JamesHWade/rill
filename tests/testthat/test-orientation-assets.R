@@ -306,7 +306,17 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   )
   testthat::expect_match(
     javascript,
-    "setSurfaceCovered(main, expanded && overlaidAgentMode.matches)",
+    "const coversMain = expanded && overlaidAgentMode.matches",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "main.contains(document.activeElement)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "if (mainHadFocus) agentFocusPending = true",
     fixed = TRUE
   )
   testthat::expect_match(
