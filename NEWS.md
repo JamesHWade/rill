@@ -20,6 +20,8 @@
 
 * Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that resize on wide screens, reduce to Queue plus reading canvas at medium widths, and become separate Library, Queue, and Reading surfaces on phones without discarding the selected Document (#47, #48).
 
+* Orientation now distinguishes source Documents, agent interpretation, path rationale, and quoted evidence at every step; Reading exposes stored-copy provenance through `bslib`, and Ask Rill has a source-bound context panel with an explicit responsive trigger (#49).
+
 * Feed navigation and the reading queue now remain independently scrollable when their contents exceed the viewport (#28).
 
 * Feeds can now be given a reader-defined name under **Manage feeds**; the Reader's label is stored separately from source metadata and persists when the Feed is refreshed (#28).

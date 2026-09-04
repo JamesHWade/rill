@@ -357,12 +357,69 @@ testthat::test_that("the reader includes source-bounded Ask Rill chat", {
   testthat::expect_match(html, "enable-cancel", fixed = TRUE)
   testthat::expect_match(html, 'id="reader_agent_status"', fixed = TRUE)
   testthat::expect_match(html, 'data-open-mobile="closed"', fixed = TRUE)
-  testthat::expect_match(html, "Ask Rill about this story", fixed = TRUE)
+  testthat::expect_match(html, "Ask about the selected story", fixed = TRUE)
+  testthat::expect_match(html, "Source-bound", fixed = TRUE)
+  testthat::expect_match(html, 'id="reader_agent_context"', fixed = TRUE)
   testthat::expect_match(
     html,
     "question and selected reading copy to OpenAI",
     fixed = TRUE
   )
+})
+
+testthat::test_that("Reading keeps source actions and provenance explicit", {
+  data <- sample_rill_data()
+  entry <- as.list(data$entries[1, , drop = FALSE])
+  entry$feed_title <- "The R Blog"
+  entry$library_access <- TRUE
+  entry$read_at <- NA_character_
+  entry$starred <- FALSE
+  entry$saved <- FALSE
+  document <- data$documents[[1L]]
+
+  header_html <- htmltools::renderTags(
+    reader_article_header_ui(entry, document)
+  )$html
+  document_html <- htmltools::renderTags(
+    reader_document_ui(document, entry$entry_id, "story_list")
+  )$html
+  context_html <- htmltools::renderTags(
+    reader_agent_context_ui(entry, document)
+  )$html
+
+  testthat::expect_match(header_html, "bslib-toolbar", fixed = TRUE)
+  testthat::expect_match(header_html, "Stored reading copy", fixed = TRUE)
+  testthat::expect_match(header_html, "Ask Rill", fixed = TRUE)
+  testthat::expect_match(
+    header_html,
+    'aria-controls="reader_agent_sidebar"',
+    fixed = TRUE
+  )
+  testthat::expect_match(header_html, "rillOpenAskRill(this)", fixed = TRUE)
+  testthat::expect_match(header_html, "Original", fixed = TRUE)
+  testthat::expect_match(
+    document_html,
+    "About this reading copy",
+    fixed = TRUE
+  )
+  testthat::expect_match(document_html, "reading-provenance", fixed = TRUE)
+  testthat::expect_match(
+    document_html,
+    "remains separate from Ask Rill",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    document_html,
+    rill_document_limitations(document),
+    fixed = TRUE
+  )
+  testthat::expect_match(document_html, document$document_id, fixed = TRUE)
+  testthat::expect_match(
+    context_html,
+    "Grounded in this reading copy",
+    fixed = TRUE
+  )
+  testthat::expect_match(context_html, document$title, fixed = TRUE)
 })
 
 testthat::test_that("Orientation presents a source-grounded reading path", {
@@ -406,7 +463,15 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
   testthat::expect_match(html, "Read these as one short path", fixed = TRUE)
   testthat::expect_match(html, "Interpretation 1", fixed = TRUE)
   testthat::expect_match(html, "Why now 1", fixed = TRUE)
-  testthat::expect_match(html, "Inspect Source Evidence [01]", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "Source evidence and provenance [01]",
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "A guided path, not a source", fixed = TRUE)
+  testthat::expect_match(html, "Rill interpretation", fixed = TRUE)
+  testthat::expect_match(html, "Path rationale", fixed = TRUE)
+  testthat::expect_match(html, "Source Document", fixed = TRUE)
   testthat::expect_match(html, "Rill keeps the source feed", fixed = TRUE)
   testthat::expect_match(
     html,

@@ -51,6 +51,14 @@ testthat::test_that("Orientation browser actions preserve their source surface",
     fixed = TRUE
   )
   testthat::expect_match(javascript, "pendingReaderFocus", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "window.rillOpenAskRill",
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "Close Ask Rill", fixed = TRUE)
+  testthat::expect_match(javascript, "restoreAgentFocus", fixed = TRUE)
+  testthat::expect_match(javascript, "ensureAskRillSettled", fixed = TRUE)
   testthat::expect_match(javascript, "function focusReader()", fixed = TRUE)
   testthat::expect_match(
     javascript,
@@ -239,4 +247,32 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
+})
+
+testthat::test_that("Ask Rill overlays Reading until both panes fit", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'window.matchMedia("(max-width: 1499.98px)")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "setSurfaceCovered(main, expanded && overlaidAgentMode.matches)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "@media (min-width: 576px) and (max-width: 1499.98px)",
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, "position: absolute", fixed = TRUE)
 })

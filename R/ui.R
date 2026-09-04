@@ -526,8 +526,20 @@ reader_pane_ui <- function(config) {
     sidebar = bslib::sidebar(
       shiny::tags$header(
         class = "reader-agent-header",
-        shiny::tags$p(class = "eyebrow", "Ask Rill"),
-        shiny::tags$h2("Ask Rill about this story")
+        shiny::tags$div(
+          class = "reader-agent-kicker",
+          shiny::tags$p(class = "eyebrow", "Ask Rill"),
+          shiny::tags$span(class = "reader-agent-badge", "Source-bound")
+        ),
+        shiny::tags$h2(
+          id = "reader-agent-title",
+          "Ask about the selected story"
+        ),
+        shiny::uiOutput(
+          "reader_agent_context",
+          container = shiny::tags$div,
+          class = "reader-agent-context-slot"
+        )
       ),
       shiny::uiOutput(
         "reader_agent_status",
@@ -537,7 +549,11 @@ reader_pane_ui <- function(config) {
       shinychat::chat_ui(
         "reader_chat",
         greeting = shinychat::chat_greeting(
-          "Choose a story, then ask what it says, why it matters, or how it connects."
+          paste(
+            "I answer from the selected reading copy and label inference",
+            "as interpretation. Ask for a summary, a key claim, or a",
+            "connection."
+          )
         ),
         placeholder = "Ask about the selected story\u2026",
         height = "100%",
@@ -571,6 +587,235 @@ reader_pane_ui <- function(config) {
     padding = 0,
     gap = 0,
     height = "100%"
+  )
+}
+
+reader_article_header_ui <- function(entry, document) {
+  reading_minutes <- max(
+    1L,
+    ceiling(as.integer(document$word_count %||% 0L) / 225)
+  )
+  source_name <- document$site %||% entry$feed_title
+  source_url <- rill_document_original_source_url(document)
+  if (is.na(source_url)) {
+    source_url <- entry$url
+  }
+
+  actions <- htmltools::tagQuery(
+    bslib::toolbar(
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action mobile-back",
+        `aria-keyshortcuts` = "Escape",
+        onclick = "rillOpenQueue()",
+        bsicons::bs_icon("arrow-left"),
+        "Queue"
+      ),
+      if (isTRUE(entry$library_access)) {
+        shiny::tagList(
+          if (
+            !is.na(entry$read_at %||% NA_character_) &&
+              nzchar(as.character(entry$read_at %||% ""))
+          ) {
+            mark_unread_button()
+          } else {
+            NULL
+          },
+          shiny::actionButton(
+            "toggle_star",
+            shiny::tagList(
+              bsicons::bs_icon(
+                if (isTRUE(entry$starred)) "star-fill" else "star"
+              ),
+              if (isTRUE(entry$starred)) "Starred" else "Star"
+            ),
+            `aria-keyshortcuts` = "f",
+            `aria-pressed` = if (isTRUE(entry$starred)) "true" else "false",
+            class = paste(
+              "reader-action",
+              if (isTRUE(entry$starred)) "is-active"
+            )
+          ),
+          shiny::actionButton(
+            "toggle_save",
+            shiny::tagList(
+              bsicons::bs_icon(
+                if (isTRUE(entry$saved)) "bookmark-fill" else "bookmark"
+              ),
+              if (isTRUE(entry$saved)) "Saved" else "Save"
+            ),
+            `aria-keyshortcuts` = "s",
+            `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
+            class = paste(
+              "reader-action",
+              if (isTRUE(entry$saved)) "is-active"
+            )
+          )
+        )
+      } else {
+        NULL
+      },
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action reader-agent-trigger",
+        `aria-controls` = "reader_agent_sidebar",
+        `aria-expanded` = "false",
+        onclick = "rillOpenAskRill(this)",
+        bsicons::bs_icon("chat-left-text"),
+        "Ask Rill"
+      ),
+      shiny::tags$a(
+        class = "reader-action original-link",
+        href = source_url,
+        target = "_blank",
+        rel = "noopener noreferrer",
+        `aria-keyshortcuts` = "o",
+        onclick = "rillTrack('open_original')",
+        bsicons::bs_icon("box-arrow-up-right"),
+        "Original"
+      ),
+      shiny::tags$span(
+        class = "shortcut-hint",
+        shiny::tags$kbd("J"),
+        "/",
+        shiny::tags$kbd("K"),
+        " navigate \u00b7 ",
+        shiny::tags$kbd("O"),
+        " original \u00b7 ",
+        shiny::tags$kbd("S"),
+        " save \u00b7 ",
+        shiny::tags$kbd("F"),
+        " star"
+      ),
+      align = "left",
+      gap = "6px"
+    )
+  )$addClass("article-actions")$allTags()
+
+  shiny::tags$header(
+    class = "article-header",
+    actions,
+    shiny::tags$p(
+      class = "article-source",
+      shiny::tags$span("Source"),
+      shiny::tags$a(
+        href = source_url,
+        target = "_blank",
+        rel = "noopener noreferrer",
+        source_name
+      )
+    ),
+    shiny::tags$h1(document$title %||% entry$title),
+    shiny::tags$div(
+      class = "article-byline",
+      if (
+        !is.na(document$author %||% NA_character_) &&
+          nzchar(document$author %||% "")
+      ) {
+        shiny::tags$span(document$author)
+      },
+      shiny::tags$span(paste(reading_minutes, "min read")),
+      shiny::tags$span(format_story_time(entry$published_at))
+    ),
+    shiny::tags$div(
+      class = "article-copy-status",
+      bsicons::bs_icon("file-earmark-text"),
+      shiny::tags$div(
+        shiny::tags$strong("Stored reading copy"),
+        shiny::tags$span(
+          paste(
+            "Prepared by",
+            document$producer %||% "feed fallback",
+            "\u00b7 provenance and limitations below"
+          )
+        )
+      )
+    )
+  )
+}
+
+reader_document_ui <- function(document, entry_id, selection_surface) {
+  source_url <- rill_document_original_source_url(document)
+  captured_at <- format(
+    as.POSIXct(document$captured_at, tz = "UTC"),
+    "%Y-%m-%d %H:%M UTC",
+    tz = "UTC"
+  )
+  acquisition <- gsub(
+    "_",
+    " ",
+    document$acquisition_method %||% "unknown",
+    fixed = TRUE
+  )
+
+  provenance <- bslib::accordion(
+    bslib::accordion_panel(
+      shiny::tagList(
+        bsicons::bs_icon("info-circle"),
+        "About this reading copy"
+      ),
+      shiny::tags$p(
+        class = "reading-copy-boundary",
+        paste(
+          "This stored source copy remains separate from Ask Rill's",
+          "interpretation."
+        )
+      ),
+      shiny::tags$p(
+        class = "reading-copy-limitations",
+        rill_document_limitations(document)
+      ),
+      shiny::tags$dl(
+        class = "reading-copy-metadata",
+        shiny::tags$dt("Original source"),
+        shiny::tags$dd(
+          if (!is.na(source_url)) {
+            shiny::tags$a(
+              href = source_url,
+              target = "_blank",
+              rel = "noopener noreferrer",
+              source_url
+            )
+          } else {
+            "Unavailable"
+          }
+        ),
+        shiny::tags$dt("Reading copy"),
+        shiny::tags$dd(shiny::tags$code(document$document_id)),
+        shiny::tags$dt("Prepared"),
+        shiny::tags$dd(
+          paste(document$producer %||% "feed fallback", "via", acquisition)
+        ),
+        shiny::tags$dt("Captured"),
+        shiny::tags$dd(captured_at)
+      ),
+      value = "reading-copy-provenance"
+    ),
+    open = FALSE,
+    class = "reading-provenance"
+  )
+
+  shiny::tags$article(
+    id = "reader-document",
+    class = "reader-document",
+    `data-entry-id` = entry_id,
+    `data-document-id` = document$document_id,
+    `data-selection-surface` = selection_surface,
+    render_document(document),
+    shiny::tags$footer(
+      class = "article-footer",
+      provenance
+    )
+  )
+}
+
+reader_agent_context_ui <- function(entry, document) {
+  shiny::tags$div(
+    id = "reader-agent-context",
+    class = "reader-agent-context",
+    shiny::tags$span("Grounded in this reading copy"),
+    shiny::tags$strong(document$title %||% entry$title),
+    shiny::tags$small(document$site %||% entry$feed_title)
   )
 }
 
@@ -646,7 +891,10 @@ orientation_ui <- function(
     shiny::tags$header(
       class = "orientation-header",
       shiny::tags$div(
-        shiny::tags$p(class = "eyebrow", "Orientation"),
+        shiny::tags$p(
+          class = "eyebrow",
+          "Orientation \u00b7 Rill-guided reading"
+        ),
         shiny::tags$h1(
           id = "orientation-title",
           "One question is worth carrying into this reading"
@@ -671,6 +919,21 @@ orientation_ui <- function(
     shiny::tags$p(
       class = "orientation-introduction",
       orientation$introduction
+    ),
+    shiny::tags$aside(
+      class = "orientation-disclosure",
+      `aria-label` = "How Orientation uses sources",
+      bsicons::bs_icon("signpost-split"),
+      shiny::tags$div(
+        shiny::tags$strong("A guided path, not a source"),
+        shiny::tags$p(
+          paste(
+            "Rill generates the question, path, and interpretation.",
+            "Source Documents and quoted evidence remain separate and",
+            "inspectable."
+          )
+        )
+      )
     ),
     shiny::tags$div(
       class = "orientation-path",
@@ -896,7 +1159,11 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
     shiny::tags$div(class = "orientation-step-number", number),
     shiny::tags$div(
       class = "orientation-step-body",
-      shiny::tags$p(class = "orientation-card-kind", frame),
+      shiny::tags$p(
+        class = "orientation-card-kind",
+        paste("Reading step", number, "\u00b7", frame)
+      ),
+      shiny::tags$p(class = "orientation-source-label", "Source Document"),
       shiny::tags$div(
         class = "orientation-source",
         shiny::tags$span(document$site %||% entry$feed_title),
@@ -905,7 +1172,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
       ),
       shiny::tags$p(
         class = "orientation-interpretation-label",
-        "Interpretation"
+        "Rill interpretation"
       ),
       shiny::tags$p(
         class = "orientation-interpretation",
@@ -913,12 +1180,14 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
       ),
       shiny::tags$p(
         class = "orientation-why",
-        shiny::tags$strong("Why now \u00b7 "),
+        shiny::tags$strong("Path rationale \u00b7 "),
         card$why_now
       ),
       shiny::tags$details(
         class = "orientation-evidence",
-        shiny::tags$summary(paste0("Inspect Source Evidence [", number, "]")),
+        shiny::tags$summary(
+          paste0("Source evidence and provenance [", number, "]")
+        ),
         shiny::tags$blockquote(card$evidence),
         shiny::tags$dl(
           class = "orientation-evidence-metadata",
@@ -958,9 +1227,9 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
           class = "orientation-read",
           onclick = select,
           if (identical(card$role, "anchor")) {
-            "Read the anchor Document"
+            "Read the anchor source"
           } else {
-            "Read this Document"
+            "Read this source"
           },
           bsicons::bs_icon("arrow-right")
         ),

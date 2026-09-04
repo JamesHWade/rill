@@ -8,6 +8,7 @@
   );
   const wideReaderMode = window.matchMedia("(min-width: 1100px)");
   const desktopReaderMode = window.matchMedia("(min-width: 768px)");
+  const overlaidAgentMode = window.matchMedia("(max-width: 1499.98px)");
 
   function storedThemeMode() {
     try {
@@ -75,6 +76,10 @@
   let orientationModalWasOpen = false;
   let compactSurface = null;
   let compactReturnSurface = "queue";
+  let agentReturnFocus = null;
+  let agentSidebarExpanded = false;
+  let agentSidebarObserver = null;
+  let agentFocusPending = false;
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -1044,6 +1049,119 @@
     if (collapsed === expanded) toggle.click();
   }
 
+  function readerAgentElements() {
+    const sidebar = document.getElementById("reader_agent_sidebar");
+    const layout = sidebar && sidebar.parentElement;
+    const main = layout && layout.querySelector(":scope > .main");
+    const toggle =
+      layout && layout.querySelector(":scope > .collapse-toggle");
+    return { sidebar, layout, main, toggle };
+  }
+
+  function focusAgentSidebar() {
+    window.requestAnimationFrame(function () {
+      const { sidebar } = readerAgentElements();
+      const heading = sidebar && sidebar.querySelector("#reader-agent-title");
+      if (!heading) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    });
+  }
+
+  function restoreAgentFocus() {
+    const target =
+      agentReturnFocus && document.contains(agentReturnFocus)
+        ? agentReturnFocus
+        : document.querySelector(".article-header h1");
+    agentReturnFocus = null;
+    if (!target) return;
+    if (!target.matches("button, a, input, select, textarea, summary")) {
+      target.setAttribute("tabindex", "-1");
+    }
+    function applyFocus(onlyIfDisplaced = false) {
+      const active = document.activeElement;
+      if (
+        onlyIfDisplaced &&
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !active.matches(".article-header h1, .collapse-toggle") &&
+        !active.closest(".reader-agent-sidebar")
+      ) {
+        return;
+      }
+      target.focus({ preventScroll: true });
+    }
+    window.requestAnimationFrame(applyFocus);
+    window.setTimeout(function () {
+      applyFocus(true);
+    }, 200);
+  }
+
+  function ensureAskRillSettled() {
+    const { layout, toggle } = readerAgentElements();
+    if (!layout || !toggle || !layout.classList.contains("transitioning")) {
+      return;
+    }
+    const icon = toggle.querySelector(".collapse-icon");
+    if (icon) icon.dispatchEvent(new Event("transitionend"));
+  }
+
+  function syncAskRillControls() {
+    const { layout, main, toggle } = readerAgentElements();
+    if (!layout || !toggle) return;
+    const expanded = !layout.classList.contains("sidebar-collapsed");
+    const label = expanded ? "Close Ask Rill" : "Open Ask Rill";
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    document.querySelectorAll(".reader-agent-trigger").forEach(
+      function (trigger) {
+        trigger.setAttribute("aria-expanded", String(expanded));
+      }
+    );
+    setSurfaceCovered(main, expanded && overlaidAgentMode.matches);
+    if (agentSidebarExpanded && !expanded) restoreAgentFocus();
+    if (
+      expanded &&
+      agentFocusPending &&
+      !layout.classList.contains("transitioning")
+    ) {
+      agentFocusPending = false;
+      focusAgentSidebar();
+    }
+    if (!expanded) agentFocusPending = false;
+    agentSidebarExpanded = expanded;
+  }
+
+  function rememberAgentToggleFocus(event) {
+    const { layout, toggle } = readerAgentElements();
+    if (!layout || !toggle || !toggle.contains(event.target)) return;
+    if (layout.classList.contains("sidebar-collapsed")) {
+      agentReturnFocus = document.activeElement;
+    }
+    window.setTimeout(ensureAskRillSettled, 400);
+  }
+
+  function registerAgentSidebarControls() {
+    const { layout } = readerAgentElements();
+    if (!layout) return;
+    if (agentSidebarObserver) agentSidebarObserver.disconnect();
+    agentSidebarObserver = new MutationObserver(syncAskRillControls);
+    agentSidebarObserver.observe(layout, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+    syncAskRillControls();
+  }
+
+  window.rillOpenAskRill = function (trigger) {
+    agentReturnFocus = trigger || document.activeElement;
+    agentFocusPending = true;
+    setSidebarExpanded("reader_agent_sidebar", true);
+    window.setTimeout(syncAskRillControls, 0);
+    window.setTimeout(ensureAskRillSettled, 400);
+  };
+
   function syncResponsiveSidebarState() {
     if (mediumReaderMode.matches) {
       setSidebarExpanded("navigation_sidebar", false);
@@ -1061,6 +1179,7 @@
   function handleResponsiveLayoutChange() {
     window.setTimeout(syncResponsiveSidebarState, 0);
     syncReader();
+    syncAskRillControls();
   }
 
   function closeCompactLibraryAfterViewChange(event) {
@@ -1122,10 +1241,12 @@
     desktopReaderMode.addEventListener("change", handleResponsiveLayoutChange);
     mediumReaderMode.addEventListener("change", handleResponsiveLayoutChange);
     wideReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    overlaidAgentMode.addEventListener("change", handleResponsiveLayoutChange);
   } else {
     desktopReaderMode.addListener(handleResponsiveLayoutChange);
     mediumReaderMode.addListener(handleResponsiveLayoutChange);
     wideReaderMode.addListener(handleResponsiveLayoutChange);
+    overlaidAgentMode.addListener(handleResponsiveLayoutChange);
   }
 
   window.addEventListener("storage", function (event) {
@@ -1145,6 +1266,7 @@
     registerQueueBrowse();
     registerOrientationActionMessages();
     registerChatSubmissionIds();
+    registerAgentSidebarControls();
     new MutationObserver(syncReader).observe(document.body, {
       childList: true,
       subtree: true
@@ -1159,10 +1281,17 @@
     registerQueueBrowse();
     registerOrientationActionMessages();
     registerChatSubmissionIds();
+    registerAgentSidebarControls();
   });
 
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
+  document.addEventListener("pointerdown", rememberAgentToggleFocus, true);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" || event.key === " ") {
+      rememberAgentToggleFocus(event);
+    }
+  }, true);
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden" && activeEntryId) {
