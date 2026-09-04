@@ -24,6 +24,8 @@
 
 * Orientation now distinguishes source Documents, agent interpretation, path rationale, and quoted evidence at every step; Reading exposes stored-copy provenance through `bslib`, and Ask Rill has a source-bound context panel with an explicit responsive trigger (#49).
 
+* Rill now presents startup, loading, disconnected, reconnecting, progress, notification, validation, and recovery states as one accessible visual system, with a skip link, live status semantics, reduced-motion and forced-color support, and an inspectable responsive browser contract (#50).
+
 * Feed navigation and the reading queue now remain independently scrollable when their contents exceed the viewport (#28).
 
 * Feeds can now be given a reader-defined name under **Manage feeds**; the Reader's label is stored separately from source metadata and persists when the Feed is refreshed (#28).

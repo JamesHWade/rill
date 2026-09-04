@@ -80,6 +80,258 @@
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
   let agentFocusPending = false;
+  let connectionState = "starting";
+  let hasConnected = false;
+  let initialLoadComplete = false;
+  let systemStatusTimer = null;
+  let systemEventsRegistered = false;
+  let inputValidityRegistered = false;
+  let readingStatusTrigger = null;
+
+  function setAppBusy(busy) {
+    const app = document.getElementById("rill-app");
+    if (app) app.setAttribute("aria-busy", String(busy));
+  }
+
+  function setSystemStatus(
+    state,
+    title,
+    detail,
+    { action = false, assertive = false, hideAfter = null } = {}
+  ) {
+    const status = document.getElementById("rill-system-status");
+    const titleNode = document.getElementById("rill-system-status-title");
+    const detailNode = document.getElementById("rill-system-status-detail");
+    const actionNode = document.getElementById("rill-system-status-action");
+    if (!status || !titleNode || !detailNode || !actionNode) return;
+
+    window.clearTimeout(systemStatusTimer);
+    status.hidden = false;
+    status.dataset.state = state;
+    status.className = `rill-system-status is-${state}`;
+    status.setAttribute("role", assertive ? "alert" : "status");
+    status.setAttribute("aria-live", assertive ? "assertive" : "polite");
+    titleNode.textContent = title;
+    detailNode.textContent = detail;
+    actionNode.hidden = !action;
+
+    if (hideAfter !== null) {
+      systemStatusTimer = window.setTimeout(function () {
+        status.hidden = true;
+      }, hideAfter);
+    }
+  }
+
+  function handleShinyConnected() {
+    if (connectionState === "connected") return;
+    const restored = hasConnected || connectionState === "disconnected";
+    hasConnected = true;
+    connectionState = "connected";
+    setAppBusy(false);
+    if (restored) {
+      setSystemStatus(
+        "restored",
+        "Connection restored",
+        "Your Library and reading position are available again.",
+        { hideAfter: 2400 }
+      );
+    } else {
+      setSystemStatus(
+        "loading",
+        "Opening your Library",
+        "Loading feeds, stories, and your reading position\u2026"
+      );
+    }
+  }
+
+  function handleShinyDisconnected() {
+    connectionState = navigator.onLine ? "disconnected" : "offline";
+    setAppBusy(true);
+    if (connectionState === "offline") {
+      setSystemStatus(
+        "offline",
+        "You\u2019re offline",
+        "Your place is safe. Reconnect to continue with your Library.",
+        { action: true, assertive: true }
+      );
+    } else {
+      setSystemStatus(
+        "disconnected",
+        "Connection interrupted",
+        "Your place is safe. Rill will try to reconnect.",
+        { action: true, assertive: true }
+      );
+    }
+  }
+
+  function matchingNodes(root, selector) {
+    const nodes = [];
+    if (root instanceof Element && root.matches(selector)) nodes.push(root);
+    if (typeof root.querySelectorAll === "function") {
+      nodes.push(...root.querySelectorAll(selector));
+    }
+    return nodes;
+  }
+
+  function enhanceNativeFeedback(root = document) {
+    matchingNodes(root, ".shiny-notification").forEach(function (notice) {
+      const urgent = notice.matches(
+        ".shiny-notification-error, .shiny-notification-warning"
+      );
+      notice.setAttribute("role", urgent ? "alert" : "status");
+      notice.setAttribute("aria-live", urgent ? "assertive" : "polite");
+      notice.setAttribute("aria-atomic", "true");
+      const close = notice.querySelector(".shiny-notification-close");
+      if (close) close.setAttribute("aria-label", "Dismiss notification");
+    });
+
+    matchingNodes(root, ".shiny-output-error").forEach(function (error) {
+      error.setAttribute("role", "alert");
+      error.setAttribute("aria-live", "assertive");
+      error.setAttribute("aria-atomic", "true");
+    });
+
+    matchingNodes(root, ".shiny-progress .progress").forEach(
+      function (progress) {
+        progress.setAttribute("role", "progressbar");
+        const container = progress.closest(".shiny-progress");
+        const message = container && container.querySelector(".progress-message");
+        progress.setAttribute(
+          "aria-label",
+          (message && message.textContent.trim()) || "Rill progress"
+        );
+      }
+    );
+
+    matchingNodes(root, ".popover").forEach(function (popover) {
+      if (!popover.querySelector(".btn-read-action")) return;
+      const title = popover.querySelector(".popover-header");
+      if (title) {
+        title.id = title.id || `${popover.id}-title`;
+        popover.setAttribute("aria-labelledby", title.id);
+      } else {
+        popover.setAttribute("aria-label", "Reading status");
+      }
+      popover.setAttribute("role", "dialog");
+    });
+  }
+
+  function registerSystemEvents() {
+    if (systemEventsRegistered || !window.jQuery) return;
+    const events = window.jQuery(document);
+    events.on("shiny:connected.rillSystemStatus", handleShinyConnected);
+    events.on("shiny:disconnected.rillSystemStatus", handleShinyDisconnected);
+    events.on("shiny:busy.rillSystemStatus", function () {
+      setAppBusy(true);
+    });
+    events.on("shiny:idle.rillSystemStatus", function () {
+      if (connectionState !== "connected") return;
+      setAppBusy(false);
+      if (!initialLoadComplete) {
+        initialLoadComplete = true;
+        setSystemStatus(
+          "ready",
+          "Library ready",
+          "Rill is ready for reading.",
+          { hideAfter: 800 }
+        );
+      }
+    });
+    events.on("shiny:recalculating.rillSystemStatus", function (event) {
+      if (event.target instanceof Element) {
+        event.target.setAttribute("aria-busy", "true");
+      }
+    });
+    events.on("shiny:recalculated.rillSystemStatus", function (event) {
+      if (event.target instanceof Element) {
+        event.target.setAttribute("aria-busy", "false");
+      }
+    });
+    systemEventsRegistered = true;
+
+    window.setTimeout(function () {
+      const socket =
+        window.Shiny &&
+        window.Shiny.shinyapp &&
+        window.Shiny.shinyapp.$socket;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        handleShinyConnected();
+      }
+    }, 0);
+  }
+
+  function setInputValidity(message) {
+    const input = document.getElementById(message.id);
+    if (!input) return;
+    const feedbackId = `${message.id}-feedback`;
+    let feedback = document.getElementById(feedbackId);
+    const describedBy = new Set(
+      (input.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+
+    if (message.invalid) {
+      input.setAttribute("aria-invalid", "true");
+      if (!feedback) {
+        feedback = document.createElement("p");
+        feedback.id = feedbackId;
+        feedback.className = "rill-input-feedback";
+        input.closest(".form-group, .shiny-input-container")?.append(feedback);
+      }
+      feedback.textContent = message.message || "Check this value.";
+      describedBy.add(feedbackId);
+    } else {
+      input.removeAttribute("aria-invalid");
+      if (feedback) feedback.remove();
+      describedBy.delete(feedbackId);
+    }
+
+    if (describedBy.size) {
+      input.setAttribute("aria-describedby", [...describedBy].join(" "));
+    } else {
+      input.removeAttribute("aria-describedby");
+    }
+  }
+
+  function registerInputValidity() {
+    if (inputValidityRegistered || !window.Shiny) return;
+    window.Shiny.addCustomMessageHandler("rill-input-validity", setInputValidity);
+    inputValidityRegistered = true;
+  }
+
+  window.rillRecoverConnection = function () {
+    window.location.reload();
+  };
+
+  window.rillUiAudit = function () {
+    const root = document.documentElement;
+    const body = document.body;
+    const app = document.getElementById("rill-app");
+    const selected = document.getElementById("reader-document");
+    const activeSurface = app && app.dataset.compactSurface;
+    return {
+      viewportWidth: window.innerWidth,
+      horizontalOverflow:
+        root.scrollWidth > window.innerWidth + 1 ||
+        body.scrollWidth > window.innerWidth + 1,
+      appBusy: app && app.getAttribute("aria-busy"),
+      connectionState,
+      activeSurface: activeSurface || "multi-pane",
+      selectedEntryId: selected && selected.dataset.entryId,
+      selectedDocumentId: selected && selected.dataset.documentId,
+      focusedElement:
+        document.activeElement &&
+        (document.activeElement.id ||
+          document.activeElement.getAttribute("aria-label") ||
+          document.activeElement.textContent.trim().slice(0, 80)),
+      visibleDialogs: matchingNodes(document, '[role="dialog"]').filter(
+        function (dialog) {
+          return dialog.getClientRects().length > 0;
+        }
+      ).length
+    };
+  };
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -872,7 +1124,14 @@
     if (key === "f") handled = toggleReaderAction("toggle_star");
     if (key === "escape") {
       const shell = document.querySelector(".app-shell");
-      if (compactReaderMode.matches && compactSurface === "library") {
+      const { layout: agentLayout } = readerAgentElements();
+      if (
+        agentLayout &&
+        !agentLayout.classList.contains("sidebar-collapsed")
+      ) {
+        setSidebarExpanded("reader_agent_sidebar", false);
+        handled = true;
+      } else if (compactReaderMode.matches && compactSurface === "library") {
         window.rillCloseLibrary();
         handled = true;
       } else if (
@@ -1267,7 +1526,25 @@
     registerOrientationActionMessages();
     registerChatSubmissionIds();
     registerAgentSidebarControls();
+    registerSystemEvents();
+    registerInputValidity();
+    enhanceNativeFeedback();
     new MutationObserver(syncReader).observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    new MutationObserver(function (records) {
+      records.forEach(function (record) {
+        if (record.type === "attributes") {
+          enhanceNativeFeedback(record.target);
+        }
+        record.addedNodes.forEach(function (node) {
+          if (node instanceof Element) enhanceNativeFeedback(node);
+        });
+      });
+    }).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
       childList: true,
       subtree: true
     });
@@ -1275,6 +1552,37 @@
   });
   document.addEventListener("hide.bs.modal", restoreOrientationModalFocus);
   document.addEventListener("hidden.bs.modal", restoreOrientationModalFocus);
+  document.addEventListener("shown.bs.popover", function (event) {
+    const trigger = event.target;
+    if (!(trigger instanceof Element)) return;
+    if (!trigger.matches(".read-actions-trigger")) return;
+    const popoverId = trigger.getAttribute("aria-describedby");
+    if (!popoverId) return;
+    trigger.setAttribute("aria-expanded", "true");
+    trigger.setAttribute("aria-controls", popoverId);
+    const popover = document.getElementById(popoverId);
+    if (popover) {
+      enhanceNativeFeedback(popover);
+      readingStatusTrigger = trigger;
+      window.requestAnimationFrame(function () {
+        const action = popover.querySelector(".btn-read-action");
+        if (action) action.focus({ preventScroll: true });
+      });
+    }
+  });
+  document.addEventListener("hidden.bs.popover", function (event) {
+    const trigger = event.target;
+    if (!(trigger instanceof Element)) return;
+    if (!trigger.matches(".read-actions-trigger")) return;
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.removeAttribute("aria-controls");
+    if (readingStatusTrigger === trigger) {
+      readingStatusTrigger = null;
+      window.requestAnimationFrame(function () {
+        trigger.focus({ preventScroll: true });
+      });
+    }
+  });
 
   document.addEventListener("shiny:connected", function () {
     registerFileReset();
@@ -1282,10 +1590,33 @@
     registerOrientationActionMessages();
     registerChatSubmissionIds();
     registerAgentSidebarControls();
+    registerInputValidity();
+  });
+
+  window.addEventListener("offline", function () {
+    if (connectionState === "disconnected") handleShinyDisconnected();
+  });
+  window.addEventListener("online", function () {
+    if (connectionState !== "offline") return;
+    connectionState = "disconnected";
+    setSystemStatus(
+      "reconnecting",
+      "Back online",
+      "Reconnecting to your Library\u2026",
+      { action: true }
+    );
   });
 
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
+  document.addEventListener("input", function (event) {
+    if (
+      event.target instanceof Element &&
+      event.target.matches('[aria-invalid="true"]')
+    ) {
+      setInputValidity({ id: event.target.id, invalid: false });
+    }
+  });
   document.addEventListener("pointerdown", rememberAgentToggleFocus, true);
   document.addEventListener("keydown", function (event) {
     if (event.key === "Enter" || event.key === " ") {
