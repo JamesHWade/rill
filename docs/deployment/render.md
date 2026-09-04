@@ -3,8 +3,8 @@
 Rill ships one production image with two roles:
 
 - `web` starts Shiny on loopback and oauth2-proxy on the public port.
-- `poll` runs one feed refresh and exits successfully only when every Feed
-  succeeds.
+- `poll` runs one due-Feed polling pass and exits non-zero only for a systemic
+  error or when failures reach the configured threshold.
 
 Use one image digest for both Render services. A GitHub Actions run on `main`
 publishes the image to GitHub Container Registry and records its digest in the
