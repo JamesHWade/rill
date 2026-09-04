@@ -701,6 +701,23 @@
     }
   }
 
+  function restoreFocusFromCompactChrome(hasReader, hasOrientation) {
+    const active = document.activeElement;
+    if (
+      !(active instanceof Element) ||
+      !active.closest(".compact-library-header, .compact-app-bar")
+    ) {
+      return;
+    }
+    if (hasReader) {
+      focusReader();
+    } else if (hasOrientation) {
+      focusOrientation();
+    } else {
+      focusStory(activeEntryId, { reveal: false });
+    }
+  }
+
   function syncMobileSurfaces(shell, hasReader, hasOrientation) {
     if (!shell) return;
 
@@ -713,6 +730,7 @@
       setSurfaceCovered(readerPane, false);
       setSidebarCovered(navigationSidebar, false);
       setSidebarCovered(storyPane, false);
+      restoreFocusFromCompactChrome(hasReader, hasOrientation);
       return;
     }
 
@@ -1471,6 +1489,11 @@
     syncAskRillControls();
   }
 
+  function handleAgentLayoutChange() {
+    syncReader();
+    syncAskRillControls();
+  }
+
   function closeCompactLibraryAfterViewChange(event) {
     if (
       compactReaderMode.matches &&
@@ -1530,12 +1553,12 @@
     desktopReaderMode.addEventListener("change", handleResponsiveLayoutChange);
     mediumReaderMode.addEventListener("change", handleResponsiveLayoutChange);
     wideReaderMode.addEventListener("change", handleResponsiveLayoutChange);
-    overlaidAgentMode.addEventListener("change", handleResponsiveLayoutChange);
+    overlaidAgentMode.addEventListener("change", handleAgentLayoutChange);
   } else {
     desktopReaderMode.addListener(handleResponsiveLayoutChange);
     mediumReaderMode.addListener(handleResponsiveLayoutChange);
     wideReaderMode.addListener(handleResponsiveLayoutChange);
-    overlaidAgentMode.addListener(handleResponsiveLayoutChange);
+    overlaidAgentMode.addListener(handleAgentLayoutChange);
   }
 
   window.addEventListener("storage", function (event) {

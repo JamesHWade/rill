@@ -245,6 +245,16 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
     'shell.dataset.compactSurface = compactSurface',
     fixed = TRUE
   )
+  testthat::expect_match(
+    javascript,
+    "restoreFocusFromCompactChrome(hasReader, hasOrientation)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    '.closest(".compact-library-header, .compact-app-bar")',
+    fixed = TRUE
+  )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
   compact_styles <- strsplit(
@@ -279,6 +289,16 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   testthat::expect_match(
     javascript,
     "setSurfaceCovered(main, expanded && overlaidAgentMode.matches)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'overlaidAgentMode.addEventListener("change", handleAgentLayoutChange)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "function handleAgentLayoutChange()",
     fixed = TRUE
   )
   testthat::expect_match(
