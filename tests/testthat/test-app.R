@@ -2,6 +2,8 @@ testthat::test_that("the package exposes a focused application API", {
   testthat::expect_setequal(
     getNamespaceExports("rill"),
     c(
+      "approve_reader_admission",
+      "list_reader_admissions",
       "poll_feeds",
       "prepare_today",
       "read_opml",
@@ -109,8 +111,10 @@ testthat::test_that("installed runtime assets are available", {
   assets <- c(
     rill_package_file("app", "_brand.yml"),
     rill_package_file("app", "www", "app.js"),
-    rill_package_file("app", "www", "rill-duck-dark.png"),
-    rill_package_file("app", "www", "rill-duck.png"),
+    rill_package_file("app", "www", "rill-otter-reading.png"),
+    rill_package_file("app", "www", "rill-otter-mark.png"),
+    rill_package_file("app", "www", "favicon-32.png"),
+    rill_package_file("app", "www", "apple-touch-icon.png"),
     rill_package_file("app", "www", "styles.css"),
     rill_package_file("sql", "001_init.sql"),
     rill_package_file("sql", "002_agent_runs.sql"),
@@ -125,8 +129,8 @@ testthat::test_that("installed runtime assets are available", {
     rill_package_file("sql", "011_feed_polling.sql")
   )
 
-  testthat::expect_length(assets, 16L)
-  testthat::expect_identical(file.exists(assets), rep(TRUE, 16L))
+  testthat::expect_length(assets, 18L)
+  testthat::expect_identical(file.exists(assets), rep(TRUE, 18L))
 })
 
 testthat::test_that("chat submissions receive an idempotency token", {

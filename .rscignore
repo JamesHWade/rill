@@ -24,3 +24,5 @@ prototypes
 rill.Rproj
 scripts
 tests
+tools
+pkgdown

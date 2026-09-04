@@ -17,12 +17,11 @@ Posit Connect Cloud, while \code{oidc_proxy} keeps the production container's
 upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
 \code{sub} pairs to durable internal Readers. Configured
 \code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private Reader in
-\code{RILL_ACTOR_ID}. The in-app gate rejects subjects outside that allowlist
-before Library database access; the proxy adapter records one pending
-admission while denying Library access. Email and other profile claims are
-mutable metadata, not identity keys. When \code{RILL_CAPTURE_TOKEN} is set, the
-same application binds that credential to \code{RILL_ACTOR_ID} and accepts
-authenticated browser Documents at
+\code{RILL_ACTOR_ID}. Both adapters record one pending admission for a verified
+identity without a Reader binding while denying Library access. Email and
+other profile claims are mutable metadata, not identity keys. When
+\code{RILL_CAPTURE_TOKEN} is set, the same application binds that credential to
+\code{RILL_ACTOR_ID} and accepts authenticated browser Documents at
 \verb{/api/v1/captures}. Captures and reading-copy selection remain private to
 that Reader. \code{RILL_AGENT_MODEL} selects the
 \link[ellmer:chat]{ellmer} model used for source-grounded questions and

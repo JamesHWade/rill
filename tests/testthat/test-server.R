@@ -19,6 +19,9 @@ testthat::test_that("selecting a story records the open and updates the queue", 
     testthat::expect_in(entry_id, entries()$entry_id)
     testthat::expect_identical(store$memory$events$event_type, "entry_opened")
     testthat::expect_identical(store$memory$state$read_reason, "opened")
+    reader_header <- paste(as.character(output$reader_header), collapse = "")
+    testthat::expect_match(reader_header, "rillOpenQueue()", fixed = TRUE)
+    testthat::expect_match(reader_header, "Queue", fixed = TRUE)
 
     session$setInputs(close_reader = list(nonce = 1))
     session$flushReact()

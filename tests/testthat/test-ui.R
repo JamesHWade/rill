@@ -103,7 +103,13 @@ testthat::test_that("populated story output remains a scroll container", {
 testthat::test_that("the reading queue offers story sort dimensions", {
   html <- htmltools::renderTags(story_sidebar_ui())$html
 
+  testthat::expect_match(html, "bslib-toolbar", fixed = TRUE)
   testthat::expect_match(html, 'id="story_sort"', fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'aria-label="Sort stories"',
+    fixed = TRUE
+  )
   testthat::expect_match(html, 'value="newest" selected', fixed = TRUE)
   testthat::expect_match(html, 'value="oldest"', fixed = TRUE)
   testthat::expect_match(html, 'value="recently_added"', fixed = TRUE)
@@ -122,6 +128,27 @@ testthat::test_that("navigation offers local calendar views", {
   testthat::expect_match(html, "This week", fixed = TRUE)
   testthat::expect_match(html, 'value="month"', fixed = TRUE)
   testthat::expect_match(html, "This month", fixed = TRUE)
+  testthat::expect_match(html, "feed-list", fixed = TRUE)
+  testthat::expect_match(html, 'aria-label="Feeds"', fixed = TRUE)
+})
+
+testthat::test_that("compact navigation exposes Library and Reading returns", {
+  html <- htmltools::renderTags(
+    compact_app_bar_ui(list(app_name = "Rill"))
+  )$html
+  library <- htmltools::renderTags(
+    navigation_sidebar_ui(list(app_name = "Rill", demo_mode = FALSE))
+  )$html
+
+  testthat::expect_match(html, "rillOpenLibrary()", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'aria-controls="navigation_sidebar"',
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "rillReturnToReading()", fixed = TRUE)
+  testthat::expect_match(library, "rillCloseLibrary()", fixed = TRUE)
+  testthat::expect_match(library, ">Library<", fixed = TRUE)
 })
 
 testthat::test_that("the private gate offers a complete sign-out path", {
@@ -335,12 +362,75 @@ testthat::test_that("the reader includes source-bounded Ask Rill chat", {
   testthat::expect_match(html, "enable-cancel", fixed = TRUE)
   testthat::expect_match(html, 'id="reader_agent_status"', fixed = TRUE)
   testthat::expect_match(html, 'data-open-mobile="closed"', fixed = TRUE)
-  testthat::expect_match(html, "Ask Rill about this story", fixed = TRUE)
+  testthat::expect_match(html, "Ask about the selected story", fixed = TRUE)
+  testthat::expect_match(html, "Source-bound", fixed = TRUE)
+  testthat::expect_match(html, 'id="reader_agent_context"', fixed = TRUE)
   testthat::expect_match(
     html,
     "question and selected reading copy to OpenAI",
     fixed = TRUE
   )
+})
+
+testthat::test_that("Reading keeps source actions and provenance explicit", {
+  data <- sample_rill_data()
+  entry <- as.list(data$entries[1, , drop = FALSE])
+  entry$feed_title <- "The R Blog"
+  entry$library_access <- TRUE
+  entry$read_at <- NA_character_
+  entry$starred <- FALSE
+  entry$saved <- FALSE
+  document <- data$documents[[1L]]
+
+  header_html <- htmltools::renderTags(
+    reader_article_header_ui(entry, document)
+  )$html
+  document_html <- htmltools::renderTags(
+    reader_document_ui(document, entry$entry_id, "story_list")
+  )$html
+  context_html <- htmltools::renderTags(
+    reader_agent_context_ui(entry, document)
+  )$html
+
+  testthat::expect_match(header_html, "bslib-toolbar", fixed = TRUE)
+  testthat::expect_match(header_html, "Stored reading copy", fixed = TRUE)
+  testthat::expect_match(header_html, "Prepared by rill", fixed = TRUE)
+  testthat::expect_no_match(
+    header_html,
+    "provenance and limitations below",
+    fixed = TRUE
+  )
+  testthat::expect_match(header_html, "Ask Rill", fixed = TRUE)
+  testthat::expect_match(
+    header_html,
+    'aria-controls="reader_agent_sidebar"',
+    fixed = TRUE
+  )
+  testthat::expect_match(header_html, "rillOpenAskRill(this)", fixed = TRUE)
+  testthat::expect_match(header_html, "Original", fixed = TRUE)
+  testthat::expect_match(
+    document_html,
+    "About this reading copy",
+    fixed = TRUE
+  )
+  testthat::expect_match(document_html, "reading-provenance", fixed = TRUE)
+  testthat::expect_match(
+    document_html,
+    "remains separate from Ask Rill",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    document_html,
+    rill_document_limitations(document),
+    fixed = TRUE
+  )
+  testthat::expect_match(document_html, document$document_id, fixed = TRUE)
+  testthat::expect_match(
+    context_html,
+    "Grounded in this reading copy",
+    fixed = TRUE
+  )
+  testthat::expect_match(context_html, document$title, fixed = TRUE)
 })
 
 testthat::test_that("Orientation presents a source-grounded reading path", {
@@ -384,7 +474,15 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
   testthat::expect_match(html, "Read these as one short path", fixed = TRUE)
   testthat::expect_match(html, "Interpretation 1", fixed = TRUE)
   testthat::expect_match(html, "Why now 1", fixed = TRUE)
-  testthat::expect_match(html, "Inspect Source Evidence [01]", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "Source evidence and provenance [01]",
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "A guided path, not a source", fixed = TRUE)
+  testthat::expect_match(html, "Rill interpretation", fixed = TRUE)
+  testthat::expect_match(html, "Path rationale", fixed = TRUE)
+  testthat::expect_match(html, "Source Document", fixed = TRUE)
   testthat::expect_match(html, "Rill keeps the source feed", fixed = TRUE)
   testthat::expect_match(
     html,
@@ -602,17 +700,26 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
   testthat::expect_no_match(queue_html, "orientation-step", fixed = TRUE)
 })
 
-testthat::test_that("the application shell uses the Rill duck mark", {
+testthat::test_that("the application shell uses accessible Rill otter branding", {
   config <- rill_config()
   ui <- rill_ui(config)
   marks <- htmltools::tagQuery(ui)$find(
-    ".brand-mark .theme-logo"
+    ".brand-mark .brand-logo"
   )$selectedTags()
 
-  testthat::expect_length(marks, 2L)
+  testthat::expect_length(marks, 1L)
   testthat::expect_setequal(
     vapply(marks, function(mark) mark$attribs$src, character(1)),
-    c("rill-assets/rill-duck.png", "rill-assets/rill-duck-dark.png")
+    "rill-assets/rill-otter-mark.png"
+  )
+  testthat::expect_identical(marks[[1L]]$attribs$alt, "")
+  compact_marks <- htmltools::tagQuery(ui)$find(
+    ".compact-brand-mark .brand-logo"
+  )$selectedTags()
+  testthat::expect_length(compact_marks, 1L)
+  testthat::expect_identical(
+    compact_marks[[1L]]$attribs$src,
+    marks[[1L]]$attribs$src
   )
   favicon <- Filter(
     \(tag) identical(tag$attribs$rel, "icon"),
@@ -621,8 +728,30 @@ testthat::test_that("the application shell uses the Rill duck mark", {
   testthat::expect_length(favicon, 1L)
   testthat::expect_identical(
     favicon[[1L]]$attribs$href,
-    "rill-assets/rill-duck.png"
+    "rill-assets/favicon-32.png"
   )
+  touch_icon <- Filter(
+    \(tag) identical(tag$attribs$rel, "apple-touch-icon"),
+    htmltools::tagQuery(ui)$find("link")$selectedTags()
+  )
+  testthat::expect_length(touch_icon, 1L)
+  testthat::expect_identical(
+    touch_icon[[1L]]$attribs$href,
+    "rill-assets/apple-touch-icon.png"
+  )
+})
+
+testthat::test_that("quiet reading states show a decorative reading otter", {
+  for (ui in list(orientation_ui(NULL, list()), empty_story_list("all"))) {
+    images <- htmltools::tagQuery(ui)$find("img")$selectedTags()
+    testthat::expect_length(images, 1L)
+    testthat::expect_identical(
+      images[[1L]]$attribs$src,
+      "rill-assets/rill-otter-reading.png"
+    )
+    testthat::expect_identical(images[[1L]]$attribs$alt, "")
+    testthat::expect_identical(images[[1L]]$attribs[["aria-hidden"]], "true")
+  }
 })
 
 testthat::test_that("appearance control offers system, light, and dark modes", {
@@ -642,13 +771,29 @@ testthat::test_that("the application panes use native resizable sidebars", {
 
   testthat::expect_length(layouts, 3L)
   testthat::expect_length(sidebars, 3L)
-  testthat::expect_true(all(vapply(
+  testthat::expect_all_true(vapply(
     sidebars,
     function(sidebar) "data-resizable" %in% names(sidebar$attribs),
     logical(1)
-  )))
+  ))
   testthat::expect_setequal(
     vapply(sidebars, function(sidebar) sidebar$attribs$id, character(1)),
     c("navigation_sidebar", "story_sidebar", "reader_agent_sidebar")
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      layouts,
+      function(layout) layout$attribs$`data-open-mobile`,
+      character(1)
+    )),
+    rep("closed", 3L)
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      layouts,
+      function(layout) layout$attribs$`data-open-desktop`,
+      character(1)
+    )),
+    c("open", "open", "closed")
   )
 })

@@ -2698,7 +2698,7 @@
   },
   "files": {
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "2b7d2c31a6b97f082331a70e9262bde6"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2707,10 +2707,10 @@
       "checksum": "94126c47d7ce62dcd3471f151f0e4e70"
     },
     "inst/app/_brand.yml": {
-      "checksum": "d7cb42f526858d9fe498feb03121f135"
+      "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "fc3a9a1263573c15b1b8dd59de405148"
+      "checksum": "7477bc05b1688e224dd78f775ee623ff"
     },
     "inst/app/www/rill-duck-dark.png": {
       "checksum": "21486198a27f8f81c131d9363b207eee"
@@ -2719,7 +2719,7 @@
       "checksum": "13eca81e135c048173520d80046ee2b4"
     },
     "inst/app/www/styles.css": {
-      "checksum": "8ccb255c72817b3f1ec13377270505f4"
+      "checksum": "a962028fc20ffee70ac497cfb0b34083"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2758,7 +2758,7 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "f7db8129db3d20d6e8167129e0cfff06"
+      "checksum": "738962f5bbc4276fb1068c7bdc6572cd"
     },
     "R/agent-runs.R": {
       "checksum": "3e19969be1c87666a89f92232be43277"
@@ -2767,7 +2767,7 @@
       "checksum": "efa560e90a333c7e504156c825527f99"
     },
     "R/app.R": {
-      "checksum": "bfd38c3305662b40bfd42825f595e0c8"
+      "checksum": "1b69fae0dc676dd9cb514031cc647d30"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2776,7 +2776,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "cf60f2849dac19ed1c0b3620ed9f8266"
+      "checksum": "2aea03eb4396dae15633c9d2ab6e24a2"
     },
     "R/defuddle.R": {
       "checksum": "d6d297aa63894100510202c3e47fced8"
@@ -2788,7 +2788,7 @@
       "checksum": "b3a70a9e96e8fba87a4c90807639d0c1"
     },
     "R/identity.R": {
-      "checksum": "4aff9651a6e63427a2dbf792b4900e32"
+      "checksum": "b90b4663280e187d0fe2cd6a676f658f"
     },
     "R/opml.R": {
       "checksum": "c9fe82988299e886d1c647083b031ded"
@@ -2808,6 +2808,9 @@
     "R/polling.R": {
       "checksum": "a6e6ffacc08f8869b1c965210d6e6f0b"
     },
+    "R/reader-admissions.R": {
+      "checksum": "a36b28f095430f2cc08d770807fbc478"
+    },
     "R/rill-package.R": {
       "checksum": "931b381347f39d9a5534f464a6dc8849"
     },
@@ -2815,13 +2818,25 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "9ac58e024aa7b7e97970b604c711354e"
+      "checksum": "9b4c6fbda25c67fb830a9aefd4281bb3"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "44f3db463320d9c8496816dd260c8db4"
+      "checksum": "496a9820657385c4ab9ea9150d2ec987"
+    },
+    "inst/app/www/rill-otter-mark.png": {
+      "checksum": "aa7ba1b5d4e9c8a12c916fc4e33b5eaa"
+    },
+    "inst/app/www/rill-otter-reading.png": {
+      "checksum": "0efce38dec762eec522fa9f7312f054a"
+    },
+    "inst/app/www/favicon-32.png": {
+      "checksum": "ac0768a009686e8f63029ef703e3b34e"
+    },
+    "inst/app/www/apple-touch-icon.png": {
+      "checksum": "49113cbf55e669392e29faf10c853d84"
     }
   },
   "users": null

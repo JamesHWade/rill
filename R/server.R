@@ -2153,145 +2153,44 @@ rill_server <- function(config, store) {
         ))
       }
 
-      entry <- selected_entry()
-      document <- selected_document()
-      reading_minutes <- max(
-        1L,
-        ceiling(as.integer(document$word_count %||% 0L) / 225)
-      )
-
-      shiny::tags$header(
-        class = "article-header",
-        shiny::tags$div(
-          class = "article-actions",
-          shiny::tags$button(
-            type = "button",
-            class = "reader-action mobile-back",
-            `aria-keyshortcuts` = "Escape",
-            onclick = "rillCloseReader()",
-            bsicons::bs_icon("arrow-left"),
-            "Stories"
-          ),
-          if (isTRUE(entry$library_access)) {
-            shiny::tagList(
-              if (
-                !is.na(entry$read_at %||% NA_character_) &&
-                  nzchar(as.character(entry$read_at %||% ""))
-              ) {
-                mark_unread_button()
-              } else {
-                NULL
-              },
-              shiny::actionButton(
-                "toggle_star",
-                shiny::tagList(
-                  bsicons::bs_icon(
-                    if (isTRUE(entry$starred)) "star-fill" else "star"
-                  ),
-                  if (isTRUE(entry$starred)) "Starred" else "Star"
-                ),
-                `aria-keyshortcuts` = "f",
-                `aria-pressed` = if (isTRUE(entry$starred)) "true" else "false",
-                class = paste(
-                  "reader-action",
-                  if (isTRUE(entry$starred)) "is-active"
-                )
-              ),
-              shiny::actionButton(
-                "toggle_save",
-                shiny::tagList(
-                  bsicons::bs_icon(
-                    if (isTRUE(entry$saved)) "bookmark-fill" else "bookmark"
-                  ),
-                  if (isTRUE(entry$saved)) "Saved" else "Save"
-                ),
-                `aria-keyshortcuts` = "s",
-                `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
-                class = paste(
-                  "reader-action",
-                  if (isTRUE(entry$saved)) "is-active"
-                )
-              )
-            )
-          } else {
-            NULL
-          },
-          shiny::tags$a(
-            class = "reader-action original-link",
-            href = entry$url,
-            target = "_blank",
-            rel = "noopener noreferrer",
-            `aria-keyshortcuts` = "o",
-            onclick = "rillTrack('open_original')",
-            bsicons::bs_icon("box-arrow-up-right"),
-            "Original"
-          ),
-          shiny::tags$span(
-            class = "shortcut-hint",
-            shiny::tags$kbd("J"),
-            "/",
-            shiny::tags$kbd("K"),
-            " navigate \u00b7 ",
-            shiny::tags$kbd("O"),
-            " original \u00b7 ",
-            shiny::tags$kbd("S"),
-            " save \u00b7 ",
-            shiny::tags$kbd("F"),
-            " star"
-          )
-        ),
-        shiny::tags$p(
-          class = "article-source",
-          document$site %||% entry$feed_title
-        ),
-        shiny::tags$h1(document$title %||% entry$title),
-        shiny::tags$div(
-          class = "article-byline",
-          if (
-            !is.na(document$author %||% NA_character_) &&
-              nzchar(document$author %||% "")
-          ) {
-            shiny::tags$span(document$author)
-          },
-          shiny::tags$span(paste(reading_minutes, "min read")),
-          shiny::tags$span(format_story_time(entry$published_at))
-        )
-      )
+      reader_article_header_ui(selected_entry(), selected_document())
     })
 
     output$reader_body <- shiny::renderUI({
       if (is.null(selected_id())) {
         return(NULL)
       }
-      document <- selected_document()
-      shiny::tags$article(
-        id = "reader-document",
-        class = "reader-document",
-        `data-entry-id` = selected_id(),
-        `data-document-id` = document$document_id,
-        `data-selection-surface` = if (
-          is.null(selected_orientation_provenance())
-        ) {
+      reader_document_ui(
+        selected_document(),
+        selected_id(),
+        if (is.null(selected_orientation_provenance())) {
           "story_list"
         } else {
           "orientation"
-        },
-        render_document(document),
-        shiny::tags$footer(
-          class = "article-footer",
-          paste(
-            "Reading copy prepared by",
-            document$producer %||% "feed fallback"
-          )
-        )
+        }
       )
     })
+
+    output$reader_agent_context <- shiny::renderUI({
+      if (is.null(selected_id())) {
+        return(NULL)
+      }
+      reader_agent_context_ui(selected_entry(), selected_document())
+    })
+    shiny::outputOptions(
+      output,
+      "reader_agent_context",
+      suspendWhenHidden = FALSE
+    )
 
     output$reader_agent_status <- shiny::renderUI({
       pending <- pending_reader_question()
       if (!is.null(pending)) {
         return(shiny::tags$p(
           class = "reader-agent-run-status",
+          role = "status",
+          `aria-live` = "polite",
+          bsicons::bs_icon("hourglass-split"),
           "Stopping Orientation before answering\u2026"
         ))
       }
@@ -2302,18 +2201,25 @@ rill_server <- function(config, store) {
       if (run$status %in% c("pending", "running")) {
         return(shiny::tags$p(
           class = "reader-agent-run-status",
+          role = "status",
+          `aria-live` = "polite",
+          bsicons::bs_icon("stars"),
           "Reading the selected source\u2026"
         ))
       }
       if (identical(run$status, "cancelling")) {
         return(shiny::tags$p(
           class = "reader-agent-run-status",
+          role = "status",
+          `aria-live` = "polite",
+          bsicons::bs_icon("stop-circle"),
           "Stopping the response\u2026"
         ))
       }
 
       shiny::tags$div(
         class = "reader-agent-retry",
+        role = "alert",
         shiny::tags$p("That response stopped before it completed."),
         shiny::actionButton(
           "retry_agent_run",
@@ -2330,6 +2236,13 @@ rill_server <- function(config, store) {
       }
       shiny::tags$p(
         class = paste("sidebar-status", paste0("is-", status_kind())),
+        role = if (identical(status_kind(), "error")) "alert" else "status",
+        `aria-live` = if (identical(status_kind(), "error")) {
+          "assertive"
+        } else {
+          "polite"
+        },
+        `aria-atomic` = "true",
         text
       )
     })
@@ -2926,12 +2839,24 @@ rill_server <- function(config, store) {
         if (!nzchar(url)) {
           status_kind("error")
           status_text("Enter a feed or website URL.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "new_feed_url",
+              invalid = TRUE,
+              message = "Enter a feed or website URL."
+            )
+          )
           shiny::showNotification(
             "Enter a feed or website URL.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "new_feed_url", invalid = FALSE)
+        )
 
         result <- tryCatch(
           shiny::withProgress(
@@ -2986,12 +2911,24 @@ rill_server <- function(config, store) {
         if (is.null(feed_id) || !nzchar(title)) {
           status_kind("error")
           status_text("Select a feed and enter a name.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "feed_title",
+              invalid = TRUE,
+              message = "Enter a name for the selected feed."
+            )
+          )
           shiny::showNotification(
             "Select a feed and enter a name.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "feed_title", invalid = FALSE)
+        )
 
         result <- tryCatch(
           store_rename_feed(store, actor_id, feed_id, title),
@@ -3027,12 +2964,24 @@ rill_server <- function(config, store) {
         if (is.null(feed_id) || !nzchar(folder)) {
           status_kind("error")
           status_text("Select a feed and enter a folder.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "feed_folder",
+              invalid = TRUE,
+              message = "Enter a folder for the selected feed."
+            )
+          )
           shiny::showNotification(
             "Select a feed and enter a folder.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "feed_folder", invalid = FALSE)
+        )
 
         result <- tryCatch(
           store_move_feed(store, actor_id, feed_id, folder),

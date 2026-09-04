@@ -18,15 +18,27 @@ rill_ui <- function(config) {
       shiny::tags$link(
         rel = "icon",
         type = "image/png",
-        href = "rill-assets/rill-duck.png"
+        sizes = "32x32",
+        href = "rill-assets/favicon-32.png"
+      ),
+      shiny::tags$link(
+        rel = "apple-touch-icon",
+        sizes = "180x180",
+        href = "rill-assets/apple-touch-icon.png"
       ),
       shiny::tags$title("Rill \u2014 personal reader"),
       shiny::includeScript(rill_package_file("app", "www", "app.js")),
       shiny::includeCSS(rill_package_file("app", "www", "styles.css"))
     ),
+    rill_skip_link_ui(),
+    rill_system_status_ui(),
     bslib::as_fill_carrier(
       shiny::tags$main(
+        id = "rill-app",
         class = "app-shell",
+        `data-compact-surface` = "queue",
+        `aria-busy` = "true",
+        compact_app_bar_ui(config),
         bslib::layout_sidebar(
           bslib::layout_sidebar(
             reader_pane_ui(config),
@@ -55,11 +67,93 @@ rill_ui <- function(config) {
   )
 }
 
+rill_skip_link_ui <- function() {
+  shiny::tags$a(
+    class = "rill-skip-link",
+    href = "#rill-primary-surface",
+    "Skip to primary content"
+  )
+}
+
+rill_system_status_ui <- function() {
+  shiny::tags$aside(
+    id = "rill-system-status",
+    class = "rill-system-status is-starting",
+    `data-state` = "starting",
+    role = "status",
+    `aria-live` = "polite",
+    `aria-atomic` = "true",
+    shiny::tags$span(
+      class = "rill-system-status-icon",
+      `aria-hidden` = "true",
+      bsicons::bs_icon("cloud")
+    ),
+    shiny::tags$span(
+      class = "rill-system-status-copy",
+      shiny::tags$strong(
+        id = "rill-system-status-title",
+        "Opening Rill"
+      ),
+      shiny::tags$span(
+        id = "rill-system-status-detail",
+        "Connecting to your Library\u2026"
+      )
+    ),
+    shiny::tags$button(
+      id = "rill-system-status-action",
+      type = "button",
+      class = "rill-system-status-action",
+      onclick = "rillRecoverConnection()",
+      hidden = TRUE,
+      "Reload Rill"
+    )
+  )
+}
+
+compact_app_bar_ui <- function(config) {
+  shiny::tags$header(
+    class = "compact-app-bar",
+    shiny::tags$button(
+      type = "button",
+      class = "compact-app-action compact-library-trigger",
+      onclick = "rillOpenLibrary()",
+      `aria-controls` = "navigation_sidebar",
+      `aria-expanded` = "false",
+      bsicons::bs_icon("collection"),
+      shiny::tags$span("Library")
+    ),
+    shiny::tags$div(
+      class = "compact-app-brand",
+      rill_otter_mark("compact-brand-mark"),
+      shiny::tags$strong(config$app_name)
+    ),
+    shiny::tags$button(
+      type = "button",
+      class = "compact-app-action compact-reader-return",
+      onclick = "rillReturnToReading()",
+      hidden = TRUE,
+      bsicons::bs_icon("book"),
+      shiny::tags$span("Reading")
+    )
+  )
+}
+
 navigation_sidebar_ui <- function(config) {
   bslib::sidebar(
+    shiny::tags$header(
+      class = "compact-library-header",
+      shiny::tags$button(
+        type = "button",
+        class = "compact-surface-back",
+        onclick = "rillCloseLibrary()",
+        bsicons::bs_icon("arrow-left"),
+        shiny::tags$span("Back")
+      ),
+      shiny::tags$h1("Library")
+    ),
     shiny::tags$div(
       class = "brand",
-      rill_duck_mark("brand-mark"),
+      rill_otter_mark("brand-mark"),
       shiny::tags$div(
         shiny::tags$strong(config$app_name),
         shiny::tags$small("Personal reader")
@@ -135,7 +229,12 @@ navigation_sidebar_ui <- function(config) {
         `aria-label` = "Refresh feeds"
       )
     ),
-    shiny::uiOutput("feed_nav", container = shiny::tags$nav),
+    shiny::uiOutput(
+      "feed_nav",
+      container = shiny::tags$nav,
+      class = "feed-list",
+      `aria-label` = "Feeds"
+    ),
     shiny::tags$div(
       class = "sidebar-footer",
       shiny::uiOutput("orientation_destination_settings"),
@@ -152,7 +251,7 @@ navigation_sidebar_ui <- function(config) {
     id = "navigation_sidebar",
     class = "nav-sidebar",
     width = "230px",
-    open = list(desktop = "open", mobile = "always-above"),
+    open = list(desktop = "open", mobile = "closed"),
     resizable = TRUE,
     fillable = TRUE,
     padding = 0,
@@ -350,43 +449,48 @@ story_sidebar_ui <- function() {
     shiny::tags$header(
       class = "pane-header",
       shiny::tags$div(
+        class = "queue-title",
         shiny::tags$p(class = "eyebrow", "Reading queue"),
         shiny::uiOutput("list_title", container = shiny::tags$div)
       ),
-      shiny::tags$div(
-        class = "queue-controls",
-        shiny::uiOutput(
-          "prepare_today_control",
-          container = shiny::tags$div,
-          class = "prepare-today-control"
-        ),
-        shiny::uiOutput(
-          "read_actions",
-          container = shiny::tags$div,
-          class = "read-actions"
-        ),
-        shiny::tags$div(
-          class = "story-sort",
-          shiny::selectInput(
-            "story_sort",
-            label = shiny::tags$span(
-              class = "visually-hidden",
-              "Sort stories"
-            ),
-            choices = c(
-              "Newest" = "newest",
-              "Oldest" = "oldest",
-              "Recently added" = "recently_added",
-              "Feed A\u2013Z" = "feed",
-              "Title A\u2013Z" = "title"
-            ),
-            selected = "newest",
-            selectize = FALSE,
-            width = "126px"
-          )
-        ),
-        shiny::uiOutput("story_count", container = shiny::tags$div)
-      )
+      htmltools::tagQuery(
+        bslib::toolbar(
+          shiny::uiOutput(
+            "prepare_today_control",
+            container = shiny::tags$div,
+            class = "prepare-today-control"
+          ),
+          shiny::uiOutput(
+            "read_actions",
+            container = shiny::tags$div,
+            class = "read-actions"
+          ),
+          shiny::tags$div(
+            class = "story-sort",
+            htmltools::tagQuery(
+              shiny::selectInput(
+                "story_sort",
+                label = NULL,
+                choices = c(
+                  "Newest" = "newest",
+                  "Oldest" = "oldest",
+                  "Recently added" = "recently_added",
+                  "Feed A\u2013Z" = "feed",
+                  "Title A\u2013Z" = "title"
+                ),
+                selected = "newest",
+                selectize = FALSE,
+                width = "126px"
+              )
+            )$find("select")$addAttrs(
+              `aria-label` = "Sort stories"
+            )$allTags()
+          ),
+          shiny::uiOutput("story_count", container = shiny::tags$div),
+          align = "right",
+          gap = "8px"
+        )
+      )$addClass("queue-controls")$allTags()
     ),
     shiny::uiOutput(
       "orientation_queue_status",
@@ -402,7 +506,7 @@ story_sidebar_ui <- function() {
     id = "story_sidebar",
     class = "story-pane",
     width = "385px",
-    open = list(desktop = "open", mobile = "always-above"),
+    open = list(desktop = "open", mobile = "closed"),
     resizable = TRUE,
     fillable = TRUE,
     padding = 0,
@@ -469,15 +573,30 @@ mark_unread_button <- function() {
 reader_pane_ui <- function(config) {
   bslib::layout_sidebar(
     shiny::tags$div(
+      id = "rill-primary-surface",
       class = "reader-scroll",
+      tabindex = "-1",
+      `aria-label` = "Reading surface",
       shiny::uiOutput("reader_header", container = shiny::tags$div),
       shiny::uiOutput("reader_body", container = shiny::tags$div)
     ),
     sidebar = bslib::sidebar(
       shiny::tags$header(
         class = "reader-agent-header",
-        shiny::tags$p(class = "eyebrow", "Ask Rill"),
-        shiny::tags$h2("Ask Rill about this story")
+        shiny::tags$div(
+          class = "reader-agent-kicker",
+          shiny::tags$p(class = "eyebrow", "Ask Rill"),
+          shiny::tags$span(class = "reader-agent-badge", "Source-bound")
+        ),
+        shiny::tags$h2(
+          id = "reader-agent-title",
+          "Ask about the selected story"
+        ),
+        shiny::uiOutput(
+          "reader_agent_context",
+          container = shiny::tags$div,
+          class = "reader-agent-context-slot"
+        )
       ),
       shiny::uiOutput(
         "reader_agent_status",
@@ -487,7 +606,11 @@ reader_pane_ui <- function(config) {
       shinychat::chat_ui(
         "reader_chat",
         greeting = shinychat::chat_greeting(
-          "Choose a story, then ask what it says, why it matters, or how it connects."
+          paste(
+            "I answer from the selected reading copy and label inference",
+            "as interpretation. Ask for a summary, a key claim, or a",
+            "connection."
+          )
         ),
         placeholder = "Ask about the selected story\u2026",
         height = "100%",
@@ -508,7 +631,7 @@ reader_pane_ui <- function(config) {
       class = "reader-agent-sidebar",
       width = "380px",
       position = "right",
-      open = list(desktop = "open", mobile = "closed"),
+      open = list(desktop = "closed", mobile = "closed"),
       resizable = TRUE,
       fillable = TRUE,
       padding = 0,
@@ -524,6 +647,235 @@ reader_pane_ui <- function(config) {
   )
 }
 
+reader_article_header_ui <- function(entry, document) {
+  reading_minutes <- max(
+    1L,
+    ceiling(as.integer(document$word_count %||% 0L) / 225)
+  )
+  source_name <- document$site %||% entry$feed_title
+  source_url <- rill_document_original_source_url(document)
+  if (is.na(source_url)) {
+    source_url <- entry$url
+  }
+
+  actions <- htmltools::tagQuery(
+    bslib::toolbar(
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action mobile-back",
+        `aria-keyshortcuts` = "Escape",
+        onclick = "rillOpenQueue()",
+        bsicons::bs_icon("arrow-left"),
+        "Queue"
+      ),
+      if (isTRUE(entry$library_access)) {
+        shiny::tagList(
+          if (
+            !is.na(entry$read_at %||% NA_character_) &&
+              nzchar(as.character(entry$read_at %||% ""))
+          ) {
+            mark_unread_button()
+          } else {
+            NULL
+          },
+          shiny::actionButton(
+            "toggle_star",
+            shiny::tagList(
+              bsicons::bs_icon(
+                if (isTRUE(entry$starred)) "star-fill" else "star"
+              ),
+              if (isTRUE(entry$starred)) "Starred" else "Star"
+            ),
+            `aria-keyshortcuts` = "f",
+            `aria-pressed` = if (isTRUE(entry$starred)) "true" else "false",
+            class = paste(
+              "reader-action",
+              if (isTRUE(entry$starred)) "is-active"
+            )
+          ),
+          shiny::actionButton(
+            "toggle_save",
+            shiny::tagList(
+              bsicons::bs_icon(
+                if (isTRUE(entry$saved)) "bookmark-fill" else "bookmark"
+              ),
+              if (isTRUE(entry$saved)) "Saved" else "Save"
+            ),
+            `aria-keyshortcuts` = "s",
+            `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
+            class = paste(
+              "reader-action",
+              if (isTRUE(entry$saved)) "is-active"
+            )
+          )
+        )
+      } else {
+        NULL
+      },
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action reader-agent-trigger",
+        `aria-controls` = "reader_agent_sidebar",
+        `aria-expanded` = "false",
+        onclick = "rillOpenAskRill(this)",
+        bsicons::bs_icon("chat-left-text"),
+        "Ask Rill"
+      ),
+      shiny::tags$a(
+        class = "reader-action original-link",
+        href = source_url,
+        target = "_blank",
+        rel = "noopener noreferrer",
+        `aria-keyshortcuts` = "o",
+        onclick = "rillTrack('open_original')",
+        bsicons::bs_icon("box-arrow-up-right"),
+        "Original"
+      ),
+      shiny::tags$span(
+        class = "shortcut-hint",
+        shiny::tags$kbd("J"),
+        "/",
+        shiny::tags$kbd("K"),
+        " navigate \u00b7 ",
+        shiny::tags$kbd("O"),
+        " original \u00b7 ",
+        shiny::tags$kbd("S"),
+        " save \u00b7 ",
+        shiny::tags$kbd("F"),
+        " star"
+      ),
+      align = "left",
+      gap = "6px"
+    )
+  )$addClass("article-actions")$allTags()
+
+  shiny::tags$header(
+    class = "article-header",
+    actions,
+    shiny::tags$p(
+      class = "article-source",
+      shiny::tags$span("Source"),
+      shiny::tags$a(
+        href = source_url,
+        target = "_blank",
+        rel = "noopener noreferrer",
+        source_name
+      )
+    ),
+    shiny::tags$h1(document$title %||% entry$title),
+    shiny::tags$div(
+      class = "article-byline",
+      if (
+        !is.na(document$author %||% NA_character_) &&
+          nzchar(document$author %||% "")
+      ) {
+        shiny::tags$span(document$author)
+      },
+      shiny::tags$span(paste(reading_minutes, "min read")),
+      shiny::tags$span(format_story_time(entry$published_at))
+    ),
+    shiny::tags$div(
+      class = "article-copy-status",
+      `aria-label` = paste(
+        "Stored reading copy prepared by",
+        document$producer %||% "feed fallback",
+        "with details below"
+      ),
+      bsicons::bs_icon("file-earmark-text"),
+      shiny::tags$strong("Stored reading copy"),
+      shiny::tags$span(
+        class = "article-copy-producer",
+        paste("Prepared by", document$producer %||% "feed fallback")
+      )
+    )
+  )
+}
+
+reader_document_ui <- function(document, entry_id, selection_surface) {
+  source_url <- rill_document_original_source_url(document)
+  captured_at <- format(
+    as.POSIXct(document$captured_at, tz = "UTC"),
+    "%Y-%m-%d %H:%M UTC",
+    tz = "UTC"
+  )
+  acquisition <- gsub(
+    "_",
+    " ",
+    document$acquisition_method %||% "unknown",
+    fixed = TRUE
+  )
+
+  provenance <- bslib::accordion(
+    bslib::accordion_panel(
+      shiny::tagList(
+        bsicons::bs_icon("info-circle"),
+        "About this reading copy"
+      ),
+      shiny::tags$p(
+        class = "reading-copy-boundary",
+        paste(
+          "This stored source copy remains separate from Ask Rill's",
+          "interpretation."
+        )
+      ),
+      shiny::tags$p(
+        class = "reading-copy-limitations",
+        rill_document_limitations(document)
+      ),
+      shiny::tags$dl(
+        class = "reading-copy-metadata",
+        shiny::tags$dt("Original source"),
+        shiny::tags$dd(
+          if (!is.na(source_url)) {
+            shiny::tags$a(
+              href = source_url,
+              target = "_blank",
+              rel = "noopener noreferrer",
+              source_url
+            )
+          } else {
+            "Unavailable"
+          }
+        ),
+        shiny::tags$dt("Reading copy"),
+        shiny::tags$dd(shiny::tags$code(document$document_id)),
+        shiny::tags$dt("Prepared"),
+        shiny::tags$dd(
+          paste(document$producer %||% "feed fallback", "via", acquisition)
+        ),
+        shiny::tags$dt("Captured"),
+        shiny::tags$dd(captured_at)
+      ),
+      value = "reading-copy-provenance"
+    ),
+    open = FALSE,
+    class = "reading-provenance"
+  )
+
+  shiny::tags$article(
+    id = "reader-document",
+    class = "reader-document",
+    `data-entry-id` = entry_id,
+    `data-document-id` = document$document_id,
+    `data-selection-surface` = selection_surface,
+    render_document(document),
+    shiny::tags$footer(
+      class = "article-footer",
+      provenance
+    )
+  )
+}
+
+reader_agent_context_ui <- function(entry, document) {
+  shiny::tags$div(
+    id = "reader-agent-context",
+    class = "reader-agent-context",
+    shiny::tags$span("Grounded in this reading copy"),
+    shiny::tags$strong(document$title %||% entry$title),
+    shiny::tags$small(document$site %||% entry$feed_title)
+  )
+}
+
 orientation_ui <- function(
   orientation,
   candidates,
@@ -533,6 +885,7 @@ orientation_ui <- function(
   if (is.null(orientation)) {
     return(shiny::tags$section(
       class = "orientation-canvas orientation-quiet",
+      rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
       shiny::tags$h1("Choose something worth reading"),
       shiny::tags$p(
@@ -565,6 +918,7 @@ orientation_ui <- function(
   if (!length(cards)) {
     return(shiny::tags$section(
       class = "orientation-canvas orientation-quiet",
+      rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
       shiny::tags$h1("No current Orientation selection"),
       shiny::tags$p(
@@ -596,7 +950,10 @@ orientation_ui <- function(
     shiny::tags$header(
       class = "orientation-header",
       shiny::tags$div(
-        shiny::tags$p(class = "eyebrow", "Orientation"),
+        shiny::tags$p(
+          class = "eyebrow",
+          "Orientation \u00b7 Rill-guided reading"
+        ),
         shiny::tags$h1(
           id = "orientation-title",
           "One question is worth carrying into this reading"
@@ -621,6 +978,21 @@ orientation_ui <- function(
     shiny::tags$p(
       class = "orientation-introduction",
       orientation$introduction
+    ),
+    shiny::tags$aside(
+      class = "orientation-disclosure",
+      `aria-label` = "How Orientation uses sources",
+      bsicons::bs_icon("signpost-split"),
+      shiny::tags$div(
+        shiny::tags$strong("A guided path, not a source"),
+        shiny::tags$p(
+          paste(
+            "Rill generates the question, path, and interpretation.",
+            "Source Documents and quoted evidence remain separate and",
+            "inspectable."
+          )
+        )
+      )
     ),
     shiny::tags$div(
       class = "orientation-path",
@@ -846,7 +1218,11 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
     shiny::tags$div(class = "orientation-step-number", number),
     shiny::tags$div(
       class = "orientation-step-body",
-      shiny::tags$p(class = "orientation-card-kind", frame),
+      shiny::tags$p(
+        class = "orientation-card-kind",
+        paste("Reading step", number, "\u00b7", frame)
+      ),
+      shiny::tags$p(class = "orientation-source-label", "Source Document"),
       shiny::tags$div(
         class = "orientation-source",
         shiny::tags$span(document$site %||% entry$feed_title),
@@ -855,7 +1231,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
       ),
       shiny::tags$p(
         class = "orientation-interpretation-label",
-        "Interpretation"
+        "Rill interpretation"
       ),
       shiny::tags$p(
         class = "orientation-interpretation",
@@ -863,12 +1239,14 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
       ),
       shiny::tags$p(
         class = "orientation-why",
-        shiny::tags$strong("Why now \u00b7 "),
+        shiny::tags$strong("Path rationale \u00b7 "),
         card$why_now
       ),
       shiny::tags$details(
         class = "orientation-evidence",
-        shiny::tags$summary(paste0("Inspect Source Evidence [", number, "]")),
+        shiny::tags$summary(
+          paste0("Source evidence and provenance [", number, "]")
+        ),
         shiny::tags$blockquote(card$evidence),
         shiny::tags$dl(
           class = "orientation-evidence-metadata",
@@ -908,9 +1286,9 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
           class = "orientation-read",
           onclick = select,
           if (identical(card$role, "anchor")) {
-            "Read the anchor Document"
+            "Read the anchor source"
           } else {
-            "Read this Document"
+            "Read this source"
           },
           bsicons::bs_icon("arrow-right")
         ),
@@ -927,20 +1305,28 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
   )
 }
 
-rill_duck_mark <- function(class) {
+rill_otter_mark <- function(class) {
   shiny::tags$span(
     class = class,
     `aria-hidden` = "true",
     shiny::tags$img(
-      class = "theme-logo theme-logo-light",
-      src = "rill-assets/rill-duck.png",
-      alt = ""
-    ),
-    shiny::tags$img(
-      class = "theme-logo theme-logo-dark",
-      src = "rill-assets/rill-duck-dark.png",
-      alt = ""
+      class = "brand-logo",
+      src = "rill-assets/rill-otter-mark.png",
+      alt = "",
+      width = 48,
+      height = 48
     )
+  )
+}
+
+rill_reading_otter <- function(class) {
+  shiny::tags$img(
+    class = class,
+    src = "rill-assets/rill-otter-reading.png",
+    alt = "",
+    `aria-hidden` = "true",
+    width = 200,
+    height = 200
   )
 }
 
@@ -1206,6 +1592,7 @@ empty_story_list <- function(view, feed_title = NULL) {
 
   shiny::tags$div(
     class = "empty-list",
+    rill_reading_otter("empty-otter"),
     shiny::tags$p(class = "empty-eyebrow", "Reading queue"),
     shiny::tags$h3(state$title),
     shiny::tags$p(state$body)

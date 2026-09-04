@@ -3,20 +3,20 @@ meta:
 
 logo:
   images:
-    duck:
-      path: www/rill-duck.png
-      alt: Rill duck resting on a water ripple
-    duck-dark:
-      path: www/rill-duck-dark.png
-      alt: Rill duck resting on a water ripple
-  small: duck
-  medium: duck
+    otter-mark:
+      path: www/rill-otter-mark.png
+      alt: Rill otter reading a book
+    otter-reading:
+      path: www/rill-otter-reading.png
+      alt: Rill otter reading a book
+  small: otter-mark
+  medium: otter-reading
 
 color:
   palette:
-    duck-egg: "#DEECEB"
-    reed: "#587B69"
-    reed-deep: "#2D5045"
+    river-mist: "#DEECEB"
+    reed: "#2F746D"
+    reed-deep: "#124C50"
     paper: "#FFFDF7"
     sand: "#F4EEDC"
     ink: "#243936"

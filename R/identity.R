@@ -1,12 +1,27 @@
-identity_denied_response <- function(config) {
+identity_denied_response <- function(config, status = "denied") {
   sign_out_href <- htmltools::htmlEscape(identity_sign_out_href(config))
+  pending <- identical(status, "pending")
   content <- paste0(
     "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">",
     "<meta name=\"viewport\" content=\"width=device-width\">",
-    "<title>Access denied - Rill</title></head><body>",
-    "<main><h1>Access denied</h1>",
-    "<p>This identity is not permitted to open this Rill Library.</p>",
-    "<p>Contact the Rill operator if access was expected.</p>",
+    "<title>",
+    if (pending) "Access requested" else "Access denied",
+    " - Rill</title></head><body>",
+    "<main><h1>",
+    if (pending) "Access requested" else "Access denied",
+    "</h1>",
+    if (pending) {
+      paste0(
+        "<p>Your sign-in worked. Rill recorded an access request for the ",
+        "operator to approve.</p>",
+        "<p>After approval, reload this page.</p>"
+      )
+    } else {
+      paste0(
+        "<p>This identity is not permitted to open this Rill Library.</p>",
+        "<p>Contact the Rill operator if access was expected.</p>"
+      )
+    },
     "<p><a href=\"",
     sign_out_href,
     "\">",
@@ -81,9 +96,6 @@ reader_identity_adapter <- function(config, store) {
       store,
       resolve = function(token) {
         principal <- identity_auth0_principal(token, config)
-        if (!principal$subject %in% config$allowed_oidc_subjects) {
-          return(reader_identity_resolution(NULL, status = "missing"))
-        }
         resolution <- store_resolve_reader_identity(store, principal)
         resolution$session_identity <- principal[c("issuer", "subject")]
         resolution
@@ -559,6 +571,151 @@ store_get_reader_admission <- function(store, issuer, subject) {
   as.list(admissions[index[[1L]], , drop = FALSE])
 }
 
+store_expire_reader_admissions <- function(store, now = utc_now()) {
+  if (identical(store$mode, "postgres")) {
+    expired <- DBI::dbExecute(
+      store$pool,
+      paste(
+        "DELETE FROM reader_admission_requests ar",
+        "WHERE ar.last_seen_at <= $1::timestamptz - INTERVAL '30 days'",
+        "AND NOT EXISTS (",
+        "SELECT 1 FROM reader_external_identities i",
+        "WHERE i.issuer = ar.issuer AND i.subject = ar.subject)"
+      ),
+      params = list(now)
+    )
+    return(invisible(expired))
+  }
+  admissions <- store$memory$reader_admissions
+  identities <- store$memory$reader_identities
+  linked <- vapply(
+    seq_len(nrow(admissions)),
+    function(index) {
+      any(
+        identities$issuer == admissions$issuer[[index]] &
+          identities$subject == admissions$subject[[index]]
+      )
+    },
+    logical(1)
+  )
+  last_seen_at <- as.POSIXct(admissions$last_seen_at, tz = "UTC")
+  expires_at <- last_seen_at + 30 * 24 * 60 * 60
+  expired <- !linked &
+    !is.na(expires_at) &
+    expires_at <= as.POSIXct(now, tz = "UTC")
+  store$memory$reader_admissions <- admissions[!expired, , drop = FALSE]
+  invisible(sum(expired))
+}
+
+store_list_reader_admissions <- function(
+  store,
+  status = NULL,
+  now = utc_now()
+) {
+  columns <- c(
+    "issuer",
+    "subject",
+    "status",
+    "email",
+    "display_name",
+    "first_seen_at",
+    "last_seen_at",
+    "attempt_count",
+    "decided_at"
+  )
+  store_expire_reader_admissions(store, now)
+  rows <- if (identical(store$mode, "postgres")) {
+    DBI::dbGetQuery(
+      store$pool,
+      paste(
+        "SELECT issuer, subject, status, email, display_name, first_seen_at,",
+        "last_seen_at, attempt_count, decided_at",
+        "FROM reader_admission_requests",
+        "ORDER BY last_seen_at DESC, issuer, subject"
+      )
+    )
+  } else {
+    store$memory$reader_admissions[columns]
+  }
+  if (!is.null(status)) {
+    rows <- rows[rows$status == status, , drop = FALSE]
+  }
+  rows$request_id <- vapply(
+    seq_len(nrow(rows)),
+    function(index) {
+      rill_id(
+        "reader-admission",
+        rows$issuer[[index]],
+        rows$subject[[index]]
+      )
+    },
+    character(1)
+  )
+  rows
+}
+
+reader_admission_summary <- function(rows) {
+  rows[c(
+    "request_id",
+    "email",
+    "display_name",
+    "status",
+    "attempt_count",
+    "first_seen_at",
+    "last_seen_at",
+    "decided_at"
+  )]
+}
+
+store_approve_reader_admission <- function(
+  store,
+  request_id,
+  responsible_id,
+  reason,
+  now = utc_now()
+) {
+  admissions <- store_list_reader_admissions(store)
+  index <- match(request_id, admissions$request_id)
+  if (is.na(index)) {
+    cli::cli_abort(
+      "No Reader admission matches {.val {request_id}}.",
+      class = "rill_reader_admission_not_found"
+    )
+  }
+  admission <- admissions[index, , drop = FALSE]
+  identity <- store_get_reader_identity(
+    store,
+    admission$issuer[[1L]],
+    admission$subject[[1L]]
+  )
+  reader_id <- if (is.null(identity)) {
+    rill_id(
+      "reader",
+      admission$issuer[[1L]],
+      admission$subject[[1L]]
+    )
+  } else {
+    identity$reader_id
+  }
+  store_admit_reader_identity(
+    store,
+    issuer = admission$issuer[[1L]],
+    subject = admission$subject[[1L]],
+    reader_id = reader_id,
+    responsible_id = responsible_id,
+    reason = reason,
+    now = now,
+    require_active = TRUE
+  )
+  list(
+    request_id = request_id,
+    reader_id = reader_id,
+    status = "approved",
+    email = admission$email[[1L]],
+    display_name = admission$display_name[[1L]]
+  )
+}
+
 store_get_reader_identity <- function(store, issuer, subject) {
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
@@ -591,17 +748,20 @@ store_admit_reader_identity <- function(
   reader_id,
   responsible_id,
   reason,
-  now = utc_now()
+  now = utc_now(),
+  require_active = FALSE
 ) {
   if (identical(store$mode, "postgres")) {
     return(pool::poolWithTransaction(store$pool, function(connection) {
       store_lock_reader_identity(connection, issuer, subject)
-      store_ensure_reader(store, reader_id, now, connection)
       existing <- DBI::dbGetQuery(
         connection,
         paste(
-          "SELECT reader_id FROM reader_external_identities",
-          "WHERE issuer = $1 AND subject = $2"
+          "SELECT i.reader_id, i.revoked_at, r.status",
+          "FROM reader_external_identities i",
+          "JOIN readers r ON r.reader_id = i.reader_id",
+          "WHERE i.issuer = $1 AND i.subject = $2",
+          "FOR UPDATE OF i, r"
         ),
         params = list(issuer, subject)
       )
@@ -611,6 +771,27 @@ store_admit_reader_identity <- function(
           class = "rill_reader_identity_conflict"
         )
       }
+      if (
+        require_active &&
+          nrow(existing) &&
+          !is.na(existing$revoked_at[[1L]])
+      ) {
+        cli::cli_abort(
+          "The Reader identity is revoked.",
+          class = "rill_reader_identity_revoked"
+        )
+      }
+      if (
+        require_active &&
+          nrow(existing) &&
+          !identical(existing$status[[1L]], "active")
+      ) {
+        cli::cli_abort(
+          "The Reader is not active.",
+          class = "rill_reader_not_active"
+        )
+      }
+      store_ensure_reader(store, reader_id, now, connection)
       created <- 0L
       if (!nrow(existing)) {
         admission <- DBI::dbGetQuery(
@@ -731,6 +912,29 @@ store_admit_reader_identity <- function(
       "The external identity belongs to another Reader.",
       class = "rill_reader_identity_conflict"
     )
+  }
+  if (
+    require_active &&
+      length(identity_index) &&
+      !is.na(identities$revoked_at[[identity_index[[1L]]]])
+  ) {
+    cli::cli_abort(
+      "The Reader identity is revoked.",
+      class = "rill_reader_identity_revoked"
+    )
+  }
+  if (require_active && length(identity_index)) {
+    readers <- store$memory$readers
+    reader_index <- match(reader_id, readers$reader_id)
+    if (
+      is.na(reader_index) ||
+        !identical(readers$status[[reader_index]], "active")
+    ) {
+      cli::cli_abort(
+        "The Reader is not active.",
+        class = "rill_reader_not_active"
+      )
+    }
   }
   store_ensure_reader(store, reader_id, now)
   admissions <- store$memory$reader_admissions
@@ -933,7 +1137,7 @@ identity_http_handler <- function(base_handler, adapter) {
     }
     resolution <- reader_identity_resolve(adapter, request)
     if (!identical(resolution$status, "active")) {
-      return(identity_denied_response(adapter$config))
+      return(identity_denied_response(adapter$config, resolution$status))
     }
     base_handler(request)
   }
@@ -961,7 +1165,7 @@ identity_server_handler <- function(base_server, adapter) {
           resolution <- reader_identity_resolve(adapter, auth$token)
           if (!identical(resolution$status, "active")) {
             denied <<- TRUE
-            identity_show_denied_modal(adapter$config)
+            identity_show_denied_modal(adapter$config, resolution$status)
             return()
           }
           started <<- TRUE
@@ -993,13 +1197,27 @@ identity_server_handler <- function(base_server, adapter) {
   }
 }
 
-identity_show_denied_modal <- function(config) {
+identity_show_denied_modal <- function(config, status = "denied") {
+  pending <- identical(status, "pending")
   shiny::showModal(shiny::modalDialog(
-    title = "Access denied",
+    title = if (pending) "Access requested" else "Access denied",
     shiny::tags$p(
-      "This identity is not permitted to open this Rill Library."
+      if (pending) {
+        paste(
+          "Your sign-in worked. Rill recorded an access request for the",
+          "operator to approve."
+        )
+      } else {
+        "This identity is not permitted to open this Rill Library."
+      }
     ),
-    shiny::tags$p("Contact the Rill operator if access was expected."),
+    shiny::tags$p(
+      if (pending) {
+        "After approval, reload this page."
+      } else {
+        "Contact the Rill operator if access was expected."
+      }
+    ),
     footer = shiny::tags$a(
       class = "btn btn-primary",
       href = identity_sign_out_href(config),
