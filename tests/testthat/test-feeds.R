@@ -78,3 +78,28 @@ testthat::test_that("re-adding a Feed restores its saved folder", {
   restored <- restored[restored$feed_id == feed$feed_id, , drop = FALSE]
   testthat::expect_identical(restored$folder, "Research")
 })
+
+testthat::test_that("refresh counts new entries without counting updates again", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  xml <- paste0(
+    '<rss version="2.0"><channel><title>Example</title>',
+    '<link>https://example.com</link><item><guid>one</guid>',
+    '<title>First</title><link>https://example.com/one</link>',
+    '</item></channel></rss>'
+  )
+  parsed <- parse_feed_document(xml, "https://example.com/rss")
+  parsed$not_modified <- FALSE
+  testthat::local_mocked_bindings(fetch_feed = function(...) parsed)
+
+  first <- ingest_feed_url(store, "reader", "https://example.com/rss")
+  testthat::expect_identical(first$added, 1L)
+  parsed$entries$title <- "Updated title"
+  second <- refresh_feed(store, first$feed)
+  testthat::expect_identical(second$added, 0L)
+  entry <- store$memory$entries[
+    store$memory$entries$feed_id == first$feed$feed_id,
+    ,
+    drop = FALSE
+  ]
+  testthat::expect_identical(entry$title, "Updated title")
+})

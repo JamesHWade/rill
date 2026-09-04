@@ -58,7 +58,7 @@ testthat::test_that("invalid story times render without a label", {
 testthat::test_that("feed management exposes OPML import and export", {
   html <- htmltools::renderTags(feed_tools_ui())$html
 
-  testthat::expect_match(html, "Manage feeds", fixed = TRUE)
+  testthat::expect_match(html, 'id="managed_feed"', fixed = TRUE)
   testthat::expect_match(
     html,
     'id="feed_organization_control"',
@@ -84,6 +84,12 @@ testthat::test_that("feed management exposes OPML import and export", {
     source_kind = "capture"
   )))$html
   testthat::expect_no_match(capture, 'id="unsubscribe_feed"', fixed = TRUE)
+
+  inactive <- htmltools::renderTags(feed_organization_control_ui(list(
+    status = "inactive"
+  )))$html
+  testthat::expect_match(inactive, 'id="restore_feed"', fixed = TRUE)
+  testthat::expect_no_match(inactive, 'id="unsubscribe_feed"', fixed = TRUE)
 })
 
 testthat::test_that("populated story output remains a scroll container", {
@@ -796,4 +802,26 @@ testthat::test_that("the application panes use native resizable sidebars", {
     )),
     c("open", "open", "closed")
   )
+})
+testthat::test_that("background refresh exposes accessible progress and manual-reset task buttons", {
+  starting <- as.character(feed_refresh_status_ui(list(status = "running")))
+  testthat::expect_match(starting, "You can keep reading", fixed = TRUE)
+  progress <- as.character(feed_refresh_status_ui(list(
+    status = "running",
+    index = 1L,
+    total = 3L,
+    title = "<Example>"
+  )))
+  testthat::expect_match(progress, 'role="status"', fixed = TRUE)
+  testthat::expect_match(progress, 'value="1"', fixed = TRUE)
+  testthat::expect_match(progress, 'max="3"', fixed = TRUE)
+  testthat::expect_match(progress, "&lt;Example&gt;", fixed = TRUE)
+  controls <- as.character(feed_tools_ui())
+  document <- xml2::read_html(controls)
+  buttons <- xml2::xml_find_all(
+    document,
+    "//button[@id='refresh_library' or @id='retry_failed_feeds']"
+  )
+  testthat::expect_length(buttons, 2L)
+  testthat::expect_all_true(is.na(xml2::xml_attr(buttons, "data-auto-reset")))
 })

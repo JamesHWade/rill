@@ -73,6 +73,49 @@ run_due_feed_polling <- function(
   refresh = refresh_feed,
   now = utc_now()
 ) {
+  run_feed_polling(
+    store,
+    select_feeds = \() store_list_due_feeds(store, now, interval_minutes),
+    failure_threshold = failure_threshold,
+    refresh = refresh,
+    now = now
+  )
+}
+
+refresh_reader_feeds <- function(
+  store,
+  reader_id,
+  feed_ids = NULL,
+  failed_only = FALSE,
+  progress = function(index, total, title) NULL,
+  refresh = refresh_feed
+) {
+  run_feed_polling(
+    store,
+    select_feeds = function() {
+      feeds <- store_list_feeds(store, reader_id, source_kind = "subscription")
+      if (!is.null(feed_ids)) {
+        feeds <- feeds[feeds$feed_id %in% feed_ids, , drop = FALSE]
+      }
+      if (failed_only) {
+        feeds <- feeds[feeds$poll_status %in% "failed", , drop = FALSE]
+      }
+      feeds
+    },
+    failure_threshold = 1L,
+    refresh = refresh,
+    progress = progress
+  )
+}
+
+run_feed_polling <- function(
+  store,
+  select_feeds,
+  failure_threshold,
+  refresh,
+  now = utc_now(),
+  progress = function(index, total, title) NULL
+) {
   locked <- store_with_feed_poll_lock(store, function() {
     recovered_count <- store_recover_feed_poll_runs(store, now)
     if (recovered_count) {
@@ -82,7 +125,7 @@ run_due_feed_polling <- function(
         list("poll.recovered_count" = recovered_count)
       )
     }
-    feeds <- store_list_due_feeds(store, now, interval_minutes)
+    feeds <- select_feeds()
     run_id <- new_feed_poll_run_id(now)
     store_start_feed_poll_run(
       store,
@@ -95,12 +138,14 @@ run_due_feed_polling <- function(
     outcomes <- list()
     tryCatch(
       for (index in seq_len(nrow(feeds))) {
+        progress(index - 1L, nrow(feeds), feeds$title[[index]])
         outcomes[[index]] <- poll_one_feed(
           store,
           run_id,
           as.list(feeds[index, , drop = FALSE]),
           refresh
         )
+        progress(index, nrow(feeds), feeds$title[[index]])
       },
       error = function(error) {
         failed <- vapply(

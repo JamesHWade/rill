@@ -229,6 +229,7 @@ navigation_sidebar_ui <- function(config) {
         `aria-label` = "Refresh feeds"
       )
     ),
+    shiny::uiOutput("feed_refresh_activity"),
     shiny::uiOutput(
       "feed_nav",
       container = shiny::tags$nav,
@@ -239,7 +240,11 @@ navigation_sidebar_ui <- function(config) {
       class = "sidebar-footer",
       shiny::uiOutput("orientation_destination_settings"),
       appearance_control_ui(),
-      feed_tools_ui(),
+      shiny::actionButton(
+        "manage_feeds",
+        "Manage feeds",
+        class = "btn-manage-feeds"
+      ),
       identity_sign_out_ui(config),
       shiny::uiOutput(
         "sidebar_status",
@@ -1361,18 +1366,99 @@ appearance_control_ui <- function() {
   )
 }
 
-feed_tools_ui <- function() {
-  shiny::tags$details(
-    class = "add-feed feed-tools",
-    shiny::tags$summary("Manage feeds"),
+feed_refresh_status_ui <- function(result) {
+  if (is.null(result)) {
+    return(shiny::tags$p("Refresh checks for new stories in your Library."))
+  }
+  if (!identical(result$status, "running")) {
+    return(shiny::tags$p(role = "status", feed_refresh_summary(result)))
+  }
+  shiny::tags$div(
+    role = "status",
+    `aria-live` = "polite",
+    shiny::tags$p(
+      if (is.null(result$total)) {
+        "Starting background refresh. You can keep reading."
+      } else {
+        paste0(
+          result$index,
+          " of ",
+          result$total,
+          " feeds checked \u00b7 ",
+          result$title
+        )
+      }
+    ),
+    shiny::tags$progress(
+      `aria-label` = "Feed refresh progress",
+      value = result$index,
+      max = result$total
+    )
+  )
+}
+
+feed_manager_choices <- function(feeds) {
+  labels <- paste(feeds$title, "\u00b7", feeds$folder)
+  labels <- paste0(
+    labels,
+    ifelse(
+      feeds$status == "inactive",
+      " (unsubscribed)",
+      ifelse(feeds$poll_status %in% "failed", " (needs attention)", "")
+    )
+  )
+  c("Choose a feed" = "", stats::setNames(feeds$feed_id, labels))
+}
+
+feed_manager_ui <- function(feeds, selected = NULL) {
+  shiny::modalDialog(
+    title = "Manage feeds",
+    feed_tools_ui(feeds, selected),
+    size = "l",
+    easyClose = TRUE,
+    footer = shiny::modalButton("Done")
+  )
+}
+
+feed_tools_ui <- function(feeds = NULL, selected = NULL) {
+  bslib::layout_columns(
+    col_widths = c(12, 12, 6, 6),
+    fill = FALSE,
+    class = "feed-tools",
+    shiny::tags$div(
+      class = "feed-tool-section",
+      shiny::tags$h3("Refresh your Library"),
+      shiny::uiOutput("feed_refresh_status"),
+      bslib::input_task_button(
+        "refresh_library",
+        "Refresh all feeds",
+        auto_reset = FALSE
+      ),
+      bslib::input_task_button(
+        "retry_failed_feeds",
+        "Retry failed feeds",
+        auto_reset = FALSE
+      )
+    ),
     shiny::tags$div(
       class = "feed-tool-section rename-feed-tools",
-      shiny::tags$p(class = "feed-tool-label", "Organize selected feed"),
+      shiny::tags$h3("Find and organize a feed"),
+      shiny::selectizeInput(
+        "managed_feed",
+        "Search by feed name or folder",
+        choices = if (is.null(feeds)) {
+          c("Choose a feed" = "")
+        } else {
+          feed_manager_choices(feeds)
+        },
+        selected = selected %||% "",
+        width = "100%"
+      ),
       shiny::uiOutput("feed_organization_control")
     ),
     shiny::tags$div(
       class = "feed-tool-section",
-      shiny::tags$p(class = "feed-tool-label", "Add one feed"),
+      shiny::tags$h3("Add a feed"),
       shiny::tags$label(
         class = "visually-hidden",
         `for` = "new_feed_url",
@@ -1383,11 +1469,11 @@ feed_tools_ui <- function() {
         label = NULL,
         placeholder = "Feed or website URL"
       ),
-      shiny::actionButton("add_feed", "Add feed", class = "btn-add-feed")
+      bslib::input_task_button("add_feed", "Add feed", class = "btn-add-feed")
     ),
     shiny::tags$div(
       class = "feed-tool-section opml-tools",
-      shiny::tags$p(class = "feed-tool-label", "Move subscriptions"),
+      shiny::tags$h3("Import and export"),
       shiny::tags$div(
         class = "opml-actions",
         shiny::tags$div(
@@ -1414,23 +1500,49 @@ feed_tools_ui <- function() {
   )
 }
 
-feed_organization_control_ui <- function(feed = NULL) {
+feed_organization_control_ui <- function(feed = NULL, folders = character()) {
   if (is.null(feed)) {
     return(shiny::tags$p(
       class = "feed-tool-help",
-      "Select a feed above to rename, move, or unsubscribe."
+      "Choose a feed to check its status, rename, move, or unsubscribe."
+    ))
+  }
+
+  if (identical(feed$status, "inactive")) {
+    return(shiny::tagList(
+      shiny::tags$p(
+        "Unsubscribed. Restore this feed with its saved folder and reading state."
+      ),
+      shiny::actionButton("restore_feed", "Restore subscription")
     ))
   }
 
   shiny::tagList(
-    shiny::tags$label(
-      class = "visually-hidden",
-      `for` = "feed_title",
-      "Feed name"
-    ),
+    shiny::tags$p(class = "feed-source-url", feed$feed_url),
+    if (identical(feed$source_kind %||% "subscription", "subscription")) {
+      shiny::tagList(
+        shiny::tags$p(
+          role = "status",
+          if (identical(feed$poll_status, "failed")) {
+            "Last check failed. Retry this feed or check its source URL."
+          } else if (
+            is.null(feed$last_polled_at) || is.na(feed$last_polled_at)
+          ) {
+            "Not checked yet."
+          } else {
+            paste("Last checked:", feed$last_polled_at)
+          }
+        ),
+        bslib::input_task_button(
+          "refresh_selected_feed",
+          "Refresh this feed",
+          auto_reset = FALSE
+        )
+      )
+    },
     shiny::textInput(
       "feed_title",
-      label = NULL,
+      label = "Name in your Library",
       value = feed$title
     ),
     shiny::actionButton(
@@ -1438,11 +1550,13 @@ feed_organization_control_ui <- function(feed = NULL) {
       "Rename feed",
       class = "btn-rename-feed"
     ),
-    shiny::textInput(
+    shiny::selectizeInput(
       "feed_folder",
       label = "Folder",
-      value = feed$folder,
-      placeholder = "Folder"
+      choices = unique(c(feed$folder, folders)),
+      selected = feed$folder,
+      options = list(create = TRUE),
+      width = "100%"
     ),
     shiny::actionButton(
       "move_feed",
@@ -1467,6 +1581,37 @@ feed_organization_control_ui <- function(feed = NULL) {
         "Captured items are Reader-owned and cannot be unsubscribed as a Feed."
       }
     )
+  )
+}
+
+feed_refresh_summary <- function(result) {
+  if (identical(result$status, "error")) {
+    return("Refresh stopped. Please try again.")
+  }
+  if (identical(result$status, "skipped_overlap")) {
+    return("Another refresh is running. Try again shortly.")
+  }
+  if (!result$due_count) {
+    return("No feeds need checking in this selection.")
+  }
+  added <- sum(vapply(result$outcomes, \(x) x$added_count, integer(1)))
+  paste0(
+    result$due_count,
+    " feed",
+    if (result$due_count == 1L) "" else "s",
+    " checked \u00b7 ",
+    added,
+    " new stor",
+    if (added == 1L) "y" else "ies",
+    if (result$failed_count) {
+      paste0(
+        " \u00b7 ",
+        result$failed_count,
+        " failed. Retry failed feeds in Manage feeds."
+      )
+    } else {
+      "."
+    }
   )
 }
 

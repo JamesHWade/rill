@@ -3809,6 +3809,142 @@ testthat::test_that("organizing a selected feed updates its Subscription", {
   })
 })
 
+testthat::test_that("overlapping refreshes do not claim success or change Library state", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  store$memory$feed_poll_locked <- TRUE
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    events_before <- store$memory$events
+    refresh_before <- refresh_tick()
+    management_before <- feed_management_tick()
+
+    refresh_feeds_now()
+    later::run_now(0)
+    session$flushReact()
+
+    testthat::expect_identical(refresh_result()$status, "skipped_overlap")
+    testthat::expect_identical(status_kind(), "info")
+    testthat::expect_identical(
+      status_text(),
+      "Another refresh is running. Try again shortly."
+    )
+    testthat::expect_identical(store$memory$events, events_before)
+    testthat::expect_identical(refresh_tick(), refresh_before)
+    testthat::expect_identical(feed_management_tick(), management_before)
+    testthat::expect_identical(store$memory$feed_poll_locked, TRUE)
+  })
+})
+
+testthat::test_that("feed management keeps browsing separate and restores subscriptions", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_id <- store$memory$entries$entry_id[[1L]]
+  reading_feed <- store$memory$entries$feed_id[[1L]]
+  managed_id <- setdiff(
+    store_list_feeds(store, config$actor_id)$feed_id,
+    reading_feed
+  )[[1L]]
+  gate <- withr::local_tempfile()
+  local_feed_refresh_worker(gate = gate)
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      select_entry = NULL,
+      managed_feed = "",
+      restore_feed = 0L,
+      unsubscribe_feed = 0L,
+      refresh_selected_feed = 0L,
+      rename_feed = 0L
+    )
+    session$flushReact()
+    session$setInputs(
+      select_entry = list(id = entry_id, position = 1L, nonce = 1)
+    )
+    session$setInputs(managed_feed = managed_id)
+    session$setInputs(feed_title = "Renamed in manager", rename_feed = 1L)
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_null(selected_feed())
+    rows <- store_list_feeds(store, config$actor_id)
+    testthat::expect_identical(
+      rows$title[rows$feed_id == managed_id],
+      "Renamed in manager"
+    )
+
+    session$setInputs(refresh_selected_feed = 1L)
+    testthat::expect_identical(refresh_result()$status, "running")
+    current_job <- \() environment(refresh_feeds_now)$refresh_job
+    worker_pid <- current_job()$process$get_pid()
+    session$setInputs(refresh_selected_feed = 2L)
+    testthat::expect_identical(current_job()$process$get_pid(), worker_pid)
+    testthat::expect_identical(selected_id(), entry_id)
+
+    session$setInputs(unsubscribe_feed = 1L)
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      managed_id
+    )
+    deadline <- Sys.time() + 30
+    file.create(gate)
+    while (!is.null(current_job()) && Sys.time() < deadline) {
+      later::run_now(0.05)
+      session$flushReact()
+    }
+    testthat::expect_null(current_job())
+    testthat::expect_identical(selected_id(), entry_id)
+    testthat::expect_identical(
+      status_text(),
+      "1 feed checked \u00b7 1 new story."
+    )
+    testthat::expect_identical(
+      store$memory$feed_poll_outcomes$feed_id,
+      managed_id
+    )
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      managed_id
+    )
+    session$setInputs(restore_feed = 1L)
+    rows <- store_list_feeds(store, config$actor_id)
+    testthat::expect_in(managed_id, rows$feed_id)
+    testthat::expect_identical(
+      rows$title[rows$feed_id == managed_id],
+      "Renamed in manager"
+    )
+
+    session$setInputs(managed_feed = "unowned", restore_feed = 2L)
+    testthat::expect_disjoint(
+      store_list_feeds(store, config$actor_id)$feed_id,
+      "unowned"
+    )
+  })
+})
+
+testthat::test_that("background refresh finishes after its Shiny session closes", {
+  withr::local_envvar(DATABASE_URL = "")
+  gate <- withr::local_tempfile()
+  local_feed_refresh_worker(gate = gate)
+  config <- rill_config()
+  store <- rill_store(config)
+  shiny::testServer(rill_server(config, store), {
+    refresh_feeds_now(feed_ids = store$memory$feeds$feed_id[[1L]])
+    testthat::expect_identical(refresh_result()$status, "running")
+    session$close()
+  })
+  file.create(gate)
+  deadline <- Sys.time() + 30
+  while (isTRUE(store$memory$feed_poll_locked) && Sys.time() < deadline) {
+    later::run_now(0.05)
+  }
+  testthat::expect_identical(store$memory$feed_poll_locked, FALSE)
+  testthat::expect_identical(store$memory$feed_poll_runs$status, "succeeded")
+  testthat::expect_in("background-entry", store$memory$entries$external_id)
+})
+
 testthat::test_that("changing story sort reorders the queue and clears the reader", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

@@ -55,6 +55,16 @@ testthat::test_that("PostgreSQL serializes and records Feed polling", {
   feed <- as.list(sample_rill_data()$feeds[1L, , drop = FALSE])
   store_upsert_feed(store, feed)
   store_subscribe_feed(store, "reader-one", feed$feed_id)
+  entries <- sample_rill_data()$entries
+  entries <- entries[entries$feed_id == feed$feed_id, , drop = FALSE]
+  testthat::expect_identical(
+    store_upsert_entries(store, entries),
+    nrow(entries)
+  )
+  entries$title <- paste(entries$title, "updated")
+  testthat::expect_identical(store_upsert_entries(store, entries), 0L)
+  stored <- store_list_entries(store, "reader-one", view = "all")
+  testthat::expect_setequal(stored$title, entries$title)
   DBI::dbExecute(
     store$pool,
     "UPDATE feeds SET last_polled_at = '2026-09-03 10:00:00 UTC'"
