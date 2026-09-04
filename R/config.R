@@ -67,7 +67,7 @@ normalize_auth0_domain <- function(value) {
   }
   parsed <- tryCatch(
     httr2::url_parse(
-      if (grepl("^https://", value)) {
+      if (grepl("^https://", value, ignore.case = TRUE)) {
         value
       } else {
         paste0("https://", value)
@@ -106,8 +106,8 @@ normalize_auth0_redirect_uri <- function(value) {
     httr2::url_parse(value),
     error = \(error) NULL
   )
-  scheme <- tolower(parsed$scheme %||% "")
-  hostname <- tolower(parsed$hostname %||% "")
+  scheme <- if (is.null(parsed)) "" else tolower(parsed$scheme %||% "")
+  hostname <- if (is.null(parsed)) "" else tolower(parsed$hostname %||% "")
   local_http <- identical(scheme, "http") &&
     hostname %in% c("127.0.0.1", "localhost", "::1")
   if (
