@@ -163,6 +163,17 @@ variable disables the capture endpoint even if stored credential hashes remain.
 
 Neon is a good fit for this first version. Alternatives become attractive only for a specific reason: Supabase if bundled auth/storage is important, or a conventional managed Postgres instance if predictable always-on latency matters more than serverless scale-to-zero.
 
+## Deploy on Posit Connect Cloud
+
+Rill supports an in-app Auth0 gate for Posit Connect Cloud, where Free content
+remains public at the platform edge. The gate prevents Rill's Reader server,
+Library queries, and Agent actions from starting until Auth0 validates an exact
+allowlisted `sub`. The application shell and static assets remain public.
+
+See [the Connect Cloud deployment runbook](docs/deployment/connect-cloud.md) for
+the manifest, Auth0 callback, Neon, OpenAI, and hourly GitHub Actions polling
+configuration.
+
 ## Defuddle
 
 Selecting an uncached article runs the configured Defuddle backend, separates

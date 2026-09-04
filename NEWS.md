@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Rill can now enforce an in-app Auth0 gate on public Shiny hosts such as Posit Connect Cloud, and the default branch can run due-Feed polling hourly under an explicit kill switch (#45).
+
 * Hosted Rill now binds browser-capture credentials, captured Documents, standalone capture entries, and reading-copy selection to each Reader while retaining shared public Documents and immutable acquisition provenance, and admits additional Readers only after these isolation boundaries are installed (#21).
 
 * Hosted Rill now stores active and inactive Subscriptions, folders, Feed labels, Entry state, and Reading History per Reader while keeping Feed acquisition shared and polling each Feed once while any Subscription is active; add, move, rename, unsubscribe, and OPML workflows all enforce the authenticated Library boundary (#20).

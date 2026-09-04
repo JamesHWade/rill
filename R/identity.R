@@ -73,6 +73,31 @@ reader_identity_adapter <- function(config, store) {
       }
     ))
   }
+  if (identical(config$identity_mode, "auth0")) {
+    store_bootstrap_private_reader_identity(store, config)
+    return(new_reader_identity_adapter(
+      "auth0",
+      config,
+      store,
+      resolve = function(token) {
+        principal <- identity_auth0_principal(token, config)
+        if (!principal$subject %in% config$allowed_oidc_subjects) {
+          return(reader_identity_resolution(NULL, status = "missing"))
+        }
+        resolution <- store_resolve_reader_identity(store, principal)
+        resolution$session_identity <- principal[c("issuer", "subject")]
+        resolution
+      },
+      session_status = function(resolution) {
+        store_revalidate_reader_identity(
+          store,
+          resolution$session_identity,
+          resolution$reader_id
+        )
+      },
+      oauth_client = identity_auth0_client(config)
+    ))
+  }
   cli::cli_abort(
     "No Reader Identity adapter exists for {.val {config$identity_mode}}.",
     class = "rill_identity_config_invalid"
@@ -86,7 +111,8 @@ new_reader_identity_adapter <- function(
   resolve,
   session_status = function(resolution) {
     store_resolve_reader(store, resolution$reader_id)
-  }
+  },
+  oauth_client = NULL
 ) {
   force(store)
   structure(
@@ -94,9 +120,47 @@ new_reader_identity_adapter <- function(
       kind = kind,
       config = config,
       resolve = resolve,
-      session_status = session_status
+      session_status = session_status,
+      oauth_client = oauth_client
     ),
     class = "rill_reader_identity_adapter"
+  )
+}
+
+identity_auth0_provider <- function(domain) {
+  shinyOAuth::oauth_provider_auth0(domain)
+}
+
+identity_oauth_client <- function(...) {
+  shinyOAuth::oauth_client(...)
+}
+
+identity_oauth_module_server <- function(...) {
+  shinyOAuth::oauth_module_server(...)
+}
+
+identity_auth0_client <- function(config) {
+  identity_oauth_client(
+    provider = identity_auth0_provider(config$auth0_domain),
+    client_id = config$auth0_client_id,
+    client_secret = config$auth0_client_secret,
+    redirect_uri = config$auth0_redirect_uri,
+    scopes = c("openid", "profile", "email")
+  )
+}
+
+identity_auth0_principal <- function(token, config) {
+  userinfo <- tryCatch(token@userinfo, error = \(error) list())
+  structure(
+    list(
+      issuer = config$oidc_issuer,
+      subject = identity_claim_value(userinfo$sub) %||% "",
+      email = identity_claim_value(userinfo$email),
+      display_name = identity_claim_value(
+        userinfo$name %||% userinfo$nickname
+      )
+    ),
+    class = "rill_identity"
   )
 }
 
@@ -871,6 +935,45 @@ identity_server_handler <- function(base_server, adapter) {
   force(base_server)
   force(adapter)
 
+  if (identical(adapter$kind, "auth0")) {
+    return(function(input, output, session) {
+      auth <- identity_oauth_module_server(
+        "rill_identity",
+        client = adapter$oauth_client,
+        auto_redirect = TRUE
+      )
+      started <- FALSE
+      denied <- FALSE
+
+      shiny::observe(
+        {
+          if (!isTRUE(auth$authenticated) || started || denied) {
+            return()
+          }
+          resolution <- reader_identity_resolve(adapter, auth$token)
+          if (!identical(resolution$status, "active")) {
+            denied <<- TRUE
+            identity_show_denied_modal(adapter$config)
+            return()
+          }
+          started <<- TRUE
+          reader_identity_guard_session(adapter, resolution, session)
+          base_server(input, output, session, resolution$reader_id)
+        },
+        domain = session
+      )
+
+      shiny::observe(
+        {
+          if (started && !isTRUE(auth$authenticated)) {
+            session$close()
+          }
+        },
+        domain = session
+      )
+    })
+  }
+
   function(input, output, session) {
     resolution <- reader_identity_resolve(adapter, session$request)
     if (!identical(resolution$status, "active")) {
@@ -880,6 +983,22 @@ identity_server_handler <- function(base_server, adapter) {
     reader_identity_guard_session(adapter, resolution, session)
     base_server(input, output, session, resolution$reader_id)
   }
+}
+
+identity_show_denied_modal <- function(config) {
+  shiny::showModal(shiny::modalDialog(
+    title = "Access denied",
+    shiny::tags$p(
+      "This identity is not permitted to open this Rill Library."
+    ),
+    shiny::tags$p("Contact the Rill operator if access was expected."),
+    footer = shiny::tags$a(
+      class = "btn btn-primary",
+      href = identity_sign_out_href(config),
+      "Sign out and try another identity"
+    ),
+    easyClose = FALSE
+  ))
 }
 
 reader_identity_guard_session <- function(adapter, resolution, session) {
@@ -903,6 +1022,16 @@ reader_identity_guard_session <- function(adapter, resolution, session) {
 }
 
 identity_sign_out_href <- function(config) {
+  if (identical(config$identity_mode, "auth0")) {
+    return(paste0(
+      "https://",
+      config$auth0_domain,
+      "/v2/logout?client_id=",
+      utils::URLencode(config$auth0_client_id, reserved = TRUE),
+      "&returnTo=",
+      utils::URLencode(config$auth0_redirect_uri, reserved = TRUE)
+    ))
+  }
   issuer <- sub("/?$", "/", config$oidc_issuer)
   provider_logout <- paste0(
     issuer,
@@ -918,7 +1047,7 @@ identity_sign_out_href <- function(config) {
 }
 
 identity_sign_out_ui <- function(config) {
-  if (!identical(config$identity_mode, "oidc_proxy")) {
+  if (!(config$identity_mode %||% "local") %in% c("oidc_proxy", "auth0")) {
     return(NULL)
   }
   shiny::tags$a(

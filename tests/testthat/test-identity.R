@@ -96,6 +96,108 @@ testthat::test_that("capture authentication remains independent of Reader login"
   testthat::expect_identical(response$status, 401L)
 })
 
+testthat::test_that("an Auth0 token resolves through exact issuer and subject", {
+  local_auth0_identity()
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+
+  resolution <- reader_identity_resolve(
+    adapter,
+    identity_test_auth0_token(
+      "auth0|reader",
+      email = "reader@example.com",
+      display_name = "Reader"
+    )
+  )
+
+  testthat::expect_identical(
+    resolution[c("status", "reader_id")],
+    list(status = "active", reader_id = "private-reader")
+  )
+  identity <- store_get_reader_identity(
+    store,
+    "https://reader.us.auth0.com/",
+    "auth0|reader"
+  )
+  testthat::expect_identical(identity$email, "reader@example.com")
+  testthat::expect_identical(identity$display_name, "Reader")
+})
+
+testthat::test_that("the in-app gate starts Rill only after authentication", {
+  local_auth0_identity()
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  auth <- shiny::reactiveValues(authenticated = FALSE, token = NULL)
+  started_reader <- NULL
+  testthat::local_mocked_bindings(
+    identity_oauth_module_server = function(...) auth
+  )
+  server <- identity_server_handler(
+    function(input, output, session, reader_id) {
+      started_reader <<- reader_id
+    },
+    adapter
+  )
+
+  shiny::testServer(server, {
+    testthat::expect_null(started_reader)
+    auth$token <- identity_test_auth0_token("auth0|reader")
+    auth$authenticated <- TRUE
+    session$flushReact()
+    testthat::expect_identical(started_reader, "private-reader")
+
+    auth$authenticated <- FALSE
+    session$flushReact()
+    testthat::expect_identical(session$isClosed(), TRUE)
+  })
+})
+
+testthat::test_that("the in-app gate denies unknown subjects before DB access", {
+  local_auth0_identity(subjects = "auth0|approved")
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  auth <- shiny::reactiveValues(authenticated = FALSE, token = NULL)
+  started <- FALSE
+  testthat::local_mocked_bindings(
+    identity_oauth_module_server = function(...) auth
+  )
+  server <- identity_server_handler(
+    function(...) started <<- TRUE,
+    adapter
+  )
+
+  shiny::testServer(server, {
+    auth$token <- identity_test_auth0_token("auth0|unknown")
+    auth$authenticated <- TRUE
+    session$flushReact()
+    testthat::expect_identical(started, FALSE)
+    testthat::expect_null(store_get_reader_admission(
+      store,
+      config$oidc_issuer,
+      "auth0|unknown"
+    ))
+  })
+})
+
+testthat::test_that("the in-app gate leaves only the static HTTP shell public", {
+  local_auth0_identity()
+  config <- rill_config()
+  store <- rill_store(config)
+  adapter <- reader_identity_adapter(config, store)
+  handler <- identity_http_handler(
+    \(request) identity_health_response(),
+    adapter
+  )
+
+  response <- handler(identity_test_request(remote_addr = "203.0.113.10"))
+
+  testthat::expect_identical(response$status, 200L)
+  testthat::expect_identical(response$content, "ok\n")
+})
+
 testthat::test_that("the local identity adapter ignores forwarded claims", {
   withr::local_envvar(c(
     DATABASE_URL = "",

@@ -12,15 +12,19 @@ A \code{shiny.appobj} object suitable for \code{\link[shiny:runApp]{shiny::runAp
 \description{
 \code{rill_app()} creates the Shiny application using configuration read from
 environment variables. With no \code{DATABASE_URL}, it uses bundled demo data.
-The production web container enables a private OIDC proxy gate. Its Reader
-Identity adapter resolves exact issuer and \code{sub} pairs to durable internal
-Readers. Configured \code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private
-Reader in \code{RILL_ACTOR_ID}; unknown identities remain denied with one pending
-admission record. Email and other profile claims are mutable metadata, not
-identity keys. When \code{RILL_CAPTURE_TOKEN} is set, the same application binds
-that credential to \code{RILL_ACTOR_ID} and accepts authenticated browser
-Documents at \verb{/api/v1/captures}. Captures and reading-copy selection remain
-private to that Reader. \code{RILL_AGENT_MODEL} selects the
+\code{RILL_IDENTITY_MODE=auth0} enables an in-app Auth0 gate for hosts such as
+Posit Connect Cloud, while \code{oidc_proxy} keeps the production container's
+upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
+\code{sub} pairs to durable internal Readers. Configured
+\code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private Reader in
+\code{RILL_ACTOR_ID}. The in-app gate rejects subjects outside that allowlist
+before Library database access; the proxy adapter records one pending
+admission while denying Library access. Email and other profile claims are
+mutable metadata, not identity keys. When \code{RILL_CAPTURE_TOKEN} is set, the
+same application binds that credential to \code{RILL_ACTOR_ID} and accepts
+authenticated browser Documents at
+\verb{/api/v1/captures}. Captures and reading-copy selection remain private to
+that Reader. \code{RILL_AGENT_MODEL} selects the
 \link[ellmer:chat]{ellmer} model used for source-grounded questions and
 Orientation. Its provider credential must also be available.
 \code{RILL_AGENT_BASE_URL} selects a custom provider endpoint and is required

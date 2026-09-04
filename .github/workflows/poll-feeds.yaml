@@ -1,0 +1,38 @@
+name: Poll feeds
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rill-feed-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    if: ${{ vars.RILL_POLLING_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.RILL_DATABASE_URL }}
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      RILL_ACTOR_ID: ${{ vars.RILL_ACTOR_ID }}
+      RILL_ENV: production
+      RILL_POLL_INTERVAL_MINUTES: ${{ vars.RILL_POLL_INTERVAL_MINUTES || '60' }}
+      RILL_POLL_FAILURE_THRESHOLD: ${{ vars.RILL_POLL_FAILURE_THRESHOLD || '5' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::pkgload
+      - name: Poll due Feeds
+        run: Rscript --vanilla scripts/poll.R

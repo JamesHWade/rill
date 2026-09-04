@@ -119,3 +119,66 @@ testthat::test_that("the web role rejects proxy configuration overrides", {
     fixed = TRUE
   )
 })
+
+testthat::test_that("hourly Feed polling is explicit and kill-switched", {
+  workflow <- testthat::test_path(
+    "..",
+    "..",
+    ".github",
+    "workflows",
+    "poll-feeds.yaml"
+  )
+  testthat::skip_if_not(
+    file.exists(workflow),
+    "GitHub workflow is not included in the built R package"
+  )
+  contents <- paste(readLines(workflow, warn = FALSE), collapse = "\n")
+
+  testthat::expect_match(contents, 'cron: "17 * * * *"', fixed = TRUE)
+  testthat::expect_match(
+    contents,
+    "vars.RILL_POLLING_ENABLED == 'true'",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    contents,
+    "DATABASE_URL: ${{ secrets.RILL_DATABASE_URL }}",
+    fixed = TRUE
+  )
+  testthat::expect_no_match(contents, "OPENAI_API_KEY", fixed = TRUE)
+  testthat::expect_no_match(contents, "AUTH0_CLIENT_SECRET", fixed = TRUE)
+})
+
+testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
+  manifest_path <- testthat::test_path("..", "..", "manifest.json")
+  testthat::skip_if_not(
+    file.exists(manifest_path),
+    "Connect manifest is not included in the built R package"
+  )
+  manifest <- jsonlite::read_json(manifest_path)
+
+  testthat::expect_identical(manifest$platform, "4.6.0")
+  testthat::expect_contains(
+    names(manifest$packages),
+    c("deputy", "shinyOAuth")
+  )
+  testthat::expect_contains(names(manifest$files), "app.R")
+  testthat::expect_contains(names(manifest$files), "R/identity.R")
+  source_files <- setdiff(names(manifest$files), ".Rbuildignore")
+  source_paths <- file.path(dirname(manifest_path), source_files)
+  source_files <- source_files[file.exists(source_paths)]
+  source_paths <- source_paths[file.exists(source_paths)]
+  manifest_checksums <- vapply(
+    manifest$files[source_files],
+    `[[`,
+    character(1L),
+    "checksum"
+  )
+  source_checksums <- unname(tools::md5sum(source_paths))
+  testthat::expect_identical(source_checksums, unname(manifest_checksums))
+  testthat::expect_no_match(
+    names(manifest$files),
+    "^prototypes/",
+    perl = TRUE
+  )
+})
