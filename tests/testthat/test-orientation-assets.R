@@ -260,7 +260,12 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(
     javascript,
-    'setReadingTelemetryPaused(compactSurface !== "reader")',
+    'compactReadingTelemetryPaused = compactSurface !== "reader"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "syncReadingTelemetryPaused()",
     fixed = TRUE
   )
   testthat::expect_match(
@@ -287,6 +292,11 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   testthat::expect_match(
     javascript,
     'compactSurface === "library"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'key !== "escape"',
     fixed = TRUE
   )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
@@ -318,6 +328,16 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   testthat::expect_match(
     javascript,
     'window.matchMedia("(max-width: 1499.98px)")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'const hasReader = Boolean(document.getElementById("reader-document"))',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'hasReader && !layout.classList.contains("sidebar-collapsed")',
     fixed = TRUE
   )
   testthat::expect_match(
