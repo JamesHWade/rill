@@ -24,10 +24,14 @@ rill_ui <- function(config) {
       shiny::includeScript(rill_package_file("app", "www", "app.js")),
       shiny::includeCSS(rill_package_file("app", "www", "styles.css"))
     ),
+    rill_skip_link_ui(),
+    rill_system_status_ui(),
     bslib::as_fill_carrier(
       shiny::tags$main(
+        id = "rill-app",
         class = "app-shell",
         `data-compact-surface` = "queue",
+        `aria-busy` = "true",
         compact_app_bar_ui(config),
         bslib::layout_sidebar(
           bslib::layout_sidebar(
@@ -53,6 +57,49 @@ rill_ui <- function(config) {
           class = "reading-shell"
         )
       )
+    )
+  )
+}
+
+rill_skip_link_ui <- function() {
+  shiny::tags$a(
+    class = "rill-skip-link",
+    href = "#rill-primary-surface",
+    "Skip to the reading surface"
+  )
+}
+
+rill_system_status_ui <- function() {
+  shiny::tags$aside(
+    id = "rill-system-status",
+    class = "rill-system-status is-starting",
+    `data-state` = "starting",
+    role = "status",
+    `aria-live` = "polite",
+    `aria-atomic` = "true",
+    shiny::tags$span(
+      class = "rill-system-status-icon",
+      `aria-hidden` = "true",
+      bsicons::bs_icon("cloud")
+    ),
+    shiny::tags$span(
+      class = "rill-system-status-copy",
+      shiny::tags$strong(
+        id = "rill-system-status-title",
+        "Opening Rill"
+      ),
+      shiny::tags$span(
+        id = "rill-system-status-detail",
+        "Connecting to your Library\u2026"
+      )
+    ),
+    shiny::tags$button(
+      id = "rill-system-status-action",
+      type = "button",
+      class = "rill-system-status-action",
+      onclick = "rillRecoverConnection()",
+      hidden = TRUE,
+      "Reload Rill"
     )
   )
 }
@@ -519,7 +566,10 @@ mark_unread_button <- function() {
 reader_pane_ui <- function(config) {
   bslib::layout_sidebar(
     shiny::tags$div(
+      id = "rill-primary-surface",
       class = "reader-scroll",
+      tabindex = "-1",
+      `aria-label` = "Reading surface",
       shiny::uiOutput("reader_header", container = shiny::tags$div),
       shiny::uiOutput("reader_body", container = shiny::tags$div)
     ),

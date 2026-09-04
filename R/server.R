@@ -2249,6 +2249,13 @@ rill_server <- function(config, store) {
       }
       shiny::tags$p(
         class = paste("sidebar-status", paste0("is-", status_kind())),
+        role = if (identical(status_kind(), "error")) "alert" else "status",
+        `aria-live` = if (identical(status_kind(), "error")) {
+          "assertive"
+        } else {
+          "polite"
+        },
+        `aria-atomic` = "true",
         text
       )
     })
@@ -2845,12 +2852,24 @@ rill_server <- function(config, store) {
         if (!nzchar(url)) {
           status_kind("error")
           status_text("Enter a feed or website URL.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "new_feed_url",
+              invalid = TRUE,
+              message = "Enter a feed or website URL."
+            )
+          )
           shiny::showNotification(
             "Enter a feed or website URL.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "new_feed_url", invalid = FALSE)
+        )
 
         result <- tryCatch(
           shiny::withProgress(
@@ -2905,12 +2924,24 @@ rill_server <- function(config, store) {
         if (is.null(feed_id) || !nzchar(title)) {
           status_kind("error")
           status_text("Select a feed and enter a name.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "feed_title",
+              invalid = TRUE,
+              message = "Enter a name for the selected feed."
+            )
+          )
           shiny::showNotification(
             "Select a feed and enter a name.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "feed_title", invalid = FALSE)
+        )
 
         result <- tryCatch(
           store_rename_feed(store, actor_id, feed_id, title),
@@ -2946,12 +2977,24 @@ rill_server <- function(config, store) {
         if (is.null(feed_id) || !nzchar(folder)) {
           status_kind("error")
           status_text("Select a feed and enter a folder.")
+          session$sendCustomMessage(
+            "rill-input-validity",
+            list(
+              id = "feed_folder",
+              invalid = TRUE,
+              message = "Enter a folder for the selected feed."
+            )
+          )
           shiny::showNotification(
             "Select a feed and enter a folder.",
             type = "warning"
           )
           return()
         }
+        session$sendCustomMessage(
+          "rill-input-validity",
+          list(id = "feed_folder", invalid = FALSE)
+        )
 
         result <- tryCatch(
           store_move_feed(store, actor_id, feed_id, folder),
