@@ -206,6 +206,21 @@ testthat::test_that("Escape preserves compact Reading before leaving it", {
     'document.addEventListener("keydown", handleAskRillEscape, true)',
     fixed = TRUE
   )
+  testthat::expect_match(
+    javascript,
+    "function visibleDialogOwnsEscape()",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "dialogOwnedEscapeEvents.add(event)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'key === "escape" && dialogOwnedEscapeEvents.has(event)',
+    fixed = TRUE
+  )
   testthat::expect_gt(compact_reader, 0L)
   testthat::expect_gt(queue_open, compact_reader)
   testthat::expect_gt(reader_close, queue_open)
@@ -230,6 +245,16 @@ testthat::test_that("reading telemetry follows the visible reader surface", {
   testthat::expect_match(
     javascript,
     "!readingTelemetryPaused",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "compactReadingTelemetryPaused || askRillReadingTelemetryPaused",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "askRillReadingTelemetryPaused = coversMain",
     fixed = TRUE
   )
   testthat::expect_match(

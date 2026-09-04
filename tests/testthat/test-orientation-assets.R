@@ -260,7 +260,12 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(
     javascript,
-    'setReadingTelemetryPaused(compactSurface !== "reader")',
+    'compactReadingTelemetryPaused = compactSurface !== "reader"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "syncReadingTelemetryPaused()",
     fixed = TRUE
   )
   testthat::expect_match(

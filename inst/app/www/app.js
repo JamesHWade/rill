@@ -69,6 +69,8 @@
   let lastHeartbeatAt = 0;
   let accumulatedReadingMs = 0;
   let readingTelemetryPaused = false;
+  let compactReadingTelemetryPaused = false;
+  let askRillReadingTelemetryPaused = false;
   let milestones = new Set();
   let fileResetRegistered = false;
   let chatSubmissionRegistered = false;
@@ -83,6 +85,7 @@
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
   let agentFocusPending = false;
+  const dialogOwnedEscapeEvents = new WeakSet();
   let connectionState = "starting";
   let hasConnected = false;
   let initialLoadComplete = false;
@@ -746,6 +749,12 @@
     }
   }
 
+  function syncReadingTelemetryPaused() {
+    setReadingTelemetryPaused(
+      compactReadingTelemetryPaused || askRillReadingTelemetryPaused
+    );
+  }
+
   function readingTelemetryActive() {
     return Boolean(
       activeEntryId &&
@@ -781,7 +790,8 @@
     const navigationSidebar = document.querySelector(".nav-sidebar");
     const storyPane = document.querySelector(".story-pane");
     if (!compactReaderMode.matches) {
-      setReadingTelemetryPaused(false);
+      compactReadingTelemetryPaused = false;
+      syncReadingTelemetryPaused();
       delete shell.dataset.compactSurface;
       compactSurface = null;
       setSurfaceCovered(readerPane, false);
@@ -816,7 +826,8 @@
       hasOrientation
     );
     shell.dataset.compactSurface = compactSurface;
-    setReadingTelemetryPaused(compactSurface !== "reader");
+    compactReadingTelemetryPaused = compactSurface !== "reader";
+    syncReadingTelemetryPaused();
     syncCompactSurfaceControls(shell, hasReader);
 
     const navigationHadFocus = setSidebarCovered(
@@ -1218,6 +1229,15 @@
     return true;
   }
 
+  function visibleDialogOwnsEscape() {
+    return matchingNodes(
+      document,
+      '.modal.show, [role="dialog"], [role="alertdialog"]'
+    ).some(function (dialog) {
+      return dialog.getClientRects().length > 0;
+    });
+  }
+
   function handleAskRillEscape(event) {
     if (
       event.defaultPrevented ||
@@ -1228,6 +1248,10 @@
       event.shiftKey ||
       event.key.toLowerCase() !== "escape"
     ) {
+      return;
+    }
+    if (visibleDialogOwnsEscape()) {
+      dialogOwnedEscapeEvents.add(event);
       return;
     }
 
@@ -1251,6 +1275,7 @@
 
     const key = event.key.toLowerCase();
     if (isEditableTarget(event.target)) return;
+    if (key === "escape" && dialogOwnedEscapeEvents.has(event)) return;
     if (
       compactReaderMode.matches &&
       compactSurface === "library" &&
@@ -1519,7 +1544,11 @@
 
   function syncAskRillControls() {
     const { layout, main, toggle } = readerAgentElements();
-    if (!layout || !toggle) return;
+    if (!layout || !toggle) {
+      askRillReadingTelemetryPaused = false;
+      syncReadingTelemetryPaused();
+      return;
+    }
     const hasReader = Boolean(document.getElementById("reader-document"));
     const expanded =
       hasReader && !layout.classList.contains("sidebar-collapsed");
@@ -1538,6 +1567,8 @@
         (main === document.activeElement || main.contains(document.activeElement))
     );
     setSurfaceCovered(main, coversMain);
+    askRillReadingTelemetryPaused = coversMain;
+    syncReadingTelemetryPaused();
     if (mainHadFocus) agentFocusPending = true;
     if (agentSidebarExpanded && !expanded) restoreAgentFocus();
     if (
