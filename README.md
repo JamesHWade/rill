@@ -1,4 +1,4 @@
-# Rill
+# Rill <img src="man/figures/logo.png" align="right" height="139" alt="Rill hex sticker: an otter reading a book in a stream." />
 
 Rill is a fast, personal Google Reader-style app delivered as an R package and
 Shiny application. It keeps the feed reader small while leaving useful seams

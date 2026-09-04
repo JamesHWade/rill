@@ -18,9 +18,13 @@
 
 * Ask Rill now embeds shinychat beside the selected story, streams a tightly bounded Deputy Agent over one immutable Document, and records each question in the durable Agent Run lifecycle with cancellation and Retry (#30).
 
-* Rill now has a duck-and-ripple identity, paired duck-egg daylight and warm ink-and-reed dark palettes, a system-aware appearance control, and an Atkinson Hyperlegible/Literata type system tuned for efficient navigation and comfortable reading.
+* Rill now has a reading-otter identity across desktop and compact headers, browser and home-screen icons, and quiet reading states, paired river-mist daylight and warm ink-and-reed dark palettes, a system-aware appearance control, and an Atkinson Hyperlegible/Literata type system tuned for efficient navigation and comfortable reading.
 
-* Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that can be resized or collapsed on desktop and stack above content on mobile.
+* Navigation and the reading queue now use nested, fill-aware `bslib` sidebars that resize on wide screens, reduce to Queue plus reading canvas at medium widths, and become separate Library, Queue, and Reading surfaces on phones without discarding the selected Document (#47, #48).
+
+* Orientation now distinguishes source Documents, agent interpretation, path rationale, and quoted evidence at every step; Reading exposes stored-copy provenance through `bslib`, and Ask Rill has a source-bound context panel with an explicit responsive trigger (#49).
+
+* Rill now presents startup, loading, disconnected, reconnecting, progress, notification, validation, and recovery states as one accessible visual system, with a skip link, live status semantics, reduced-motion and forced-color support, and an inspectable responsive browser contract (#50).
 
 * Feed navigation and the reading queue now remain independently scrollable when their contents exceed the viewport (#28).
 

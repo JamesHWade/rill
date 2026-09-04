@@ -2,7 +2,13 @@
   const themeStorageKey = "rill-theme-mode";
   const themeModes = new Set(["system", "light", "dark"]);
   const systemDarkMode = window.matchMedia("(prefers-color-scheme: dark)");
-  const desktopReaderMode = window.matchMedia("(min-width: 576px)");
+  const compactReaderMode = window.matchMedia("(max-width: 767.98px)");
+  const mediumReaderMode = window.matchMedia(
+    "(min-width: 768px) and (max-width: 1099.98px)"
+  );
+  const wideReaderMode = window.matchMedia("(min-width: 1100px)");
+  const desktopReaderMode = window.matchMedia("(min-width: 768px)");
+  const overlaidAgentMode = window.matchMedia("(max-width: 1499.98px)");
 
   function storedThemeMode() {
     try {
@@ -61,6 +67,10 @@
   let pendingOrientationReturnFocus = null;
   let openedAt = 0;
   let lastHeartbeatAt = 0;
+  let accumulatedReadingMs = 0;
+  let readingTelemetryPaused = false;
+  let compactReadingTelemetryPaused = false;
+  let askRillReadingTelemetryPaused = false;
   let milestones = new Set();
   let fileResetRegistered = false;
   let chatSubmissionRegistered = false;
@@ -68,6 +78,266 @@
   let orientationActionMessagesRegistered = false;
   let chatSubmissionIndex = 0;
   let orientationModalWasOpen = false;
+  let compactSurface = null;
+  let compactReturnSurface = "queue";
+  let pendingCompactQueue = false;
+  let agentReturnFocus = null;
+  let agentSidebarExpanded = false;
+  let agentSidebarObserver = null;
+  let agentFocusPending = false;
+  const dialogOwnedEscapeEvents = new WeakSet();
+  let connectionState = "starting";
+  let hasConnected = false;
+  let initialLoadComplete = false;
+  let systemStatusTimer = null;
+  let systemEventsRegistered = false;
+  let inputValidityRegistered = false;
+  let readingStatusTrigger = null;
+
+  function setAppBusy(busy) {
+    const app = document.getElementById("rill-app");
+    if (app) app.setAttribute("aria-busy", String(busy));
+  }
+
+  function setSystemStatus(
+    state,
+    title,
+    detail,
+    { action = false, assertive = false, hideAfter = null } = {}
+  ) {
+    const status = document.getElementById("rill-system-status");
+    const titleNode = document.getElementById("rill-system-status-title");
+    const detailNode = document.getElementById("rill-system-status-detail");
+    const actionNode = document.getElementById("rill-system-status-action");
+    if (!status || !titleNode || !detailNode || !actionNode) return;
+
+    window.clearTimeout(systemStatusTimer);
+    status.hidden = false;
+    status.dataset.state = state;
+    status.className = `rill-system-status is-${state}`;
+    status.setAttribute("role", assertive ? "alert" : "status");
+    status.setAttribute("aria-live", assertive ? "assertive" : "polite");
+    titleNode.textContent = title;
+    detailNode.textContent = detail;
+    actionNode.hidden = !action;
+
+    if (hideAfter !== null) {
+      systemStatusTimer = window.setTimeout(function () {
+        status.hidden = true;
+      }, hideAfter);
+    }
+  }
+
+  function handleShinyConnected() {
+    if (connectionState === "connected") return;
+    const restored = hasConnected || connectionState === "disconnected";
+    hasConnected = true;
+    connectionState = "connected";
+    setAppBusy(false);
+    if (restored) {
+      setSystemStatus(
+        "restored",
+        "Connection restored",
+        "Your Library and reading position are available again.",
+        { hideAfter: 2400 }
+      );
+    } else {
+      setSystemStatus(
+        "loading",
+        "Opening your Library",
+        "Loading feeds, stories, and your reading position\u2026"
+      );
+    }
+  }
+
+  function handleShinyDisconnected() {
+    connectionState = navigator.onLine ? "disconnected" : "offline";
+    setAppBusy(true);
+    if (connectionState === "offline") {
+      setSystemStatus(
+        "offline",
+        "You\u2019re offline",
+        "Your place is safe. Reconnect to continue with your Library.",
+        { action: true, assertive: true }
+      );
+    } else {
+      setSystemStatus(
+        "disconnected",
+        "Connection interrupted",
+        "Your place is safe. Rill will try to reconnect.",
+        { action: true, assertive: true }
+      );
+    }
+  }
+
+  function matchingNodes(root, selector) {
+    const nodes = [];
+    if (root instanceof Element && root.matches(selector)) nodes.push(root);
+    if (typeof root.querySelectorAll === "function") {
+      nodes.push(...root.querySelectorAll(selector));
+    }
+    return nodes;
+  }
+
+  function enhanceNativeFeedback(root = document) {
+    matchingNodes(root, ".shiny-notification").forEach(function (notice) {
+      const urgent = notice.matches(
+        ".shiny-notification-error, .shiny-notification-warning"
+      );
+      notice.setAttribute("role", urgent ? "alert" : "status");
+      notice.setAttribute("aria-live", urgent ? "assertive" : "polite");
+      notice.setAttribute("aria-atomic", "true");
+      const close = notice.querySelector(".shiny-notification-close");
+      if (close) close.setAttribute("aria-label", "Dismiss notification");
+    });
+
+    matchingNodes(root, ".shiny-output-error").forEach(function (error) {
+      error.setAttribute("role", "alert");
+      error.setAttribute("aria-live", "assertive");
+      error.setAttribute("aria-atomic", "true");
+    });
+
+    matchingNodes(root, ".shiny-progress .progress").forEach(
+      function (progress) {
+        progress.setAttribute("role", "progressbar");
+        const container = progress.closest(".shiny-progress");
+        const message = container && container.querySelector(".progress-message");
+        progress.setAttribute(
+          "aria-label",
+          (message && message.textContent.trim()) || "Rill progress"
+        );
+      }
+    );
+
+    matchingNodes(root, ".popover").forEach(function (popover) {
+      if (!popover.querySelector(".btn-read-action")) return;
+      const title = popover.querySelector(".popover-header");
+      if (title) {
+        title.id = title.id || `${popover.id}-title`;
+        popover.setAttribute("aria-labelledby", title.id);
+      } else {
+        popover.setAttribute("aria-label", "Reading status");
+      }
+      popover.setAttribute("role", "dialog");
+    });
+  }
+
+  function registerSystemEvents() {
+    if (systemEventsRegistered || !window.jQuery) return;
+    const events = window.jQuery(document);
+    events.on("shiny:connected.rillSystemStatus", handleShinyConnected);
+    events.on("shiny:disconnected.rillSystemStatus", handleShinyDisconnected);
+    events.on("shiny:busy.rillSystemStatus", function () {
+      setAppBusy(true);
+    });
+    events.on("shiny:idle.rillSystemStatus", function () {
+      if (connectionState !== "connected") return;
+      setAppBusy(false);
+      if (!initialLoadComplete) {
+        initialLoadComplete = true;
+        setSystemStatus(
+          "ready",
+          "Library ready",
+          "Rill is ready for reading.",
+          { hideAfter: 800 }
+        );
+      }
+    });
+    events.on("shiny:recalculating.rillSystemStatus", function (event) {
+      if (event.target instanceof Element) {
+        event.target.setAttribute("aria-busy", "true");
+      }
+    });
+    events.on("shiny:recalculated.rillSystemStatus", function (event) {
+      if (event.target instanceof Element) {
+        event.target.setAttribute("aria-busy", "false");
+      }
+    });
+    systemEventsRegistered = true;
+
+    window.setTimeout(function () {
+      const socket =
+        window.Shiny &&
+        window.Shiny.shinyapp &&
+        window.Shiny.shinyapp.$socket;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        handleShinyConnected();
+      }
+    }, 0);
+  }
+
+  function setInputValidity(message) {
+    const input = document.getElementById(message.id);
+    if (!input) return;
+    const feedbackId = `${message.id}-feedback`;
+    let feedback = document.getElementById(feedbackId);
+    const describedBy = new Set(
+      (input.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+
+    if (message.invalid) {
+      input.setAttribute("aria-invalid", "true");
+      if (!feedback) {
+        feedback = document.createElement("p");
+        feedback.id = feedbackId;
+        feedback.className = "rill-input-feedback";
+        input.closest(".form-group, .shiny-input-container")?.append(feedback);
+      }
+      feedback.textContent = message.message || "Check this value.";
+      describedBy.add(feedbackId);
+    } else {
+      input.removeAttribute("aria-invalid");
+      if (feedback) feedback.remove();
+      describedBy.delete(feedbackId);
+    }
+
+    if (describedBy.size) {
+      input.setAttribute("aria-describedby", [...describedBy].join(" "));
+    } else {
+      input.removeAttribute("aria-describedby");
+    }
+  }
+
+  function registerInputValidity() {
+    if (inputValidityRegistered || !window.Shiny) return;
+    window.Shiny.addCustomMessageHandler("rill-input-validity", setInputValidity);
+    inputValidityRegistered = true;
+  }
+
+  window.rillRecoverConnection = function () {
+    window.location.reload();
+  };
+
+  window.rillUiAudit = function () {
+    const root = document.documentElement;
+    const body = document.body;
+    const app = document.getElementById("rill-app");
+    const selected = document.getElementById("reader-document");
+    const activeSurface = app && app.dataset.compactSurface;
+    return {
+      viewportWidth: window.innerWidth,
+      horizontalOverflow:
+        root.scrollWidth > window.innerWidth + 1 ||
+        body.scrollWidth > window.innerWidth + 1,
+      appBusy: app && app.getAttribute("aria-busy"),
+      connectionState,
+      activeSurface: activeSurface || "multi-pane",
+      selectedEntryId: selected && selected.dataset.entryId,
+      selectedDocumentId: selected && selected.dataset.documentId,
+      focusedElement:
+        document.activeElement &&
+        (document.activeElement.id ||
+          document.activeElement.getAttribute("aria-label") ||
+          document.activeElement.textContent.trim().slice(0, 80)),
+      visibleDialogs: matchingNodes(document, '[role="dialog"]').filter(
+        function (dialog) {
+          return dialog.getClientRects().length > 0;
+        }
+      ).length
+    };
+  };
 
   function eventId() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -200,7 +470,7 @@
         focusOrientation();
       } else {
         focusStory(entryId, {
-          reveal: window.matchMedia("(max-width: 900px)").matches
+          reveal: compactReaderMode.matches
         });
       }
     }, 300);
@@ -235,7 +505,7 @@
     }
 
     focusStory(null, {
-      reveal: window.matchMedia("(max-width: 900px)").matches
+      reveal: compactReaderMode.matches
     });
   }
 
@@ -338,31 +608,248 @@
     return containsFocus;
   }
 
+  function compactReaderAvailable(hasReader, hasOrientation) {
+    return hasReader || hasOrientation;
+  }
+
+  function normalizedCompactSurface(surface, hasReader, hasOrientation) {
+    if (surface === "library") return "library";
+    if (
+      surface === "reader" &&
+      compactReaderAvailable(hasReader, hasOrientation)
+    ) {
+      return "reader";
+    }
+    return "queue";
+  }
+
+  function syncCompactSurfaceControls(shell, hasReader) {
+    const libraryTrigger = document.querySelector(".compact-library-trigger");
+    if (libraryTrigger) {
+      libraryTrigger.setAttribute(
+        "aria-expanded",
+        String(shell.dataset.compactSurface === "library")
+      );
+    }
+
+    document.querySelectorAll(".compact-reader-return").forEach(
+      function (button) {
+        button.hidden = !hasReader;
+      }
+    );
+  }
+
+  function focusLibrary() {
+    window.requestAnimationFrame(function () {
+      const heading = document.querySelector(".compact-library-header h1");
+      if (!heading) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    });
+  }
+
+  function focusCompactSurface(surface, hasReader) {
+    if (surface === "library") {
+      focusLibrary();
+    } else if (surface === "reader") {
+      if (hasReader) {
+        focusReader();
+      } else {
+        focusOrientation();
+      }
+    } else {
+      focusStory(activeEntryId, { reveal: false });
+    }
+  }
+
+  function handleSkipLink(event) {
+    const target = event.target;
+    if (
+      !(target instanceof Element) ||
+      !target.closest(".rill-skip-link") ||
+      !compactReaderMode.matches
+    ) {
+      return;
+    }
+
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return;
+    event.preventDefault();
+    const hasReader = Boolean(document.getElementById("reader-document"));
+    const hasOrientation = Boolean(document.getElementById("rill-orientation"));
+    const surface = normalizedCompactSurface(
+      compactSurface || shell.dataset.compactSurface,
+      hasReader,
+      hasOrientation
+    );
+    focusCompactSurface(surface, hasReader);
+  }
+
+  function showCompactSurface(surface, options = {}) {
+    if (!compactReaderMode.matches) return;
+
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return;
+    const hasReader = Boolean(document.getElementById("reader-document"));
+    const hasOrientation = Boolean(document.getElementById("rill-orientation"));
+    const nextSurface = normalizedCompactSurface(
+      surface,
+      hasReader,
+      hasOrientation
+    );
+    if (options.remember === true && compactSurface !== nextSurface) {
+      compactReturnSurface = compactSurface || "queue";
+    }
+    if (nextSurface === "queue") pendingCompactQueue = true;
+    if (nextSurface === "reader") pendingCompactQueue = false;
+    compactSurface = nextSurface;
+    syncMobileSurfaces(shell, hasReader, hasOrientation);
+    if (options.focus !== false) {
+      focusCompactSurface(nextSurface, hasReader);
+    }
+  }
+
+  function readingDwellSeconds(now = Date.now()) {
+    const currentSegment = openedAt > 0 ? Math.max(0, now - openedAt) : 0;
+    return Math.max(
+      0,
+      Math.round((accumulatedReadingMs + currentSegment) / 1000)
+    );
+  }
+
+  function pauseReadingTelemetryClock(flushHeartbeat = false) {
+    if (!activeEntryId || openedAt === 0) return;
+    const now = Date.now();
+    accumulatedReadingMs += Math.max(0, now - openedAt);
+    openedAt = 0;
+    if (flushHeartbeat) {
+      const seconds = Math.max(
+        0,
+        Math.round((now - lastHeartbeatAt) / 1000)
+      );
+      if (seconds > 0) send("dwell_heartbeat", { dwell_seconds: seconds });
+    }
+    lastHeartbeatAt = now;
+  }
+
+  function resumeReadingTelemetryClock() {
+    if (!activeEntryId || openedAt > 0) return;
+    openedAt = Date.now();
+    lastHeartbeatAt = openedAt;
+  }
+
+  function setReadingTelemetryPaused(paused) {
+    const nextPaused = Boolean(paused);
+    if (!readingTelemetryPaused && nextPaused) {
+      pauseReadingTelemetryClock(true);
+    }
+    readingTelemetryPaused = nextPaused;
+    if (!nextPaused && document.visibilityState === "visible") {
+      resumeReadingTelemetryClock();
+    }
+  }
+
+  function syncReadingTelemetryPaused() {
+    setReadingTelemetryPaused(
+      compactReadingTelemetryPaused || askRillReadingTelemetryPaused
+    );
+  }
+
+  function readingTelemetryActive() {
+    return Boolean(
+      activeEntryId &&
+        !readingTelemetryPaused &&
+        openedAt > 0 &&
+        document.visibilityState === "visible"
+    );
+  }
+
+  function restoreFocusFromCompactChrome(hasReader, hasOrientation) {
+    const active = document.activeElement;
+    if (
+      !(active instanceof Element) ||
+      !active.closest(
+        ".compact-library-header, .compact-app-bar, .mobile-back"
+      )
+    ) {
+      return;
+    }
+    if (hasReader) {
+      focusReader();
+    } else if (hasOrientation) {
+      focusOrientation();
+    } else {
+      focusStory(activeEntryId, { reveal: false });
+    }
+  }
+
   function syncMobileSurfaces(shell, hasReader, hasOrientation) {
     if (!shell) return;
 
     const readerPane = document.querySelector(".reader-pane");
     const navigationSidebar = document.querySelector(".nav-sidebar");
     const storyPane = document.querySelector(".story-pane");
-    const orientationVisible = Boolean(
-      !desktopReaderMode.matches &&
-        !hasReader &&
-        hasOrientation &&
-        !shell.classList.contains("orientation-queue-visible")
-    );
+    if (!compactReaderMode.matches) {
+      compactReadingTelemetryPaused = false;
+      syncReadingTelemetryPaused();
+      delete shell.dataset.compactSurface;
+      compactSurface = null;
+      setSurfaceCovered(readerPane, false);
+      setSidebarCovered(navigationSidebar, false);
+      setSidebarCovered(storyPane, false);
+      restoreFocusFromCompactChrome(hasReader, hasOrientation);
+      return;
+    }
 
-    const readerPaneHidden = Boolean(
-      !desktopReaderMode.matches && !hasReader && !orientationVisible
+    if (!compactSurface) {
+      compactSurface = compactReaderAvailable(hasReader, hasOrientation)
+        ? "reader"
+        : "queue";
+    }
+    if (pendingCompactQueue && !hasReader) {
+      compactSurface = "queue";
+    } else if (
+      shell.classList.contains("orientation-queue-visible") &&
+      !hasReader
+    ) {
+      compactSurface = "queue";
+    } else if (
+      hasOrientation &&
+      !hasReader &&
+      compactSurface !== "library"
+    ) {
+      compactSurface = "reader";
+    }
+    compactSurface = normalizedCompactSurface(
+      compactSurface,
+      hasReader,
+      hasOrientation
     );
-    setSurfaceCovered(readerPane, readerPaneHidden);
+    shell.dataset.compactSurface = compactSurface;
+    compactReadingTelemetryPaused = compactSurface !== "reader";
+    syncReadingTelemetryPaused();
+    syncCompactSurfaceControls(shell, hasReader);
+
     const navigationHadFocus = setSidebarCovered(
       navigationSidebar,
-      orientationVisible
+      compactSurface !== "library"
     );
-    const queueHadFocus = setSidebarCovered(storyPane, orientationVisible);
+    const queueHadFocus = setSidebarCovered(
+      storyPane,
+      compactSurface !== "queue"
+    );
+    const readerHadFocus = Boolean(
+      readerPane &&
+        (readerPane === document.activeElement ||
+          readerPane.contains(document.activeElement))
+    );
+    setSurfaceCovered(readerPane, compactSurface !== "reader");
 
-    if (orientationVisible && (navigationHadFocus || queueHadFocus)) {
-      focusOrientation();
+    if (
+      (navigationHadFocus || queueHadFocus || readerHadFocus) &&
+      focusWasLost()
+    ) {
+      focusCompactSurface(compactSurface, hasReader);
     }
   }
 
@@ -376,6 +863,12 @@
     const hasOrientation = Boolean(orientation);
     const hasReader = Boolean(nextId);
     const shell = document.querySelector(".app-shell");
+    const selectionChanged = Boolean(
+      nextId &&
+        (nextId !== activeEntryId ||
+          nextDocumentId !== activeDocumentId ||
+          nextSurface !== activeEntrySurface)
+    );
     localizeOrientationTimes();
     syncOrientationModalFocus();
     if (shell) {
@@ -383,6 +876,29 @@
       shell.classList.toggle("has-orientation", hasOrientation);
       if (!hasOrientation && !hasReader) {
         shell.classList.remove("orientation-queue-visible");
+      }
+    }
+    if (compactReaderMode.matches && selectionChanged) {
+      compactSurface = "reader";
+      pendingCompactQueue = false;
+    } else if (
+      compactReaderMode.matches &&
+      !nextId &&
+      activeEntryId &&
+      pendingEntrySurface === null
+    ) {
+      if (
+        activeEntrySurface === "orientation" &&
+        hasOrientation &&
+        !pendingCompactQueue
+      ) {
+        if (shell) shell.classList.remove("orientation-queue-visible");
+        compactSurface = "reader";
+      } else {
+        if (shell && hasOrientation) {
+          shell.classList.add("orientation-queue-visible");
+        }
+        compactSurface = "queue";
       }
     }
     syncMobileSurfaces(shell, hasReader, hasOrientation);
@@ -421,7 +937,7 @@
         focusWasLost()
       ) {
         focusStory(null, {
-          reveal: window.matchMedia("(max-width: 900px)").matches
+          reveal: compactReaderMode.matches
         });
       }
       return;
@@ -431,9 +947,12 @@
       nextDocumentId === activeDocumentId &&
       nextSurface === activeEntrySurface
     ) {
+      const readerSurfaceVisible =
+        !compactReaderMode.matches || compactSurface === "reader";
       if (
-        pendingReaderFocus ||
-        (nextSurface === "orientation" && focusWasLost())
+        readerSurfaceVisible &&
+        (pendingReaderFocus ||
+          (nextSurface === "orientation" && focusWasLost()))
       ) {
         pendingReaderFocus = true;
         focusReader();
@@ -444,11 +963,17 @@
     activeEntryId = nextId;
     activeDocumentId = nextDocumentId;
     activeEntrySurface = nextSurface;
-    pendingReaderFocus = activeEntrySurface === "orientation";
+    pendingReaderFocus =
+      compactReaderMode.matches || activeEntrySurface === "orientation";
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
-    openedAt = Date.now();
-    lastHeartbeatAt = openedAt;
+    accumulatedReadingMs = 0;
+    const now = Date.now();
+    openedAt =
+      readingTelemetryPaused || document.visibilityState !== "visible"
+        ? 0
+        : now;
+    lastHeartbeatAt = now;
     milestones = new Set();
     const scrollPane = document.querySelector(".reader-scroll");
     if (scrollPane) scrollPane.scrollTop = 0;
@@ -485,6 +1010,7 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    pendingCompactQueue = false;
     pendingEntrySurface = normalizeSelectionSurface(surface);
     pendingOrientationSelectionCardId =
       pendingEntrySurface === "orientation" && provenance
@@ -554,9 +1080,15 @@
 
   function revealOrientationQueue(_message) {
     const shell = document.querySelector(".app-shell");
-    if (shell) shell.classList.add("orientation-queue-visible");
+    if (shell) {
+      shell.classList.add("orientation-queue-visible");
+      if (compactReaderMode.matches) {
+        compactSurface = "queue";
+        pendingCompactQueue = true;
+      }
+    }
     syncReader();
-    const reveal = window.matchMedia("(max-width: 900px)").matches;
+    const reveal = compactReaderMode.matches;
     focusStory(null, { reveal });
     window.setTimeout(function () {
       const currentShell = document.querySelector(".app-shell");
@@ -582,12 +1114,45 @@
 
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
+    pendingCompactQueue = false;
     if (shell) shell.classList.remove("orientation-queue-visible");
+    if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
     focusOrientation();
   };
 
+  window.rillOpenLibrary = function () {
+    showCompactSurface("library", { remember: true });
+  };
+
+  window.rillCloseLibrary = function () {
+    const destination = compactReturnSurface;
+    compactReturnSurface = "queue";
+    showCompactSurface(destination);
+  };
+
+  window.rillOpenQueue = function () {
+    const shell = document.querySelector(".app-shell");
+    if (shell && document.getElementById("rill-orientation")) {
+      shell.classList.add("orientation-queue-visible");
+    }
+    showCompactSurface("queue", { remember: true });
+  };
+
+  window.rillReturnToReading = function () {
+    const shell = document.querySelector(".app-shell");
+    if (shell) shell.classList.remove("orientation-queue-visible");
+    showCompactSurface("reader");
+  };
+
   window.rillSelectFeed = function (id) {
+    if (!window.Shiny) return;
+    const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches) pendingCompactQueue = true;
+    if (shell && document.getElementById("rill-orientation")) {
+      shell.classList.add("orientation-queue-visible");
+    }
+    showCompactSurface("queue", { focus: false });
     window.Shiny.setInputValue(
       "select_feed",
       { id, nonce: Math.random() },
@@ -607,7 +1172,7 @@
 
   window.rillTrack = function (type) {
     send(type, {
-      dwell_seconds: Math.max(0, Math.round((Date.now() - openedAt) / 1000))
+      dwell_seconds: readingDwellSeconds()
     });
   };
 
@@ -621,8 +1186,11 @@
 
   function moveStory(direction) {
     const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches && compactSurface === "library") {
+      return false;
+    }
     if (
-      window.matchMedia("(max-width: 900px)").matches &&
+      compactReaderMode.matches &&
       shell &&
       shell.classList.contains("has-orientation") &&
       !shell.classList.contains("orientation-queue-visible") &&
@@ -665,7 +1233,16 @@
     return true;
   }
 
-  function handleShortcut(event) {
+  function visibleDialogOwnsEscape() {
+    return matchingNodes(
+      document,
+      '.modal.show, [role="dialog"], [role="alertdialog"]'
+    ).some(function (dialog) {
+      return dialog.getClientRects().length > 0;
+    });
+  }
+
+  function handleAskRillEscape(event) {
     if (
       event.defaultPrevented ||
       event.isComposing ||
@@ -673,12 +1250,44 @@
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
-      isEditableTarget(event.target)
+      event.key.toLowerCase() !== "escape"
+    ) {
+      return;
+    }
+    if (visibleDialogOwnsEscape()) {
+      dialogOwnedEscapeEvents.add(event);
+      return;
+    }
+
+    const { layout } = readerAgentElements();
+    if (!layout || layout.classList.contains("sidebar-collapsed")) return;
+    setSidebarExpanded("reader_agent_sidebar", false);
+    event.preventDefault();
+  }
+
+  function handleShortcut(event) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
     ) {
       return;
     }
 
     const key = event.key.toLowerCase();
+    if (isEditableTarget(event.target)) return;
+    if (key === "escape" && dialogOwnedEscapeEvents.has(event)) return;
+    if (
+      key !== "escape" &&
+      (askRillReadingTelemetryPaused ||
+        (compactReaderMode.matches && compactSurface === "library"))
+    ) {
+      return;
+    }
+
     let handled = false;
     if (key === "j") handled = moveStory(1);
     if (key === "k") handled = moveStory(-1);
@@ -687,7 +1296,27 @@
     if (key === "f") handled = toggleReaderAction("toggle_star");
     if (key === "escape") {
       const shell = document.querySelector(".app-shell");
-      if (activeEntryId) {
+      if (
+        compactReaderMode.matches &&
+        compactSurface === "library"
+      ) {
+        window.rillCloseLibrary();
+        handled = true;
+      } else if (
+        compactReaderMode.matches &&
+        compactSurface === "queue" &&
+        activeEntryId
+      ) {
+        window.rillReturnToReading();
+        handled = true;
+      } else if (
+        compactReaderMode.matches &&
+        compactSurface === "reader" &&
+        activeEntryId
+      ) {
+        window.rillOpenQueue();
+        handled = true;
+      } else if (activeEntryId) {
         window.rillCloseReader();
         handled = true;
       } else if (
@@ -709,7 +1338,7 @@
     scrollPane.addEventListener(
       "scroll",
       function () {
-        if (!activeEntryId) return;
+        if (!readingTelemetryActive()) return;
         const available = scrollPane.scrollHeight - scrollPane.clientHeight;
         if (available <= 0) return;
         const percent = Math.min(100, Math.round((scrollPane.scrollTop / available) * 100));
@@ -718,7 +1347,7 @@
             milestones.add(milestone);
             send("scroll_milestone", {
               scroll_percent: milestone,
-              dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+              dwell_seconds: readingDwellSeconds()
             });
           }
         });
@@ -728,7 +1357,7 @@
   }
 
   function heartbeat() {
-    if (!activeEntryId || document.visibilityState !== "visible") return;
+    if (!readingTelemetryActive()) return;
     const now = Date.now();
     const seconds = Math.round((now - lastHeartbeatAt) / 1000);
     lastHeartbeatAt = now;
@@ -796,6 +1425,11 @@
           pendingReaderFocus = true;
           focusReader();
           recoverReaderFocus();
+        } else if (
+          compactReaderMode.matches &&
+          document.getElementById("reader-document")
+        ) {
+          showCompactSurface("reader");
         }
       }
     );
@@ -845,20 +1479,215 @@
     syncThemeControl(document.documentElement.dataset.rillThemeMode || "system");
   }
 
-  function initializeCompactSidebarState() {
-    const compactDesktop = window.matchMedia(
-      "(min-width: 576px) and (max-width: 1050px)"
-    );
-    if (!compactDesktop.matches) return;
+  function setSidebarExpanded(id, expanded) {
+    const sidebar = document.getElementById(id);
+    const layout = sidebar && sidebar.parentElement;
+    const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
+    if (!layout || !toggle) return;
+    const collapsed = layout.classList.contains("sidebar-collapsed");
+    if (collapsed === expanded) toggle.click();
+  }
 
-    ["navigation_sidebar", "reader_agent_sidebar"].forEach(function (id) {
-      const sidebar = document.getElementById(id);
-      const layout = sidebar && sidebar.parentElement;
-      const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
-      if (layout && toggle && !layout.classList.contains("sidebar-collapsed")) {
-        toggle.click();
-      }
+  function readerAgentElements() {
+    const sidebar = document.getElementById("reader_agent_sidebar");
+    const layout = sidebar && sidebar.parentElement;
+    const main = layout && layout.querySelector(":scope > .main");
+    const toggle =
+      layout && layout.querySelector(":scope > .collapse-toggle");
+    return { sidebar, layout, main, toggle };
+  }
+
+  function focusAgentSidebar() {
+    window.requestAnimationFrame(function () {
+      const { sidebar } = readerAgentElements();
+      const heading = sidebar && sidebar.querySelector("#reader-agent-title");
+      if (!heading) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
     });
+  }
+
+  function restoreAgentFocus() {
+    const target =
+      agentReturnFocus && document.contains(agentReturnFocus)
+        ? agentReturnFocus
+        : document.querySelector(".article-header h1");
+    agentReturnFocus = null;
+    if (!target) return;
+    if (!target.matches("button, a, input, select, textarea, summary")) {
+      target.setAttribute("tabindex", "-1");
+    }
+    function applyFocus(onlyIfDisplaced = false) {
+      const active = document.activeElement;
+      if (
+        onlyIfDisplaced &&
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !active.matches(".article-header h1, .collapse-toggle") &&
+        !active.closest(".reader-agent-sidebar")
+      ) {
+        return;
+      }
+      target.focus({ preventScroll: true });
+    }
+    window.requestAnimationFrame(applyFocus);
+    window.setTimeout(function () {
+      applyFocus(true);
+    }, 200);
+  }
+
+  function ensureAskRillSettled() {
+    const { layout, toggle } = readerAgentElements();
+    if (!layout || !toggle || !layout.classList.contains("transitioning")) {
+      return;
+    }
+    const icon = toggle.querySelector(".collapse-icon");
+    if (icon) icon.dispatchEvent(new Event("transitionend"));
+  }
+
+  function syncAskRillControls() {
+    const { layout, main, toggle } = readerAgentElements();
+    if (!layout || !toggle) {
+      askRillReadingTelemetryPaused = false;
+      syncReadingTelemetryPaused();
+      return;
+    }
+    const hasReader = Boolean(document.getElementById("reader-document"));
+    const expanded =
+      hasReader && !layout.classList.contains("sidebar-collapsed");
+    const label = expanded ? "Close Ask Rill" : "Open Ask Rill";
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("title", label);
+    document.querySelectorAll(".reader-agent-trigger").forEach(
+      function (trigger) {
+        trigger.setAttribute("aria-expanded", String(expanded));
+      }
+    );
+    const coversMain = expanded && overlaidAgentMode.matches;
+    const mainHadFocus = Boolean(
+      coversMain &&
+        main &&
+        (main === document.activeElement || main.contains(document.activeElement))
+    );
+    setSurfaceCovered(main, coversMain);
+    askRillReadingTelemetryPaused = coversMain;
+    syncReadingTelemetryPaused();
+    if (mainHadFocus) agentFocusPending = true;
+    if (agentSidebarExpanded && !expanded) restoreAgentFocus();
+    if (
+      expanded &&
+      agentFocusPending &&
+      !layout.classList.contains("transitioning")
+    ) {
+      agentFocusPending = false;
+      focusAgentSidebar();
+    }
+    if (!expanded) agentFocusPending = false;
+    agentSidebarExpanded = expanded;
+  }
+
+  function rememberAgentToggleFocus(event) {
+    const { layout, toggle } = readerAgentElements();
+    if (!layout || !toggle || !toggle.contains(event.target)) return;
+    if (layout.classList.contains("sidebar-collapsed")) {
+      agentReturnFocus = document.activeElement;
+    }
+    window.setTimeout(ensureAskRillSettled, 400);
+  }
+
+  function registerAgentSidebarControls() {
+    const { layout } = readerAgentElements();
+    if (!layout) return;
+    if (agentSidebarObserver) agentSidebarObserver.disconnect();
+    agentSidebarObserver = new MutationObserver(syncAskRillControls);
+    agentSidebarObserver.observe(layout, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+    syncAskRillControls();
+  }
+
+  window.rillOpenAskRill = function (trigger) {
+    agentReturnFocus = trigger || document.activeElement;
+    agentFocusPending = true;
+    setSidebarExpanded("reader_agent_sidebar", true);
+    window.setTimeout(syncAskRillControls, 0);
+    window.setTimeout(ensureAskRillSettled, 400);
+  };
+
+  function syncResponsiveSidebarState() {
+    if (mediumReaderMode.matches) {
+      setSidebarExpanded("navigation_sidebar", false);
+      setSidebarExpanded("story_sidebar", true);
+      setSidebarExpanded("reader_agent_sidebar", false);
+      return;
+    }
+    if (!wideReaderMode.matches) return;
+
+    ["navigation_sidebar", "story_sidebar"].forEach(function (id) {
+      setSidebarExpanded(id, true);
+    });
+  }
+
+  function handleResponsiveLayoutChange() {
+    window.setTimeout(syncResponsiveSidebarState, 0);
+    syncReader();
+    syncAskRillControls();
+  }
+
+  function handleAgentLayoutChange() {
+    syncReader();
+    syncAskRillControls();
+  }
+
+  function syncReaderSurfaces() {
+    syncReader();
+    syncAskRillControls();
+  }
+
+  function closeCompactLibraryAfterViewChange(event) {
+    if (
+      compactReaderMode.matches &&
+      event.target.matches('input[name="view"]')
+    ) {
+      const shell = document.querySelector(".app-shell");
+      pendingCompactQueue = true;
+      if (shell && document.getElementById("rill-orientation")) {
+        shell.classList.add("orientation-queue-visible");
+      }
+      showCompactSurface("queue", { focus: false });
+    }
+  }
+
+  function initializeResponsiveSidebarState() {
+    if (!mediumReaderMode.matches && !wideReaderMode.matches) return;
+
+    window.requestAnimationFrame(function () {
+      syncResponsiveSidebarState();
+    });
+    window.setTimeout(function () {
+      syncResponsiveSidebarState();
+    }, 250);
+  }
+
+  function watchSidebarInitialization() {
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return;
+    new MutationObserver(function (_records, observer) {
+      const initialized = [
+        "navigation_sidebar",
+        "story_sidebar",
+        "reader_agent_sidebar"
+      ].every(function (id) {
+        const sidebar = document.getElementById(id);
+        const layout = sidebar && sidebar.parentElement;
+        return layout && !layout.hasAttribute("data-bslib-sidebar-init");
+      });
+      if (!initialized) return;
+      observer.disconnect();
+      syncResponsiveSidebarState();
+    }).observe(shell, { attributes: true, subtree: true });
   }
 
   function handleSystemThemeChange() {
@@ -874,9 +1703,15 @@
   }
 
   if (typeof desktopReaderMode.addEventListener === "function") {
-    desktopReaderMode.addEventListener("change", syncReader);
+    desktopReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    mediumReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    wideReaderMode.addEventListener("change", handleResponsiveLayoutChange);
+    overlaidAgentMode.addEventListener("change", handleAgentLayoutChange);
   } else {
-    desktopReaderMode.addListener(syncReader);
+    desktopReaderMode.addListener(handleResponsiveLayoutChange);
+    mediumReaderMode.addListener(handleResponsiveLayoutChange);
+    wideReaderMode.addListener(handleResponsiveLayoutChange);
+    overlaidAgentMode.addListener(handleAgentLayoutChange);
   }
 
   window.addEventListener("storage", function (event) {
@@ -887,7 +1722,8 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     registerAppearanceControl();
-    window.setTimeout(initializeCompactSidebarState, 100);
+    initializeResponsiveSidebarState();
+    watchSidebarInitialization();
     window.setTimeout(syncReader, 200);
     watchScroll();
     syncReader();
@@ -895,7 +1731,26 @@
     registerQueueBrowse();
     registerOrientationActionMessages();
     registerChatSubmissionIds();
-    new MutationObserver(syncReader).observe(document.body, {
+    registerAgentSidebarControls();
+    registerSystemEvents();
+    registerInputValidity();
+    enhanceNativeFeedback();
+    new MutationObserver(syncReaderSurfaces).observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    new MutationObserver(function (records) {
+      records.forEach(function (record) {
+        if (record.type === "attributes") {
+          enhanceNativeFeedback(record.target);
+        }
+        record.addedNodes.forEach(function (node) {
+          if (node instanceof Element) enhanceNativeFeedback(node);
+        });
+      });
+    }).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
       childList: true,
       subtree: true
     });
@@ -903,23 +1758,96 @@
   });
   document.addEventListener("hide.bs.modal", restoreOrientationModalFocus);
   document.addEventListener("hidden.bs.modal", restoreOrientationModalFocus);
+  document.addEventListener("shown.bs.popover", function (event) {
+    const trigger = event.target;
+    if (!(trigger instanceof Element)) return;
+    if (!trigger.matches(".read-actions-trigger")) return;
+    const popoverId = trigger.getAttribute("aria-describedby");
+    if (!popoverId) return;
+    trigger.setAttribute("aria-expanded", "true");
+    trigger.setAttribute("aria-controls", popoverId);
+    const popover = document.getElementById(popoverId);
+    if (popover) {
+      enhanceNativeFeedback(popover);
+      readingStatusTrigger = trigger;
+      window.requestAnimationFrame(function () {
+        const action = popover.querySelector(".btn-read-action");
+        if (action) action.focus({ preventScroll: true });
+      });
+    }
+  });
+  document.addEventListener("hidden.bs.popover", function (event) {
+    const trigger = event.target;
+    if (!(trigger instanceof Element)) return;
+    if (!trigger.matches(".read-actions-trigger")) return;
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.removeAttribute("aria-controls");
+    if (readingStatusTrigger === trigger) {
+      readingStatusTrigger = null;
+      window.requestAnimationFrame(function () {
+        trigger.focus({ preventScroll: true });
+      });
+    }
+  });
 
   document.addEventListener("shiny:connected", function () {
     registerFileReset();
     registerQueueBrowse();
     registerOrientationActionMessages();
     registerChatSubmissionIds();
+    registerAgentSidebarControls();
+    registerInputValidity();
   });
 
+  window.addEventListener("offline", function () {
+    if (connectionState === "disconnected") handleShinyDisconnected();
+  });
+  window.addEventListener("online", function () {
+    if (connectionState !== "offline") return;
+    connectionState = "disconnected";
+    setSystemStatus(
+      "reconnecting",
+      "Back online",
+      "Reconnecting to your Library\u2026",
+      { action: true }
+    );
+  });
+
+  document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
+  document.addEventListener("click", handleSkipLink);
+  document.addEventListener("change", closeCompactLibraryAfterViewChange);
+  document.addEventListener("input", function (event) {
+    if (
+      event.target instanceof Element &&
+      event.target.matches('[aria-invalid="true"]')
+    ) {
+      setInputValidity({ id: event.target.id, invalid: false });
+    }
+  });
+  document.addEventListener("pointerdown", rememberAgentToggleFocus, true);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" || event.key === " ") {
+      rememberAgentToggleFocus(event);
+    }
+  }, true);
 
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden" && activeEntryId) {
+    if (
+      document.visibilityState === "hidden" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
+      pauseReadingTelemetryClock();
       send("page_hidden", {
-        dwell_seconds: Math.round((Date.now() - openedAt) / 1000)
+        dwell_seconds: readingDwellSeconds()
       });
-    } else if (document.visibilityState === "visible") {
-      lastHeartbeatAt = Date.now();
+    } else if (
+      document.visibilityState === "visible" &&
+      activeEntryId &&
+      !readingTelemetryPaused
+    ) {
+      resumeReadingTelemetryClock();
     }
   });
 })();

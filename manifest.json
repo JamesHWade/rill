@@ -2698,7 +2698,7 @@
   },
   "files": {
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "2b7d2c31a6b97f082331a70e9262bde6"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2707,10 +2707,10 @@
       "checksum": "94126c47d7ce62dcd3471f151f0e4e70"
     },
     "inst/app/_brand.yml": {
-      "checksum": "d7cb42f526858d9fe498feb03121f135"
+      "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "fc3a9a1263573c15b1b8dd59de405148"
+      "checksum": "7477bc05b1688e224dd78f775ee623ff"
     },
     "inst/app/www/rill-duck-dark.png": {
       "checksum": "21486198a27f8f81c131d9363b207eee"
@@ -2719,7 +2719,7 @@
       "checksum": "13eca81e135c048173520d80046ee2b4"
     },
     "inst/app/www/styles.css": {
-      "checksum": "8ccb255c72817b3f1ec13377270505f4"
+      "checksum": "a962028fc20ffee70ac497cfb0b34083"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2818,13 +2818,25 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "5cb9c3b966a03720916e7abc8c3d7ad4"
+      "checksum": "c3a632c5e9ac84c3a5bc15653acde100"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "44f3db463320d9c8496816dd260c8db4"
+      "checksum": "496a9820657385c4ab9ea9150d2ec987"
+    },
+    "inst/app/www/rill-otter-mark.png": {
+      "checksum": "aa7ba1b5d4e9c8a12c916fc4e33b5eaa"
+    },
+    "inst/app/www/rill-otter-reading.png": {
+      "checksum": "0efce38dec762eec522fa9f7312f054a"
+    },
+    "inst/app/www/favicon-32.png": {
+      "checksum": "ac0768a009686e8f63029ef703e3b34e"
+    },
+    "inst/app/www/apple-touch-icon.png": {
+      "checksum": "49113cbf55e669392e29faf10c853d84"
     }
   },
   "users": null

@@ -51,6 +51,14 @@ testthat::test_that("Orientation browser actions preserve their source surface",
     fixed = TRUE
   )
   testthat::expect_match(javascript, "pendingReaderFocus", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "window.rillOpenAskRill",
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "Close Ask Rill", fixed = TRUE)
+  testthat::expect_match(javascript, "restoreAgentFocus", fixed = TRUE)
+  testthat::expect_match(javascript, "ensureAskRillSettled", fixed = TRUE)
   testthat::expect_match(javascript, "function focusReader()", fixed = TRUE)
   testthat::expect_match(
     javascript,
@@ -120,12 +128,17 @@ testthat::test_that("Orientation browser actions preserve their source surface",
   )
   testthat::expect_match(
     javascript,
-    "queueHadFocus = setSidebarCovered(storyPane, orientationVisible)",
+    "const queueHadFocus = setSidebarCovered(",
     fixed = TRUE
   )
   testthat::expect_match(
     javascript,
-    "!desktopReaderMode.matches && !hasReader && !orientationVisible",
+    'compactSurface !== "queue"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'setSurfaceCovered(readerPane, compactSurface !== "reader")',
     fixed = TRUE
   )
   testthat::expect_match(
@@ -161,7 +174,7 @@ testthat::test_that("Orientation browser actions preserve their source surface",
   testthat::expect_no_match(javascript, "syncAgentSidebar", fixed = TRUE)
 })
 
-testthat::test_that("Orientation has a responsive queue escape", {
+testthat::test_that("Orientation participates in the compact surface router", {
   styles <- paste(
     readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
     collapse = "\n"
@@ -183,14 +196,14 @@ testthat::test_that("Orientation has a responsive queue escape", {
   )
   testthat::expect_match(
     styles,
-    ".app-shell.has-orientation:not(.orientation-queue-visible)",
+    '.app-shell[data-compact-surface="queue"] .story-pane',
     fixed = TRUE
   )
   testthat::expect_match(
     compact_styles,
     paste(
-      ".reading-shell > .bslib-sidebar-layout {",
-      "grid-template-columns: 0 minmax(0, 1fr) !important"
+      '.app-shell[data-compact-surface="reader"]',
+      ".reader-pane {"
     ),
     fixed = TRUE
   )
@@ -202,4 +215,160 @@ testthat::test_that("Orientation has a responsive queue escape", {
     ),
     fixed = TRUE
   )
+})
+
+testthat::test_that("compact surfaces retain reader state across navigation", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'window.matchMedia("(max-width: 767.98px)")',
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "window.rillOpenLibrary", fixed = TRUE)
+  testthat::expect_match(javascript, "window.rillCloseLibrary", fixed = TRUE)
+  testthat::expect_match(javascript, "window.rillOpenQueue", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "window.rillReturnToReading",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'shell.dataset.compactSurface = compactSurface',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "restoreFocusFromCompactChrome(hasReader, hasOrientation)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    paste(
+      '".compact-library-header, .compact-app-bar,',
+      '.mobile-back"'
+    ),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'compactReadingTelemetryPaused = compactSurface !== "reader"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "syncReadingTelemetryPaused()",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'document.getElementById("reader-document")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'showCompactSurface("reader")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "let pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(javascript, "!pendingCompactQueue", fixed = TRUE)
+  testthat::expect_match(
+    javascript,
+    "pendingCompactQueue = false",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'compactSurface === "library"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'key !== "escape"',
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
+  testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
+  compact_styles <- strsplit(
+    styles,
+    "@media (max-width: 767.98px)",
+    fixed = TRUE
+  )[[1]][[2]]
+  footer_styles <- strsplit(
+    strsplit(compact_styles, ".sidebar-footer {", fixed = TRUE)[[1]][[2]],
+    "}",
+    fixed = TRUE
+  )[[1]][[1]]
+  testthat::expect_match(footer_styles, "flex: 0 1 auto", fixed = TRUE)
+  testthat::expect_match(footer_styles, "overflow-y: auto", fixed = TRUE)
+})
+
+testthat::test_that("Ask Rill overlays Reading until both panes fit", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'window.matchMedia("(max-width: 1499.98px)")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'const hasReader = Boolean(document.getElementById("reader-document"))',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'hasReader && !layout.classList.contains("sidebar-collapsed")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "const coversMain = expanded && overlaidAgentMode.matches",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "main.contains(document.activeElement)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "if (mainHadFocus) agentFocusPending = true",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'overlaidAgentMode.addEventListener("change", handleAgentLayoutChange)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    "function handleAgentLayoutChange()",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "@media (min-width: 576px) and (max-width: 1499.98px)",
+    fixed = TRUE
+  )
+  testthat::expect_match(styles, "position: absolute", fixed = TRUE)
 })
