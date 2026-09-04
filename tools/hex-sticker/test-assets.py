@@ -17,3 +17,17 @@ app_icon = root / 'inst/app/www/apple-touch-icon.png'
 if app_icon.exists():
     assert Image.open(app_icon).convert('RGBA').getchannel('A').getextrema() == (255, 255)
 print('Icon dimensions, opaque touch icons, and full-resolution output verified.')
+
+# The border must fit inside the raster rather than be clipped at the apex
+# or vertical sides. These bounds failed for the original stroked outline.
+sticker = Image.open(root / 'man/figures/hex-sticker.png').convert('RGBA')
+alpha = sticker.getchannel('A')
+left, top, right, bottom = alpha.getbbox()
+assert min(left, top, sticker.width - right, sticker.height - bottom) >= 4
+ink = sticker.getpixel((10, sticker.height // 2))[:3]
+# Both pointed joins have an uninterrupted ink center, with no open seam.
+for y in range(15, 40):
+    for row in (y, sticker.height - y):
+        pixel = sticker.getpixel((sticker.width // 2, row))
+        assert pixel[:3] == ink and pixel[3] == 255, (row, pixel)
+print('Unclipped border and closed top/bottom joins verified.')

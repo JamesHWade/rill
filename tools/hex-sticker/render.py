@@ -1,6 +1,7 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageStat, ImageChops
 import argparse
+import math
 
 p = argparse.ArgumentParser()
 p.add_argument('source')
@@ -31,12 +32,25 @@ try:
 except OSError:
     p.error('Cannot load font. Pass --font /path/to/bold-font.ttf and, for a font collection, --font-index N. The default Avenir Next font is available on macOS.')
 draw.text((W/2, 1480), args.name, font=font, anchor='mm', fill=args.ink, stroke_width=1)
-outer = [(W/2, 10), (W-10, H/4+5), (W-10, H*3/4-5), (W/2, H-10), (10, H*3/4-5), (10, H/4+5)]
-mask = Image.new('L', (W, H), 0)
-ImageDraw.Draw(mask).polygon(outer, fill=255)
-canvas.putalpha(mask)
-draw = ImageDraw.Draw(canvas)
-draw.line(outer+[outer[0]], fill=args.ink, width=30, joint='curve')
+# A ring between concentric regular hexagons gives every edge the same
+# perpendicular thickness and closes all six corners without stroke clipping.
+radius = min((W - 16) / math.sqrt(3), (H - 16) / 2)
+inner_radius = radius - 30 / math.cos(math.pi / 6)
+
+def hex_mask(r):
+    scale = 4
+    mask = Image.new('L', (W * scale, H * scale), 0)
+    points = [
+        ((W / 2 + r * math.sin(i * math.pi / 3)) * scale,
+         (H / 2 - r * math.cos(i * math.pi / 3)) * scale)
+        for i in range(6)
+    ]
+    ImageDraw.Draw(mask).polygon(points, fill=255)
+    return mask.resize((W, H), Image.Resampling.LANCZOS)
+
+border = Image.new('RGBA', (W, H), args.ink)
+canvas = Image.composite(canvas, border, hex_mask(inner_radius))
+canvas.putalpha(hex_mask(radius))
 out = Path(args.output)
 out.parent.mkdir(parents=True, exist_ok=True)
 canvas.save(out, dpi=(600,600))
