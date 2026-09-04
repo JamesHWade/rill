@@ -3,8 +3,8 @@
 Rill ships one production image with two roles:
 
 - `web` starts Shiny on loopback and oauth2-proxy on the public port.
-- `poll` runs one feed refresh and exits successfully only when every Feed
-  succeeds.
+- `poll` runs one due-Feed polling pass and exits non-zero only for a systemic
+  error or when failures reach the configured threshold.
 
 Use one image digest for both Render services. A GitHub Actions run on `main`
 publishes the image to GitHub Container Registry and records its digest in the
@@ -65,7 +65,10 @@ Create one Render image-backed web service with:
 
 Create one Render image-backed cron job with the same image digest and the
 command `poll`. Choose the polling schedule in Render. Render prevents runs of
-one cron job from overlapping.
+one cron job from overlapping, and Rill also uses a transaction-scoped
+PostgreSQL advisory lock that remains safe through PgBouncer transaction
+pooling. An accidental second scheduler exits successfully without fetching any
+Feed.
 
 Set these secret environment variables on the web service:
 
@@ -85,10 +88,15 @@ OAUTH2_PROXY_COOKIE_SECURE=true
 Add `https://<rill-domain>/` to the Auth0 application's **Allowed Logout
 URLs**. It must match the origin derived from `OAUTH2_PROXY_REDIRECT_URL`.
 
-Set `DATABASE_URL`, `RILL_ACTOR_ID`, and `RILL_ENV=production` on the cron job.
-Add Rill's optional provider, Defuddle, capture, and telemetry variables only
-to the role that needs them. Never put credentials in the Dockerfile, Compose
-file, image URL, or Render command.
+Set `DATABASE_URL`, `RILL_ACTOR_ID`, `RILL_ENV=production`,
+`RILL_POLL_INTERVAL_MINUTES`, and `RILL_POLL_FAILURE_THRESHOLD` on the cron
+job. The interval determines when an active Feed is due; the threshold is the
+number of failed due Feeds that makes the process exit non-zero. A smaller
+number detects broad failures earlier, while an isolated stale Feed remains a
+recorded partial success below the threshold. Add Rill's optional provider,
+Defuddle, capture, and telemetry variables only to the role that needs them.
+Never put credentials in the Dockerfile, Compose file, image URL, or Render
+command.
 
 Render supplies `PORT` to the web service. The container binds oauth2-proxy to
 `0.0.0.0:$PORT`, while Shiny always binds to

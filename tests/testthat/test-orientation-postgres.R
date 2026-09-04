@@ -288,7 +288,8 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
       "007_agent_run_response",
       "008_reader_identities",
       "009_reader_library",
-      "010_reader_documents"
+      "010_reader_documents",
+      "011_feed_polling"
     )
   )
 })
