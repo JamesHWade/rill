@@ -20,4 +20,10 @@ Run from the package root with Python and Pillow installed:
 
 ## Website icons
 
-Run `python3 tools/hex-sticker/export-favicons.py` to regenerate pkgdown icons from `man/figures/logo.png`. The SVG favicon embeds raster artwork; it is not a vector master.
+Run `python3 tools/hex-sticker/export-favicons.py` to regenerate pkgdown icons from the high-resolution `man/figures/hex-sticker.png`. The SVG favicon embeds raster artwork; it is not a vector master.
+
+## Font portability and checks
+
+The approved lettering uses Avenir Next Bold, face 0 of the macOS font collection. On another system pass `--font /path/to/bold-font.ttf`; for TTC collections also pass `--font-index N`. A supplied font can change the lettering, so inspect the output before replacing the approved artwork. Requires Python 3.8+ and Pillow 9.1+.
+
+After exporting, run `python3 tools/hex-sticker/test-assets.py` to check icon sizes, transparency, and high-resolution output. Apple touch icons use an opaque cream background.

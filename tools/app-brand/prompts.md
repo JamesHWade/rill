@@ -11,3 +11,5 @@ Create a simplified app icon from this exact reading otter character: just its f
 ## Reading illustration
 
 Extract this same full reading otter on its back with its curved tail and open book, preserve its face, colors, pose and charming illustration style. Retain just two or three short teal ripples immediately under the otter; remove the background stream, banks, plants, rock and all background color. Center the complete character on a genuinely transparent square canvas, with comfortable margin. No text, no hexagon, no border.
+
+Regenerate the optimized app assets with `python3 tools/app-brand/export-icons.py` (Pillow 9.1+). The Apple touch icon is flattened onto the river-mist background; the other app assets retain transparency.

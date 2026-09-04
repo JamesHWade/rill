@@ -7,6 +7,8 @@ p.add_argument('source')
 p.add_argument('name')
 p.add_argument('output')
 p.add_argument('--ink', default='#142d43')
+p.add_argument('--font', default='/System/Library/Fonts/Avenir Next.ttc', help='Path to a bold TTF/OTF font or font collection')
+p.add_argument('--font-index', type=int, default=0, help='Face index for a font collection (Avenir Next Bold is 0)')
 args = p.parse_args()
 W, H = 1600, 1848
 source = Image.open(args.source).convert('RGBA')
@@ -19,12 +21,15 @@ art = source.resize((size, size), Image.Resampling.LANCZOS)
 fade = Image.new('L', (size, size), 255)
 d = ImageDraw.Draw(fade)
 for y in range(110):
-    d.line((0, y, W, y), fill=round(255*y/109))
+    d.line((0, y, size - 1, y), fill=round(255*y/109))
 art.putalpha(ImageChops.multiply(art.getchannel('A'), fade))
 canvas.alpha_composite(art, ((W-size)//2, 125 if args.name != 'tempest' else 205))
 draw = ImageDraw.Draw(canvas)
 draw.rectangle((0, 1360, W, 1626), fill='#fff5db')
-font = ImageFont.truetype('/System/Library/Fonts/Avenir Next.ttc', 218, index=0)
+try:
+    font = ImageFont.truetype(args.font, 218, index=args.font_index)
+except OSError:
+    p.error('Cannot load font. Pass --font /path/to/bold-font.ttf and, for a font collection, --font-index N. The default Avenir Next font is available on macOS.')
 draw.text((W/2, 1480), args.name, font=font, anchor='mm', fill=args.ink, stroke_width=1)
 outer = [(W/2, 10), (W-10, H/4+5), (W-10, H*3/4-5), (W/2, H-10), (10, H*3/4-5), (10, H/4+5)]
 mask = Image.new('L', (W, H), 0)
