@@ -3809,6 +3809,35 @@ testthat::test_that("organizing a selected feed updates its Subscription", {
   })
 })
 
+testthat::test_that("overlapping refreshes do not claim success or change Library state", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  store$memory$feed_poll_locked <- TRUE
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    events_before <- store$memory$events
+    refresh_before <- refresh_tick()
+    management_before <- feed_management_tick()
+
+    refresh_feeds_now()
+    later::run_now(0)
+    session$flushReact()
+
+    testthat::expect_identical(refresh_result()$status, "skipped_overlap")
+    testthat::expect_identical(status_kind(), "info")
+    testthat::expect_identical(
+      status_text(),
+      "Another refresh is running. Try again shortly."
+    )
+    testthat::expect_identical(store$memory$events, events_before)
+    testthat::expect_identical(refresh_tick(), refresh_before)
+    testthat::expect_identical(feed_management_tick(), management_before)
+    testthat::expect_identical(store$memory$feed_poll_locked, TRUE)
+  })
+})
+
 testthat::test_that("feed management keeps browsing separate and restores subscriptions", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
