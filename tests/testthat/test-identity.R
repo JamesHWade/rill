@@ -124,7 +124,7 @@ testthat::test_that("an Auth0 token resolves through exact issuer and subject", 
   testthat::expect_identical(identity$display_name, "Reader")
 })
 
-testthat::test_that("Auth0 discovery uses the exact configured issuer", {
+testthat::test_that("Auth0 discovery preserves its canonical issuer", {
   config <- list(
     auth0_domain = "reader.us.auth0.com",
     auth0_client_id = "reader-client",
@@ -144,8 +144,12 @@ testthat::test_that("Auth0 discovery uses the exact configured issuer", {
   identity_auth0_client(config)
 
   testthat::expect_identical(
-    provider_args[c("issuer", "name")],
-    list(issuer = config$oidc_issuer, name = "auth0")
+    provider_args[c("issuer", "name", "issuer_match")],
+    list(
+      issuer = config$oidc_issuer,
+      name = "auth0",
+      issuer_match = "host"
+    )
   )
 })
 

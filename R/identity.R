@@ -134,7 +134,8 @@ identity_oidc_provider <- function(...) {
 identity_auth0_provider <- function(issuer) {
   identity_oidc_provider(
     issuer = issuer,
-    name = "auth0"
+    name = "auth0",
+    issuer_match = "host"
   )
 }
 
