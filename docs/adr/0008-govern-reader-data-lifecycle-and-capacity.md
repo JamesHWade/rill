@@ -42,9 +42,10 @@ The purge removes the Reader, external identity bindings, capture credentials,
 personal admission data, Subscriptions, organization, Entry state, Reading
 History, private Capture Entries and Documents, reading-copy selections,
 Orientations, Agent Runs, Data Destination settings, deferred questions, and
-future Reader-owned Conversations, Reading Artifacts, Reader Memory,
-Approvals, and Action Receipts. A private Capture Entry is Reader-owned even
-when an implementation stores it in a shared table.
+Reader export jobs and stored archives. It also removes future Reader-owned
+Conversations, Reading Artifacts, Reader Memory, Approvals, and Action
+Receipts. A private Capture Entry is Reader-owned even when an implementation
+stores it in a shared table.
 
 Shared Feeds, Feed Entries, and public Documents survive only according to the
 shared-source policy below. Deleting one Reader never removes source material
@@ -78,9 +79,19 @@ A Reader export is a versioned, checksummed archive containing:
   Artifacts, identified as export dependencies rather than Reader-owned data;
 - a manifest describing schemas, omissions, checksums, and Data Destinations.
 
-The archive excludes secrets, credential hashes, and provider tokens. Export
-remains available when a Reader reaches a capacity signal. A requested export
-must finish or fail visibly before the associated permanent purge begins.
+The archive excludes secrets, credential hashes, and provider tokens. Rill
+streams an export without retaining a server-side copy when the runtime permits
+it. When asynchronous generation requires storage, the export job, partial
+files, completed archive, and download credentials are Reader-owned. Failed or
+cancelled artifacts are purged within 24 hours. A completed archive is purged
+within 24 hours of its first successful download or seven days after creation,
+whichever comes first.
+
+Export remains available when a Reader reaches a capacity signal. A requested
+export must finish or fail visibly before the associated permanent purge
+begins. The Reader must download a completed archive before that purge; export
+storage never extends the deletion window, and the purge removes every
+remaining export artifact and credential.
 
 ## Shared-source retention
 
