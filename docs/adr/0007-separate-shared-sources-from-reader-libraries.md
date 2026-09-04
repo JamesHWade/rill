@@ -93,6 +93,6 @@ verification succeed.
   cascading away. Access to unavailable content still fails closed.
 - A shared Feed and its Entries may outlive all active Subscriptions. This
   favors provenance and restoration over immediate reclamation.
-- The exact retention periods, quotas, export behavior, permanent Reader
-  deletion, and orphan cleanup policy remain deferred to the dedicated data
-  lifecycle decision.
+- Retention periods, capacity signals, export behavior, permanent Reader
+  deletion, and orphan cleanup follow the dedicated
+  [data lifecycle decision](0008-govern-reader-data-lifecycle-and-capacity.md).

@@ -314,8 +314,11 @@ environment contract are documented in the
 [proposed ADR](docs/adr/0001-hosted-rill-runtime-and-identity.md) and
 [hosting research](docs/research/hosted-rill-platforms.md). The accepted
 [Reader ownership contract](docs/adr/0007-separate-shared-sources-from-reader-libraries.md)
-defines the isolation and legacy migration. Additional Readers enter through
-an explicit, audited admission rather than the bootstrap allowlist.
+defines the isolation and legacy migration, while the
+[Reader data lifecycle policy](docs/adr/0008-govern-reader-data-lifecycle-and-capacity.md)
+defines export, deletion, shared-source retention, and capacity signals.
+Additional Readers enter through an explicit, audited admission rather than
+the bootstrap allowlist.
 
 ## Package development
 
