@@ -247,6 +247,18 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
+  compact_styles <- strsplit(
+    styles,
+    "@media (max-width: 767.98px)",
+    fixed = TRUE
+  )[[1]][[2]]
+  footer_styles <- strsplit(
+    strsplit(compact_styles, ".sidebar-footer {", fixed = TRUE)[[1]][[2]],
+    "}",
+    fixed = TRUE
+  )[[1]][[1]]
+  testthat::expect_match(footer_styles, "flex: 0 1 auto", fixed = TRUE)
+  testthat::expect_match(footer_styles, "overflow-y: auto", fixed = TRUE)
 })
 
 testthat::test_that("Ask Rill overlays Reading until both panes fit", {

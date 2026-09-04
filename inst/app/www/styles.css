@@ -2659,7 +2659,13 @@ div.story-list.shiny-html-output {
   }
 
   .sidebar-footer {
-    flex: 0 0 auto;
+    min-height: 0;
+    flex: 0 1 auto;
+    padding-right: 3px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .add-feed {
