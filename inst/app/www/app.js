@@ -1513,7 +1513,9 @@
   function syncAskRillControls() {
     const { layout, main, toggle } = readerAgentElements();
     if (!layout || !toggle) return;
-    const expanded = !layout.classList.contains("sidebar-collapsed");
+    const hasReader = Boolean(document.getElementById("reader-document"));
+    const expanded =
+      hasReader && !layout.classList.contains("sidebar-collapsed");
     const label = expanded ? "Close Ask Rill" : "Open Ask Rill";
     toggle.setAttribute("aria-label", label);
     toggle.setAttribute("title", label);

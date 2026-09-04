@@ -322,6 +322,16 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   )
   testthat::expect_match(
     javascript,
+    'const hasReader = Boolean(document.getElementById("reader-document"))',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'hasReader && !layout.classList.contains("sidebar-collapsed")',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
     "const coversMain = expanded && overlaidAgentMode.matches",
     fixed = TRUE
   )
