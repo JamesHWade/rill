@@ -24,12 +24,12 @@ The conceptual lifecycle is:
 active -> disabled -> deletion pending -> deleted
 ```
 
-A Reader may also move directly from active to deletion pending. Disabling is
-reversible and preserves the Library. It immediately ends authenticated
-sessions, revokes capture credentials, stops new Orientation and Agent Run
-work, cancels active work, and excludes the Reader's Subscriptions from Feed
-polling. It does not silently deactivate or rewrite those Subscriptions. During
-the invited beta, only an operator may disable or restore a Reader.
+Disabling is reversible and preserves the Library. It immediately ends
+authenticated sessions, revokes capture credentials, stops new Orientation and
+Agent Run work, cancels active work, and excludes the Reader's Subscriptions
+from Feed polling. It does not silently deactivate or rewrite those
+Subscriptions. During the invited beta, only an operator may disable or restore
+a Reader.
 
 Permanent deletion always requires action-specific confirmation. During the
 invited beta, an operator acts on an authenticated Reader request. A later
@@ -50,10 +50,11 @@ Shared Feeds, Feed Entries, and public Documents survive only according to the
 shared-source policy below. Deleting one Reader never removes source material
 still required by another Reader.
 
-Rill deletes the associated Auth0 profile and requests deletion from external
-Data Destinations when they support it. The deletion result names any external
-retention that Rill cannot synchronously erase; it never claims stronger
-deletion than a provider can verify.
+Rill deletes every Auth0 profile linked to the Reader and requests deletion
+from external Data Destinations when they support it. The deletion result
+records an outcome for each linked profile and names any external retention
+that Rill cannot synchronously erase; it never claims stronger deletion than a
+provider can verify.
 
 Backups may retain deleted data for at most 30 days. Until that window closes,
 a restricted deletion ledger retains only the identifiers required to reapply
