@@ -4,6 +4,8 @@
   if (missing || blank) y else x
 }
 
+rill_session_poll_interval_ms <- 5000L
+
 env_flag <- function(name, default = FALSE) {
   value <- tolower(Sys.getenv(name, unset = as.character(default)))
   value %in% c("1", "true", "yes", "on")

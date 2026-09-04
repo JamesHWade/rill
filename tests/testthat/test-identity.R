@@ -569,7 +569,7 @@ testthat::test_that("an active session closes when its Reader is disabled", {
     responsible_id = "operator:james",
     reason = "access revoked"
   )
-  session$elapse(1000)
+  session$elapse(rill_session_poll_interval_ms)
 
   testthat::expect_identical(session$isClosed(), TRUE)
 })
@@ -592,7 +592,7 @@ testthat::test_that("an active session closes when its identity is revoked", {
       store$memory$reader_identities$subject == "github|reader"
   )
   store$memory$reader_identities$revoked_at[[identity_index]] <- utc_now()
-  session$elapse(1000)
+  session$elapse(rill_session_poll_interval_ms)
   revoked <- reader_identity_resolve(
     adapter,
     identity_test_request("github|reader")

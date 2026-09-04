@@ -888,7 +888,7 @@ reader_identity_guard_session <- function(adapter, resolution, session) {
   }
   guard <- shiny::observe(
     {
-      shiny::invalidateLater(1000, session)
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
       current <- tryCatch(
         adapter$session_status(resolution),
         error = \(error) NULL
