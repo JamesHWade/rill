@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Operational telemetry now separates article opening, database work, background queue and worker time, and extraction HTTP status and retries; Logfire traces correlate safe failure references without exporting article content, URLs, or raw exceptions (#45).
+
 * Hosted startup no longer sends unnecessary database cancellation requests that can interrupt initialization; failed startup also closes its database pool (#45, #50).
 
 * Articles open from saved or clearly labeled feed copies without waiting for extraction; full articles prepare in the background and after Feed refresh, with bounded retries and an explicit action to load a newer copy without changing an active reading or Ask Rill session (#45).

@@ -38,13 +38,19 @@ jobs:
             .services.poll.command == ["poll"] and
             .services.web.ports[0].host_ip == "127.0.0.1" and
             (.services.database.ports == null) and
-            .services.web.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
-            .services.poll.environment.OTEL_R_SUPPRESS_SCOPES == "httr2" and
+            .services.web.environment.OTEL_R_EMIT_SCOPES == "rill" and
+            .services.poll.environment.OTEL_R_EMIT_SCOPES == "rill" and
+            .services.web.environment.OTEL_R_SUPPRESS_SCOPES == "httr2,ellmer,deputy" and
+            .services.poll.environment.OTEL_R_SUPPRESS_SCOPES == "httr2,ellmer,deputy" and
             .services.web.environment.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT == "false" and
             .services.web.environment.ANTHROPIC_API_KEY == "test-anthropic" and
             .services.web.environment.AZURE_OPENAI_API_KEY == "test-azure" and
             .services.web.environment.GEMINI_API_KEY == "test-gemini" and
             (.services.poll.environment.ANTHROPIC_API_KEY == null)
+          '
+          OTEL_R_EMIT_SCOPES=rill,probe docker compose --profile poll config --format json | jq --exit-status '
+            .services.web.environment.OTEL_R_EMIT_SCOPES == "rill,probe" and
+            .services.poll.environment.OTEL_R_EMIT_SCOPES == "rill,probe"
           '
 
       - uses: docker/setup-buildx-action@v3
@@ -110,7 +116,9 @@ jobs:
               requireNamespace("otelsdk", quietly = TRUE)
             )'
           test "$(docker run --rm --entrypoint sh "$image" \
-            -c 'printf %s "$OTEL_R_SUPPRESS_SCOPES"')" = "httr2"
+            -c 'printf %s "$OTEL_R_EMIT_SCOPES"')" = "rill"
+          test "$(docker run --rm --entrypoint sh "$image" \
+            -c 'printf %s "$OTEL_R_SUPPRESS_SCOPES"')" = "httr2,ellmer,deputy"
           test "$(docker run --rm --entrypoint sh "$image" \
             -c 'printf %s "$OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"')" = "false"
           docker run --rm --entrypoint oauth2-proxy "$image" --version | \

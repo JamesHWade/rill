@@ -286,16 +286,7 @@ fetch_feed <- function(
   last_modified = NULL,
   folder = "Unsorted"
 ) {
-  if (requireNamespace("otel", quietly = TRUE)) {
-    try(
-      otel::start_local_active_span(
-        "feed.fetch",
-        tracer = "rill",
-        end_on_exit = TRUE
-      ),
-      silent = TRUE
-    )
-  }
+  telemetry_local_span("feed.fetch")
   response <- feed_request(url, etag = etag, last_modified = last_modified)
   status <- httr2::resp_status(response)
   if (identical(status, 304L)) {

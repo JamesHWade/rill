@@ -37,6 +37,9 @@ rill_ui <- function(config) {
         id = "rill-app",
         class = "app-shell",
         `data-compact-surface` = "queue",
+        `data-operational-telemetry` = tolower(as.character(isTRUE(
+          config$telemetry_enabled
+        ))),
         `aria-busy` = "true",
         compact_app_bar_ui(config),
         bslib::layout_sidebar(
@@ -868,7 +871,12 @@ reader_article_header_ui <- function(
   )
 }
 
-reader_document_ui <- function(document, entry_id, selection_surface) {
+reader_document_ui <- function(
+  document,
+  entry_id,
+  selection_surface,
+  open_id = NULL
+) {
   source_url <- rill_document_original_source_url(document)
   captured_at <- format(
     as.POSIXct(document$captured_at, tz = "UTC"),
@@ -934,6 +942,7 @@ reader_document_ui <- function(document, entry_id, selection_surface) {
     class = "reader-document",
     `data-entry-id` = entry_id,
     `data-document-id` = document$document_id,
+    `data-open-id` = open_id,
     `data-selection-surface` = selection_surface,
     render_document(document),
     shiny::tags$footer(
