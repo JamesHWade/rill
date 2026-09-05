@@ -97,11 +97,11 @@
 
   function syncReaderTimezone(force = false) {
     if (!window.Shiny || connectionState !== "connected") return;
-    let timezone = "UTC";
+    let timezone = "";
     try {
-      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     } catch (_error) {
-      // UTC remains an explicit fallback if the browser has no IANA zone.
+      // Let the server label UTC as a fallback when the browser has no IANA zone.
     }
     if (!force && timezone === readerTimezone) return;
     readerTimezone = timezone;

@@ -39,6 +39,32 @@ testthat::test_that("Today uses the browser day on a UTC host", {
   })
 })
 
+testthat::test_that("calendar captions distinguish UTC browsers from unavailable zones", {
+  withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
+  config <- rill_config()
+  store <- rill_store(config)
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", reader_timezone = "UTC")
+    testthat::expect_identical(calendar_window()$timezone, "UTC")
+    testthat::expect_no_match(
+      output$calendar_context$html,
+      "browser time zone unavailable",
+      fixed = TRUE
+    )
+
+    for (timezone in list(NULL, "", "not/a-zone")) {
+      session$setInputs(reader_timezone = timezone)
+      testthat::expect_identical(calendar_window()$timezone, "UTC")
+      testthat::expect_match(
+        output$calendar_context$html,
+        "UTC (browser time zone unavailable)",
+        fixed = TRUE
+      )
+    }
+  })
+})
+
 testthat::test_that("Prepare uses the same local day as the visible queue", {
   withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
   config <- rill_config()
