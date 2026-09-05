@@ -976,6 +976,13 @@ rill_server <- function(config, store) {
       }
     }
 
+    reset_reader_chat <- function() {
+      reader_agent(NULL)
+      reader_agent_document_id(NULL)
+      active_agent_run(NULL)
+      clear_reader_chat(session)
+    }
+
     reader_agent_for <- function(document) {
       agent <- reader_agent()
       if (
@@ -2580,10 +2587,7 @@ rill_server <- function(config, store) {
           !identical(previous_id, entry_id) ||
             !identical(previous_document_id, pinned_document_id)
         ) {
-          reader_agent(NULL)
-          reader_agent_document_id(NULL)
-          active_agent_run(NULL)
-          clear_reader_chat(session)
+          reset_reader_chat()
         }
         retain_entry(entry_id)
         selected_id(entry_id)
@@ -3409,6 +3413,9 @@ rill_server <- function(config, store) {
         }
         preparation_failures(list())
         bump_refresh()
+        if (!identical(previous$document_id, selected_document()$document_id)) {
+          reset_reader_chat()
+        }
         shiny::showNotification("Full article prepared.", type = "message")
       },
       ignoreInit = TRUE
@@ -3418,6 +3425,16 @@ rill_server <- function(config, store) {
       input$prepare_today,
       {
         shiny::req(identical(input$view, "today"))
+        if (reader_response_in_flight()) {
+          shiny::showNotification(
+            "Wait for the current answer before preparing new copies.",
+            type = "message"
+          )
+          return(invisible(NULL))
+        }
+        previous_document_id <- if (!is.null(selected_id())) {
+          selected_document()$document_id
+        }
         result <- tryCatch(
           shiny::withProgress(
             message = "Preparing today's reading copies",
@@ -3460,6 +3477,12 @@ rill_server <- function(config, store) {
 
         preparation_failures(result$failures %||% list())
         bump_refresh()
+        if (
+          !is.null(previous_document_id) &&
+            !identical(previous_document_id, selected_document()$document_id)
+        ) {
+          reset_reader_chat()
+        }
         if (length(preparation_failures())) {
           shiny::showModal(preparation_failures_ui(preparation_failures()))
         }
