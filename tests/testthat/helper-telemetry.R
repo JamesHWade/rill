@@ -17,7 +17,10 @@ local_telemetry_http <- function(env = parent.frame()) {
       return(paste0("http://127.0.0.1:", port))
     }
   }
-  stop("Telemetry HTTP fixture did not start")
+  stop(
+    "Telemetry HTTP fixture did not start: ",
+    paste(process$read_error_lines(), collapse = "\n")
+  )
 }
 
 read_telemetry_spans <- function(path) {
