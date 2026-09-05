@@ -302,6 +302,58 @@ testthat::test_that("feed copies retain image-only articles but reject empty mar
   )
 })
 
+testthat::test_that("feed copies retain HTML5 media with nested sources", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+
+  for (media in c("video", "audio")) {
+    entry$feed_content <- paste0(
+      "<",
+      media,
+      " controls><source src='clip.mp4'>",
+      "<source src='../clip.ogg'></",
+      media,
+      ">"
+    )
+    html <- xml2::read_html(as.character(render_document(document_fallback(
+      entry
+    ))))
+
+    testthat::expect_length(
+      xml2::xml_find_all(html, paste0(".//", media, "[@controls]")),
+      1L
+    )
+    testthat::expect_identical(
+      xml2::xml_attr(
+        xml2::xml_find_all(html, paste0(".//", media, "//source")),
+        "src"
+      ),
+      c(
+        "https://example.com/posts/story/clip.mp4",
+        "https://example.com/posts/clip.ogg"
+      )
+    )
+  }
+})
+
+testthat::test_that("feed Markdown must render readable content even when unchanged", {
+  for (content in c(
+    "<!-- Only a comment -->",
+    "[details]: https://example.com/details",
+    " \n\t"
+  )) {
+    testthat::expect_error(
+      feed_content_markdown(content, "https://example.com/article"),
+      class = "rill_document_invalid"
+    )
+  }
+  markdown <- "<!-- A comment -->\n\n**Readable text**."
+  testthat::expect_identical(
+    feed_content_markdown(markdown, "https://example.com/article"),
+    markdown
+  )
+})
+
 testthat::test_that("preparation does not replace a newer browser capture selection", {
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])

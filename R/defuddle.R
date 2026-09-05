@@ -268,9 +268,6 @@ feed_content_markdown <- function(content, source_url) {
       xml2::xml_attr(node, attribute) <- absolute
     }
   }
-  if (!has_html && !links_changed) {
-    return(content)
-  }
   html <- paste(
     vapply(
       xml2::xml_children(xml2::xml_find_first(parsed, ".//body")),
@@ -285,13 +282,19 @@ feed_content_markdown <- function(content, source_url) {
     !nzchar(trimws(xml2::xml_text(parsed))) &&
       !length(xml2::xml_find_all(
         parsed,
-        ".//img[@src] | .//iframe[@src] | .//video[@src] | .//audio[@src]"
+        paste(
+          ".//img[@src] | .//iframe[@src] | .//video[@src] | .//audio[@src] |",
+          ".//video//source[@src] | .//audio//source[@src]"
+        )
       ))
   ) {
     cli::cli_abort(
       "The feed contains no readable text or supported media.",
       class = "rill_document_invalid"
     )
+  }
+  if (!has_html && !links_changed) {
+    return(content)
   }
   html
 }
