@@ -120,6 +120,34 @@ testthat::test_that("Markdown feed copies resolve source-relative links and imag
   )
 })
 
+testthat::test_that("resolving source URLs keeps in-document fragment links local", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "[Notes](#notes) and <a href='#details'>details</a>.",
+    "<h2 id='notes'>Notes</h2><h2 id='details'>Details</h2>",
+    "![Image](photo.png)",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("#notes", "#details")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//h2"), "id"),
+    c("notes", "details")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
 testthat::test_that("resolving source URLs keeps generated footnotes local", {
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
   entry$url <- "https://example.com/posts/story/"

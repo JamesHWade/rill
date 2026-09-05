@@ -260,14 +260,7 @@ feed_content_markdown <- function(content, source_url) {
       c("href", "src", "poster")
     )) {
       destination <- xml2::xml_attr(node, attribute)
-      if (
-        attribute == "href" &&
-          startsWith(destination, "#") &&
-          any(
-            c("data-footnote-ref", "data-footnote-backref") %in%
-              names(xml2::xml_attrs(node))
-          )
-      ) {
+      if (attribute == "href" && startsWith(destination, "#")) {
         next
       }
       absolute <- xml2::url_absolute(destination, source_url)
