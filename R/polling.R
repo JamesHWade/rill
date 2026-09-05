@@ -365,6 +365,7 @@ store_list_due_feeds <- function(store, now, interval_minutes) {
         "SELECT f.* FROM feeds f",
         "WHERE f.source_kind = 'subscription' AND EXISTS (",
         "SELECT 1 FROM subscriptions s",
+        "JOIN readers r ON r.reader_id = s.reader_id AND r.status = 'active'",
         "WHERE s.feed_id = f.feed_id AND s.status = 'active'",
         ") AND (f.last_polled_at IS NULL OR f.last_polled_at <=",
         "$1::timestamptz - ($2::double precision * interval '1 minute'))",

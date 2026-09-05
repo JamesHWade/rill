@@ -753,6 +753,7 @@ store_list_active_feeds <- function(store, source_kind = "subscription") {
         "SELECT f.* FROM feeds f",
         "WHERE f.source_kind = $1 AND EXISTS (",
         "SELECT 1 FROM subscriptions s",
+        "JOIN readers r ON r.reader_id = s.reader_id AND r.status = 'active'",
         "WHERE s.feed_id = f.feed_id AND s.status = 'active'",
         ") ORDER BY lower(f.title), f.feed_id"
       ),
@@ -760,8 +761,12 @@ store_list_active_feeds <- function(store, source_kind = "subscription") {
     ))
   }
 
-  active_feed_ids <- unique(store$memory$subscriptions$feed_id[
-    store$memory$subscriptions$status == "active"
+  readers <- store$memory$readers
+  active_reader_ids <- readers$reader_id[readers$status == "active"]
+  subscriptions <- store$memory$subscriptions
+  active_feed_ids <- unique(subscriptions$feed_id[
+    subscriptions$status == "active" &
+      subscriptions$reader_id %in% active_reader_ids
   ])
   feeds <- store$memory$feeds[
     store$memory$feeds$feed_id %in%

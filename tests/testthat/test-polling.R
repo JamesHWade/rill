@@ -1,3 +1,36 @@
+testthat::test_that("disabled Readers do not keep Feeds eligible for polling", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  store_ensure_reader(store, "reader-two")
+  shared_feed_id <- store$memory$feeds$feed_id[[1L]]
+  store_subscribe_feed(store, "reader-two", shared_feed_id)
+  subscriptions <- store$memory$subscriptions
+
+  store_disable_reader(store, "reader-one", "operator:test", "polling fixture")
+  testthat::expect_identical(
+    store_list_active_feeds(store)$feed_id,
+    shared_feed_id
+  )
+  testthat::expect_identical(
+    store_list_due_feeds(
+      store,
+      now = "2099-09-03 12:00:00 UTC",
+      interval_minutes = 60L
+    )$feed_id,
+    shared_feed_id
+  )
+  store_disable_reader(store, "reader-two", "operator:test", "polling fixture")
+  testthat::expect_length(store_list_active_feeds(store)$feed_id, 0L)
+  testthat::expect_length(
+    store_list_due_feeds(
+      store,
+      now = "2099-09-03 12:00:00 UTC",
+      interval_minutes = 60L
+    )$feed_id,
+    0L
+  )
+  testthat::expect_equal(store$memory$subscriptions, subscriptions)
+})
+
 testthat::test_that("due polling refreshes each active shared Feed once", {
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
   store$memory$feeds$last_polled_at <- "2026-09-03 10:00:00 UTC"

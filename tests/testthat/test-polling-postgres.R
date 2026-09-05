@@ -1,3 +1,52 @@
+testthat::test_that("PostgreSQL polls only Feeds followed by active Readers", {
+  open_store <- local_reader_recovery_database()
+  store <- open_store()
+  store_apply_schema(store)
+  store_ensure_reader(store, "reader-two")
+  feeds <- sample_rill_data()$feeds[1:2, , drop = FALSE]
+  for (index in seq_len(nrow(feeds))) {
+    store_upsert_feed(store, as.list(feeds[index, , drop = FALSE]))
+    store_subscribe_feed(store, "reader-one", feeds$feed_id[[index]])
+  }
+  shared_feed_id <- feeds$feed_id[[1L]]
+  store_subscribe_feed(store, "reader-two", shared_feed_id)
+  subscriptions <- DBI::dbGetQuery(
+    store$pool,
+    "SELECT * FROM subscriptions ORDER BY reader_id, feed_id"
+  )
+
+  store_disable_reader(store, "reader-one", "operator:test", "polling fixture")
+  testthat::expect_identical(
+    store_list_active_feeds(store)$feed_id,
+    shared_feed_id
+  )
+  testthat::expect_identical(
+    store_list_due_feeds(
+      store,
+      now = "2099-09-03 12:00:00 UTC",
+      interval_minutes = 60L
+    )$feed_id,
+    shared_feed_id
+  )
+  store_disable_reader(store, "reader-two", "operator:test", "polling fixture")
+  testthat::expect_length(store_list_active_feeds(store)$feed_id, 0L)
+  testthat::expect_length(
+    store_list_due_feeds(
+      store,
+      now = "2099-09-03 12:00:00 UTC",
+      interval_minutes = 60L
+    )$feed_id,
+    0L
+  )
+  testthat::expect_equal(
+    DBI::dbGetQuery(
+      store$pool,
+      "SELECT * FROM subscriptions ORDER BY reader_id, feed_id"
+    ),
+    subscriptions
+  )
+})
+
 testthat::test_that("the Feed polling migration is bundled", {
   migration_ids <- vapply(
     schema_migration_files(),

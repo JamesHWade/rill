@@ -2791,7 +2791,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "1cfd5ff91d249b9f2e14d9428367617c"
+      "checksum": "4380adf28edf05290dc7cf08f6ce4475"
     },
     "R/defuddle.R": {
       "checksum": "12076f97c4a8a6183e5bbad453803f62"
@@ -2824,7 +2824,7 @@
       "checksum": "56549db920f4bb398a7d68f94d35ca4a"
     },
     "R/polling.R": {
-      "checksum": "e596cf22f11415f6c2353e942f6aeea5"
+      "checksum": "803b0f672d1fc31d288624c62d4a77e6"
     },
     "R/reader-admissions.R": {
       "checksum": "a36b28f095430f2cc08d770807fbc478"
