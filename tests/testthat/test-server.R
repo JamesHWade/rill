@@ -4068,6 +4068,75 @@ testthat::test_that("preparing today reports progress and records the result", {
   })
 })
 
+testthat::test_that("failed preparation retains safe details and clears them on retry", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  store$memory$entries$published_at[[1]] <- utc_now()
+  fail <- TRUE
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(source_url, config) {
+      if (fail) {
+        stop("private-token")
+      }
+      "Prepared copy."
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$flushReact()
+    logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
+    session$flushReact()
+
+    testthat::expect_identical(status_kind(), "warning")
+    testthat::expect_length(preparation_failures(), 1L)
+    testthat::expect_no_match(
+      jsonlite::toJSON(preparation_failures()),
+      "private-token"
+    )
+    testthat::expect_no_match(
+      tail(store$memory$events$payload, 1L),
+      "private-token|reference"
+    )
+    testthat::expect_match(logs, "article.prepare_failed", fixed = TRUE)
+    session$setInputs(preparation_details = 1L)
+
+    fail <<- FALSE
+    session$setInputs(prepare_today = 2L)
+    session$flushReact()
+    testthat::expect_identical(status_kind(), "success")
+    testthat::expect_length(preparation_failures(), 0L)
+    testthat::expect_length(store_list_documents(store, "reader"), 1L)
+  })
+})
+
+testthat::test_that("preparation setup errors never expose database credentials", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  testthat::local_mocked_bindings(
+    prepare_today_documents = function(...) {
+      stop("postgresql://user:private-token@db")
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$flushReact()
+    logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
+    session$flushReact()
+
+    testthat::expect_identical(status_kind(), "error")
+    testthat::expect_identical(preparation_failures()[[1]]$stage, "library")
+    testthat::expect_no_match(logs, "postgresql|private-token")
+    testthat::expect_no_match(
+      jsonlite::toJSON(preparation_failures()),
+      "postgresql|private-token"
+    )
+  })
+})
+
 testthat::test_that("client telemetry accepts only known event types", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

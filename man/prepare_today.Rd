@@ -8,7 +8,10 @@ prepare_today()
 }
 \value{
 Invisibly, a list with counts for total, cached, prepared, and failed
-articles, plus named extraction errors.
+articles, named safe error summaries, and per-story \code{failures} with the
+extraction or storage stage, diagnostic code, HTTP status when available,
+and a reference matching the content-free server log. Raw error messages,
+request URLs, and credentials are not included in diagnostics.
 }
 \description{
 \code{prepare_today()} extracts and caches clean reading copies for articles

@@ -105,6 +105,27 @@ PostgreSQL polling lock, refreshes only due Feeds with active Subscriptions,
 records per-Feed outcomes, and exits nonzero only for a systemic error or the
 configured failure threshold.
 
+## Diagnose preparation failures
+
+When Today reports that stories could not be prepared, its Preparation details
+dialog lists the affected stories, the failure stage, and a short reference.
+The details can be reopened beside Prepare until the next preparation attempt
+or the end of the session. Retrying preserves ready copies and attempts missing
+copies again.
+
+Search the Connect runtime log for `article.prepare_failed` and the reference.
+These records contain only the reference, stage, diagnostic code, known error
+type, HTTP status when available, and extraction backend. They are emitted to
+stderr even without an OpenTelemetry exporter. Story titles, URLs, credentials,
+source content, and raw exception text are deliberately excluded from logs.
+The Reader sees only stories from their own Library; diagnostic details are
+not written into the reading-behavior event payload.
+
+An extraction failure means no usable copy was built; a storage failure means
+the copy was built but saving it failed. A Library failure means the batch could
+not load its input. Use these distinctions to investigate the failing boundary;
+the summary alone does not establish an extraction-service outage.
+
 ## Verify the boundary
 
 Before importing the real Library, verify all of the following:

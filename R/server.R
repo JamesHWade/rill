@@ -110,6 +110,7 @@ rill_server <- function(config, store) {
     feed_management_tick <- shiny::reactiveVal(0L)
     status_text <- shiny::reactiveVal(NULL)
     status_kind <- shiny::reactiveVal("info")
+    preparation_failures <- shiny::reactiveVal(list())
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
     active_agent_run <- shiny::reactiveVal(NULL)
@@ -2210,7 +2211,12 @@ rill_server <- function(config, store) {
       if (!identical(input$view, "today")) {
         return(NULL)
       }
-      prepare_today_button()
+      shiny::tagList(
+        prepare_today_button(),
+        if (length(preparation_failures())) {
+          shiny::actionLink("preparation_details", "Preparation details")
+        }
+      )
     })
 
     output$read_actions <- shiny::renderUI({
@@ -3306,6 +3312,15 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$preparation_details,
+      {
+        shiny::req(length(preparation_failures()))
+        shiny::showModal(preparation_failures_ui(preparation_failures()))
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
       input$prepare_today,
       {
         shiny::req(identical(input$view, "today"))
@@ -3330,16 +3345,23 @@ rill_server <- function(config, store) {
           error = function(error) error
         )
         if (inherits(result, "error")) {
+          failure <- preparation_failure(result, "library", config)
+          preparation_failures(list(failure))
           status_kind("error")
           status_text("Today's reading copies couldn't be prepared")
           shiny::showNotification(
-            conditionMessage(result),
+            failure$message,
             type = "error",
             duration = 8
           )
+          shiny::showModal(preparation_failures_ui(preparation_failures()))
           return()
         }
 
+        preparation_failures(result$failures %||% list())
+        if (length(preparation_failures())) {
+          shiny::showModal(preparation_failures_ui(preparation_failures()))
+        }
         status <- format_prepare_today_status(result)
         status_kind(if (result$failed > 0L) "warning" else "success")
         status_text(status)

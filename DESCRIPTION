@@ -39,6 +39,7 @@ Suggests:
     otel,
     otelsdk,
     pkgload,
+    rlang,
     testthat (>= 3.3.0),
     withr
 Remotes:

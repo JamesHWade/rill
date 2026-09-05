@@ -2704,7 +2704,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "9d91b6da067a5d13a10f855e8f5b0d14"
+      "checksum": "f8091c982d938437a6a6fc5b4349e37d"
     },
     "inst/app/_brand.yml": {
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
@@ -2779,7 +2779,7 @@
       "checksum": "efa560e90a333c7e504156c825527f99"
     },
     "R/app.R": {
-      "checksum": "1b69fae0dc676dd9cb514031cc647d30"
+      "checksum": "8e6a6f562e5d1a95645478fab19e27f8"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2791,7 +2791,7 @@
       "checksum": "66a7f4e261f14fcb87314f0f286105fa"
     },
     "R/defuddle.R": {
-      "checksum": "d6d297aa63894100510202c3e47fced8"
+      "checksum": "6d13d25a409925137ce88534ccf2f5c4"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2833,13 +2833,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "324a3f4fb59da86693bd0ac4f0b50e45"
+      "checksum": "7058146310f3b0e6d12a52fb924b20e3"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "306e934d234077c40d04ec4c355ddac0"
+      "checksum": "77372aac432fe5d2816fb328db205562"
     }
   },
   "users": null
