@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-const javascript = fs.readFileSync(process.argv[2], "utf8");
+const javascript = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
 const source = javascript.match(
   /  let readerTimezone = [^\n]+;\n\n  function syncReaderTimezone\(.*?\n  }\n/s
 );
