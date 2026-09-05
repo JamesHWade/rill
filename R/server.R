@@ -1627,12 +1627,9 @@ rill_server <- function(config, store) {
 
     orientation_state <- shiny::reactive({
       refresh_tick()
-      state <- orientation_status(store, actor_id)
-      orientation_poll_token <<- tryCatch(
-        store_orientation_poll_token(store, actor_id, state),
-        error = \(error) NULL
-      )
-      state
+      polled <- store_orientation_polled_state(store, actor_id)
+      orientation_poll_token <<- polled$token
+      polled$state
     })
 
     shiny::observe({
@@ -3345,7 +3342,11 @@ rill_server <- function(config, store) {
           error = function(error) error
         )
         if (inherits(result, "error")) {
-          failure <- preparation_failure(result, "library", config)
+          failure <- if (inherits(result, "rill_preparation_failed")) {
+            result$diagnostic
+          } else {
+            preparation_failure(result, "library", config)
+          }
           preparation_failures(list(failure))
           status_kind("error")
           status_text("Today's reading copies couldn't be prepared")

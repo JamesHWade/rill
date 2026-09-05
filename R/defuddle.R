@@ -292,15 +292,32 @@ prepare_today_documents <- function(
   now = Sys.time(),
   timezone = Sys.timezone()
 ) {
-  entries <- store_list_entries(
-    store,
-    reader_id,
-    view = "today",
-    limit = 500L,
-    now = now,
-    timezone = timezone
+  inputs <- tryCatch(
+    {
+      entries <- store_list_entries(
+        store,
+        reader_id,
+        view = "today",
+        limit = 500L,
+        now = now,
+        timezone = timezone
+      )
+      list(
+        entries = entries,
+        documents = store_list_documents(store, reader_id, entries$entry_id)
+      )
+    },
+    error = function(error) {
+      failure <- preparation_failure(error, "library", config)
+      cli::cli_abort(
+        c(failure$message, "i" = paste("Reference:", failure$reference)),
+        class = "rill_preparation_failed",
+        diagnostic = failure
+      )
+    }
   )
-  documents <- store_list_documents(store, reader_id, entries$entry_id)
+  entries <- inputs$entries
+  documents <- inputs$documents
   ready <- vapply(
     documents,
     \(document) !identical(document$acquisition_method, "feed_fallback"),

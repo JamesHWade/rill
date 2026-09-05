@@ -206,6 +206,20 @@ orientation_state_token <- function(state) {
   )
 }
 
+store_orientation_polled_state <- function(store, reader_id) {
+  state <- if (!identical(store$mode, "postgres")) {
+    orientation_status(store, reader_id)
+  }
+  # Read the hosted token first: a concurrent change must trigger another poll,
+  # not be remembered as already reflected in an older state.
+  token <- tryCatch(
+    store_orientation_poll_token(store, reader_id, state),
+    error = \(error) NA_character_
+  )
+  state <- state %||% orientation_status(store, reader_id)
+  list(state = state, token = token)
+}
+
 store_orientation_poll_token <- function(store, reader_id, state = NULL) {
   if (!identical(store$mode, "postgres")) {
     state <- state %||% orientation_status(store, reader_id)

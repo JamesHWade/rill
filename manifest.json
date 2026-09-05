@@ -2791,7 +2791,7 @@
       "checksum": "66a7f4e261f14fcb87314f0f286105fa"
     },
     "R/defuddle.R": {
-      "checksum": "6d13d25a409925137ce88534ccf2f5c4"
+      "checksum": "61f77bab274ea8dbb2807e7999eae18e"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2818,7 +2818,7 @@
       "checksum": "44258a3aa3f730d61355f88f2d2dcc9f"
     },
     "R/orientation.R": {
-      "checksum": "1823c7a4753acc7254a23af45ab2f3b8"
+      "checksum": "56549db920f4bb398a7d68f94d35ca4a"
     },
     "R/polling.R": {
       "checksum": "e596cf22f11415f6c2353e942f6aeea5"
@@ -2833,7 +2833,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "7058146310f3b0e6d12a52fb924b20e3"
+      "checksum": "2dc44f0b3e43cda90bd64cae276d9909"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
