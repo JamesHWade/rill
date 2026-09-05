@@ -2163,6 +2163,7 @@ rill_server <- function(config, store) {
     }
 
     output$feed_nav <- shiny::renderUI({
+      telemetry_local_span("navigation.render")
       feed_rows <- feeds()
       all_unread <- sum(feed_rows$unread_count, na.rm = TRUE)
       all_active <- is.null(selected_feed())
@@ -2400,6 +2401,7 @@ rill_server <- function(config, store) {
     })
 
     output$reader_header <- shiny::renderUI({
+      telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
         state <- orientation_state()
         return(orientation_ui(
@@ -2475,6 +2477,7 @@ rill_server <- function(config, store) {
     )
 
     output$reader_agent_context <- shiny::renderUI({
+      telemetry_local_span("article.context.render")
       if (is.null(selected_id())) {
         return(NULL)
       }

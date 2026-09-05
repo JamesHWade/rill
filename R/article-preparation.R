@@ -13,9 +13,20 @@ reading_document <- function(store, reader_id, entry) {
         is.na(current$producer_version) &&
         is.na(current$reader_id)
     ) {
-      repaired <- document_fallback(entry)
-      store_replace_public_document(store, current$document_id, repaired)
-      return(store_get_document(store, reader_id, entry$entry_id))
+      return(tryCatch(
+        {
+          head <- public_reading_document(store, entry$entry_id)
+          if (
+            is.null(head) || !identical(head$document_id, current$document_id)
+          ) {
+            return(current)
+          }
+          repaired <- document_fallback(entry, reason = current$producer)
+          store_replace_public_document(store, current$document_id, repaired)
+          store_get_document(store, reader_id, entry$entry_id)
+        },
+        error = function(error) current
+      ))
     }
     return(current)
   }

@@ -2788,7 +2788,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "7736c4a092b78e27eeace969b3cd26e7"
+      "checksum": "42b38475af2111bc3cdee24673f0a58a"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2842,10 +2842,10 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "c19b5b0bec571a97be9f68235a4ac43b"
+      "checksum": "f3c0180401252c504682c8773aba5bad"
     },
     "R/telemetry.R": {
-      "checksum": "6fea18bdb711e7b479e86d78bc9180ad"
+      "checksum": "049b001e5ea377d629464e8bc04c4193"
     },
     "R/ui.R": {
       "checksum": "77634603b9eeb20d4004d4c75301d496"

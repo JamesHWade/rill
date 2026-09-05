@@ -216,7 +216,14 @@ init_telemetry <- function(config) {
   )
 
   if (loaded) {
-    telemetry_log("info", "telemetry.ready", list(environment = config$app_env))
+    telemetry_log(
+      "info",
+      "telemetry.ready",
+      c(
+        list(environment = config$app_env),
+        extractor_runtime_attributes()
+      )
+    )
   }
 
   invisible(loaded)
@@ -242,5 +249,15 @@ telemetry_log <- function(
   tryCatch(
     logger(message, attributes = attributes, logger = "rill"),
     error = function(error) invisible(NULL)
+  )
+}
+
+
+extractor_runtime_attributes <- function(
+  commands = Sys.which(c("node", "npm", "deno", "quarto"))
+) {
+  stats::setNames(
+    as.list(nzchar(unname(commands))),
+    paste0("runtime.", names(commands), ".available")
   )
 }

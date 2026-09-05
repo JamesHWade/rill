@@ -30,6 +30,8 @@ testthat::test_that("reading repairs flattened public copies without changing pi
   store_select_document(store, "reader", old$document_id)
   testthat::expect_identical(reading_document(store, "reader", entry), old)
   repaired <- public_reading_document(store, id)
+  testthat::expect_identical(repaired$producer, "orientation-feed-copy")
+  testthat::expect_identical(repaired$producer_version, "2")
   html <- xml2::read_html(as.character(render_document(repaired)))
   testthat::expect_length(xml2::xml_find_all(html, ".//h2"), 1L)
   testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
@@ -383,4 +385,53 @@ testthat::test_that("completion cannot overwrite a private copy or a newer publi
     store_get_document(store, "reader", entry$entry_id)$document_id,
     private$document_id
   )
+})
+
+
+testthat::test_that("failed legacy repairs leave the cached copy readable", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  entry$feed_content <- "<script>unreadable()</script>"
+  old <- new_rill_document(
+    entry_id = entry$entry_id,
+    source_url = entry$url,
+    markdown = "unreadable()",
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  entry$feed_content <- "<p>Readable content.</p>"
+  testthat::local_mocked_bindings(
+    store_replace_public_document = function(...) {
+      rlang::abort("Storage unavailable", class = "test_storage_error")
+    }
+  )
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  testthat::expect_identical(
+    public_reading_document(store, entry$entry_id),
+    old
+  )
+})
+
+testthat::test_that("pinned legacy copies do not repeat a completed repair", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  old <- new_rill_document(
+    entry_id = entry$entry_id,
+    source_url = entry$url,
+    markdown = "Old copy.",
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  store_select_document(store, "reader", old$document_id)
+  reading_document(store, "reader", entry)
+  repairs <- 0L
+  testthat::local_mocked_bindings(document_fallback = function(...) {
+    repairs <<- repairs + 1L
+    old
+  })
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  testthat::expect_identical(repairs, 0L)
 })

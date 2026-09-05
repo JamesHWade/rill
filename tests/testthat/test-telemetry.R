@@ -335,3 +335,11 @@ testthat::test_that("preparation spans end once across failure completion and ca
     exercise(outcome)
   }
 })
+
+
+testthat::test_that("extractor runtime diagnostics omit executable paths", {
+  testthat::expect_identical(
+    extractor_runtime_attributes(c(node = "/private/location/node", npm = "")),
+    list(runtime.node.available = TRUE, runtime.npm.available = FALSE)
+  )
+})
