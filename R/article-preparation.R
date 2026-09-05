@@ -81,7 +81,7 @@ preparation_candidates <- function(
   limit = 100L,
   now = Sys.time()
 ) {
-  since <- format(now - 7 * 86400, "%Y-%m-%d %H:%M:%S", tz = "UTC")
+  since <- now - 7 * 86400
   if (identical(store$mode, "postgres")) {
     rows <- DBI::dbGetQuery(
       store$pool,

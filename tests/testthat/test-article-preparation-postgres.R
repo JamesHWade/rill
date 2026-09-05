@@ -53,6 +53,48 @@ testthat::test_that("PostgreSQL preparation claims deduplicate and reject stale 
   )
 })
 
+testthat::test_that("the preparation cutoff is independent of the database time zone", {
+  store <- local_orientation_backend_store("postgres", "reader")
+  now <- as.POSIXct("2026-09-05 12:00:00", tz = "UTC")
+  cutoff <- now - 7 * 86400
+  ids <- c("before-cutoff", "at-cutoff", "after-cutoff")
+  for (index in seq_along(ids)) {
+    entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+    entry$entry_id <- entry$external_id <- ids[[index]]
+    entry$url <- paste0("https://example.org/", ids[[index]])
+    entry$published_at <- format(
+      cutoff + index - 2L,
+      "%Y-%m-%d %H:%M:%S%z",
+      tz = "UTC"
+    )
+    store_upsert_entries(store, as.data.frame(entry))
+  }
+  connection <- pool::poolCheckout(store$pool)
+  withr::defer(pool::poolReturn(connection))
+  original <- DBI::dbGetQuery(connection, "SHOW TimeZone")[[1L]]
+  withr::defer(DBI::dbGetQuery(
+    connection,
+    "SELECT set_config('TimeZone', $1, false)",
+    params = list(original)
+  ))
+  other <- structure(
+    list(mode = "postgres", pool = connection),
+    class = "rill_store"
+  )
+  for (zone in c("UTC", "America/New_York", "Asia/Tokyo")) {
+    DBI::dbGetQuery(
+      connection,
+      "SELECT set_config('TimeZone', $1, false)",
+      params = list(zone)
+    )
+    testthat::expect_identical(
+      preparation_candidates(other, "reader", now = now),
+      ids[c(3L, 2L)],
+      info = zone
+    )
+  }
+})
+
 testthat::test_that("PostgreSQL persists backoff and filters active public candidates", {
   store <- local_orientation_backend_store("postgres", "reader")
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])

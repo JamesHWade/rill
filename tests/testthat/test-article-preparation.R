@@ -230,6 +230,51 @@ testthat::test_that("a timed-out worker is stopped and leaves its copy retryable
   )
 })
 
+testthat::test_that("a real running worker returns promptly at its deadline", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- reading_document(store, "reader", entry)
+  directory <- withr::local_tempdir()
+  process <- callr::r_bg(
+    \() Sys.sleep(30),
+    supervise = TRUE,
+    user_profile = FALSE,
+    stdout = file.path(directory, "stdout"),
+    stderr = file.path(directory, "stderr")
+  )
+  job <- list(
+    entry_id = entry$entry_id,
+    token = claim_preparation(store, entry$entry_id),
+    directory = directory,
+    started_at = Sys.time(),
+    process = process
+  )
+  withr::defer(close_article_preparation(job))
+  testthat::expect_identical(process$is_alive(), TRUE)
+  started <- Sys.time()
+  testthat::capture_messages({
+    result <- poll_article_preparation(
+      job,
+      store,
+      list(defuddle_backend = "hosted"),
+      timeout = 0
+    )
+  })
+  elapsed <- as.numeric(difftime(Sys.time(), started, units = "secs"))
+  testthat::expect_lt(elapsed, 5)
+  testthat::expect_type(result$failure, "list")
+  testthat::expect_identical(process$is_alive(), FALSE)
+  testthat::expect_identical(file.exists(directory), FALSE)
+  testthat::expect_identical(
+    preparation_attempt(store, entry$entry_id)$status,
+    "failed"
+  )
+  testthat::expect_identical(
+    store_get_document(store, "reader", entry$entry_id)$document_id,
+    fallback$document_id
+  )
+})
+
 testthat::test_that("completion can restore a previously stored full copy as the head", {
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])
