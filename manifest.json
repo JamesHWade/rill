@@ -2791,7 +2791,7 @@
       "checksum": "1cfd5ff91d249b9f2e14d9428367617c"
     },
     "R/defuddle.R": {
-      "checksum": "75a4ffe073049dbb30a73b3505ac0a4d"
+      "checksum": "1b763c86a5678a659a2ad5786c6d56d2"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2833,7 +2833,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "f04ec21da71c29b2f70b34c72808488c"
+      "checksum": "48a7518c427794a8ad0098f1bcacd027"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"

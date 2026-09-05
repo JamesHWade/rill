@@ -248,7 +248,12 @@ feed_content_markdown <- function(content, source_url) {
   if (!grepl("<[A-Za-z][A-Za-z0-9-]*([[:space:]][^<>]*)?/?>", content)) {
     return(content)
   }
-  html <- sanitize_rendered_html(paste0("<div>", content, "</div>"))
+  html <- commonmark::markdown_html(
+    content,
+    footnotes = TRUE,
+    extensions = c("table", "strikethrough", "autolink", "tasklist")
+  )
+  html <- sanitize_rendered_html(html)
   parsed <- xml2::read_html(html)
   if (
     !nzchar(trimws(xml2::xml_text(parsed))) &&

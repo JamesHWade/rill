@@ -4181,15 +4181,20 @@ testthat::test_that("failed article preparation preserves the copy and reports s
   entry <- as.list(store$memory$entries[1, , drop = FALSE])
   fallback <- document_fallback(entry, reason = "feed-fallback")
   store_save_document(store, fallback)
+  preparation <- new.env(parent = emptyenv())
+  preparation$fail <- TRUE
   testthat::local_mocked_bindings(fetch_defuddled_markdown = function(
     source_url,
     config
   ) {
-    stop("private-token")
+    if (preparation$fail) {
+      stop("private-token")
+    }
+    "The full article is now available."
   })
 
-  shiny::testServer(rill_server(config, store), {
-    session$setInputs(select_entry = NULL)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", select_entry = NULL)
     session$setInputs(
       select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
     )
@@ -4201,6 +4206,11 @@ testthat::test_that("failed article preparation preserves the copy and reports s
     )
     testthat::expect_length(store$memory$documents, 1L)
     testthat::expect_identical(preparation_failures()[[1]]$stage, "extraction")
+    testthat::expect_match(
+      output$prepare_today_control$html,
+      "Preparation details",
+      fixed = TRUE
+    )
     testthat::expect_no_match(
       paste(
         c(logs, as.character(preparation_failures_ui(preparation_failures()))),
@@ -4209,7 +4219,21 @@ testthat::test_that("failed article preparation preserves the copy and reports s
       "private-token",
       fixed = TRUE
     )
-  })
+
+    preparation$fail <- FALSE
+    session$setInputs(prepare_article = 2L)
+
+    testthat::expect_identical(
+      selected_document()$acquisition_method,
+      "web_extraction"
+    )
+    testthat::expect_length(preparation_failures(), 0L)
+    testthat::expect_no_match(
+      output$prepare_today_control$html,
+      "Preparation details",
+      fixed = TRUE
+    )
+  }))
 })
 
 testthat::test_that("calendar views filter the queue and clear the reader", {

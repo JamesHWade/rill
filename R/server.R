@@ -3407,6 +3407,7 @@ rill_server <- function(config, store) {
           shiny::showModal(preparation_failures_ui(preparation_failures()))
           return(invisible(NULL))
         }
+        preparation_failures(list())
         bump_refresh()
         shiny::showNotification("Full article prepared.", type = "message")
       },

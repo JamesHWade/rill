@@ -93,6 +93,46 @@ testthat::test_that("feed fallbacks preserve Markdown autolinks and adjacent tex
   testthat::expect_match(xml2::xml_text(html), "for help.", fixed = TRUE)
 })
 
+testthat::test_that("feed copies preserve Markdown around embedded HTML", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/article"
+  entry$feed_content <- paste(
+    "# Heading\n\n**Important**: <https://example.com/details>",
+    "<img src='/photo.jpg' alt='Photo'>",
+    "Read [the source](https://example.com/source) and *consider it*.",
+    "- First point\n- Second point",
+    "<script>unsafe()</script>",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//h1")),
+    "Heading"
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//strong")),
+    "Important"
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//em")),
+    "consider it"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("https://example.com/details", "https://example.com/source")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/photo.jpg"
+  )
+  testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+  testthat::expect_no_match(as.character(html), "script|unsafe")
+})
+
 testthat::test_that("feed copies recognize HTML tag boundaries", {
   for (content in c(
     "<A HREF='/article'>Read this.</A>",
