@@ -162,6 +162,37 @@ testthat::test_that("the real article worker reports failure without discarding 
   testthat::expect_identical(file.exists(job$directory), FALSE)
 })
 
+testthat::test_that("scheduled preparation counts worker launch failures", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  store$memory$entries$published_at[[1]] <- utc_now()
+  fallback <- reading_document(store, "reader", entry)
+  launch_directory <- NULL
+  testthat::local_mocked_bindings(launch_article_preparation = function(
+    entry,
+    config,
+    directory,
+    package_path
+  ) {
+    launch_directory <<- directory
+    stop("private-launch-token")
+  })
+  testthat::capture_messages({
+    result <- prepare_recent_articles(store, list(defuddle_backend = "hosted"))
+  })
+  testthat::expect_identical(result, list(prepared = 0L, failed = 1L))
+  testthat::expect_type(launch_directory, "character")
+  testthat::expect_identical(file.exists(launch_directory), FALSE)
+  testthat::expect_identical(
+    preparation_attempt(store, entry$entry_id)$status,
+    "failed"
+  )
+  testthat::expect_identical(
+    store_get_document(store, "reader", entry$entry_id)$document_id,
+    fallback$document_id
+  )
+})
+
 testthat::test_that("scheduled preparation is bounded and isolates failed articles", {
   local_article_preparation_worker()
   store <- preparation_test_store()

@@ -95,6 +95,7 @@ rill_server <- function(config, store) {
     selected_document_id <- shiny::reactiveVal(NULL)
     reading_copy <- shiny::reactiveVal(NULL)
     preparation_tick <- shiny::reactiveVal(0L)
+    today_preparation_pending <- shiny::reactiveVal(FALSE)
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
     selected_position <- shiny::reactiveVal(NA_integer_)
     selected_feed <- shiny::reactiveVal(NULL)
@@ -2003,6 +2004,25 @@ rill_server <- function(config, store) {
             preparation_tick(preparation_tick() + 1L)
           })
         )
+      },
+      idle = function() {
+        if (session$isClosed()) {
+          return(invisible(NULL))
+        }
+        shiny::withReactiveDomain(
+          session,
+          shiny::isolate({
+            if (today_preparation_pending()) {
+              today_preparation_pending(FALSE)
+              if (!length(preparation_failures())) {
+                status_kind("success")
+                status_text(
+                  "Today's preparation check is complete. Available copies are preserved."
+                )
+              }
+            }
+          })
+        )
       }
     )
     shiny::observeEvent(
@@ -3531,6 +3551,7 @@ rill_server <- function(config, store) {
           return(invisible(NULL))
         }
         preparation_failures(list())
+        today_preparation_pending(TRUE)
         article_preparer$request(entries$entry_id, retry = TRUE)
         preparation_tick(preparation_tick() + 1L)
         status_kind("info")

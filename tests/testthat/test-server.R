@@ -4635,6 +4635,93 @@ testthat::test_that("preparing today queues acquisition and records the request"
   })
 })
 
+testthat::test_that("Today finishes when all stories already have full copies", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  store$memory$entries$published_at <- utc_now()
+  testthat::local_mocked_bindings(launch_article_preparation = function(...) {
+    stop("Cached stories must not launch a worker")
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$setInputs(prepare_today = 1L)
+    flush_article_preparation(article_preparer)
+    session$flushReact()
+    testthat::expect_identical(status_kind(), "success")
+    testthat::expect_identical(
+      status_text(),
+      "Today's preparation check is complete. Available copies are preserved."
+    )
+    testthat::expect_length(preparation_failures(), 0L)
+    testthat::expect_null(article_preparer$state$job)
+    testthat::expect_identical(article_preparer$state$queue, character())
+  }))
+})
+
+testthat::test_that("Today finishes when there are no stories to prepare", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  store$memory$entries$published_at <- format(
+    Sys.time() - 7 * 86400,
+    tz = "UTC",
+    usetz = TRUE
+  )
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$setInputs(prepare_today = 1L)
+    article_preparer$poll()
+    session$flushReact()
+    testthat::expect_identical(status_kind(), "success")
+    testthat::expect_identical(
+      status_text(),
+      "Today's preparation check is complete. Available copies are preserved."
+    )
+  }))
+})
+
+testthat::test_that("worker launch failure is shown in preparation details", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  store$memory$entries$published_at[[1]] <- utc_now()
+  fallback <- reading_document(store, "reader", entry)
+  testthat::local_mocked_bindings(launch_article_preparation = function(
+    entry,
+    config,
+    directory,
+    package_path
+  ) {
+    stop("private-launch-token")
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    logs <- testthat::capture_messages({
+      session$setInputs(prepare_today = 1L)
+      flush_article_preparation(article_preparer)
+      session$flushReact()
+    })
+    testthat::expect_identical(status_kind(), "warning")
+    testthat::expect_length(preparation_failures(), 1L)
+    testthat::expect_identical(preparation_failures()[[1]]$title, entry$title)
+    testthat::expect_match(
+      output$prepare_today_control$html,
+      "Preparation details",
+      fixed = TRUE
+    )
+    testthat::expect_no_match(
+      paste(logs, jsonlite::toJSON(preparation_failures())),
+      "private-launch-token"
+    )
+    testthat::expect_identical(
+      store_get_document(store, "reader", entry$entry_id)$document_id,
+      fallback$document_id
+    )
+  }))
+})
+
 testthat::test_that("failed preparation retains safe details and clears them on retry", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()

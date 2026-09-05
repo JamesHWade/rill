@@ -337,19 +337,14 @@ start_article_preparation <- function(
   )]
   process <- tryCatch(
     launch_article_preparation(entry, settings, directory, package_path),
-    error = function(error) {
-      unlink(directory, recursive = TRUE)
-      finish_preparation(
-        store,
-        entry_id,
-        token,
-        failure = preparation_failure(error, "extraction", config)
-      )
-      NULL
-    }
+    error = \(error) error
   )
-  if (is.null(process)) {
-    return(NULL)
+  if (inherits(process, "error")) {
+    unlink(directory, recursive = TRUE)
+    failure <- preparation_failure(process, "extraction", config)
+    failure$title <- entry$title
+    finish_preparation(store, entry_id, token, failure = failure)
+    return(list(entry_id = entry_id, failure = failure))
   }
   list(
     process = process,
@@ -458,6 +453,10 @@ prepare_recent_articles <- function(store, config, limit = 100L, budget = 600) {
     if (is.null(job)) {
       next
     }
+    if (!is.null(job$failure)) {
+      failed <- failed + 1L
+      next
+    }
     remaining <- max(
       0,
       budget - as.numeric(difftime(Sys.time(), started, units = "secs"))
@@ -473,13 +472,20 @@ prepare_recent_articles <- function(store, config, limit = 100L, budget = 600) {
   list(prepared = prepared, failed = failed)
 }
 
-article_preparation_controller <- function(store, config, reader_id, updated) {
+article_preparation_controller <- function(
+  store,
+  config,
+  reader_id,
+  updated,
+  idle = \() NULL
+) {
   state <- new.env(parent = emptyenv())
   state$job <- NULL
   state$queue <- character()
   state$retry <- character()
   state$scheduled <- FALSE
   state$closed <- FALSE
+  state$draining <- FALSE
   schedule <- function() {
     if (state$scheduled || state$closed) {
       return(invisible(NULL))
@@ -510,14 +516,19 @@ article_preparation_controller <- function(store, config, reader_id, updated) {
           state$queue <- state$queue[-1]
           retry <- id %in% state$retry
           state$retry <- setdiff(state$retry, id)
-          state$job <- start_article_preparation(
+          started <- start_article_preparation(
             store,
             config,
             reader_id,
             id,
             retry
           )
-          updated(id, NULL)
+          if (!is.null(started$failure)) {
+            updated(id, started)
+          } else {
+            state$job <- started
+            updated(id, NULL)
+          }
         }
         if (!is.null(state$job) || length(state$queue)) schedule()
       },
@@ -531,6 +542,10 @@ article_preparation_controller <- function(store, config, reader_id, updated) {
         )
       }
     )
+    if (state$draining && is.null(state$job) && !length(state$queue)) {
+      state$draining <- FALSE
+      idle()
+    }
     invisible(NULL)
   }
   list(
@@ -539,6 +554,7 @@ article_preparation_controller <- function(store, config, reader_id, updated) {
         return(invisible(NULL))
       }
       state$queue <- utils::head(unique(c(ids, state$queue)), 500L)
+      state$draining <- TRUE
       if (retry) {
         state$retry <- unique(c(ids, state$retry))
       }
@@ -551,6 +567,7 @@ article_preparation_controller <- function(store, config, reader_id, updated) {
     state = state,
     close = function() {
       state$closed <- TRUE
+      state$draining <- FALSE
       close_article_preparation(state$job)
       state$job <- NULL
       state$queue <- character()

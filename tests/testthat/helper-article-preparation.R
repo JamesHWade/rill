@@ -16,7 +16,11 @@ local_article_preparation_worker <- function(.env = parent.frame()) {
 
 flush_article_preparation <- function(controller) {
   for (index in seq_len(100L)) {
-    if (is.null(controller$state$job) && !length(controller$state$queue)) {
+    if (
+      is.null(controller$state$job) &&
+        !length(controller$state$queue) &&
+        !controller$state$draining
+    ) {
       return(invisible(NULL))
     }
     controller$poll()
