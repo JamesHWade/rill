@@ -245,16 +245,49 @@ document_fallback <- function(entry, reason = "feed-content") {
 }
 
 feed_content_markdown <- function(content, source_url) {
-  if (!grepl("<[A-Za-z][A-Za-z0-9-]*([[:space:]][^<>]*)?/?>", content)) {
-    return(content)
-  }
+  has_html <- grepl("<[A-Za-z][A-Za-z0-9-]*([[:space:]][^<>]*)?/?>", content)
   html <- commonmark::markdown_html(
     content,
     footnotes = TRUE,
     extensions = c("table", "strikethrough", "autolink", "tasklist")
   )
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
+  links_changed <- FALSE
+  nodes <- xml2::xml_find_all(parsed, ".//*[@href or @src or @poster]")
+  for (node in nodes) {
+    for (attribute in intersect(
+      names(xml2::xml_attrs(node)),
+      c("href", "src", "poster")
+    )) {
+      destination <- xml2::xml_attr(node, attribute)
+      if (
+        attribute == "href" &&
+          startsWith(destination, "#") &&
+          any(
+            c("data-footnote-ref", "data-footnote-backref") %in%
+              names(xml2::xml_attrs(node))
+          )
+      ) {
+        next
+      }
+      absolute <- xml2::url_absolute(destination, source_url)
+      links_changed <- links_changed || !identical(destination, absolute)
+      xml2::xml_attr(node, attribute) <- absolute
+    }
+  }
+  if (!has_html && !links_changed) {
+    return(content)
+  }
+  html <- paste(
+    vapply(
+      xml2::xml_children(xml2::xml_find_first(parsed, ".//body")),
+      as.character,
+      character(1)
+    ),
+    collapse = "\n"
+  )
   html <- sanitize_rendered_html(html)
-  parsed <- xml2::read_html(html)
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
   if (
     !nzchar(trimws(xml2::xml_text(parsed))) &&
       !length(xml2::xml_find_all(
@@ -267,26 +300,7 @@ feed_content_markdown <- function(content, source_url) {
       class = "rill_document_invalid"
     )
   }
-  nodes <- xml2::xml_find_all(parsed, ".//*[@href or @src or @poster]")
-  for (node in nodes) {
-    for (attribute in intersect(
-      names(xml2::xml_attrs(node)),
-      c("href", "src", "poster")
-    )) {
-      xml2::xml_attr(node, attribute) <- xml2::url_absolute(
-        xml2::xml_attr(node, attribute),
-        source_url
-      )
-    }
-  }
-  paste(
-    vapply(
-      xml2::xml_children(xml2::xml_find_first(parsed, ".//body")),
-      as.character,
-      character(1)
-    ),
-    collapse = "\n"
-  )
+  html
 }
 
 save_prepared_document <- function(store, reader_id, previous, document) {

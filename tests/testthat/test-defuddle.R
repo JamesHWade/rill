@@ -93,6 +93,75 @@ testthat::test_that("feed fallbacks preserve Markdown autolinks and adjacent tex
   testthat::expect_match(xml2::xml_text(html), "for help.", fixed = TRUE)
 })
 
+testthat::test_that("Markdown feed copies resolve source-relative links and images", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "Read [details](/posts/details) and [more][related].",
+    "![Image](../image.png)",
+    "[related]: related?mode=full",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c(
+      "https://example.com/posts/details",
+      "https://example.com/posts/story/related?mode=full"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/image.png"
+  )
+})
+
+testthat::test_that("resolving source URLs keeps generated footnotes local", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- "Text[^note].\n\n![Image](photo.png)\n\n[^note]: A note."
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(
+      xml2::xml_find_all(
+        html,
+        ".//a[@data-footnote-ref or @data-footnote-backref]"
+      ),
+      "href"
+    ),
+    c("#fn-note", "#fnref-note")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
+testthat::test_that("HTML feed copies resolve bare relative destinations before sanitizing", {
+  content <- feed_content_markdown(
+    "<p><a href='details'>Details</a><img src='photo.png'><a href='javascript:unsafe()'>Unsafe</a></p>",
+    "https://example.com/posts/story/"
+  )
+  html <- xml2::read_html(content)
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("https://example.com/posts/story/details", NA_character_)
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
 testthat::test_that("feed copies preserve Markdown around embedded HTML", {
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
   entry$url <- "https://example.com/article"
@@ -194,6 +263,13 @@ testthat::test_that("feed copies retain image-only articles but reject empty mar
   )
   testthat::expect_error(
     feed_content_markdown("<p> </p>", "https://example.com/article"),
+    class = "rill_document_invalid"
+  )
+  testthat::expect_error(
+    feed_content_markdown(
+      "<script>unsafe()</script>",
+      "https://example.com/article"
+    ),
     class = "rill_document_invalid"
   )
 })

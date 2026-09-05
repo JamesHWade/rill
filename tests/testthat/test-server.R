@@ -4174,6 +4174,51 @@ testthat::test_that("preparing one article upgrades a fallback without discardin
   })
 })
 
+testthat::test_that("preparing Today refreshes an already-open fallback", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "feed-fallback")
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  testthat::local_mocked_bindings(
+    reader_calendar_now = function() {
+      as.POSIXct("2026-08-19 12:00:00", tz = "UTC")
+    },
+    fetch_defuddled_markdown = function(source_url, config) {
+      "A complete article."
+    }
+  )
+
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", reader_timezone = "UTC")
+    session$setInputs(
+      select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
+    )
+    testthat::expect_identical(
+      selected_document()$document_id,
+      fallback$document_id
+    )
+
+    session$setInputs(prepare_today = 1L)
+
+    testthat::expect_identical(selected_id(), entry$entry_id)
+    testthat::expect_identical(
+      selected_document()$acquisition_method,
+      "web_extraction"
+    )
+    testthat::expect_identical(
+      selected_document()$document_id,
+      store_get_document(store, "reader", entry$entry_id)$document_id
+    )
+    testthat::expect_identical(
+      store_get_document_by_id(store, "reader", fallback$document_id)$markdown,
+      fallback$markdown
+    )
+  }))
+})
+
 testthat::test_that("failed article preparation preserves the copy and reports safe diagnostics", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()

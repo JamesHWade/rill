@@ -3459,6 +3459,7 @@ rill_server <- function(config, store) {
         }
 
         preparation_failures(result$failures %||% list())
+        bump_refresh()
         if (length(preparation_failures())) {
           shiny::showModal(preparation_failures_ui(preparation_failures()))
         }
