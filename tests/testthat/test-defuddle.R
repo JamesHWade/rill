@@ -485,6 +485,126 @@ testthat::test_that("local Defuddle requires an installed executable", {
   )
 })
 
+testthat::test_that("the bundled extractor selects an available local runtime", {
+  version <- function(command) if (grepl("node$", command)) 18L else 2L
+  node <- bundled_defuddle_invocation(
+    c(
+      node = "/runtime/node",
+      deno = "/runtime/deno"
+    ),
+    version = version
+  )
+  testthat::expect_identical(node$command, "/runtime/node")
+  testthat::expect_identical(
+    node$args,
+    rill_package_file("defuddle", "defuddle.cjs")
+  )
+  deno <- bundled_defuddle_invocation(
+    c(node = "", deno = "/runtime/deno"),
+    version = version
+  )
+  testthat::expect_identical(deno$command, "/runtime/deno")
+  testthat::expect_identical(deno$args[[1L]], "run")
+  testthat::expect_contains(deno$args, "--cached-only")
+  testthat::expect_contains(deno$args, "--no-prompt")
+  testthat::expect_identical("--allow-env" %in% deno$args, FALSE)
+  testthat::expect_error(
+    bundled_defuddle_invocation(c(node = "", deno = "")),
+    class = "rill_defuddle_cli_missing"
+  )
+})
+
+testthat::test_that("an unsupported runtime does not hide a supported alternative", {
+  paths <- c(node = "/runtime/node", deno = "/runtime/deno")
+  version <- function(command) if (grepl("node$", command)) 16L else 2L
+  testthat::expect_identical(
+    bundled_defuddle_invocation(paths, version = version)$command,
+    "/runtime/deno"
+  )
+  testthat::expect_error(
+    bundled_defuddle_invocation(paths, version = function(...) 1L),
+    class = "rill_defuddle_cli_missing"
+  )
+  testthat::expect_error(
+    bundled_defuddle_invocation(paths, version = function(...) NA_integer_),
+    class = "rill_defuddle_cli_missing"
+  )
+  testthat::expect_identical(
+    defuddle_runtime_major("rill-missing-runtime"),
+    NA_integer_
+  )
+})
+
+testthat::test_that("the shipped CLI extracts a structured article on Node and Deno", {
+  available <- Sys.which(c("node", "deno"))
+  testthat::skip_if_not(any(nzchar(available)), "Node or Deno is required")
+  path <- withr::local_tempfile(fileext = ".html")
+  writeLines(
+    paste0(
+      "<!doctype html><html><head><title>Building a reading room</title>",
+      "<meta name='author' content='An author'></head><body><article>",
+      "<h1>Building a reading room</h1>",
+      "<p>A reading room needs comfortable chairs, good lighting, and a place ",
+      "to put books. This first paragraph explains the design decisions.</p>",
+      "<h2>Materials</h2><p>The second paragraph explains how to choose ",
+      "materials that will last, and links to ",
+      "<a href='https://example.com/materials'>the materials guide</a>.</p>",
+      "<ul><li>Wooden shelves</li><li>Adjustable lighting</li></ul>",
+      "<img src='https://example.com/room.jpg' alt='Reading room'>",
+      "</article></body></html>"
+    ),
+    path
+  )
+  for (runtime in names(available)[nzchar(available)]) {
+    runtimes <- c(node = "", deno = "")
+    runtimes[[runtime]] <- available[[runtime]]
+    invocation <- bundled_defuddle_invocation(runtimes)
+    result <- run_defuddle_cli(
+      invocation$command,
+      c(invocation$args, "parse", path, "--md", "--frontmatter"),
+      timeout = 30
+    )
+    testthat::expect_identical(result$status, 0L, info = result$stderr)
+    parsed <- parse_markdown_frontmatter(result$stdout)
+    testthat::expect_identical(parsed$metadata$title, "Building a reading room")
+    testthat::expect_identical(parsed$metadata$author, "An author")
+    html <- xml2::read_html(as.character(render_document(list(
+      markdown = parsed$markdown
+    ))))
+    testthat::expect_identical(
+      xml2::xml_text(xml2::xml_find_first(html, ".//h2")),
+      "Materials"
+    )
+    testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+    testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+      "https://example.com/materials"
+    )
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "src"),
+      "https://example.com/room.jpg"
+    )
+  }
+})
+
+testthat::test_that("bundled extraction records the shipped producer version", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(...) {
+      "# Extracted article\n\nReadable content."
+    }
+  )
+  document <- document_from_defuddle(
+    entry,
+    list(defuddle_backend = "local", defuddle_command = "bundled")
+  )
+  testthat::expect_identical(document$producer, "defuddle-local")
+  testthat::expect_identical(document$producer_version, "0.19.3")
+  testthat::expect_identical(document$acquisition_method, "web_extraction")
+})
+
 testthat::test_that("today preparation extracts only uncached articles", {
   store <- rill_store(list(demo_mode = TRUE))
   store$memory$documents <- list()
@@ -1004,4 +1124,44 @@ testthat::test_that("raw trusted video frames survive markdown tag filtering", {
     fixed = TRUE
   )
   testthat::expect_no_match(html, "attacker.example", fixed = TRUE)
+})
+testthat::test_that("Orientation feed copies preserve readable structure", {
+  entry <- list(
+    entry_id = "structured-feed",
+    url = "https://example.com/article",
+    title = "Structured feed",
+    feed_content = paste0(
+      "<h2>Projects</h2><p>One.</p><p>Two.</p>",
+      "<ul><li><a href='/project'>Project</a></li></ul>",
+      "<img src='/photo.jpg' alt='Photo'>"
+    )
+  )
+  document <- document_fallback(entry, reason = "orientation-feed-copy")
+  html <- xml2::read_html(as.character(render_document(document)))
+  testthat::expect_length(xml2::xml_find_all(html, ".//h2"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//li/a"), 1L)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "src"),
+    "https://example.com/photo.jpg"
+  )
+})
+testthat::test_that("extraction diagnostics classify gateways without retaining response content", {
+  response <- httr2::response(
+    status_code = 403L,
+    headers = list(
+      "content-type" = "text/html; charset=utf-8",
+      "server" = "cloudflare",
+      "cf-mitigated" = "challenge",
+      "set-cookie" = "private-secret"
+    ),
+    body = charToRaw("<html>Private article URL and private-secret</html>")
+  )
+  attributes <- extraction_response_attributes(response)
+  testthat::expect_identical(attributes$http.response.challenge, TRUE)
+  testthat::expect_identical(attributes$http.response.content_type, "text/html")
+  testthat::expect_no_match(
+    jsonlite::toJSON(attributes),
+    "private|article|cookie"
+  )
 })

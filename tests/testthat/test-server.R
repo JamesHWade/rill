@@ -709,6 +709,35 @@ testthat::test_that("Orientation polling does not reload Library content", {
   })
 })
 
+testthat::test_that("reading an article does not rebuild unused Orientation candidates", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- FALSE
+  reads <- 0L
+  original <- store_orientation_polled_state
+  testthat::local_mocked_bindings(store_orientation_polled_state = function(
+    ...
+  ) {
+    reads <<- reads + 1L
+    original(...)
+  })
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    before <- reads
+    session$setInputs(select_entry = list(id = "sample-entry-1", position = 1L))
+    output$reader_body
+    testthat::expect_identical(reads, before)
+    bump_refresh()
+    session$flushReact()
+    testthat::expect_identical(reads, before)
+    clear_selection()
+    session$flushReact()
+    testthat::expect_gt(reads, before)
+  })
+})
+
 testthat::test_that("durable Orientation is prepared and launched only when enabled", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

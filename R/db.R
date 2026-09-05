@@ -941,7 +941,9 @@ store_list_entries <- function(
   limit = 100L,
   sort = "newest",
   now = Sys.time(),
-  timezone = Sys.timezone()
+  timezone = Sys.timezone(),
+  include_content = TRUE,
+  entry_ids = NULL
 ) {
   view <- normalize_entry_view(view)
   sort <- normalize_entry_sort(sort)
@@ -954,6 +956,23 @@ store_list_entries <- function(
       "COALESCE(s.hidden, false) = false",
       postgres_capture_entry_visible_sql("$1")
     )
+
+    if (!is.null(entry_ids)) {
+      if (length(entry_ids)) {
+        slots <- seq_along(entry_ids) + length(parameters)
+        clauses <- c(
+          clauses,
+          paste0(
+            "e.entry_id IN (",
+            paste0("$", slots, collapse = ", "),
+            ")"
+          )
+        )
+        parameters <- c(parameters, as.list(entry_ids))
+      } else {
+        clauses <- c(clauses, "FALSE")
+      }
+    }
 
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
@@ -989,8 +1008,18 @@ store_list_entries <- function(
       )
     }
 
+    columns <- if (include_content) {
+      "e.*"
+    } else {
+      paste(
+        paste0("e.", setdiff(names(empty_entries()), "feed_content")),
+        collapse = ", "
+      )
+    }
     query <- paste(
-      "SELECT e.*,",
+      "SELECT",
+      columns,
+      ",",
       paste(
         "COALESCE(NULLIF(sub.display_title, ''), f.title) AS feed_title,",
         "f.title AS source_feed_title, sub.folder,"
@@ -1078,6 +1107,12 @@ store_list_entries <- function(
   }
 
   entries <- entries[keep, , drop = FALSE]
+  if (!is.null(entry_ids)) {
+    entries <- entries[entries$entry_id %in% entry_ids, , drop = FALSE]
+  }
+  if (!include_content) {
+    entries$feed_content <- NULL
+  }
   entries <- entries[entry_sort_index(entries, sort), , drop = FALSE]
   utils::head(entries, limit)
 }
@@ -1921,6 +1956,60 @@ store_save_document <- function(store, document) {
     )
   }
   invisible(list(created = TRUE, document = document))
+}
+
+store_replace_public_document <- function(
+  store,
+  expected_document_id,
+  document
+) {
+  if (!is.na(document$reader_id)) {
+    cli::cli_abort(
+      "Only a public Document may become the shared default reading copy.",
+      class = "rill_document_invalid"
+    )
+  }
+  replace <- function(transaction_store) {
+    current <- public_reading_document(transaction_store, document$entry_id)
+    if (
+      is.null(current) || !identical(current$document_id, expected_document_id)
+    ) {
+      return(invisible(FALSE))
+    }
+    if (identical(transaction_store$mode, "postgres")) {
+      store_insert_document(transaction_store$pool, document)
+      changed <- DBI::dbExecute(
+        transaction_store$pool,
+        paste(
+          "UPDATE public_document_heads SET document_id = $1, selected_at = $2",
+          "WHERE entry_id = $3 AND document_id = $4"
+        ),
+        params = list(
+          document$document_id,
+          document$received_at,
+          document$entry_id,
+          expected_document_id
+        )
+      )
+      return(invisible(identical(changed, 1L)))
+    }
+    store_save_document(transaction_store, document)
+    invisible(TRUE)
+  }
+  if (identical(store$mode, "postgres")) {
+    return(pool::poolWithTransaction(store$pool, function(connection) {
+      DBI::dbGetQuery(
+        connection,
+        "SELECT entry_id FROM entries WHERE entry_id = $1 FOR UPDATE",
+        params = list(document$entry_id)
+      )
+      replace(structure(
+        list(mode = "postgres", pool = connection),
+        class = "rill_store"
+      ))
+    }))
+  }
+  replace(store)
 }
 
 store_save_document_if_missing_head <- function(store, reader_id, document) {

@@ -10,6 +10,41 @@ testthat::test_that("reading a cache miss never calls the extractor", {
   testthat::expect_identical(reading_document(store, "reader", entry), document)
 })
 
+testthat::test_that("reading repairs flattened public copies without changing pins", {
+  store <- preparation_test_store()
+  id <- store$memory$entries$entry_id[[1]]
+  store$memory$entries$feed_content[[1]] <- paste0(
+    "<h2>Projects</h2><p>First paragraph.</p><p>Second paragraph.</p>",
+    "<ul><li><a href='/project'>A project</a></li></ul>",
+    "<img src='/photo.jpg' alt='Project photo'>"
+  )
+  entry <- store_get_entry(store, "reader", id)
+  old <- new_rill_document(
+    entry_id = id,
+    source_url = entry$url,
+    markdown = plain_summary(entry$feed_content, max_chars = 20000L),
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  store_select_document(store, "reader", old$document_id)
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  repaired <- public_reading_document(store, id)
+  testthat::expect_identical(repaired$producer, "orientation-feed-copy")
+  testthat::expect_identical(repaired$producer_version, "2")
+  html <- xml2::read_html(as.character(render_document(repaired)))
+  testthat::expect_length(xml2::xml_find_all(html, ".//h2"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//li/a"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//img"), 1L)
+  testthat::expect_identical(
+    store_get_document_record(store, old$document_id),
+    old
+  )
+  store$memory$document_selections <- store$memory$document_selections[0, ]
+  testthat::expect_identical(reading_document(store, "reader", entry), repaired)
+})
+
 testthat::test_that("preparation leases prevent duplicate work and stale completion", {
   store <- preparation_test_store()
   id <- store$memory$entries$entry_id[[1]]
@@ -350,4 +385,137 @@ testthat::test_that("completion cannot overwrite a private copy or a newer publi
     store_get_document(store, "reader", entry$entry_id)$document_id,
     private$document_id
   )
+})
+
+
+testthat::test_that("failed legacy repairs leave the cached copy readable", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  entry$feed_content <- "<script>unreadable()</script>"
+  old <- new_rill_document(
+    entry_id = entry$entry_id,
+    source_url = entry$url,
+    markdown = "unreadable()",
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  entry$feed_content <- "<p>Readable content.</p>"
+  testthat::local_mocked_bindings(
+    store_replace_public_document = function(...) {
+      rlang::abort("Storage unavailable", class = "test_storage_error")
+    }
+  )
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  testthat::expect_identical(
+    public_reading_document(store, entry$entry_id),
+    old
+  )
+})
+
+testthat::test_that("pinned legacy copies do not repeat a completed repair", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  old <- new_rill_document(
+    entry_id = entry$entry_id,
+    source_url = entry$url,
+    markdown = "Old copy.",
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  store_select_document(store, "reader", old$document_id)
+  reading_document(store, "reader", entry)
+  repairs <- 0L
+  testthat::local_mocked_bindings(document_fallback = function(...) {
+    repairs <<- repairs + 1L
+    old
+  })
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  testthat::expect_identical(repairs, 0L)
+})
+
+testthat::test_that("a changed extractor renews failed attempts without taking an active lease", {
+  for (mode in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(mode, "reader")
+    entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+    entry$entry_id <- entry$external_id <- "changed-extractor"
+    entry$url <- "https://example.org/changed-extractor"
+    entry$published_at <- utc_now()
+    store_upsert_entries(store, as.data.frame(entry))
+    now <- Sys.time()
+    for (attempt in seq_len(5L)) {
+      at <- now - (5L - attempt) * 2 * 86400
+      token <- claim_preparation(
+        store,
+        entry$entry_id,
+        now = at,
+        backend = "hosted"
+      )
+      finish_preparation(
+        store,
+        entry$entry_id,
+        token,
+        failure = list(backend = "hosted", http_status = 403L),
+        now = at
+      )
+    }
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$attempts,
+      5L
+    )
+    testthat::expect_identical(
+      preparation_candidates(store, "reader", now = now, backend = "hosted"),
+      character()
+    )
+    testthat::expect_identical(
+      preparation_candidates(store, "reader", now = now, backend = "local"),
+      entry$entry_id
+    )
+    testthat::expect_identical(
+      article_preparation_status(store, entry$entry_id, backend = "local"),
+      "missing"
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now,
+      backend = "hosted"
+    ))
+    renewed <- claim_preparation(
+      store,
+      entry$entry_id,
+      now = now,
+      backend = "local"
+    )
+    testthat::expect_type(renewed, "character")
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$attempts,
+      1L
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now + 1,
+      backend = "hosted"
+    ))
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$token,
+      renewed
+    )
+    finish_preparation(
+      store,
+      entry$entry_id,
+      renewed,
+      failure = list(backend = "local"),
+      now = now
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now + 1,
+      backend = "local"
+    ))
+  }
 })

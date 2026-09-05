@@ -62,6 +62,10 @@ fetch_defuddled_markdown_hosted <- function(source_url, config) {
     } else {
       NULL
     }
+    request <- httr2::req_error(request, is_error = function(response) {
+      telemetry_attributes(span, extraction_response_attributes(response))
+      httr2::resp_status(response) >= 400L
+    })
     response <- withCallingHandlers(
       httr2::req_perform(request),
       httr2_fetch = function(event) {
@@ -84,6 +88,48 @@ fetch_defuddled_markdown_hosted <- function(source_url, config) {
     response
   })
   httr2::resp_body_string(response)
+}
+
+extraction_response_attributes <- function(response) {
+  type <- tolower(sub(
+    ";.*$",
+    "",
+    httr2::resp_header(response, "content-type") %||% ""
+  ))
+  server <- tolower(httr2::resp_header(response, "server") %||% "")
+  list(
+    "http.response.status_code" = httr2::resp_status(response),
+    "http.response.content_type" = if (
+      type %in%
+        c(
+          "text/html",
+          "text/plain",
+          "text/markdown",
+          "application/json"
+        )
+    ) {
+      type
+    } else {
+      "other"
+    },
+    "http.response.gateway" = if (
+      server %in%
+        c(
+          "cloudflare",
+          "cloudfront",
+          "envoy",
+          "nginx"
+        )
+    ) {
+      server
+    } else {
+      "other"
+    },
+    "http.response.challenge" = identical(
+      httr2::resp_header(response, "cf-mitigated"),
+      "challenge"
+    )
+  )
 }
 
 fetch_defuddled_markdown_local <- function(
@@ -128,6 +174,11 @@ fetch_defuddled_markdown_local <- function(
 }
 
 run_defuddle_cli <- function(command, args, timeout) {
+  if (identical(command, "bundled")) {
+    invocation <- bundled_defuddle_invocation()
+    command <- invocation$command
+    args <- c(invocation$args, args)
+  }
   resolved <- unname(Sys.which(command))
   if (!nzchar(resolved)) {
     cli::cli_abort(
@@ -159,6 +210,58 @@ run_defuddle_cli <- function(command, args, timeout) {
     stdout = paste(stdout, collapse = "\n"),
     stderr = stderr
   )
+}
+
+bundled_defuddle_invocation <- function(
+  runtimes = Sys.which(c("node", "deno")),
+  version = defuddle_runtime_major
+) {
+  bundle <- rill_package_file("defuddle", "defuddle.cjs")
+  if (
+    nzchar(runtimes[["node"]]) && isTRUE(version(runtimes[["node"]]) >= 18L)
+  ) {
+    return(list(command = unname(runtimes[["node"]]), args = bundle))
+  }
+  if (nzchar(runtimes[["deno"]]) && isTRUE(version(runtimes[["deno"]]) >= 2L)) {
+    return(list(
+      command = unname(runtimes[["deno"]]),
+      args = c(
+        "run",
+        "--cached-only",
+        "--no-prompt",
+        "--allow-read",
+        "--allow-net",
+        paste0(
+          "--allow-env=HTTP_PROXY,HTTPS_PROXY,ALL_PROXY,NO_PROXY,",
+          "http_proxy,https_proxy,all_proxy,no_proxy"
+        ),
+        bundle
+      )
+    ))
+  }
+  cli::cli_abort(
+    "Bundled Defuddle requires Node.js 18 or later, or Deno 2 or later.",
+    class = "rill_defuddle_cli_missing"
+  )
+}
+
+defuddle_runtime_major <- function(command) {
+  result <- tryCatch(
+    processx::run(command, "--version", timeout = 5, error_on_status = FALSE),
+    error = function(error) NULL
+  )
+  if (is.null(result) || !identical(result$status, 0L)) {
+    return(NA_integer_)
+  }
+  lines <- strsplit(result$stdout, "\n", fixed = TRUE)[[1L]]
+  if (!length(lines) || !grepl("^(v|deno )[0-9]+\\.", lines[[1L]])) {
+    return(NA_integer_)
+  }
+  as.integer(sub("^(v|deno )([0-9]+).*", "\\2", lines[[1L]]))
+}
+
+bundled_defuddle_version <- function() {
+  readLines(rill_package_file("defuddle", "version.txt"), warn = FALSE)[[1L]]
 }
 
 word_count <- function(markdown) {
@@ -225,10 +328,14 @@ document_from_defuddle <- function(entry, config) {
     canonical_url = entry$canonical_url %||% NA_character_,
     acquisition_method = "web_extraction",
     producer = paste0("defuddle-", backend),
-    producer_version = first_metadata_value(
-      metadata$defuddle_version,
-      metadata$version
-    ),
+    producer_version = if (
+      identical(backend, "local") &&
+        identical(config$defuddle_command, "bundled")
+    ) {
+      bundled_defuddle_version()
+    } else {
+      first_metadata_value(metadata$defuddle_version, metadata$version)
+    },
     title = first_metadata_value(metadata$title, entry$title),
     author = first_metadata_value(metadata$author, entry$author),
     site = first_metadata_value(
@@ -254,11 +361,7 @@ document_fallback <- function(entry, reason = "feed-content") {
   content <- entry$feed_content %||%
     entry$summary %||%
     "No readable content was supplied by this feed."
-  content <- if (identical(reason, "orientation-feed-copy")) {
-    plain_summary(content, max_chars = 20000L)
-  } else {
-    feed_content_markdown(content, entry$url)
-  }
+  content <- feed_content_markdown(content, entry$url)
 
   captured_at <- utc_now()
   new_rill_document(
@@ -267,6 +370,7 @@ document_fallback <- function(entry, reason = "feed-content") {
     canonical_url = entry$canonical_url %||% NA_character_,
     acquisition_method = "feed_fallback",
     producer = reason,
+    producer_version = "2",
     title = entry$title,
     author = entry$author %||% NA_character_,
     site = first_metadata_value(entry$source_feed_title, entry$feed_title),

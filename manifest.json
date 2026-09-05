@@ -2697,8 +2697,17 @@
     }
   },
   "files": {
+    "inst/defuddle/defuddle.cjs": {
+      "checksum": "0a947373a43e3d7ed875aac55695f795"
+    },
+    "inst/defuddle/LICENSES.txt": {
+      "checksum": "22c5864f46effa673b70cf8af3094b96"
+    },
+    "inst/defuddle/version.txt": {
+      "checksum": "b38630ea116d02ff1c8e90bd7437eb56"
+    },
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "30d0992a179a0c1b7fe290c14fff52d4"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2710,7 +2719,7 @@
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "477d05fafabaa99bf6d59220bcac922a"
+      "checksum": "1cf616b37526737786bcf97da72bb9df"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2788,7 +2797,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "5c7385d671ab1d19af1aa3ed1698a915"
+      "checksum": "d78f4a4b8f35fb1146350744332e0cae"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2797,10 +2806,10 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "fd3e8d74e2741b79219a3983052abcd8"
+      "checksum": "a263c3aa1f6d2c607a51ed358ce7f02e"
     },
     "R/defuddle.R": {
-      "checksum": "b142c85a74d5a9e6d741c1e2d635c8d0"
+      "checksum": "42383c4831739c9545a9965d9c47d923"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2842,10 +2851,10 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "f43d9ed7e68c760cb69d565b21238402"
+      "checksum": "12d973c443d4bdba8448e8b8ba5e45dc"
     },
     "R/telemetry.R": {
-      "checksum": "6fea18bdb711e7b479e86d78bc9180ad"
+      "checksum": "8c574df1a5e8024840c5027369e8ad01"
     },
     "R/ui.R": {
       "checksum": "77634603b9eeb20d4004d4c75301d496"

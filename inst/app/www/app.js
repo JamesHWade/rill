@@ -102,6 +102,7 @@
         article.dataset.openId !== pending.id ||
         !article.textContent.trim() || !article.getClientRects().length) return;
     pending.scheduled = true;
+    const domReadyAt = performance.now();
     window.requestAnimationFrame(function () {
       window.requestAnimationFrame(function () {
         if (pendingArticleTiming !== pending) return;
@@ -114,7 +115,8 @@
         pendingArticleTiming = null;
         window.Shiny.setInputValue("article_visible", {
           id: pending.id,
-          elapsed_ms: performance.now() - pending.started
+          elapsed_ms: performance.now() - pending.started,
+          dom_ready_ms: domReadyAt - pending.started
         }, { priority: "event" });
       });
     });

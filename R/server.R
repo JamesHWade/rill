@@ -1570,6 +1570,7 @@ rill_server <- function(config, store) {
     queue_entries <- shiny::reactive({
       refresh_tick()
       calendar <- calendar_window()
+      telemetry_local_span("queue.entries")
       store_list_entries(
         store,
         actor_id,
@@ -1578,7 +1579,8 @@ rill_server <- function(config, store) {
         limit = 150L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
-        timezone = calendar$timezone
+        timezone = calendar$timezone,
+        include_content = FALSE
       )
     })
 
@@ -1792,9 +1794,12 @@ rill_server <- function(config, store) {
 
     if (!isTRUE(config$demo_mode)) {
       shiny::observe({
+        if (!is.null(selected_id())) {
+          return()
+        }
         destination <- orientation_destination_status()
         orientation_state()
-        if (isTRUE(destination$enabled) && is.null(selected_id())) {
+        if (isTRUE(destination$enabled)) {
           start_orientation_maintenance()
         }
       })
@@ -1899,16 +1904,27 @@ rill_server <- function(config, store) {
         return(rows)
       }
 
-      all_rows <- store_list_entries(
+      missing_ids <- setdiff(ids, as.character(rows$entry_id))
+      if (!length(missing_ids)) {
+        return(rows)
+      }
+      telemetry_local_span("queue.retained_entries")
+      retained <- store_list_entries(
         store,
         actor_id,
         view = "all",
         feed_id = selected_feed(),
         limit = 500L,
-        sort = input$story_sort %||% "newest"
+        sort = input$story_sort %||% "newest",
+        include_content = FALSE,
+        entry_ids = missing_ids
       )
-      visible_ids <- unique(c(as.character(rows$entry_id), ids))
-      all_rows[all_rows$entry_id %in% visible_ids, , drop = FALSE]
+      combined <- rbind(rows, retained)
+      combined[
+        entry_sort_index(combined, input$story_sort %||% "newest"),
+        ,
+        drop = FALSE
+      ]
     })
 
     selected_feed_title <- shiny::reactive({
@@ -2102,7 +2118,11 @@ rill_server <- function(config, store) {
         )
       )
       bump_refresh(feeds_changed = TRUE)
-      article_preparer$request(preparation_candidates(store, actor_id))
+      article_preparer$request(preparation_candidates(
+        store,
+        actor_id,
+        backend = config$defuddle_backend
+      ))
       invisible(result)
     }
     poll_refresh <- function() {
@@ -2150,6 +2170,7 @@ rill_server <- function(config, store) {
     }
 
     output$feed_nav <- shiny::renderUI({
+      telemetry_local_span("navigation.render")
       feed_rows <- feeds()
       all_unread <- sum(feed_rows$unread_count, na.rm = TRUE)
       all_active <- is.null(selected_feed())
@@ -2366,6 +2387,7 @@ rill_server <- function(config, store) {
     })
 
     output$story_list <- shiny::renderUI({
+      telemetry_local_span("queue.render")
       rows <- entries()
       if (!nrow(rows)) {
         return(empty_story_list(
@@ -2386,6 +2408,7 @@ rill_server <- function(config, store) {
     })
 
     output$reader_header <- shiny::renderUI({
+      telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
         state <- orientation_state()
         return(orientation_ui(
@@ -2411,7 +2434,8 @@ rill_server <- function(config, store) {
         article_preparation_status(
           store,
           selected_id(),
-          article_preparer$busy(selected_id())
+          article_preparer$busy(selected_id()),
+          backend = config$defuddle_backend
         )
       } else {
         "missing"
@@ -2455,12 +2479,17 @@ rill_server <- function(config, store) {
         if (!is.list(report)) {
           return(invisible(NULL))
         }
-        opening_telemetry$complete(report$id, report$elapsed_ms)
+        opening_telemetry$complete(
+          report$id,
+          report$elapsed_ms,
+          report$dom_ready_ms
+        )
       },
       ignoreInit = TRUE
     )
 
     output$reader_agent_context <- shiny::renderUI({
+      telemetry_local_span("article.context.render")
       if (is.null(selected_id())) {
         return(NULL)
       }
@@ -2630,6 +2659,11 @@ rill_server <- function(config, store) {
           surface <- "story_list"
         }
         opening_telemetry$begin(request$telemetry_id, surface)
+        opening_id <- opening_telemetry$id()
+        session$onFlushed(
+          \() opening_telemetry$flushed(opening_id),
+          once = TRUE
+        )
         opening_telemetry$activate()
         telemetry_local_span("article.selection")
         position <- as.integer(request$position %||% NA_integer_)
