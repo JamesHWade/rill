@@ -1,5 +1,9 @@
 # rill 0.0.0.9000
 
+* Today, This week, and This month now follow the browser's local calendar, show their date range and time zone, and keep Prepare on the same day; queue controls fit narrow sidebars and OPML import/export buttons share a consistent layout (#28, #47).
+
+* Feed fallback copies preserve paragraphs, images, links, and lists, clearly identify themselves as feed copies, and offer a per-article retry; successful preparation upgrades selected fallbacks without deleting earlier copies or replacing browser captures (#28, #45).
+
 * Today's Prepare action and `prepare_today()` now report safe failure details for each Feed Entry, distinguish extraction from storage failures, and provide references to content-free server logs while leaving missing copies retryable (#28, #45).
 
 * Library refresh now runs in a separate background process with live progress, so you can keep reading, navigate, or close Manage feeds while new stories are fetched; refresh completion preserves your current reading and Subscription choices (#22, #28).

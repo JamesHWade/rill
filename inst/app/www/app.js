@@ -93,6 +93,20 @@
   let systemEventsRegistered = false;
   let inputValidityRegistered = false;
   let readingStatusTrigger = null;
+  let readerTimezone = null;
+
+  function syncReaderTimezone(force = false) {
+    if (!window.Shiny || connectionState !== "connected") return;
+    let timezone = "UTC";
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch (_error) {
+      // UTC remains an explicit fallback if the browser has no IANA zone.
+    }
+    if (!force && timezone === readerTimezone) return;
+    readerTimezone = timezone;
+    window.Shiny.setInputValue("reader_timezone", timezone, { priority: "event" });
+  }
 
   function setAppBusy(busy) {
     const app = document.getElementById("rill-app");
@@ -133,6 +147,7 @@
     const restored = hasConnected || connectionState === "disconnected";
     hasConnected = true;
     connectionState = "connected";
+    syncReaderTimezone(true);
     setAppBusy(false);
     if (restored) {
       setSystemStatus(
@@ -1812,6 +1827,9 @@
       { action: true }
     );
   });
+  window.addEventListener("focus", function () {
+    syncReaderTimezone();
+  });
 
   document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
@@ -1833,6 +1851,7 @@
   }, true);
 
   document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") syncReaderTimezone();
     if (
       document.visibilityState === "hidden" &&
       activeEntryId &&

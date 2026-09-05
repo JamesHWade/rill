@@ -66,6 +66,89 @@ testthat::test_that("reader feed labels do not alter captured source metadata", 
   testthat::expect_identical(document$site, "The R Blog")
 })
 
+testthat::test_that("feed fallbacks retain article structure safely", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/articles/pelicans/"
+  entry$feed_content <- paste0(
+    "<p>Read the <a href='/comparison/'>comparison grid</a>.</p>",
+    "<p><img src='/grid.webp' alt='Pelican comparison grid'></p>",
+    "<ul><li>First observation.</li><li>Second observation.</li></ul>",
+    "<base href='https://unsafe.example/'><script>unsafe()</script>",
+    "<p onclick='unsafe()'>Conclusion.</p>"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+
+  testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 3L)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "alt"),
+    "Pelican comparison grid"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+    "https://example.com/comparison/"
+  )
+  testthat::expect_no_match(
+    as.character(render_document(document)),
+    "script|onclick|unsafe|<base"
+  )
+  testthat::expect_identical(document$acquisition_method, "feed_fallback")
+})
+
+testthat::test_that("feed copies retain image-only articles but reject empty markup", {
+  image <- feed_content_markdown(
+    "<img src='/grid.webp' alt='Comparison'>",
+    "https://example.com/article"
+  )
+  testthat::expect_match(
+    image,
+    'src="https://example.com/grid.webp"',
+    fixed = TRUE
+  )
+  testthat::expect_error(
+    feed_content_markdown("<p> </p>", "https://example.com/article"),
+    class = "rill_document_invalid"
+  )
+})
+
+testthat::test_that("preparation does not replace a newer browser capture selection", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "feed-fallback")
+  captured <- new_rill_document(
+    entry$entry_id,
+    entry$url,
+    "Private browser copy.",
+    "browser_capture",
+    "clipper",
+    reader_id = "reader"
+  )
+  prepared <- new_rill_document(
+    entry$entry_id,
+    entry$url,
+    "Full public article.",
+    "web_extraction",
+    "defuddle-test"
+  )
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  store_save_document(store, captured)
+  store_select_document(store, "reader", captured$document_id)
+
+  save_prepared_document(store, "reader", fallback, prepared)
+
+  testthat::expect_identical(
+    store_get_document(store, "reader", entry$entry_id)$document_id,
+    captured$document_id
+  )
+  testthat::expect_identical(
+    store_get_document_by_id(store, "reader", fallback$document_id)$markdown,
+    fallback$markdown
+  )
+})
+
 testthat::test_that("local Defuddle uses the CLI markdown contract", {
   call <- NULL
   runner <- function(command, args, timeout) {
@@ -357,6 +440,7 @@ testthat::test_that("today preparation retries feed fallbacks", {
     fallback$document_id,
     entry$entry_id
   )
+  store_select_document(store, "reader", fallback$document_id)
   testthat::local_mocked_bindings(
     document_from_defuddle = function(entry, config) {
       new_rill_document(

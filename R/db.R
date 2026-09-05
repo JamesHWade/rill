@@ -1104,6 +1104,17 @@ normalize_entry_view <- function(view) {
   view
 }
 
+reader_calendar_now <- function() {
+  Sys.time()
+}
+
+normalize_reader_timezone <- function(timezone) {
+  if (!rlang::is_string(timezone) || !timezone %in% OlsonNames()) {
+    return("UTC")
+  }
+  timezone
+}
+
 entry_view_window <- function(
   view,
   now = Sys.time(),

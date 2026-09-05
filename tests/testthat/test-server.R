@@ -1,3 +1,106 @@
+testthat::test_that("Today uses the browser day on a UTC host", {
+  withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
+  config <- rill_config()
+  store <- rill_store(config)
+  now <- as.POSIXct("2026-09-05 02:00:00", tz = "UTC")
+  store$memory$entries$published_at <- c(
+    "2026-09-04 03:59:59 UTC",
+    "2026-09-04 04:00:00 UTC",
+    "2026-09-05 01:00:00 UTC",
+    "2026-09-05 04:00:00 UTC",
+    "2026-09-01 12:00:00 UTC",
+    "2026-08-01 12:00:00 UTC"
+  )
+  testthat::local_mocked_bindings(reader_calendar_now = function() now)
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", reader_timezone = "America/Detroit")
+
+    testthat::expect_setequal(
+      queue_entries()$entry_id,
+      paste0("sample-entry-", c(2, 3))
+    )
+    caption <- output$calendar_context$html
+    testthat::expect_match(caption, "Sep 4, 2026", fixed = TRUE)
+    testthat::expect_match(caption, "America/Detroit", fixed = TRUE)
+    testthat::expect_match(caption, "midnight", fixed = TRUE)
+
+    session$setInputs(reader_timezone = "Asia/Tokyo")
+    testthat::expect_setequal(
+      queue_entries()$entry_id,
+      paste0("sample-entry-", c(3, 4))
+    )
+    testthat::expect_match(
+      output$calendar_context$html,
+      "Sep 5, 2026",
+      fixed = TRUE
+    )
+    testthat::expect_identical(Sys.getenv("TZ"), "UTC")
+  })
+})
+
+testthat::test_that("Prepare uses the same local day as the visible queue", {
+  withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
+  config <- rill_config()
+  store <- rill_store(config)
+  now <- as.POSIXct("2026-09-05 02:00:00", tz = "UTC")
+  prepared <- NULL
+  testthat::local_mocked_bindings(
+    reader_calendar_now = function() now,
+    prepare_today_documents = function(
+      store,
+      config,
+      reader_id,
+      progress,
+      ...
+    ) {
+      prepared <<- list(...)
+      list(total = 0L, cached = 0L, prepared = 0L, failed = 0L)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", reader_timezone = "America/Detroit")
+    session$setInputs(prepare_today = 1L)
+
+    testthat::expect_identical(prepared$timezone, "America/Detroit")
+    testthat::expect_identical(prepared$now, now)
+  })
+})
+
+testthat::test_that("Today rolls over locally without retaining yesterday in the queue", {
+  withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
+  config <- rill_config()
+  store <- rill_store(config)
+  clock <- new.env(parent = emptyenv())
+  clock$now <- as.POSIXct("2026-09-05 03:59:30", tz = "UTC")
+  store$memory$entries$published_at <- c(
+    "2026-09-04 12:00:00 UTC",
+    "2026-09-05 04:00:00 UTC",
+    rep("2026-09-01 12:00:00 UTC", 4)
+  )
+  testthat::local_mocked_bindings(reader_calendar_now = function() clock$now)
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", reader_timezone = "America/Detroit")
+    session$setInputs(
+      select_entry = list(id = "sample-entry-1", position = 1L, nonce = 1)
+    )
+    testthat::expect_identical(entries()$entry_id, "sample-entry-1")
+
+    clock$now <- clock$now + 60
+    session$elapse(60000)
+    testthat::expect_identical(queue_entries()$entry_id, "sample-entry-2")
+    testthat::expect_identical(entries()$entry_id, "sample-entry-2")
+    testthat::expect_match(
+      output$calendar_context$html,
+      "Sep 5, 2026",
+      fixed = TRUE
+    )
+    testthat::expect_identical(selected_id(), "sample-entry-1")
+  })
+})
+
 testthat::test_that("selecting a story records the open and updates the queue", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -4002,6 +4105,87 @@ testthat::test_that("changing story sort reorders the queue and clears the reade
   })
 })
 
+testthat::test_that("preparing one article upgrades a fallback without discarding it", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "feed-fallback")
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(source_url, config) {
+      "A complete article.\n\n![Grid](https://example.com/grid.webp)\n\n- An observation."
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_entry = NULL)
+    session$setInputs(
+      select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
+    )
+    session$setInputs(prepare_article = 1L)
+
+    testthat::expect_identical(selected_id(), entry$entry_id)
+    testthat::expect_identical(
+      selected_document()$acquisition_method,
+      "web_extraction"
+    )
+    testthat::expect_identical(
+      store_get_document_by_id(store, "reader", fallback$document_id)$markdown,
+      fallback$markdown
+    )
+    testthat::expect_identical(
+      store_get_document(store, "reader", entry$entry_id)$document_id,
+      selected_document()$document_id
+    )
+    testthat::expect_match(
+      as.character(render_document(selected_document())),
+      "<img",
+      fixed = TRUE
+    )
+    testthat::expect_length(store$memory$documents, 2L)
+  })
+})
+
+testthat::test_that("failed article preparation preserves the copy and reports safe diagnostics", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "feed-fallback")
+  store_save_document(store, fallback)
+  testthat::local_mocked_bindings(fetch_defuddled_markdown = function(
+    source_url,
+    config
+  ) {
+    stop("private-token")
+  })
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_entry = NULL)
+    session$setInputs(
+      select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
+    )
+    logs <- testthat::capture_messages(session$setInputs(prepare_article = 1L))
+
+    testthat::expect_identical(
+      selected_document()$document_id,
+      fallback$document_id
+    )
+    testthat::expect_length(store$memory$documents, 1L)
+    testthat::expect_identical(preparation_failures()[[1]]$stage, "extraction")
+    testthat::expect_no_match(
+      paste(
+        c(logs, as.character(preparation_failures_ui(preparation_failures()))),
+        collapse = ""
+      ),
+      "private-token",
+      fixed = TRUE
+    )
+  })
+})
+
 testthat::test_that("calendar views filter the queue and clear the reader", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -4034,7 +4218,13 @@ testthat::test_that("preparing today reports progress and records the result", {
   progress_calls <- 0L
   prepared_reader_id <- NULL
   testthat::local_mocked_bindings(
-    prepare_today_documents = function(store, config, reader_id, progress) {
+    prepare_today_documents = function(
+      store,
+      config,
+      reader_id,
+      progress,
+      ...
+    ) {
       prepared_reader_id <<- reader_id
       progress(1L, 2L, "First article")
       progress_calls <<- progress_calls + 1L

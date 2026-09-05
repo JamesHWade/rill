@@ -220,7 +220,11 @@ document_fallback <- function(entry, reason = "feed-content") {
   content <- entry$feed_content %||%
     entry$summary %||%
     "No readable content was supplied by this feed."
-  content <- plain_summary(content, max_chars = 20000L)
+  content <- if (identical(reason, "orientation-feed-copy")) {
+    plain_summary(content, max_chars = 20000L)
+  } else {
+    feed_content_markdown(content, entry$url)
+  }
 
   captured_at <- utc_now()
   new_rill_document(
@@ -240,12 +244,51 @@ document_fallback <- function(entry, reason = "feed-content") {
   )
 }
 
+feed_content_markdown <- function(content, source_url) {
+  if (!grepl("<[A-Za-z][^>]*>", content)) {
+    return(content)
+  }
+  html <- sanitize_rendered_html(paste0("<div>", content, "</div>"))
+  parsed <- xml2::read_html(html)
+  if (
+    !nzchar(trimws(xml2::xml_text(parsed))) &&
+      !length(xml2::xml_find_all(
+        parsed,
+        ".//img[@src] | .//iframe[@src] | .//video[@src] | .//audio[@src]"
+      ))
+  ) {
+    cli::cli_abort(
+      "The feed contains no readable text or supported media.",
+      class = "rill_document_invalid"
+    )
+  }
+  nodes <- xml2::xml_find_all(parsed, ".//*[@href or @src or @poster]")
+  for (node in nodes) {
+    for (attribute in intersect(
+      names(xml2::xml_attrs(node)),
+      c("href", "src", "poster")
+    )) {
+      xml2::xml_attr(node, attribute) <- xml2::url_absolute(
+        xml2::xml_attr(node, attribute),
+        source_url
+      )
+    }
+  }
+  paste(
+    vapply(
+      xml2::xml_children(xml2::xml_find_first(parsed, ".//body")),
+      as.character,
+      character(1)
+    ),
+    collapse = "\n"
+  )
+}
+
 save_prepared_document <- function(store, reader_id, previous, document) {
   store_save_document(store, document)
   if (
     !is.null(previous) &&
-      identical(previous$acquisition_method, "feed_fallback") &&
-      identical(previous$producer, "orientation-feed-copy")
+      identical(previous$acquisition_method, "feed_fallback")
   ) {
     store_replace_selected_document(
       store,
@@ -670,7 +713,7 @@ sanitize_rendered_html <- function(html) {
     root,
     paste(
       ".//script | .//style | .//object | .//embed | .//form | .//input |",
-      ".//button | .//svg | .//math | .//link | .//meta"
+      ".//button | .//svg | .//math | .//link | .//meta | .//base"
     )
   )
   if (length(blocked)) {
