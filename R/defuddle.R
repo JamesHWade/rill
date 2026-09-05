@@ -573,7 +573,7 @@ normalize_video_embeds <- function(markdown) {
       parsed <- xml2::read_html(value)
       iframe <- xml2::xml_find_first(parsed, ".//iframe")
       embed_url <- video_embed_url(xml2::xml_attr(iframe, "src") %||% "")
-      if (is.na(embed_url)) "" else paste0("![](", embed_url, ")")
+      if (is.na(embed_url)) "" else paste0('<img src="', embed_url, '">')
     },
     character(1)
   )

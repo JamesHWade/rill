@@ -842,6 +842,48 @@ testthat::test_that("rendered documents restore safe video embeds", {
   testthat::expect_no_match(html, "<img", fixed = TRUE)
 })
 
+testthat::test_that("feed-copy video embeds survive the complete rendering pipeline", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "# Video notes",
+    "![YouTube](https://i.ytimg.com/vi/U4xozqrcWdQ/hqdefault.jpg)",
+    "<div><iframe src='https://player.vimeo.com/video/12345' onload='bad()'></iframe></div>",
+    "<iframe src='https://attacker.example/embed/12345'></iframe>",
+    "Read [the details](details).",
+    sep = "\n\n"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+  frames <- xml2::xml_find_all(html, ".//iframe")
+
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "src"),
+    c(
+      "https://www.youtube-nocookie.com/embed/U4xozqrcWdQ",
+      "https://player.vimeo.com/video/12345"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "sandbox"),
+    rep("allow-scripts allow-same-origin allow-presentation", 2L)
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "onload"),
+    rep(NA_character_, 2L)
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(html, ".//h1")),
+    "Video notes"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+    "https://example.com/posts/story/details"
+  )
+  testthat::expect_no_match(xml2::xml_text(html), "![](", fixed = TRUE)
+})
+
 testthat::test_that("the sanitizer permits only known video providers", {
   input <- paste0(
     "<iframe src='https://player.vimeo.com/video/12345' onload='bad()'></iframe>",
