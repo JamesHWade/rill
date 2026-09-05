@@ -11,16 +11,22 @@ local_telemetry_http <- function(env = parent.frame()) {
   )
   withr::defer(process$kill(), envir = env)
   deadline <- Sys.time() + 30
+  output <- character()
   while (process$is_alive() && Sys.time() < deadline) {
     process$poll_io(100)
-    port <- process$read_output_lines()
-    if (length(port) == 1L && grepl("^[0-9]+$", port)) {
+    output <- c(output, process$read_output_lines())
+    port <- trimws(output)
+    port <- port[grepl("^[0-9]+$", port)]
+    if (length(port) == 1L) {
       return(paste0("http://127.0.0.1:", port))
     }
   }
   stop(
     "Telemetry HTTP fixture did not start: ",
-    paste(process$read_error_lines(), collapse = "\n")
+    paste(c(output, process$read_error_lines()), collapse = "\n"),
+    " (alive: ",
+    process$is_alive(),
+    ")"
   )
 }
 

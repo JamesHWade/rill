@@ -1,6 +1,7 @@
 """Loopback extractor fixture: one retry, then success; or a private 403 body."""
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
+from socketserver import TCPServer
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -20,6 +21,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-server = HTTPServer(('127.0.0.1', 0), Handler)
-print(server.server_port, flush=True)
+# HTTPServer resolves its server name during binding; this fixture needs no DNS.
+server = TCPServer(('127.0.0.1', 0), Handler)
+print(server.server_address[1], flush=True)
 server.serve_forever()
