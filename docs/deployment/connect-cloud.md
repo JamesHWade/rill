@@ -134,8 +134,12 @@ Before importing the real Library, verify all of the following:
 2. The allowlisted identity opens an empty Library.
 3. Another valid Auth0 identity receives an access-request dialog, creates one
    pending admission, and cannot invoke any Rill action.
-4. In an R process configured with the deployment's `DATABASE_URL`, approve the
-   opaque request ID:
+4. As the hosted owner (the Reader bound to `RILL_ACTOR_ID`), open **Access
+   requests** in the Library sidebar, select the invited person, and choose
+   **Approve access**. Other Readers must not see the control. The owner identity
+   is revalidated before listing requests and approvals, and the owner's Reader
+   ID is recorded in the audit log. Alternatively, in an R process configured
+   with the deployment's `DATABASE_URL`, approve the opaque request ID:
 
    ```r
    requests <- rill::list_reader_admissions()

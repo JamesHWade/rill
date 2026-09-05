@@ -238,6 +238,7 @@ navigation_sidebar_ui <- function(config) {
     ),
     shiny::tags$div(
       class = "sidebar-footer",
+      shiny::uiOutput(shiny::NS("access_requests", "launcher")),
       shiny::uiOutput("orientation_destination_settings"),
       appearance_control_ui(),
       shiny::actionButton(

@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* The hosted Library owner can review pending Access requests and approve an invited Reader into a separate, empty Library from the sidebar; approvals recheck the owner's identity and record who granted access (#26, #45).
+
 * Today, This week, and This month now follow the browser's local calendar, show their date range and time zone, and keep Prepare on the same day; queue controls fit narrow sidebars and OPML import/export buttons share a consistent layout (#28, #47).
 
 * Feed fallback copies preserve paragraphs, images, links, and lists, clearly identify themselves as feed copies, and offer a per-article retry; successful preparation upgrades selected fallbacks without deleting earlier copies or replacing browser captures (#28, #45).

@@ -1143,7 +1143,11 @@ identity_http_handler <- function(base_handler, adapter) {
   }
 }
 
-identity_server_handler <- function(base_server, adapter) {
+identity_server_handler <- function(
+  base_server,
+  adapter,
+  on_authenticated = NULL
+) {
   force(base_server)
   force(adapter)
 
@@ -1171,6 +1175,9 @@ identity_server_handler <- function(base_server, adapter) {
           started <<- TRUE
           reader_identity_guard_session(adapter, resolution, session)
           base_server(input, output, session, resolution$reader_id)
+          if (is.function(on_authenticated)) {
+            on_authenticated(resolution, session)
+          }
         },
         domain = session
       )
@@ -1194,6 +1201,9 @@ identity_server_handler <- function(base_server, adapter) {
     }
     reader_identity_guard_session(adapter, resolution, session)
     base_server(input, output, session, resolution$reader_id)
+    if (is.function(on_authenticated)) {
+      on_authenticated(resolution, session)
+    }
   }
 }
 

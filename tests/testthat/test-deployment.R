@@ -164,6 +164,7 @@ testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
   )
   testthat::expect_contains(names(manifest$files), "app.R")
   testthat::expect_contains(names(manifest$files), "R/identity.R")
+  testthat::expect_contains(names(manifest$files), "R/access-requests.R")
   source_files <- setdiff(names(manifest$files), ".Rbuildignore")
   source_paths <- file.path(dirname(manifest_path), source_files)
   source_files <- source_files[file.exists(source_paths)]
