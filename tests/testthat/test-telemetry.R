@@ -248,3 +248,90 @@ testthat::test_that("browser timing follows replacement article nodes exactly on
     info = paste(readLines(log), collapse = "\n")
   )
 })
+testthat::test_that("safe spans end once on success and failure", {
+  testthat::skip_if_not_installed("otelsdk")
+  ends <- local_telemetry_ends()
+  record <- otelsdk::with_otel_record(
+    {
+      telemetry_span("success", invisible(42L))
+      testthat::expect_error(
+        telemetry_span(
+          "failure",
+          cli::cli_abort("private-token", class = "rill_test_failure")
+        ),
+        class = "rill_test_failure"
+      )
+    },
+    what = "traces"
+  )
+  testthat::expect_identical(
+    vapply(ends(), `[[`, character(1), "status"),
+    c("ok", "error")
+  )
+  testthat::expect_identical(record$traces$failure$status, "error")
+})
+
+testthat::test_that("preparation spans end once across failure completion and cancellation", {
+  testthat::skip_if_not_installed("otelsdk")
+  exercise <- function(outcome) {
+    ends <- local_telemetry_ends()
+    store <- preparation_test_store()
+    entry <- as.list(store$memory$entries[1, , drop = FALSE])
+    alive <- outcome %in% c("cancelled", "timeout")
+    testthat::local_mocked_bindings(
+      launch_article_preparation = function(...) {
+        if (outcome == "launch_failed") {
+          cli::cli_abort("private-token", class = "rill_test_launch")
+        }
+        list(
+          is_alive = function() alive,
+          kill = function() {
+            alive <<- FALSE
+          },
+          get_result = function() {
+            if (outcome == "timeout") {
+              cli::cli_abort("private-token", class = "rill_test_timeout")
+            }
+            list(document = document_fallback(entry))
+          }
+        )
+      }
+    )
+    record <- otelsdk::with_otel_record(
+      {
+        testthat::capture_messages({
+          job <- start_article_preparation(
+            store,
+            list(),
+            "reader",
+            entry$entry_id
+          )
+          if (outcome != "launch_failed") {
+            if (outcome != "cancelled") {
+              poll_article_preparation(job, store, list(), timeout = 0)
+            }
+            close_article_preparation(job)
+            close_article_preparation(job)
+          }
+        })
+      },
+      what = "traces"
+    )
+    contexts <- lapply(ends(), `[[`, "context")
+    testthat::expect_identical(anyDuplicated(contexts), 0L, info = outcome)
+    span <- record$traces$article.prepare
+    testthat::expect_identical(
+      span$status,
+      switch(outcome, ready = "ok", cancelled = "unset", "error")
+    )
+    if (outcome != "launch_failed") {
+      testthat::expect_identical(
+        span$attributes$preparation.outcome,
+        if (outcome == "timeout") "failed" else outcome
+      )
+    }
+  }
+  for (outcome in c("launch_failed", "ready", "cancelled", "timeout")) {
+    exercise(outcome)
+  }
+})

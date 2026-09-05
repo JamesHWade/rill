@@ -61,6 +61,15 @@ telemetry_end <- function(span, status = "unset", attributes = list()) {
   invisible(NULL)
 }
 
+telemetry_finalizer <- function(span) {
+  force(span)
+  function(status = "unset", attributes = list()) {
+    current <- span
+    span <<- NULL
+    telemetry_end(current, status, attributes)
+  }
+}
+
 # Automatic exception recording can include source URLs, tokens, and call data.
 # Activate without automatic ending; explicitly end without recording errors.
 telemetry_local_span <- function(
@@ -79,7 +88,9 @@ telemetry_span <- function(name, code, attributes = list(), parent = NULL) {
   if (is.null(span)) {
     return(force(code))
   }
-  on.exit(telemetry_end(span), add = TRUE)
+  status <- "unset"
+  ending_attributes <- list()
+  on.exit(telemetry_end(span, status, ending_attributes), add = TRUE)
   result <- tryCatch(
     withVisible(otel::with_active_span(span, code)),
     error = function(error) {
@@ -87,11 +98,12 @@ telemetry_span <- function(name, code, attributes = list(), parent = NULL) {
       if (!grepl("^[a-zA-Z0-9_.]{1,80}$", type)) {
         type <- "unknown"
       }
-      telemetry_end(span, "error", list("error.type" = type))
+      status <<- "error"
+      ending_attributes <<- list("error.type" = type)
       stop(error)
     }
   )
-  telemetry_end(span, "ok")
+  status <- "ok"
   if (result$visible) result$value else invisible(result$value)
 }
 

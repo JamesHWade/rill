@@ -319,7 +319,12 @@ start_article_preparation <- function(
   span <- telemetry_start("article.prepare")
   telemetry_activate(span)
   handed_off <- FALSE
-  on.exit(if (!handed_off) telemetry_end(span), add = TRUE)
+  status <- "unset"
+  ending_attributes <- list()
+  on.exit(
+    if (!handed_off) telemetry_end(span, status, ending_attributes),
+    add = TRUE
+  )
   entry <- telemetry_span(
     "store.preparation.entry",
     preparation_entry(store, entry_id, reader_id)
@@ -362,19 +367,17 @@ start_article_preparation <- function(
     failure <- preparation_failure(process, "extraction", config)
     failure$title <- entry$title
     finish_preparation(store, entry_id, token, failure = failure)
-    telemetry_end(
-      span,
-      "error",
-      list(
-        "failure.reference" = failure$reference,
-        "failure.code" = failure$code
-      )
+    status <- "error"
+    ending_attributes <- list(
+      "failure.reference" = failure$reference,
+      "failure.code" = failure$code
     )
     return(list(entry_id = entry_id, failure = failure))
   }
   handed_off <- TRUE
   list(
     span = span,
+    end_span = telemetry_finalizer(span),
     process = process,
     directory = directory,
     entry_id = entry_id,
@@ -420,18 +423,23 @@ launch_article_preparation <- function(entry, config, directory, package_path) {
   )
 }
 
-close_article_preparation <- function(job) {
+close_article_preparation <- function(
+  job,
+  status = "unset",
+  attributes = list()
+) {
   if (is.null(job)) {
     return(invisible(NULL))
   }
   if (job$process$is_alive()) {
     job$process$kill()
-    telemetry_end(
-      job$span,
-      attributes = list("preparation.outcome" = "cancelled")
-    )
+    if (is.null(attributes$preparation.outcome)) {
+      attributes$preparation.outcome <- "cancelled"
+    }
   }
-  telemetry_end(job$span)
+  if (is.function(job$end_span)) {
+    job$end_span(status, attributes)
+  }
   unlink(job$directory, recursive = TRUE)
   invisible(NULL)
 }
@@ -444,7 +452,9 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
     return(NULL)
   }
   telemetry_activate(job$span)
-  on.exit(close_article_preparation(job), add = TRUE)
+  status <- "unset"
+  ending_attributes <- list()
+  on.exit(close_article_preparation(job, status, ending_attributes), add = TRUE)
   result <- tryCatch(job$process$get_result(), error = function(error) {
     list(failure = preparation_failure(error, "extraction", config))
   })
@@ -487,19 +497,16 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
       )
     }
   )
-  telemetry_end(
-    job$span,
-    if (is.null(result$failure)) "ok" else "error",
-    list(
-      "preparation.outcome" = if (is.null(result$failure)) {
-        "ready"
-      } else {
-        "failed"
-      },
-      "failure.reference" = result$failure$reference,
-      "failure.code" = result$failure$code,
-      "http.response.status_code" = result$failure$http_status
-    )
+  status <- if (is.null(result$failure)) "ok" else "error"
+  ending_attributes <- list(
+    "preparation.outcome" = if (is.null(result$failure)) {
+      "ready"
+    } else {
+      "failed"
+    },
+    "failure.reference" = result$failure$reference,
+    "failure.code" = result$failure$code,
+    "http.response.status_code" = result$failure$http_status
   )
   result
 }

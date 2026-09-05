@@ -42,3 +42,21 @@ read_telemetry_spans <- function(path) {
   }
   stats::setNames(spans, vapply(spans, `[[`, character(1), "name"))
 }
+local_telemetry_ends <- function(env = parent.frame()) {
+  records <- list()
+  original <- telemetry_end
+  testthat::local_mocked_bindings(
+    telemetry_end = function(span, status = "unset", attributes = list()) {
+      if (!is.null(span)) {
+        records[[length(records) + 1L]] <<- list(
+          context = telemetry_context(span),
+          status = status,
+          attributes = attributes
+        )
+      }
+      original(span, status, attributes)
+    },
+    .env = env
+  )
+  function() records
+}
