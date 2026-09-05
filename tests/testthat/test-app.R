@@ -22,6 +22,27 @@ testthat::test_that("rill_app creates a Shiny application in demo mode", {
   testthat::expect_type(app$serverFuncSource, "closure")
 })
 
+testthat::test_that("failed application initialization closes the store", {
+  withr::local_envvar(DATABASE_URL = "")
+  store <- rill_store(list(demo_mode = TRUE))
+  closed <- list()
+  testthat::local_mocked_bindings(
+    rill_store = \(config) store,
+    reader_identity_adapter = function(...) {
+      cli::cli_abort(
+        "Identity fixture.",
+        class = "rill_identity_config_invalid"
+      )
+    },
+    rill_store_close = function(store) {
+      closed[[length(closed) + 1L]] <<- store
+    }
+  )
+
+  testthat::expect_error(rill_app(), class = "rill_identity_config_invalid")
+  testthat::expect_identical(closed, list(store))
+})
+
 testthat::test_that("rill_app interrupts Agent Runs orphaned by a restart", {
   withr::local_envvar(DATABASE_URL = "")
   store <- rill_store(list(demo_mode = TRUE))

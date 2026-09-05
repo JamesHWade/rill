@@ -2766,6 +2766,9 @@
     "inst/sql/011_feed_polling.sql": {
       "checksum": "e114b413644e636a63d72d5c85b4e512"
     },
+    "inst/sql/012_article_preparation.sql": {
+      "checksum": "0d996ceaa2b91996be1f78fe32ed20c0"
+    },
     "LICENSE": {
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
@@ -2782,7 +2785,10 @@
       "checksum": "efa560e90a333c7e504156c825527f99"
     },
     "R/app.R": {
-      "checksum": "7c5d8448da25eac8e49cf8a8fa9d2940"
+      "checksum": "d92126e1dd4186d0be593c71948b8062"
+    },
+    "R/article-preparation.R": {
+      "checksum": "96bdddd7cc28d227fb8f84817ee8b32b"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2791,7 +2797,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "4380adf28edf05290dc7cf08f6ce4475"
+      "checksum": "ff897a25b657dc032663df6ed486efb8"
     },
     "R/defuddle.R": {
       "checksum": "12076f97c4a8a6183e5bbad453803f62"
@@ -2824,7 +2830,7 @@
       "checksum": "56549db920f4bb398a7d68f94d35ca4a"
     },
     "R/polling.R": {
-      "checksum": "803b0f672d1fc31d288624c62d4a77e6"
+      "checksum": "2dfd70a691a1524b91a1d1423d37745f"
     },
     "R/reader-admissions.R": {
       "checksum": "a36b28f095430f2cc08d770807fbc478"
@@ -2836,13 +2842,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "7fbf3340bfc6da972c6fc2c11d27558c"
+      "checksum": "165afebe3ff6034d331ae84cb0fcd0cd"
     },
     "R/telemetry.R": {
       "checksum": "6bf68c69d3b83fcef63e9d570f908600"
     },
     "R/ui.R": {
-      "checksum": "bcc89a391b0ed11f3e30546fe6173d5b"
+      "checksum": "739a8fa14b4907e18d0b0f0013432a98"
     }
   },
   "users": null

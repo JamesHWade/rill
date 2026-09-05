@@ -70,27 +70,16 @@ testthat::test_that("Prepare uses the same local day as the visible queue", {
   config <- rill_config()
   store <- rill_store(config)
   now <- as.POSIXct("2026-09-05 02:00:00", tz = "UTC")
-  prepared <- NULL
-  testthat::local_mocked_bindings(
-    reader_calendar_now = function() now,
-    prepare_today_documents = function(
-      store,
-      config,
-      reader_id,
-      progress,
-      ...
-    ) {
-      prepared <<- list(...)
-      list(total = 0L, cached = 0L, prepared = 0L, failed = 0L)
-    }
+  store$memory$entries$published_at <- c(
+    "2026-09-04 23:00:00 UTC",
+    rep("2026-09-05 05:00:00 UTC", 5)
   )
-
+  testthat::local_mocked_bindings(reader_calendar_now = function() now)
   shiny::testServer(rill_server(config, store), {
     session$setInputs(view = "today", reader_timezone = "America/Detroit")
     session$setInputs(prepare_today = 1L)
-
-    testthat::expect_identical(prepared$timezone, "America/Detroit")
-    testthat::expect_identical(prepared$now, now)
+    testthat::expect_identical(article_preparer$state$queue, entries()$entry_id)
+    testthat::expect_identical(article_preparer$state$queue, "sample-entry-1")
   })
 })
 
@@ -124,6 +113,118 @@ testthat::test_that("Today rolls over locally without retaining yesterday in the
       fixed = TRUE
     )
     testthat::expect_identical(selected_id(), "sample-entry-1")
+  })
+})
+
+testthat::test_that("cold and warm opens render while a real worker is still blocked", {
+  withr::local_envvar(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "reader",
+    RILL_ORIENTATION_ENABLED = "false"
+  )
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  gate <- withr::local_tempfile()
+  testthat::local_mocked_bindings(fetch_defuddled_markdown = function(...) {
+    "Full background article."
+  })
+  full <- document_from_defuddle(entry, config)
+  testthat::local_mocked_bindings(
+    launch_article_preparation = function(
+      entry,
+      config,
+      directory,
+      package_path
+    ) {
+      callr::r_bg(
+        function(document, gate) {
+          deadline <- Sys.time() + 30
+          while (!file.exists(gate) && Sys.time() < deadline) {
+            Sys.sleep(0.01)
+          }
+          list(document = document)
+        },
+        args = list(full, gate),
+        supervise = TRUE,
+        user_profile = FALSE,
+        stdout = file.path(directory, "stdout"),
+        stderr = file.path(directory, "stderr")
+      )
+    },
+    document_from_defuddle = function(...) {
+      stop("The click path must not extract")
+    }
+  )
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_entry = NULL)
+    session$setInputs(
+      select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
+    )
+    cold_copy <- selected_document()
+    testthat::expect_identical(cold_copy$acquisition_method, "feed_fallback")
+    testthat::expect_match(
+      as.character(render_document(selected_document())),
+      "[[:alnum:]]"
+    )
+    article_preparer$poll()
+    job <- article_preparer$state$job
+    testthat::expect_identical(job$process$is_alive(), TRUE)
+    testthat::expect_identical(file.exists(gate), FALSE)
+    testthat::expect_match(
+      as.character(render_document(selected_document())),
+      "[[:alnum:]]"
+    )
+    file.create(gate)
+    job$process$wait(timeout = 30000)
+    article_preparer$poll()
+    session$flushReact()
+    testthat::expect_identical(
+      selected_document()$document_id,
+      cold_copy$document_id
+    )
+    testthat::expect_match(
+      output$reader_header$html,
+      "Load full article",
+      fixed = TRUE
+    )
+    session$setInputs(close_reader = list(nonce = 1))
+    session$setInputs(
+      select_entry = list(id = entry$entry_id, position = 1L, nonce = 2)
+    )
+    testthat::expect_identical(
+      selected_document()$document_id,
+      full$document_id
+    )
+    testthat::expect_match(
+      output$reader_body$html,
+      "Full background article",
+      fixed = TRUE
+    )
+    testthat::expect_identical(article_preparer$state$queue, character())
+  }))
+})
+
+testthat::test_that("successful feed refresh queues recent public article preparation", {
+  withr::local_envvar(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "reader",
+    RILL_ORIENTATION_ENABLED = "false"
+  )
+  config <- rill_config()
+  store <- preparation_test_store()
+  store$memory$entries$published_at[[1]] <- utc_now()
+  shiny::testServer(rill_server(config, store), {
+    finish_refresh(list(
+      status = "succeeded",
+      due_count = 1L,
+      failed_count = 0L,
+      succeeded_count = 1L
+    ))
+    testthat::expect_identical(
+      article_preparer$state$queue,
+      store$memory$entries$entry_id[[1]]
+    )
   })
 })
 
@@ -4134,6 +4235,7 @@ testthat::test_that("changing story sort reorders the queue and clears the reade
 testthat::test_that("preparing one article upgrades a fallback without discarding it", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])
   fallback <- document_fallback(entry, reason = "feed-fallback")
@@ -4151,6 +4253,13 @@ testthat::test_that("preparing one article upgrades a fallback without discardin
       select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
     )
     session$setInputs(prepare_article = 1L)
+    flush_article_preparation(article_preparer)
+    session$flushReact()
+    testthat::expect_identical(
+      selected_document()$document_id,
+      fallback$document_id
+    )
+    session$setInputs(use_prepared_article = 1L)
 
     testthat::expect_identical(selected_id(), entry$entry_id)
     testthat::expect_identical(
@@ -4174,9 +4283,10 @@ testthat::test_that("preparing one article upgrades a fallback without discardin
   })
 })
 
-testthat::test_that("preparing Today refreshes an already-open fallback", {
+testthat::test_that("preparing Today offers a newer copy without replacing an open fallback", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])
   fallback <- document_fallback(entry, reason = "feed-fallback")
@@ -4202,6 +4312,13 @@ testthat::test_that("preparing Today refreshes an already-open fallback", {
     )
 
     session$setInputs(prepare_today = 1L)
+    flush_article_preparation(article_preparer)
+    session$flushReact()
+    testthat::expect_identical(
+      selected_document()$document_id,
+      fallback$document_id
+    )
+    session$setInputs(use_prepared_article = 1L)
 
     testthat::expect_identical(selected_id(), entry$entry_id)
     testthat::expect_identical(
@@ -4222,6 +4339,7 @@ testthat::test_that("preparing Today refreshes an already-open fallback", {
 testthat::test_that("preparation resets Ask Rill only when its displayed copy changes", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   chat <- new.env(parent = emptyenv())
   chat$clears <- 0L
   testthat::local_mocked_bindings(
@@ -4258,6 +4376,15 @@ testthat::test_that("preparation resets Ask Rill only when its displayed copy ch
         clears_before <- chat$clears
 
         do.call(session$setInputs, stats::setNames(list(1L), action))
+        flush_article_preparation(article_preparer)
+        session$flushReact()
+        testthat::expect_identical(
+          selected_document()$document_id,
+          fallback$document_id
+        )
+        testthat::expect_identical(active_agent_run(), run)
+        testthat::expect_identical(chat$clears, clears_before)
+        session$setInputs(use_prepared_article = 1L)
 
         testthat::expect_identical(
           selected_document()$acquisition_method,
@@ -4281,6 +4408,7 @@ testthat::test_that("preparation resets Ask Rill only when its displayed copy ch
 testthat::test_that("Today preparation keeps Ask Rill for unchanged and pinned copies", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   chat <- new.env(parent = emptyenv())
   chat$clears <- 0L
   testthat::local_mocked_bindings(
@@ -4326,7 +4454,11 @@ testthat::test_that("Today preparation keeps Ask Rill for unchanged and pinned c
       active_agent_run(run)
       clears_before <- chat$clears
 
-      testthat::capture_messages(session$setInputs(prepare_today = 1L))
+      testthat::capture_messages({
+        session$setInputs(prepare_today = 1L)
+        flush_article_preparation(article_preparer)
+        session$flushReact()
+      })
 
       testthat::expect_identical(
         selected_document()$document_id,
@@ -4343,17 +4475,16 @@ testthat::test_that("Today preparation keeps Ask Rill for unchanged and pinned c
   }
 })
 
-testthat::test_that("preparation waits for an in-flight Ask Rill answer", {
+testthat::test_that("loading a prepared copy waits for an in-flight Ask Rill answer", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   testthat::local_mocked_bindings(
     reader_calendar_now = function() {
       as.POSIXct("2026-08-19 12:00:00", tz = "UTC")
     },
     fetch_defuddled_markdown = function(...) {
-      testthat::fail(
-        "Preparation must not extract while an answer is in flight"
-      )
+      "The full article."
     }
   )
 
@@ -4373,13 +4504,16 @@ testthat::test_that("preparation waits for an in-flight Ask Rill answer", {
       active_agent_run(run)
 
       do.call(session$setInputs, stats::setNames(list(1L), action))
+      flush_article_preparation(article_preparer)
+      session$flushReact()
+      session$setInputs(use_prepared_article = 1L)
 
       testthat::expect_identical(
         selected_document()$document_id,
         fallback$document_id
       )
       testthat::expect_identical(active_agent_run(), run)
-      testthat::expect_length(store$memory$documents, 1L)
+      testthat::expect_length(store$memory$documents, 2L)
     }))
   }
 })
@@ -4387,6 +4521,7 @@ testthat::test_that("preparation waits for an in-flight Ask Rill answer", {
 testthat::test_that("failed article preparation preserves the copy and reports safe diagnostics", {
   withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
   config <- rill_config()
+  local_article_preparation_worker()
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])
   fallback <- document_fallback(entry, reason = "feed-fallback")
@@ -4408,7 +4543,11 @@ testthat::test_that("failed article preparation preserves the copy and reports s
     session$setInputs(
       select_entry = list(id = entry$entry_id, position = 1L, nonce = 1)
     )
-    logs <- testthat::capture_messages(session$setInputs(prepare_article = 1L))
+    logs <- testthat::capture_messages({
+      session$setInputs(prepare_article = 1L)
+      flush_article_preparation(article_preparer)
+      session$flushReact()
+    })
 
     testthat::expect_identical(
       selected_document()$document_id,
@@ -4431,7 +4570,11 @@ testthat::test_that("failed article preparation preserves the copy and reports s
     )
 
     preparation$fail <- FALSE
+    expire_article_preparation(store)
     session$setInputs(prepare_article = 2L)
+    flush_article_preparation(article_preparer)
+    session$flushReact()
+    session$setInputs(use_prepared_article = 1L)
 
     testthat::expect_identical(
       selected_document()$acquisition_method,
@@ -4471,51 +4614,112 @@ testthat::test_that("calendar views filter the queue and clear the reader", {
   })
 })
 
-testthat::test_that("preparing today reports progress and records the result", {
+testthat::test_that("preparing today queues acquisition and records the request", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
-  store <- rill_store(config)
-  progress_calls <- 0L
-  prepared_reader_id <- NULL
-  testthat::local_mocked_bindings(
-    prepare_today_documents = function(
-      store,
-      config,
-      reader_id,
-      progress,
-      ...
-    ) {
-      prepared_reader_id <<- reader_id
-      progress(1L, 2L, "First article")
-      progress_calls <<- progress_calls + 1L
-      list(
-        total = 3L,
-        cached = 1L,
-        prepared = 2L,
-        failed = 0L,
-        errors = character()
-      )
-    }
-  )
-
+  store <- preparation_test_store()
+  store$memory$entries$published_at[[1]] <- utc_now()
   shiny::testServer(rill_server(config, store), {
     session$setInputs(view = "today")
-    session$flushReact()
     session$setInputs(prepare_today = 1L)
-    session$flushReact()
+    testthat::expect_identical(
+      article_preparer$state$queue,
+      store$memory$entries$entry_id[[1]]
+    )
+    testthat::expect_identical(status_kind(), "info")
+    testthat::expect_match(status_text(), "background", fixed = TRUE)
+    testthat::expect_identical(
+      tail(store$memory$events$event_type, 1L),
+      "today_preparation_requested"
+    )
+  })
+})
 
-    testthat::expect_identical(progress_calls, 1L)
-    testthat::expect_identical(prepared_reader_id, config$actor_id)
+testthat::test_that("Today finishes when all stories already have full copies", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- rill_store(config)
+  store$memory$entries$published_at <- utc_now()
+  testthat::local_mocked_bindings(launch_article_preparation = function(...) {
+    stop("Cached stories must not launch a worker")
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$setInputs(prepare_today = 1L)
+    flush_article_preparation(article_preparer)
+    session$flushReact()
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Prepared 2 reading copies · 1 already ready"
+      "Today's preparation check is complete. Available copies are preserved."
+    )
+    testthat::expect_length(preparation_failures(), 0L)
+    testthat::expect_null(article_preparer$state$job)
+    testthat::expect_identical(article_preparer$state$queue, character())
+  }))
+})
+
+testthat::test_that("Today finishes when there are no stories to prepare", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  store$memory$entries$published_at <- format(
+    Sys.time() - 7 * 86400,
+    tz = "UTC",
+    usetz = TRUE
+  )
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$setInputs(prepare_today = 1L)
+    article_preparer$poll()
+    session$flushReact()
+    testthat::expect_identical(status_kind(), "success")
+    testthat::expect_identical(
+      status_text(),
+      "Today's preparation check is complete. Available copies are preserved."
+    )
+  }))
+})
+
+testthat::test_that("worker launch failure is shown in preparation details", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  store$memory$entries$published_at[[1]] <- utc_now()
+  fallback <- reading_document(store, "reader", entry)
+  testthat::local_mocked_bindings(launch_article_preparation = function(
+    entry,
+    config,
+    directory,
+    package_path
+  ) {
+    stop("private-launch-token")
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    logs <- testthat::capture_messages({
+      session$setInputs(prepare_today = 1L)
+      flush_article_preparation(article_preparer)
+      session$flushReact()
+    })
+    testthat::expect_identical(status_kind(), "warning")
+    testthat::expect_length(preparation_failures(), 1L)
+    testthat::expect_identical(preparation_failures()[[1]]$title, entry$title)
+    testthat::expect_match(
+      output$prepare_today_control$html,
+      "Preparation details",
+      fixed = TRUE
+    )
+    testthat::expect_no_match(
+      paste(logs, jsonlite::toJSON(preparation_failures())),
+      "private-launch-token"
     )
     testthat::expect_identical(
-      tail(store$memory$events$event_type, 1L),
-      "today_prepared"
+      store_get_document(store, "reader", entry$entry_id)$document_id,
+      fallback$document_id
     )
-  })
+  }))
 })
 
 testthat::test_that("failed preparation retains safe details and clears them on retry", {
@@ -4524,21 +4728,20 @@ testthat::test_that("failed preparation retains safe details and clears them on 
   store <- preparation_test_store()
   store$memory$entries$published_at[[1]] <- utc_now()
   fail <- TRUE
-  testthat::local_mocked_bindings(
-    fetch_defuddled_markdown = function(source_url, config) {
-      if (fail) {
-        stop("private-token")
-      }
-      "Prepared copy."
+  local_article_preparation_worker()
+  testthat::local_mocked_bindings(fetch_defuddled_markdown = function(...) {
+    if (fail) {
+      stop("private-token")
     }
-  )
-
-  shiny::testServer(rill_server(config, store), {
+    "Prepared copy."
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
     session$setInputs(view = "today")
-    session$flushReact()
-    logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
-    session$flushReact()
-
+    logs <- testthat::capture_messages({
+      session$setInputs(prepare_today = 1L)
+      flush_article_preparation(article_preparer)
+      session$flushReact()
+    })
     testthat::expect_identical(status_kind(), "warning")
     testthat::expect_length(preparation_failures(), 1L)
     testthat::expect_no_match(
@@ -4551,32 +4754,33 @@ testthat::test_that("failed preparation retains safe details and clears them on 
     )
     testthat::expect_match(logs, "article.prepare_failed", fixed = TRUE)
     session$setInputs(preparation_details = 1L)
-
     fail <<- FALSE
+    expire_article_preparation(store)
     session$setInputs(prepare_today = 2L)
+    flush_article_preparation(article_preparer)
     session$flushReact()
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_length(preparation_failures(), 0L)
     testthat::expect_length(store_list_documents(store, "reader"), 1L)
-  })
+  }))
 })
 
 testthat::test_that("preparation setup errors never expose database credentials", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
-  testthat::local_mocked_bindings(
-    prepare_today_documents = function(...) {
+  list_entries <- store_list_entries
+  fail_library <- FALSE
+  testthat::local_mocked_bindings(store_list_entries = function(...) {
+    if (fail_library) {
       stop("postgresql://user:private-token@db")
     }
-  )
-
+    list_entries(...)
+  })
   shiny::testServer(rill_server(config, store), {
     session$setInputs(view = "today")
-    session$flushReact()
+    fail_library <<- TRUE
     logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
-    session$flushReact()
-
     testthat::expect_identical(status_kind(), "error")
     testthat::expect_identical(preparation_failures()[[1]]$stage, "library")
     testthat::expect_no_match(logs, "postgresql|private-token")

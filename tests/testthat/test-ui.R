@@ -410,7 +410,7 @@ testthat::test_that("feed copies offer an explicit full-article retry except whe
 
   html <- htmltools::renderTags(reader_article_header_ui(entry, document))$html
   testthat::expect_match(html, "Feed copy", fixed = TRUE)
-  testthat::expect_match(html, "Full article not yet prepared", fixed = TRUE)
+  testthat::expect_match(html, "Feed content may be an excerpt", fixed = TRUE)
   testthat::expect_match(html, 'id="prepare_article"', fixed = TRUE)
 
   pinned <- htmltools::renderTags(reader_article_header_ui(
@@ -419,6 +419,34 @@ testthat::test_that("feed copies offer an explicit full-article retry except whe
     can_prepare = FALSE
   ))$html
   testthat::expect_no_match(pinned, 'id="prepare_article"', fixed = TRUE)
+})
+
+testthat::test_that("preparation states make an explicit copy switch available", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  entry$library_access <- TRUE
+  document <- document_fallback(entry)
+  for (state in c("running", "waiting", "ready")) {
+    html <- htmltools::renderTags(reader_article_header_ui(
+      entry,
+      document,
+      preparation = state
+    ))$html
+    if (identical(state, "ready")) {
+      testthat::expect_match(html, 'id="use_prepared_article"', fixed = TRUE)
+      testthat::expect_match(html, "Load full article", fixed = TRUE)
+      testthat::expect_length(
+        xml2::xml_find_all(xml2::read_html(html), "//button[@disabled]"),
+        0L
+      )
+    } else {
+      testthat::expect_length(
+        xml2::xml_find_all(xml2::read_html(html), "//button[@disabled]"),
+        1L
+      )
+      testthat::expect_no_match(html, 'id="use_prepared_article"', fixed = TRUE)
+    }
+  }
 })
 
 testthat::test_that("Reading keeps source actions and provenance explicit", {

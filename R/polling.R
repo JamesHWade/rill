@@ -5,6 +5,9 @@
 #' outcome is recorded in the durable store. Concurrent runs are skipped, and
 #' isolated Feed failures are tolerated until `RILL_POLL_FAILURE_THRESHOLD` is
 #' reached.
+#' After releasing the Feed lock, the poller prepares missing public article
+#' copies from the past seven days, up to 100 articles or ten minutes per run.
+#' Extraction failures are isolated and retried with durable backoff.
 #'
 #' The due interval defaults to 60 minutes and can be changed with
 #' `RILL_POLL_INTERVAL_MINUTES`. The failure threshold defaults to five Feeds.
@@ -51,6 +54,7 @@ poll_feeds <- function() {
       class = "rill_feed_poll_failure_threshold"
     )
   }
+  result$preparation <- prepare_recent_articles(store, config)
   if (identical(result$status, "partial")) {
     cli::cli_warn(paste0(
       result$failed_count,

@@ -87,11 +87,11 @@ date range and time zone. Calendar views update as the local day changes; a
 story already open for reading stays open. UTC is the labeled fallback if the
 browser's time zone is unavailable.
 
-The Today view includes **Prepare**, which extracts and persistently caches any
-missing clean reading copies. Existing captured or extracted documents are
-preserved, and failures remain available for a later retry. The same operation
-can run outside the app with `rill::prepare_today()`, using the scheduled
-process's time zone.
+The Today view includes **Prepare**, which queues missing clean reading copies
+in the background. Existing captured or extracted documents are preserved, and
+failures remain available for a later retry. The synchronous
+`rill::prepare_today()` API remains available outside the app and uses the
+scheduled process's time zone.
 
 ## Maintain Orientation
 
@@ -184,16 +184,28 @@ configuration.
 
 ## Defuddle
 
-Selecting an uncached article runs the configured Defuddle backend, separates
-its YAML metadata from the Markdown body, stores that document in
-`documents`, and renders the Markdown with reader typography. If
-extraction fails, Rill stores a sanitized feed copy that preserves paragraphs,
-images, links, and lists. The reader labels this as a **Feed copy** and offers
-**Prepare full article** to retry extraction. A successful retry upgrades the
-selected fallback while retaining the earlier immutable copy; browser captures
-and pinned Orientation evidence are not replaced. Failed retries keep the
-existing copy and show safe diagnostic details. Automatic Orientation retains
-its bounded text-only feed inputs.
+Opening an article renders its saved reading copy immediately, without waiting
+for Defuddle. On a cache miss, Rill first stores a sanitized **Feed copy** that
+preserves paragraphs, images, links, and lists, and may be an excerpt. A separate
+process prepares the full article while you keep reading. When it is ready,
+choose **Load full article**; background completion never changes the displayed
+copy or an Ask Rill answer's evidence. Browser captures and pinned Orientation
+copies are preserved. Automatic Orientation retains its bounded text-only inputs.
+
+After Library refresh, Rill automatically prepares missing public articles from
+the past seven days. The scheduled poller also prepares up to 100 articles or
+ten minutes of work after releasing the Feed polling lock. The configured
+extractor receives public subscription article URLs (by default, `defuddle.md`),
+not private captures or Reader state. Shared per-article leases prevent duplicate
+work across sessions and the poller. Failures back off for 5, 10, 20, 40, then
+80 minutes; after five automatic attempts, **Prepare full article** or Today's
+**Prepare** can retry once that cooldown has elapsed. A crashed worker's lease
+expires after five minutes. Saved copies remain available throughout; manual
+preparation details expose sanitized references, not raw service errors.
+
+This improves responsiveness; it cannot guarantee that a publisher permits full
+extraction. A blocked article remains readable from its feed content with an
+**Original** link. Hosted opening latency still needs measurement after deployment.
 
 Recognized YouTube and Vimeo video references render as privacy-enhanced,
 sandboxed embeds. Rill removes arbitrary embedded frames and executable markup

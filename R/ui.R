@@ -684,7 +684,12 @@ reader_pane_ui <- function(config) {
   )
 }
 
-reader_article_header_ui <- function(entry, document, can_prepare = TRUE) {
+reader_article_header_ui <- function(
+  entry,
+  document,
+  can_prepare = TRUE,
+  preparation = "missing"
+) {
   is_fallback <- identical(document$acquisition_method, "feed_fallback")
   reading_minutes <- max(
     1L,
@@ -830,18 +835,33 @@ reader_article_header_ui <- function(entry, document, can_prepare = TRUE) {
       shiny::tags$span(
         class = "article-copy-producer",
         if (is_fallback) {
-          "Full article not yet prepared"
+          switch(
+            preparation,
+            ready = "Full article ready; your current copy is unchanged",
+            running = "Preparing full article in the background",
+            waiting = "Full article unavailable for now; retry later or open Original",
+            "Feed content may be an excerpt"
+          )
         } else {
           paste("Prepared by", document$producer %||% "feed fallback")
         }
       ),
       if (is_fallback && isTRUE(can_prepare) && isTRUE(entry$library_access)) {
         shiny::actionButton(
-          "prepare_article",
-          "Prepare full article",
+          if (identical(preparation, "ready")) {
+            "use_prepared_article"
+          } else {
+            "prepare_article"
+          },
+          if (identical(preparation, "ready")) {
+            "Load full article"
+          } else {
+            "Prepare full article"
+          },
           icon = bsicons::bs_icon("cloud-arrow-down"),
           class = "btn-prepare-today",
-          title = "Try extracting the full article again; keep this feed copy if it fails."
+          disabled = preparation %in% c("running", "waiting"),
+          title = "Prepare in the background, then choose when to load the full copy."
         )
       }
     )

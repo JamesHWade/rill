@@ -34,14 +34,21 @@ rill_app <- function() {
   config <- rill_config()
   init_telemetry(config)
   store <- rill_store(config)
+  initialized <- FALSE
+  on.exit(
+    {
+      if (!initialized) {
+        rill_store_close(store)
+      }
+    },
+    add = TRUE
+  )
   store_interrupt_agent_runs(store, recovery = "process_restart")
   identity <- reader_identity_adapter(config, store)
   shiny::addResourcePath(
     "rill-assets",
     rill_package_file("app", "www")
   )
-
-  shiny::onStop(function() rill_store_close(store))
 
   app <- shiny::shinyApp(
     ui = rill_ui(config),
@@ -61,6 +68,8 @@ rill_app <- function() {
   )
   app$httpHandler <- identity_http_handler(app$httpHandler, identity)
   app$httpHandler <- capture_http_handler(app$httpHandler, store, config)
+  shiny::onStop(function() rill_store_close(store))
+  initialized <- TRUE
   app
 }
 
