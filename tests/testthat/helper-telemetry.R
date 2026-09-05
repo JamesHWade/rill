@@ -1,15 +1,16 @@
 local_telemetry_http <- function(env = parent.frame()) {
+  testthat::skip_if_not_installed("processx")
   python <- Sys.which("python3")
   testthat::skip_if(!nzchar(python), "Python 3 is not available")
-  process <- callr::r_bg(
-    function(python, script) system2(python, shQuote(script)),
-    args = list(python, testthat::test_path("fixtures", "telemetry-http.py")),
+  process <- processx::process$new(
+    python,
+    testthat::test_path("fixtures", "telemetry-http.py"),
     stdout = "|",
     stderr = "|",
     supervise = TRUE
   )
-  withr::defer(process$kill_tree(), envir = env)
-  deadline <- Sys.time() + 10
+  withr::defer(process$kill(), envir = env)
+  deadline <- Sys.time() + 30
   while (process$is_alive() && Sys.time() < deadline) {
     process$poll_io(100)
     port <- process$read_output_lines()
