@@ -213,13 +213,16 @@ run_defuddle_cli <- function(command, args, timeout) {
 }
 
 bundled_defuddle_invocation <- function(
-  runtimes = Sys.which(c("node", "deno"))
+  runtimes = Sys.which(c("node", "deno")),
+  version = defuddle_runtime_major
 ) {
   bundle <- rill_package_file("defuddle", "defuddle.cjs")
-  if (nzchar(runtimes[["node"]])) {
+  if (
+    nzchar(runtimes[["node"]]) && isTRUE(version(runtimes[["node"]]) >= 18L)
+  ) {
     return(list(command = unname(runtimes[["node"]]), args = bundle))
   }
-  if (nzchar(runtimes[["deno"]])) {
+  if (nzchar(runtimes[["deno"]]) && isTRUE(version(runtimes[["deno"]]) >= 2L)) {
     return(list(
       command = unname(runtimes[["deno"]]),
       args = c(
@@ -240,6 +243,21 @@ bundled_defuddle_invocation <- function(
     "Bundled Defuddle requires Node.js 18 or later, or Deno 2 or later.",
     class = "rill_defuddle_cli_missing"
   )
+}
+
+defuddle_runtime_major <- function(command) {
+  result <- tryCatch(
+    processx::run(command, "--version", timeout = 5, error_on_status = FALSE),
+    error = function(error) NULL
+  )
+  if (is.null(result) || !identical(result$status, 0L)) {
+    return(NA_integer_)
+  }
+  lines <- strsplit(result$stdout, "\n", fixed = TRUE)[[1L]]
+  if (!length(lines) || !grepl("^(v|deno )[0-9]+\\.", lines[[1L]])) {
+    return(NA_integer_)
+  }
+  as.integer(sub("^(v|deno )([0-9]+).*", "\\2", lines[[1L]]))
 }
 
 bundled_defuddle_version <- function() {

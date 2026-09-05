@@ -435,3 +435,87 @@ testthat::test_that("pinned legacy copies do not repeat a completed repair", {
   testthat::expect_identical(reading_document(store, "reader", entry), old)
   testthat::expect_identical(repairs, 0L)
 })
+
+testthat::test_that("a changed extractor renews failed attempts without taking an active lease", {
+  for (mode in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(mode, "reader")
+    entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+    entry$entry_id <- entry$external_id <- "changed-extractor"
+    entry$url <- "https://example.org/changed-extractor"
+    entry$published_at <- utc_now()
+    store_upsert_entries(store, as.data.frame(entry))
+    now <- Sys.time()
+    for (attempt in seq_len(5L)) {
+      at <- now - (5L - attempt) * 2 * 86400
+      token <- claim_preparation(
+        store,
+        entry$entry_id,
+        now = at,
+        backend = "hosted"
+      )
+      finish_preparation(
+        store,
+        entry$entry_id,
+        token,
+        failure = list(backend = "hosted", http_status = 403L),
+        now = at
+      )
+    }
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$attempts,
+      5L
+    )
+    testthat::expect_identical(
+      preparation_candidates(store, "reader", now = now, backend = "hosted"),
+      character()
+    )
+    testthat::expect_identical(
+      preparation_candidates(store, "reader", now = now, backend = "local"),
+      entry$entry_id
+    )
+    testthat::expect_identical(
+      article_preparation_status(store, entry$entry_id, backend = "local"),
+      "missing"
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now,
+      backend = "hosted"
+    ))
+    renewed <- claim_preparation(
+      store,
+      entry$entry_id,
+      now = now,
+      backend = "local"
+    )
+    testthat::expect_type(renewed, "character")
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$attempts,
+      1L
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now + 1,
+      backend = "hosted"
+    ))
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$token,
+      renewed
+    )
+    finish_preparation(
+      store,
+      entry$entry_id,
+      renewed,
+      failure = list(backend = "local"),
+      now = now
+    )
+    testthat::expect_null(claim_preparation(
+      store,
+      entry$entry_id,
+      now = now + 1,
+      backend = "local"
+    ))
+  }
+})

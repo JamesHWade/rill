@@ -486,16 +486,23 @@ testthat::test_that("local Defuddle requires an installed executable", {
 })
 
 testthat::test_that("the bundled extractor selects an available local runtime", {
-  node <- bundled_defuddle_invocation(c(
-    node = "/runtime/node",
-    deno = "/runtime/deno"
-  ))
+  version <- function(command) if (grepl("node$", command)) 18L else 2L
+  node <- bundled_defuddle_invocation(
+    c(
+      node = "/runtime/node",
+      deno = "/runtime/deno"
+    ),
+    version = version
+  )
   testthat::expect_identical(node$command, "/runtime/node")
   testthat::expect_identical(
     node$args,
     rill_package_file("defuddle", "defuddle.cjs")
   )
-  deno <- bundled_defuddle_invocation(c(node = "", deno = "/runtime/deno"))
+  deno <- bundled_defuddle_invocation(
+    c(node = "", deno = "/runtime/deno"),
+    version = version
+  )
   testthat::expect_identical(deno$command, "/runtime/deno")
   testthat::expect_identical(deno$args[[1L]], "run")
   testthat::expect_contains(deno$args, "--cached-only")
@@ -504,6 +511,27 @@ testthat::test_that("the bundled extractor selects an available local runtime", 
   testthat::expect_error(
     bundled_defuddle_invocation(c(node = "", deno = "")),
     class = "rill_defuddle_cli_missing"
+  )
+})
+
+testthat::test_that("an unsupported runtime does not hide a supported alternative", {
+  paths <- c(node = "/runtime/node", deno = "/runtime/deno")
+  version <- function(command) if (grepl("node$", command)) 16L else 2L
+  testthat::expect_identical(
+    bundled_defuddle_invocation(paths, version = version)$command,
+    "/runtime/deno"
+  )
+  testthat::expect_error(
+    bundled_defuddle_invocation(paths, version = function(...) 1L),
+    class = "rill_defuddle_cli_missing"
+  )
+  testthat::expect_error(
+    bundled_defuddle_invocation(paths, version = function(...) NA_integer_),
+    class = "rill_defuddle_cli_missing"
+  )
+  testthat::expect_identical(
+    defuddle_runtime_major("rill-missing-runtime"),
+    NA_integer_
   )
 })
 

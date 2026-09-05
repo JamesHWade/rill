@@ -104,7 +104,8 @@ preparation_candidates <- function(
   store,
   reader_id = NULL,
   limit = 100L,
-  now = Sys.time()
+  now = Sys.time(),
+  backend = NULL
 ) {
   since <- now - 7 * 86400
   if (identical(store$mode, "postgres")) {
@@ -118,13 +119,22 @@ preparation_candidates <- function(
         "WHERE f.source_kind = 'subscription'",
         "AND COALESCE(e.published_at, e.inserted_at) >= $1::timestamptz",
         "AND (d.document_id IS NULL OR d.acquisition_method = 'feed_fallback')",
-        "AND (p.entry_id IS NULL OR (p.next_attempt_at <= $2::timestamptz AND p.attempts < 5))",
+        "AND (p.entry_id IS NULL OR (p.next_attempt_at <= $2::timestamptz AND p.attempts < 5)",
+        "OR (",
+        preparation_backend_changed_sql("p", "$5"),
+        "))",
         "AND EXISTS (SELECT 1 FROM subscriptions s JOIN readers r ON r.reader_id = s.reader_id",
         "WHERE s.feed_id = e.feed_id AND s.status = 'active' AND r.status = 'active'",
         "AND ($3::text IS NULL OR s.reader_id = $3))",
         "ORDER BY COALESCE(e.published_at, e.inserted_at) DESC, e.entry_id LIMIT $4"
       ),
-      params = list(since, now, reader_id %||% NA_character_, limit)
+      params = list(
+        since,
+        now,
+        reader_id %||% NA_character_,
+        limit,
+        backend %||% NA_character_
+      )
     )
     return(rows$entry_id)
   }
@@ -148,12 +158,35 @@ preparation_candidates <- function(
         !is.null(preparation_entry(store, id, reader_id)) &&
           !full_reading_document(public_reading_document(store, id)) &&
           (is.null(attempt) ||
+            preparation_backend_changed(attempt, backend) ||
             (as.POSIXct(attempt$next_attempt_at, tz = "UTC") <= now &&
               attempt$attempts < 5L))
       },
       ids
     ),
     limit
+  )
+}
+
+preparation_backend_changed <- function(attempt, backend) {
+  identical(attempt$status, "failed") &&
+    isTRUE(backend %in% c("hosted", "local")) &&
+    isTRUE(attempt$failure$backend %in% c("hosted", "local")) &&
+    !identical(attempt$failure$backend, backend)
+}
+
+preparation_backend_changed_sql <- function(alias, parameter) {
+  paste0(
+    alias,
+    ".status = 'failed' AND ",
+    parameter,
+    "::text IN ('hosted', 'local') AND ",
+    alias,
+    ".failure ->> 'backend' IN ('hosted', 'local') AND ",
+    alias,
+    ".failure ->> 'backend' <> ",
+    parameter,
+    "::text"
   )
 }
 
@@ -182,29 +215,47 @@ claim_preparation <- function(
   store,
   entry_id,
   retry = FALSE,
-  now = Sys.time()
+  now = Sys.time(),
+  backend = NULL
 ) {
   token <- rill_id("preparation", entry_id, utc_now(), stats::runif(1))
   until <- now + 300
   if (identical(store$mode, "postgres")) {
+    changed_backend <- preparation_backend_changed_sql(
+      "article_preparations",
+      "$6"
+    )
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
         "INSERT INTO article_preparations (entry_id, token, attempts, status, next_attempt_at)",
         "VALUES ($1, $2, 1, 'running', $3)",
         "ON CONFLICT (entry_id) DO UPDATE SET token = EXCLUDED.token,",
-        "attempts = CASE WHEN $5 AND article_preparations.attempts >= 5 THEN 1 ELSE article_preparations.attempts + 1 END,",
+        "attempts = CASE WHEN ($5 AND article_preparations.attempts >= 5) OR (",
+        changed_backend,
+        ") THEN 1 ELSE article_preparations.attempts + 1 END,",
         "status = 'running', next_attempt_at = EXCLUDED.next_attempt_at, failure = NULL",
-        "WHERE article_preparations.next_attempt_at <= $4",
-        "AND (article_preparations.attempts < 5 OR $5) RETURNING token"
+        "WHERE (article_preparations.next_attempt_at <= $4",
+        "AND (article_preparations.attempts < 5 OR $5)) OR (",
+        changed_backend,
+        ") RETURNING token"
       ),
-      params = list(entry_id, token, until, now, retry)
+      params = list(
+        entry_id,
+        token,
+        until,
+        now,
+        retry,
+        backend %||% NA_character_
+      )
     )
     return(if (nrow(rows)) token else NULL)
   }
   old <- preparation_attempt(store, entry_id)
+  changed_backend <- preparation_backend_changed(old, backend)
   if (
     !is.null(old) &&
+      !changed_backend &&
       (as.POSIXct(old$next_attempt_at, tz = "UTC") > now ||
         (old$attempts >= 5L && !retry))
   ) {
@@ -213,7 +264,9 @@ claim_preparation <- function(
   store$memory$article_preparations[[entry_id]] <- list(
     entry_id = entry_id,
     token = token,
-    attempts = if (is.null(old) || (retry && old$attempts >= 5L)) {
+    attempts = if (
+      is.null(old) || changed_backend || (retry && old$attempts >= 5L)
+    ) {
       1L
     } else {
       old$attempts + 1L
@@ -357,7 +410,7 @@ start_article_preparation <- function(
   }
   token <- telemetry_span(
     "store.preparation.claim",
-    claim_preparation(store, entry_id, retry)
+    claim_preparation(store, entry_id, retry, backend = config$defuddle_backend)
   )
   if (is.null(token)) {
     return(NULL)
@@ -534,7 +587,11 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
 # The scheduled poller is already a background process. Its bounded acquisition
 # pass runs after the Feed polling transaction has released its lock.
 prepare_recent_articles <- function(store, config, limit = 100L, budget = 600) {
-  ids <- preparation_candidates(store, limit = limit)
+  ids <- preparation_candidates(
+    store,
+    limit = limit,
+    backend = config$defuddle_backend
+  )
   started <- Sys.time()
   prepared <- failed <- 0L
   for (id in ids) {
@@ -684,7 +741,12 @@ article_preparation_controller <- function(
   )
 }
 
-article_preparation_status <- function(store, entry_id, busy = FALSE) {
+article_preparation_status <- function(
+  store,
+  entry_id,
+  busy = FALSE,
+  backend = NULL
+) {
   if (full_reading_document(public_reading_document(store, entry_id))) {
     return("ready")
   }
@@ -692,7 +754,7 @@ article_preparation_status <- function(store, entry_id, busy = FALSE) {
     return("running")
   }
   attempt <- preparation_attempt(store, entry_id)
-  if (is.null(attempt)) {
+  if (is.null(attempt) || preparation_backend_changed(attempt, backend)) {
     return("missing")
   }
   if (as.POSIXct(attempt$next_attempt_at, tz = "UTC") > Sys.time()) {

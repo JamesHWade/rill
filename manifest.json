@@ -2797,7 +2797,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "42b38475af2111bc3cdee24673f0a58a"
+      "checksum": "d78f4a4b8f35fb1146350744332e0cae"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2809,7 +2809,7 @@
       "checksum": "a263c3aa1f6d2c607a51ed358ce7f02e"
     },
     "R/defuddle.R": {
-      "checksum": "bbbc5e9b0e080c2811df5bfc71673eac"
+      "checksum": "42383c4831739c9545a9965d9c47d923"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2851,7 +2851,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "ce52f517475464abd51efc5cde8121ad"
+      "checksum": "12d973c443d4bdba8448e8b8ba5e45dc"
     },
     "R/telemetry.R": {
       "checksum": "8c574df1a5e8024840c5027369e8ad01"

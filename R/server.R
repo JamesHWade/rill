@@ -1794,9 +1794,12 @@ rill_server <- function(config, store) {
 
     if (!isTRUE(config$demo_mode)) {
       shiny::observe({
+        if (!is.null(selected_id())) {
+          return()
+        }
         destination <- orientation_destination_status()
         orientation_state()
-        if (isTRUE(destination$enabled) && is.null(selected_id())) {
+        if (isTRUE(destination$enabled)) {
           start_orientation_maintenance()
         }
       })
@@ -2115,7 +2118,11 @@ rill_server <- function(config, store) {
         )
       )
       bump_refresh(feeds_changed = TRUE)
-      article_preparer$request(preparation_candidates(store, actor_id))
+      article_preparer$request(preparation_candidates(
+        store,
+        actor_id,
+        backend = config$defuddle_backend
+      ))
       invisible(result)
     }
     poll_refresh <- function() {
@@ -2427,7 +2434,8 @@ rill_server <- function(config, store) {
         article_preparation_status(
           store,
           selected_id(),
-          article_preparer$busy(selected_id())
+          article_preparer$busy(selected_id()),
+          backend = config$defuddle_backend
         )
       } else {
         "missing"
