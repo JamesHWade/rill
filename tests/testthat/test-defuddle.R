@@ -217,6 +217,128 @@ testthat::test_that("today preparation leaves failed articles retryable", {
   testthat::expect_length(store_list_documents(store, "reader"), 0L)
 })
 
+testthat::test_that("preparation failures expose safe extraction diagnostics", {
+  store <- preparation_test_store()
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(source_url, config) {
+      rlang::abort(
+        "Request https://secret.example/?key=private-token failed: private body",
+        parent = rlang::error_cnd("httr2_http_403")
+      )
+    }
+  )
+
+  logs <- testthat::capture_messages({
+    result <- prepare_today_documents(
+      store,
+      list(actor_id = "reader", defuddle_backend = "hosted"),
+      now = as.POSIXct("2026-08-19 14:00:00", tz = "UTC"),
+      timezone = "UTC"
+    )
+  })
+
+  failure <- result$failures[[1]]
+  testthat::expect_identical(result$failed, 1L)
+  testthat::expect_identical(failure$stage, "extraction")
+  testthat::expect_identical(failure$http_status, 403L)
+  testthat::expect_identical(failure$title, store$memory$entries$title[[1]])
+  testthat::expect_match(logs, failure$reference, fixed = TRUE)
+  testthat::expect_no_match(logs, failure$title, fixed = TRUE)
+  testthat::expect_no_match(
+    jsonlite::toJSON(result),
+    "private-token|private body|secret.example"
+  )
+  testthat::expect_no_match(logs, "private-token|private body|secret.example")
+  testthat::expect_length(store_list_documents(store, "reader"), 0L)
+})
+
+testthat::test_that("preparation distinguishes saving from extraction failures", {
+  store <- preparation_test_store()
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(source_url, config) "Reading copy.",
+    store_save_document = function(...) stop("postgresql://user:password@db")
+  )
+
+  logs <- testthat::capture_messages({
+    result <- prepare_today_documents(
+      store,
+      list(actor_id = "reader"),
+      now = as.POSIXct("2026-08-19 14:00:00", tz = "UTC"),
+      timezone = "UTC"
+    )
+  })
+
+  testthat::expect_identical(result$failures[[1]]$stage, "storage")
+  testthat::expect_identical(result$failures[[1]]$code, "storage_failed")
+  testthat::expect_match(result$errors[[1]], "saved", fixed = TRUE)
+  testthat::expect_no_match(logs, "postgresql|password")
+  testthat::expect_length(store_list_documents(store, "reader"), 0L)
+})
+
+testthat::test_that("preparation diagnostics recognize real HTTP conditions", {
+  error <- tryCatch(
+    httr2::resp_check_status(httr2::response(
+      status_code = 429L,
+      url = "https://example.com/?key=private-token"
+    )),
+    error = identity
+  )
+
+  logs <- testthat::capture_messages({
+    failure <- preparation_failure(error, "extraction", list())
+  })
+
+  testthat::expect_identical(failure$http_status, 429L)
+  testthat::expect_identical(failure$error_type, "httr2_http_429")
+  testthat::expect_match(failure$message, "HTTP 429", fixed = TRUE)
+  testthat::expect_no_match(logs, "example.com|private-token")
+})
+
+testthat::test_that("preparation diagnostics classify known non-HTTP failures", {
+  errors <- lapply(
+    c(
+      "rill_defuddle_cli_missing",
+      "rill_defuddle_cli_failed",
+      "rill_document_invalid",
+      "curl_error_operation_timedout",
+      "httr2_failure",
+      "private-token"
+    ),
+    rlang::error_cnd,
+    message = "private body"
+  )
+  errors[[6]] <- structure(
+    list(message = "private body"),
+    class = c("private-token", "error", "condition")
+  )
+
+  logs <- testthat::capture_messages({
+    failures <- lapply(
+      errors,
+      preparation_failure,
+      stage = "extraction",
+      config = list(defuddle_backend = "private-token")
+    )
+  })
+
+  testthat::expect_identical(
+    vapply(failures, `[[`, character(1), "code"),
+    c(
+      "extractor_missing",
+      "extractor_failed",
+      "invalid_document",
+      "request_timeout",
+      "request_failed",
+      "extraction_failed"
+    )
+  )
+  testthat::expect_no_match(
+    paste(logs, collapse = "\n"),
+    "private-token|private body"
+  )
+  testthat::expect_identical(failures[[6]]$error_type, "unknown_error")
+})
+
 testthat::test_that("today preparation retries feed fallbacks", {
   store <- rill_store(list(demo_mode = TRUE))
   entry <- as.list(store$memory$entries[1, , drop = FALSE])

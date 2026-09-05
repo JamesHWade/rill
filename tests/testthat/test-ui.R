@@ -1,3 +1,28 @@
+testthat::test_that("preparation details escape titles and expose safe recovery", {
+  html <- htmltools::renderTags(preparation_failures_ui(list(list(
+    title = "<script>private title</script>",
+    message = "The reading copy couldn't be saved.",
+    stage = "storage",
+    reference = "reference-123",
+    errors = "private-token"
+  ))))$html
+
+  testthat::expect_match(
+    html,
+    "&lt;script&gt;private title&lt;/script&gt;",
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "Try Prepare again", fixed = TRUE)
+  testthat::expect_match(html, "reference-123", fixed = TRUE)
+  testthat::expect_match(html, "storage", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    'aria-labelledby="preparation-details-title"',
+    fixed = TRUE
+  )
+  testthat::expect_no_match(html, "<script>private title|private-token")
+})
+
 testthat::test_that("selected story cards expose their current state", {
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
   entry$feed_title <- "The R Blog"

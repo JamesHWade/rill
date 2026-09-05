@@ -530,6 +530,33 @@ prepare_today_button <- function() {
   )
 }
 
+preparation_failures_ui <- function(failures) {
+  title_id <- "preparation-details-title"
+  modal <- shiny::modalDialog(
+    title = shiny::tags$span(id = title_id, "Preparation details"),
+    easyClose = TRUE,
+    shiny::tags$p(
+      "Your saved copies are preserved. Try Prepare again to retry missing copies, ",
+      "or open a story's original. If a failure continues, share its reference ",
+      "with the operator so they can find the matching server log."
+    ),
+    shiny::tags$ul(lapply(failures, function(failure) {
+      shiny::tags$li(
+        shiny::tags$strong(failure$title %||% "Today's reading copies"),
+        shiny::tags$p(failure$message),
+        shiny::tags$p(
+          paste0("Stage: ", failure$stage, ". Reference: "),
+          shiny::tags$code(failure$reference)
+        )
+      )
+    }))
+  )
+  htmltools::tagQuery(modal)$addAttrs(
+    role = "dialog",
+    `aria-labelledby` = title_id
+  )$allTags()
+}
+
 read_actions_ui <- function(feed_title = NULL) {
   scope <- if (is.null(feed_title)) "all feeds" else feed_title
 

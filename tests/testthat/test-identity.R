@@ -129,6 +129,35 @@ testthat::test_that("an Auth0 token resolves through exact issuer and subject", 
   testthat::expect_identical(identity$display_name, "Reader")
 })
 
+testthat::test_that("Auth0 discovery preserves its canonical issuer", {
+  config <- list(
+    auth0_domain = "reader.us.auth0.com",
+    auth0_client_id = "reader-client",
+    auth0_client_secret = "reader-secret",
+    auth0_redirect_uri = "https://reader.example/",
+    oidc_issuer = "https://reader.us.auth0.com/"
+  )
+  provider_args <- NULL
+  testthat::local_mocked_bindings(
+    identity_oidc_provider = function(...) {
+      provider_args <<- list(...)
+      "test-provider"
+    },
+    identity_oauth_client = \(...) list(...)
+  )
+
+  identity_auth0_client(config)
+
+  testthat::expect_identical(
+    provider_args[c("issuer", "name", "issuer_match")],
+    list(
+      issuer = config$oidc_issuer,
+      name = "auth0",
+      issuer_match = "host"
+    )
+  )
+})
+
 testthat::test_that("the in-app gate starts Rill only after authentication", {
   local_auth0_identity()
   config <- rill_config()
@@ -897,7 +926,7 @@ testthat::test_that("an active session closes when its Reader is disabled", {
     responsible_id = "operator:james",
     reason = "access revoked"
   )
-  session$elapse(1000)
+  session$elapse(rill_session_poll_interval_ms)
 
   testthat::expect_identical(session$isClosed(), TRUE)
 })
@@ -920,7 +949,7 @@ testthat::test_that("an active session closes when its identity is revoked", {
       store$memory$reader_identities$subject == "github|reader"
   )
   store$memory$reader_identities$revoked_at[[identity_index]] <- utc_now()
-  session$elapse(1000)
+  session$elapse(rill_session_poll_interval_ms)
   revoked <- reader_identity_resolve(
     adapter,
     identity_test_request("github|reader")

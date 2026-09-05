@@ -1,3 +1,35 @@
+testthat::test_that("hosted Orientation does not acknowledge a change after its state read", {
+  revision <- "before"
+  testthat::local_mocked_bindings(
+    store_orientation_poll_token = function(...) revision,
+    orientation_status = function(...) {
+      state <- list(revision = revision)
+      revision <<- "after"
+      state
+    }
+  )
+
+  result <- store_orientation_polled_state(list(mode = "postgres"), "reader")
+
+  testthat::expect_identical(result$state$revision, "before")
+  testthat::expect_identical(result$token, "before")
+  testthat::expect_identical(revision, "after")
+})
+
+testthat::test_that("a failed Orientation fingerprint remains distinguishable on retry", {
+  testthat::local_mocked_bindings(
+    store_orientation_poll_token = function(...) {
+      stop("Temporary database error")
+    },
+    orientation_status = \(...) list(revision = "current")
+  )
+
+  result <- store_orientation_polled_state(list(mode = "postgres"), "reader")
+
+  testthat::expect_identical(result$state$revision, "current")
+  testthat::expect_identical(result$token, NA_character_)
+})
+
 testthat::test_that("the memory store keeps one current Orientation per Reader", {
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-1"))
   document <- store$memory$documents[[1]]

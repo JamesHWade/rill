@@ -110,6 +110,7 @@ rill_server <- function(config, store) {
     feed_management_tick <- shiny::reactiveVal(0L)
     status_text <- shiny::reactiveVal(NULL)
     status_kind <- shiny::reactiveVal("info")
+    preparation_failures <- shiny::reactiveVal(list())
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
     active_agent_run <- shiny::reactiveVal(NULL)
@@ -170,21 +171,6 @@ rill_server <- function(config, store) {
       session$onFlushed(
         \() session$sendCustomMessage("rill-browse-queue-ready", list()),
         once = TRUE
-      )
-    }
-
-    orientation_state_token <- function(state) {
-      cards <- vapply(
-        state$orientation$cards %||% list(),
-        `[[`,
-        character(1),
-        "basis_hash"
-      )
-      rill_id(
-        "orientation-state",
-        state$orientation$revision_id %||% "",
-        state$boundary$hash,
-        paste(cards, collapse = "\u241f")
       )
     }
 
@@ -1617,7 +1603,7 @@ rill_server <- function(config, store) {
     }
 
     shiny::observe({
-      shiny::invalidateLater(1000, session)
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
       state <- tryCatch(
         orientation_destination_state(store, actor_id, config),
         error = \(error) NULL
@@ -1641,21 +1627,20 @@ rill_server <- function(config, store) {
 
     orientation_state <- shiny::reactive({
       refresh_tick()
-      state <- orientation_status(store, actor_id)
-      orientation_poll_token <<- orientation_state_token(state)
-      state
+      polled <- store_orientation_polled_state(store, actor_id)
+      orientation_poll_token <<- polled$token
+      polled$state
     })
 
     shiny::observe({
-      shiny::invalidateLater(1000, session)
-      state <- tryCatch(
-        orientation_status(store, actor_id),
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
+      token <- tryCatch(
+        store_orientation_poll_token(store, actor_id),
         error = \(error) NULL
       )
-      if (is.null(state)) {
+      if (is.null(token)) {
         return()
       }
-      token <- orientation_state_token(state)
       previous <- orientation_poll_token
       orientation_poll_token <<- token
       if (!is.null(previous) && !identical(token, previous)) {
@@ -2223,7 +2208,12 @@ rill_server <- function(config, store) {
       if (!identical(input$view, "today")) {
         return(NULL)
       }
-      prepare_today_button()
+      shiny::tagList(
+        prepare_today_button(),
+        if (length(preparation_failures())) {
+          shiny::actionLink("preparation_details", "Preparation details")
+        }
+      )
     })
 
     output$read_actions <- shiny::renderUI({
@@ -3319,6 +3309,15 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$preparation_details,
+      {
+        shiny::req(length(preparation_failures()))
+        shiny::showModal(preparation_failures_ui(preparation_failures()))
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
       input$prepare_today,
       {
         shiny::req(identical(input$view, "today"))
@@ -3343,16 +3342,27 @@ rill_server <- function(config, store) {
           error = function(error) error
         )
         if (inherits(result, "error")) {
+          failure <- if (inherits(result, "rill_preparation_failed")) {
+            result$diagnostic
+          } else {
+            preparation_failure(result, "library", config)
+          }
+          preparation_failures(list(failure))
           status_kind("error")
           status_text("Today's reading copies couldn't be prepared")
           shiny::showNotification(
-            conditionMessage(result),
+            failure$message,
             type = "error",
             duration = 8
           )
+          shiny::showModal(preparation_failures_ui(preparation_failures()))
           return()
         }
 
+        preparation_failures(result$failures %||% list())
+        if (length(preparation_failures())) {
+          shiny::showModal(preparation_failures_ui(preparation_failures()))
+        }
         status <- format_prepare_today_status(result)
         status_kind(if (result$failed > 0L) "warning" else "success")
         status_text(status)

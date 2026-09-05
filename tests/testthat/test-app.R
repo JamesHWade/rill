@@ -168,3 +168,34 @@ testthat::test_that("preparing today requires durable configuration", {
 
   testthat::expect_snapshot(prepare_today(), error = TRUE)
 })
+
+testthat::test_that("CLI preparation reports safe Library loading failures", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  store <- preparation_test_store()
+  testthat::local_mocked_bindings(
+    rill_config = \() config,
+    rill_store = \(config) store,
+    store_list_documents = function(...) {
+      stop("postgresql://user:private-token@db")
+    }
+  )
+
+  logs <- testthat::capture_messages({
+    error <- testthat::expect_error(
+      prepare_today(),
+      class = "rill_preparation_failed"
+    )
+  })
+
+  testthat::expect_identical(error$diagnostic$stage, "library")
+  testthat::expect_match(logs, error$diagnostic$reference, fixed = TRUE)
+  testthat::expect_match(
+    conditionMessage(error),
+    error$diagnostic$reference,
+    fixed = TRUE
+  )
+  testthat::expect_no_match(conditionMessage(error), "postgresql|private-token")
+  testthat::expect_null(error$parent)
+})

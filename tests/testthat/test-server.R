@@ -422,7 +422,7 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
     session$flushReact()
     initial <- orientation_state()
     initial_tick <- refresh_tick()
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     testthat::expect_identical(refresh_tick(), initial_tick)
@@ -436,12 +436,46 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
     )
 
     testthat::expect_length(initial$orientation$cards, 2L)
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     current <- orientation_state()
     testthat::expect_length(current$orientation$cards, 1L)
     testthat::expect_gt(refresh_tick(), initial_tick)
+  })
+})
+
+testthat::test_that("Orientation polling does not reload Library content", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_reads <- 0L
+  document_reads <- 0L
+  original_list_entries <- store_list_entries
+  original_list_documents <- store_list_documents
+  testthat::local_mocked_bindings(
+    store_orientation_poll_token = \(...) "unchanged",
+    store_list_entries = function(...) {
+      entry_reads <<- entry_reads + 1L
+      original_list_entries(...)
+    },
+    store_list_documents = function(...) {
+      document_reads <<- document_reads + 1L
+      original_list_documents(...)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    reads_after_render <- c(entry_reads, document_reads)
+
+    session$elapse(rill_session_poll_interval_ms)
+    session$flushReact()
+
+    testthat::expect_identical(
+      c(entry_reads, document_reads),
+      reads_after_render
+    )
   })
 })
 
@@ -780,7 +814,7 @@ testthat::test_that("a session observes an external Orientation disable", {
       enabled = FALSE,
       config = config
     )
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     testthat::expect_identical(orientation_destination_status()$enabled, FALSE)
@@ -4030,6 +4064,75 @@ testthat::test_that("preparing today reports progress and records the result", {
     testthat::expect_identical(
       tail(store$memory$events$event_type, 1L),
       "today_prepared"
+    )
+  })
+})
+
+testthat::test_that("failed preparation retains safe details and clears them on retry", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  store$memory$entries$published_at[[1]] <- utc_now()
+  fail <- TRUE
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(source_url, config) {
+      if (fail) {
+        stop("private-token")
+      }
+      "Prepared copy."
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$flushReact()
+    logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
+    session$flushReact()
+
+    testthat::expect_identical(status_kind(), "warning")
+    testthat::expect_length(preparation_failures(), 1L)
+    testthat::expect_no_match(
+      jsonlite::toJSON(preparation_failures()),
+      "private-token"
+    )
+    testthat::expect_no_match(
+      tail(store$memory$events$payload, 1L),
+      "private-token|reference"
+    )
+    testthat::expect_match(logs, "article.prepare_failed", fixed = TRUE)
+    session$setInputs(preparation_details = 1L)
+
+    fail <<- FALSE
+    session$setInputs(prepare_today = 2L)
+    session$flushReact()
+    testthat::expect_identical(status_kind(), "success")
+    testthat::expect_length(preparation_failures(), 0L)
+    testthat::expect_length(store_list_documents(store, "reader"), 1L)
+  })
+})
+
+testthat::test_that("preparation setup errors never expose database credentials", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  testthat::local_mocked_bindings(
+    prepare_today_documents = function(...) {
+      stop("postgresql://user:private-token@db")
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today")
+    session$flushReact()
+    logs <- testthat::capture_messages(session$setInputs(prepare_today = 1L))
+    session$flushReact()
+
+    testthat::expect_identical(status_kind(), "error")
+    testthat::expect_identical(preparation_failures()[[1]]$stage, "library")
+    testthat::expect_no_match(logs, "postgresql|private-token")
+    testthat::expect_no_match(
+      jsonlite::toJSON(preparation_failures()),
+      "postgresql|private-token"
     )
   })
 })

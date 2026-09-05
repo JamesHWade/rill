@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Today's Prepare action and `prepare_today()` now report safe failure details for each Feed Entry, distinguish extraction from storage failures, and provide references to content-free server logs while leaving missing copies retryable (#28, #45).
+
 * Library refresh now runs in a separate background process with live progress, so you can keep reading, navigate, or close Manage feeds while new stories are fetched; refresh completion preserves your current reading and Subscription choices (#22, #28).
 
 * Manage feeds now opens a searchable dialog with per-feed status, single-feed refresh, retry for failed feeds, existing-folder suggestions, and restoration of unsubscribed feeds; manual refresh records polling outcomes and reports only genuinely new stories (#28).
@@ -7,6 +9,8 @@
 * `approve_reader_admission()` and `list_reader_admissions()` provide a privacy-safe operator workflow for admitting a verified identity to a new isolated Reader, while both hosted Auth0 adapters now record pending access requests and explain the next step to the invited person (#26, #45).
 
 * Rill can now enforce an in-app Auth0 gate on public Shiny hosts such as Posit Connect Cloud, and the default branch can run due-Feed polling hourly under an explicit kill switch (#45).
+
+* Hosted Rill now polls compact change fingerprints instead of repeatedly transferring Feed Entry and Document content, sharply reducing PostgreSQL network usage (#45).
 
 * Hosted Rill now binds browser-capture credentials, captured Documents, standalone capture entries, and reading-copy selection to each Reader while retaining shared public Documents and immutable acquisition provenance, and admits additional Readers only after these isolation boundaries are installed (#21).
 

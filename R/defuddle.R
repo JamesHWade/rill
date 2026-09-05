@@ -93,15 +93,18 @@ fetch_defuddled_markdown_local <- function(
     if (!nzchar(detail)) {
       detail <- paste0("The command exited with status ", result$status, ".")
     }
-    cli::cli_abort(c(
-      "Local Defuddle extraction failed.",
-      "x" = "{detail}"
-    ))
+    cli::cli_abort(
+      c("Local Defuddle extraction failed.", "x" = "{detail}"),
+      class = "rill_defuddle_cli_failed"
+    )
   }
 
   markdown <- result$stdout %||% ""
   if (!nzchar(trimws(markdown))) {
-    cli::cli_abort("Local Defuddle returned an empty document.")
+    cli::cli_abort(
+      "Local Defuddle returned an empty document.",
+      class = "rill_document_invalid"
+    )
   }
   markdown
 }
@@ -109,10 +112,13 @@ fetch_defuddled_markdown_local <- function(
 run_defuddle_cli <- function(command, args, timeout) {
   resolved <- unname(Sys.which(command))
   if (!nzchar(resolved)) {
-    cli::cli_abort(c(
-      "The local Defuddle executable {.file {command}} was not found.",
-      "i" = "Install it with {.code npm install -g defuddle}, or set {.envvar DEFUDDLE_COMMAND}."
-    ))
+    cli::cli_abort(
+      c(
+        "The local Defuddle executable {.file {command}} was not found.",
+        "i" = "Install it with {.code npm install -g defuddle}, or set {.envvar DEFUDDLE_COMMAND}."
+      ),
+      class = "rill_defuddle_cli_missing"
+    )
   }
 
   stderr_file <- tempfile("rill-defuddle-stderr-")
@@ -286,15 +292,32 @@ prepare_today_documents <- function(
   now = Sys.time(),
   timezone = Sys.timezone()
 ) {
-  entries <- store_list_entries(
-    store,
-    reader_id,
-    view = "today",
-    limit = 500L,
-    now = now,
-    timezone = timezone
+  inputs <- tryCatch(
+    {
+      entries <- store_list_entries(
+        store,
+        reader_id,
+        view = "today",
+        limit = 500L,
+        now = now,
+        timezone = timezone
+      )
+      list(
+        entries = entries,
+        documents = store_list_documents(store, reader_id, entries$entry_id)
+      )
+    },
+    error = function(error) {
+      failure <- preparation_failure(error, "library", config)
+      cli::cli_abort(
+        c(failure$message, "i" = paste("Reference:", failure$reference)),
+        class = "rill_preparation_failed",
+        diagnostic = failure
+      )
+    }
   )
-  documents <- store_list_documents(store, reader_id, entries$entry_id)
+  entries <- inputs$entries
+  documents <- inputs$documents
   ready <- vapply(
     documents,
     \(document) !identical(document$acquisition_method, "feed_fallback"),
@@ -307,14 +330,17 @@ prepare_today_documents <- function(
     drop = FALSE
   ]
   errors <- character()
+  failures <- list()
   prepared <- 0L
 
   for (index in seq_len(nrow(pending))) {
     entry <- as.list(pending[index, , drop = FALSE])
     progress(index, nrow(pending), entry$title)
+    stage <- "extraction"
     result <- tryCatch(
       {
         document <- document_from_defuddle(entry, config)
+        stage <- "storage"
         save_prepared_document(
           store,
           reader_id,
@@ -325,15 +351,11 @@ prepare_today_documents <- function(
       error = function(error) error
     )
     if (inherits(result, "error")) {
-      telemetry_log(
-        "warn",
-        "article.prepare_failed",
-        list(
-          "entry.id" = entry$entry_id,
-          "error.type" = class(result)[[1]]
-        )
-      )
-      errors[[entry$entry_id]] <- conditionMessage(result)
+      failure <- preparation_failure(result, stage, config)
+      failure$entry_id <- entry$entry_id
+      failure$title <- entry$title
+      failures[[entry$entry_id]] <- failure
+      errors[[entry$entry_id]] <- failure$message
     } else {
       prepared <- prepared + 1L
     }
@@ -344,8 +366,99 @@ prepare_today_documents <- function(
     cached = length(cached_ids),
     prepared = prepared,
     failed = length(errors),
-    errors = errors
+    errors = errors,
+    failures = failures
   )
+}
+
+preparation_failure <- function(error, stage, config) {
+  classes <- character()
+  for (depth in seq_len(20L)) {
+    classes <- c(classes, class(error))
+    error <- error$parent
+    if (!inherits(error, "condition")) {
+      break
+    }
+  }
+  http_class <- grep("^httr2_http_[45][0-9]{2}$", classes, value = TRUE)
+  http_status <- if (length(http_class)) {
+    as.integer(sub("httr2_http_", "", http_class[[1]]))
+  } else {
+    NA_integer_
+  }
+  known_classes <- c(
+    "rill_defuddle_cli_missing",
+    "rill_defuddle_cli_failed",
+    "rill_document_invalid",
+    "curl_error_operation_timedout",
+    "httr2_failure",
+    "simpleError",
+    "rlang_error"
+  )
+  known <- intersect(known_classes, classes)
+  error_type <- if (length(http_class)) {
+    http_class[[1]]
+  } else if (length(known)) {
+    known[[1]]
+  } else {
+    "unknown_error"
+  }
+  code <- if (stage == "storage") {
+    "storage_failed"
+  } else if (stage == "library") {
+    "library_failed"
+  } else if (!is.na(http_status)) {
+    "http_failed"
+  } else {
+    switch(
+      error_type,
+      rill_defuddle_cli_missing = "extractor_missing",
+      rill_defuddle_cli_failed = "extractor_failed",
+      rill_document_invalid = "invalid_document",
+      curl_error_operation_timedout = "request_timeout",
+      httr2_failure = "request_failed",
+      "extraction_failed"
+    )
+  }
+  message <- switch(
+    code,
+    storage_failed = "The reading copy was extracted but couldn't be saved.",
+    library_failed = "Today's stories or saved reading copies couldn't be loaded.",
+    http_failed = paste0(
+      "The extraction request returned HTTP ",
+      http_status,
+      "."
+    ),
+    extractor_missing = "The local extraction tool is not installed on this host.",
+    extractor_failed = "The local extraction tool couldn't prepare this story.",
+    invalid_document = "The extracted content couldn't be used as a reading copy.",
+    request_timeout = "The extraction request timed out.",
+    request_failed = "The extraction service couldn't be reached.",
+    extraction_failed = "The reading copy couldn't be extracted."
+  )
+  backend <- config$defuddle_backend %||% "hosted"
+  if (!backend %in% c("hosted", "local")) {
+    backend <- "unknown"
+  }
+  diagnostic <- list(
+    reference = substr(
+      rill_id("preparation", Sys.time(), stats::runif(1)),
+      1L,
+      16L
+    ),
+    stage = stage,
+    code = code,
+    error_type = error_type,
+    http_status = http_status,
+    backend = backend
+  )
+  telemetry_log("warn", "article.prepare_failed", diagnostic)
+  # Connect captures stderr even when no OpenTelemetry exporter is configured.
+  message(
+    "article.prepare_failed ",
+    jsonlite::toJSON(diagnostic, auto_unbox = TRUE, na = "null")
+  )
+  c(diagnostic, list(message = message))
 }
 
 format_prepare_today_status <- function(result) {
