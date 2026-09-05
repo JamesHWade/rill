@@ -32,23 +32,15 @@ defuddle_endpoint <- function(base_url, source_url) {
 
 fetch_defuddled_markdown <- function(source_url, config) {
   backend <- normalize_defuddle_backend(config$defuddle_backend %||% "hosted")
-  if (requireNamespace("otel", quietly = TRUE)) {
-    try(
-      otel::start_local_active_span(
-        "article.extract",
-        attributes = list("extractor.engine" = paste0("defuddle-", backend)),
-        tracer = "rill",
-        end_on_exit = TRUE
-      ),
-      silent = TRUE
-    )
-  }
-
-  if (identical(backend, "local")) {
-    return(fetch_defuddled_markdown_local(source_url, config))
-  }
-
-  fetch_defuddled_markdown_hosted(source_url, config)
+  telemetry_span(
+    "article.extract",
+    if (identical(backend, "local")) {
+      fetch_defuddled_markdown_local(source_url, config)
+    } else {
+      fetch_defuddled_markdown_hosted(source_url, config)
+    },
+    attributes = list("extractor.engine" = paste0("defuddle-", backend))
+  )
 }
 
 fetch_defuddled_markdown_hosted <- function(source_url, config) {
@@ -64,7 +56,33 @@ fetch_defuddled_markdown_hosted <- function(source_url, config) {
     request <- httr2::req_url_query(request, key = config$defuddle_api_key)
   }
 
-  response <- httr2::req_perform(request)
+  response <- telemetry_span("article.extract.http", {
+    span <- if (requireNamespace("otel", quietly = TRUE)) {
+      otel::get_active_span()
+    } else {
+      NULL
+    }
+    response <- withCallingHandlers(
+      httr2::req_perform(request),
+      httr2_fetch = function(event) {
+        telemetry_attributes(
+          span,
+          list("http.request.resend_count" = max(0L, event$n - 1L))
+        )
+      },
+      httr2_http = function(error) {
+        telemetry_attributes(
+          span,
+          list("http.response.status_code" = error$status)
+        )
+      }
+    )
+    telemetry_attributes(
+      span,
+      list("http.response.status_code" = httr2::resp_status(response))
+    )
+    response
+  })
   httr2::resp_body_string(response)
 }
 
@@ -445,7 +463,7 @@ prepare_today_documents <- function(
   )
 }
 
-preparation_failure <- function(error, stage, config) {
+preparation_failure <- function(error, stage, config, emit = TRUE) {
   classes <- character()
   for (depth in seq_len(20L)) {
     classes <- c(classes, class(error))
@@ -526,12 +544,14 @@ preparation_failure <- function(error, stage, config) {
     http_status = http_status,
     backend = backend
   )
-  telemetry_log("warn", "article.prepare_failed", diagnostic)
-  # Connect captures stderr even when no OpenTelemetry exporter is configured.
-  message(
-    "article.prepare_failed ",
-    jsonlite::toJSON(diagnostic, auto_unbox = TRUE, na = "null")
-  )
+  if (emit) {
+    telemetry_log("warn", "article.prepare_failed", diagnostic)
+    # Connect captures stderr even when no OpenTelemetry exporter is configured.
+    message(
+      "article.prepare_failed ",
+      jsonlite::toJSON(diagnostic, auto_unbox = TRUE, na = "null")
+    )
+  }
   c(diagnostic, list(message = message))
 }
 

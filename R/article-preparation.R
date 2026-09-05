@@ -1,15 +1,20 @@
 # Reading never waits for acquisition. The current session holds this immutable
 # copy until the Reader explicitly loads a newer one or opens another story.
 reading_document <- function(store, reader_id, entry) {
-  current <- store_get_document(store, reader_id, entry$entry_id)
+  span <- telemetry_local_span("article.reading_copy")
+  current <- telemetry_span(
+    "store.reading_copy.lookup",
+    store_get_document(store, reader_id, entry$entry_id)
+  )
+  telemetry_attributes(span, list("copy.cached" = !is.null(current)))
   if (!is.null(current)) {
     return(current)
   }
-  store_save_document_if_missing_head(
-    store,
-    reader_id,
-    document_fallback(entry)
-  )$document
+  fallback <- telemetry_span("article.feed_copy", document_fallback(entry))
+  telemetry_span(
+    "store.reading_copy.save",
+    store_save_document_if_missing_head(store, reader_id, fallback)$document
+  )
 }
 
 public_reading_document <- function(store, entry_id) {
@@ -297,7 +302,7 @@ extract_preparation <- function(entry, config) {
   tryCatch(
     list(document = document_from_defuddle(entry, config)),
     error = function(error) {
-      failure <- preparation_failure(error, "extraction", config)
+      failure <- preparation_failure(error, "extraction", config, emit = FALSE)
       failure$title <- entry$title
       list(failure = failure)
     }
@@ -311,14 +316,24 @@ start_article_preparation <- function(
   entry_id,
   retry = FALSE
 ) {
-  entry <- preparation_entry(store, entry_id, reader_id)
+  span <- telemetry_start("article.prepare")
+  telemetry_activate(span)
+  handed_off <- FALSE
+  on.exit(if (!handed_off) telemetry_end(span), add = TRUE)
+  entry <- telemetry_span(
+    "store.preparation.entry",
+    preparation_entry(store, entry_id, reader_id)
+  )
   if (
     is.null(entry) ||
       full_reading_document(public_reading_document(store, entry_id))
   ) {
     return(NULL)
   }
-  token <- claim_preparation(store, entry_id, retry)
+  token <- telemetry_span(
+    "store.preparation.claim",
+    claim_preparation(store, entry_id, retry)
+  )
   if (is.null(token)) {
     return(NULL)
   }
@@ -336,7 +351,10 @@ start_article_preparation <- function(
     )
   )]
   process <- tryCatch(
-    launch_article_preparation(entry, settings, directory, package_path),
+    telemetry_span(
+      "article.worker.launch",
+      launch_article_preparation(entry, settings, directory, package_path)
+    ),
     error = \(error) error
   )
   if (inherits(process, "error")) {
@@ -344,9 +362,19 @@ start_article_preparation <- function(
     failure <- preparation_failure(process, "extraction", config)
     failure$title <- entry$title
     finish_preparation(store, entry_id, token, failure = failure)
+    telemetry_end(
+      span,
+      "error",
+      list(
+        "failure.reference" = failure$reference,
+        "failure.code" = failure$code
+      )
+    )
     return(list(entry_id = entry_id, failure = failure))
   }
+  handed_off <- TRUE
   list(
+    span = span,
     process = process,
     directory = directory,
     entry_id = entry_id,
@@ -357,7 +385,7 @@ start_article_preparation <- function(
 
 launch_article_preparation <- function(entry, config, directory, package_path) {
   callr::r_bg(
-    function(entry, config, package_path) {
+    function(entry, config, package_path, trace_context, launched_at) {
       if (file.exists(file.path(package_path, "R", "article-preparation.R"))) {
         pkgload::load_all(
           package_path,
@@ -368,9 +396,23 @@ launch_article_preparation <- function(entry, config, directory, package_path) {
       } else {
         loadNamespace("rill", lib.loc = dirname(package_path))
       }
-      get("extract_preparation", asNamespace("rill"))(entry, config)
+      ns <- asNamespace("rill")
+      on.exit(get("telemetry_flush", ns)(), add = TRUE)
+      get("telemetry_span", ns)(
+        "article.worker.extract",
+        get("extract_preparation", ns)(entry, config),
+        attributes = list(
+          "worker.bootstrap_ms" = as.numeric(difftime(
+            Sys.time(),
+            launched_at,
+            units = "secs"
+          )) *
+            1000
+        ),
+        parent = trace_context
+      )
     },
-    args = list(entry, config, package_path),
+    args = list(entry, config, package_path, telemetry_context(), Sys.time()),
     supervise = TRUE,
     user_profile = FALSE,
     stdout = file.path(directory, "stdout"),
@@ -384,7 +426,12 @@ close_article_preparation <- function(job) {
   }
   if (job$process$is_alive()) {
     job$process$kill()
+    telemetry_end(
+      job$span,
+      attributes = list("preparation.outcome" = "cancelled")
+    )
   }
+  telemetry_end(job$span)
   unlink(job$directory, recursive = TRUE)
   invisible(NULL)
 }
@@ -396,6 +443,7 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
   ) {
     return(NULL)
   }
+  telemetry_activate(job$span)
   on.exit(close_article_preparation(job), add = TRUE)
   result <- tryCatch(job$process$get_result(), error = function(error) {
     list(failure = preparation_failure(error, "extraction", config))
@@ -416,12 +464,15 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
     )
   }
   tryCatch(
-    finish_preparation(
-      store,
-      job$entry_id,
-      job$token,
-      result$document,
-      result$failure
+    telemetry_span(
+      "store.preparation.finish",
+      finish_preparation(
+        store,
+        job$entry_id,
+        job$token,
+        result$document,
+        result$failure
+      )
     ),
     error = function(error) {
       result <<- list(failure = preparation_failure(error, "storage", config))
@@ -435,6 +486,20 @@ poll_article_preparation <- function(job, store, config, timeout = 120) {
         silent = TRUE
       )
     }
+  )
+  telemetry_end(
+    job$span,
+    if (is.null(result$failure)) "ok" else "error",
+    list(
+      "preparation.outcome" = if (is.null(result$failure)) {
+        "ready"
+      } else {
+        "failed"
+      },
+      "failure.reference" = result$failure$reference,
+      "failure.code" = result$failure$code,
+      "http.response.status_code" = result$failure$http_status
+    )
   )
   result
 }
@@ -486,6 +551,7 @@ article_preparation_controller <- function(
   state$scheduled <- FALSE
   state$closed <- FALSE
   state$draining <- FALSE
+  state$requested <- list()
   schedule <- function() {
     if (state$scheduled || state$closed) {
       return(invisible(NULL))
@@ -516,12 +582,15 @@ article_preparation_controller <- function(
           state$queue <- state$queue[-1]
           retry <- id %in% state$retry
           state$retry <- setdiff(state$retry, id)
-          started <- start_article_preparation(
-            store,
-            config,
-            reader_id,
-            id,
-            retry
+          request <- state$requested[[id]]
+          state$requested[[id]] <- NULL
+          started <- telemetry_span(
+            "article.prepare.dispatch",
+            start_article_preparation(store, config, reader_id, id, retry),
+            attributes = list(
+              "queue.wait_ms" = (proc.time()[[3L]] - request$at) * 1000
+            ),
+            parent = request$context
           )
           if (!is.null(started$failure)) {
             updated(id, started)
@@ -536,6 +605,7 @@ article_preparation_controller <- function(
         close_article_preparation(state$job)
         state$job <- NULL
         state$queue <- character()
+        state$requested <- list()
         updated(
           NULL,
           list(failure = preparation_failure(error, "storage", config))
@@ -554,6 +624,16 @@ article_preparation_controller <- function(
         return(invisible(NULL))
       }
       state$queue <- utils::head(unique(c(ids, state$queue)), 500L)
+      for (id in ids) {
+        state$requested[[id]] <- list(
+          at = proc.time()[[3L]],
+          context = telemetry_context()
+        )
+      }
+      state$requested <- state$requested[intersect(
+        names(state$requested),
+        state$queue
+      )]
       state$draining <- TRUE
       if (retry) {
         state$retry <- unique(c(ids, state$retry))
@@ -571,6 +651,7 @@ article_preparation_controller <- function(
       close_article_preparation(state$job)
       state$job <- NULL
       state$queue <- character()
+      state$requested <- list()
       invisible(NULL)
     }
   )

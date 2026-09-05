@@ -592,7 +592,7 @@ testthat::test_that("PostgreSQL resolves durable Reader identities", {
         params = list(application_name)
       )
       blocked <- nrow(activity) > 0L &&
-        any(activity$wait_event_type == "Lock")
+        any(activity$wait_event_type == "Lock", na.rm = TRUE)
       if (blocked) {
         break
       }

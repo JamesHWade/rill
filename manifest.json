@@ -2704,13 +2704,13 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "f8091c982d938437a6a6fc5b4349e37d"
+      "checksum": "0063aaff273b6c548e791c4513845191"
     },
     "inst/app/_brand.yml": {
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "14d9ed39bd1483bd61f8ceed985e0bfe"
+      "checksum": "477d05fafabaa99bf6d59220bcac922a"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2788,7 +2788,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "96bdddd7cc28d227fb8f84817ee8b32b"
+      "checksum": "48950f3b804962faa29d008867fb732d"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2797,10 +2797,10 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "ff897a25b657dc032663df6ed486efb8"
+      "checksum": "fd3e8d74e2741b79219a3983052abcd8"
     },
     "R/defuddle.R": {
-      "checksum": "12076f97c4a8a6183e5bbad453803f62"
+      "checksum": "b142c85a74d5a9e6d741c1e2d635c8d0"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2809,7 +2809,7 @@
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
     },
     "R/feeds.R": {
-      "checksum": "882aaee3aa4d15ac0547241a565632de"
+      "checksum": "7e8552db45d7630b5ef64b46a81d6d6c"
     },
     "R/identity.R": {
       "checksum": "a8d08d99403314c2575c967327786215"
@@ -2842,13 +2842,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "165afebe3ff6034d331ae84cb0fcd0cd"
+      "checksum": "f43d9ed7e68c760cb69d565b21238402"
     },
     "R/telemetry.R": {
-      "checksum": "6bf68c69d3b83fcef63e9d570f908600"
+      "checksum": "ec4002fa87a22123907a85d12ba55a5d"
     },
     "R/ui.R": {
-      "checksum": "739a8fa14b4907e18d0b0f0013432a98"
+      "checksum": "77634603b9eeb20d4004d4c75301d496"
     }
   },
   "users": null

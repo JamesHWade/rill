@@ -71,19 +71,10 @@ store_scalar_string <- function(value) {
 
 rill_store <- function(config) {
   legacy_reader_id <- config$actor_id %||% "reader"
-  if (requireNamespace("otel", quietly = TRUE)) {
-    try(
-      otel::start_local_active_span(
-        "store.open",
-        attributes = list(
-          "store.mode" = if (config$demo_mode) "memory" else "postgres"
-        ),
-        tracer = "rill",
-        end_on_exit = TRUE
-      ),
-      silent = TRUE
-    )
-  }
+  telemetry_local_span(
+    "store.open",
+    list("store.mode" = if (config$demo_mode) "memory" else "postgres")
+  )
 
   if (config$demo_mode) {
     sample <- sample_rill_data()
@@ -316,16 +307,7 @@ store_apply_schema <- function(
     return(invisible(NULL))
   }
 
-  if (requireNamespace("otel", quietly = TRUE)) {
-    try(
-      otel::start_local_active_span(
-        "store.migrate",
-        tracer = "rill",
-        end_on_exit = TRUE
-      ),
-      silent = TRUE
-    )
-  }
+  telemetry_local_span("store.migrate")
   if (!store_scalar_string(legacy_reader_id)) {
     cli::cli_abort(
       "The legacy Reader identifier must be a non-empty string.",

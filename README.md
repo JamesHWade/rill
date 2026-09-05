@@ -295,7 +295,7 @@ Demo-mode captures work but disappear when the R process restarts.
 ## Logfire and telemetry
 
 The current code emits low-cardinality, content-free spans and logs around
-database setup, feed HTTP work, and document extraction. It never intentionally
+database setup, feed HTTP work, article opening, and document extraction. It never intentionally
 sends article titles, article bodies, or full URLs to the telemetry backend.
 
 The reader now includes Ask Rill, but content-bearing agent-interaction
@@ -314,14 +314,32 @@ OTEL_RESOURCE_ATTRIBUTES=service.namespace=personal-reader,deployment.environmen
 OTEL_TRACES_EXPORTER=http
 OTEL_LOGS_EXPORTER=http
 OTEL_METRICS_EXPORTER=none
-OTEL_R_SUPPRESS_SCOPES=httr2
+OTEL_R_EMIT_SCOPES=rill
+OTEL_R_SUPPRESS_SCOPES=httr2,ellmer,deputy
 OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
 OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false
 OTEL_EXPORTER_OTLP_ENDPOINT=https://logfire-us.pydantic.dev
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=your-logfire-write-token
 ```
 
-`OTEL_R_SUPPRESS_SCOPES=httr2` matters: automatic HTTP semantic spans may contain complete request URLs, which would leak part of the reading history. Rill's own enclosing spans identify only the operation and extractor, not the destination.
+`OTEL_R_EMIT_SCOPES=rill` restricts export to Rill's deliberate instrumentation. Automatic HTTP and agent spans can contain URLs or conversation data, so keep the scope restrictions above. Rill's spans do not record raw exceptions, request URLs, article content, or Reader and Entry identifiers.
+
+In Logfire, filter to the `rill` service and open an `article.open` trace.
+`reading.first_text_ms` measures the browser's interval from selection until the
+matching article text has been laid out and two animation frames have elapsed;
+it includes transport and server time. An opening without a matching browser
+acknowledgement is marked `unconfirmed`, `superseded`, or `disconnected`, rather
+than reported as a successful timing. This is a text visibility proxy, not an
+image-load or browser paint measurement.
+
+Child spans separate selection, database lookups and writes, copy generation,
+and rendering. Background preparation retains trace context across the queue
+and worker process, with `queue.wait_ms`, `worker.bootstrap_ms`, and an
+`article.extract.http` span containing HTTP status and retry count. A failed
+`article.prepare` trace includes the same safe failure reference shown in the
+app. These measurements distinguish slow opening from slow extraction; a 403
+status alone still does not identify whether the extractor or publisher denied
+the request.
 
 Rill refuses to start when `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` is enabled. The standard ellmer instrumentation flag can export prompts, responses, and tool results; Rill keeps it disabled until a separately accepted, sanitized Ask Rill tracing path exists.
 

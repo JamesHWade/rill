@@ -93,6 +93,33 @@
   let systemEventsRegistered = false;
   let inputValidityRegistered = false;
   let readingStatusTrigger = null;
+  let pendingArticleTiming = null;
+
+  function reportArticleTextReady() {
+    const pending = pendingArticleTiming;
+    const article = document.getElementById("reader-document");
+    if (!pending || pending.scheduled || !article ||
+        article.dataset.openId !== pending.id ||
+        !article.textContent.trim() || !article.getClientRects().length) return;
+    pending.scheduled = true;
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        if (pendingArticleTiming !== pending) return;
+        if (!article.isConnected || article.dataset.openId !== pending.id ||
+            !article.getClientRects().length) {
+          pending.scheduled = false;
+          reportArticleTextReady();
+          return;
+        }
+        pendingArticleTiming = null;
+        window.Shiny.setInputValue("article_visible", {
+          id: pending.id,
+          elapsed_ms: performance.now() - pending.started
+        }, { priority: "event" });
+      });
+    });
+  }
+
   let readerTimezone = null;
 
   function syncReaderTimezone(force = false) {
@@ -869,6 +896,7 @@
   }
 
   function syncReader() {
+    reportArticleTextReady();
     const documentNode = document.getElementById("reader-document");
     const nextId = documentNode && documentNode.dataset.entryId;
     const nextDocumentId = documentNode && documentNode.dataset.documentId;
@@ -1025,6 +1053,11 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    const shell = document.getElementById("rill-app");
+    pendingArticleTiming = shell && shell.dataset.operationalTelemetry === "true" &&
+      window.crypto && typeof window.crypto.randomUUID === "function"
+      ? { id: window.crypto.randomUUID().replaceAll("-", ""), started: performance.now() }
+      : null;
     pendingCompactQueue = false;
     pendingEntrySurface = normalizeSelectionSurface(surface);
     pendingOrientationSelectionCardId =
@@ -1035,6 +1068,7 @@
       id,
       position,
       surface: pendingEntrySurface,
+      telemetry_id: pendingArticleTiming && pendingArticleTiming.id,
       nonce: Math.random()
     };
     if (provenance) {
@@ -1446,6 +1480,7 @@
         ) {
           showCompactSurface("reader");
         }
+        reportArticleTextReady();
       }
     );
     window.Shiny.addCustomMessageHandler(

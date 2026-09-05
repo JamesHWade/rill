@@ -94,6 +94,7 @@ rill_server <- function(config, store) {
     selected_id <- shiny::reactiveVal(NULL)
     selected_document_id <- shiny::reactiveVal(NULL)
     reading_copy <- shiny::reactiveVal(NULL)
+    opening_telemetry <- reading_telemetry(config$telemetry_enabled)
     preparation_tick <- shiny::reactiveVal(0L)
     today_preparation_pending <- shiny::reactiveVal(FALSE)
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
@@ -1921,10 +1922,14 @@ rill_server <- function(config, store) {
     })
 
     selected_entry <- shiny::reactive({
+      opening_telemetry$activate()
       entry_id <- selected_id()
       shiny::req(entry_id)
       refresh_tick()
-      entry <- store_get_entry(store, actor_id, entry_id)
+      entry <- telemetry_span(
+        "store.entry.lookup",
+        store_get_entry(store, actor_id, entry_id)
+      )
       if (!is.null(entry)) {
         entry$library_access <- TRUE
         return(entry)
@@ -1943,11 +1948,15 @@ rill_server <- function(config, store) {
     })
 
     selected_document <- shiny::reactive({
+      opening_telemetry$activate()
       entry <- selected_entry()
       shiny::req(!is.null(entry))
       document_id <- selected_document_id()
       if (!is.null(document_id)) {
-        document <- store_get_document_by_id(store, actor_id, document_id)
+        document <- telemetry_span(
+          "store.pinned_copy.lookup",
+          store_get_document_by_id(store, actor_id, document_id)
+        )
         if (
           is.null(document) ||
             !identical(document$entry_id, entry$entry_id)
@@ -2028,6 +2037,7 @@ rill_server <- function(config, store) {
     shiny::observeEvent(
       selected_id(),
       {
+        opening_telemetry$activate()
         if (!is.null(selected_document_id())) {
           return(invisible(NULL))
         }
@@ -2415,19 +2425,40 @@ rill_server <- function(config, store) {
     })
 
     output$reader_body <- shiny::renderUI({
+      opening_telemetry$activate()
       if (is.null(selected_id())) {
         return(NULL)
       }
-      reader_document_ui(
-        selected_document(),
-        selected_id(),
-        if (is.null(selected_orientation_provenance())) {
-          "story_list"
-        } else {
-          "orientation"
-        }
+      document <- selected_document()
+      opening_telemetry$annotate(list(
+        "copy.kind" = if (full_reading_document(document)) "full" else "feed"
+      ))
+      telemetry_span(
+        "article.render",
+        reader_document_ui(
+          document,
+          selected_id(),
+          if (is.null(selected_orientation_provenance())) {
+            "story_list"
+          } else {
+            "orientation"
+          },
+          open_id = opening_telemetry$id()
+        )
       )
     })
+
+    shiny::observeEvent(
+      input$article_visible,
+      {
+        report <- input$article_visible
+        if (!is.list(report)) {
+          return(invisible(NULL))
+        }
+        opening_telemetry$complete(report$id, report$elapsed_ms)
+      },
+      ignoreInit = TRUE
+    )
 
     output$reader_agent_context <- shiny::renderUI({
       if (is.null(selected_id())) {
@@ -2598,6 +2629,9 @@ rill_server <- function(config, store) {
         if (!surface %in% c("story_list", "orientation")) {
           surface <- "story_list"
         }
+        opening_telemetry$begin(request$telemetry_id, surface)
+        opening_telemetry$activate()
+        telemetry_local_span("article.selection")
         position <- as.integer(request$position %||% NA_integer_)
         pinned_document_id <- NULL
         provenance <- NULL
@@ -2688,13 +2722,19 @@ rill_server <- function(config, store) {
         selected_orientation_provenance(provenance)
         selected_position(position)
         if (!identical(surface, "orientation")) {
-          store_mark_opened(store, actor_id, entry_id)
-          record_event(
-            "entry_opened",
-            entry_id = entry_id,
-            surface = surface,
-            position = selected_position(),
-            payload = list()
+          telemetry_span(
+            "store.mark_opened",
+            store_mark_opened(store, actor_id, entry_id)
+          )
+          telemetry_span(
+            "store.open_event",
+            record_event(
+              "entry_opened",
+              entry_id = entry_id,
+              surface = surface,
+              position = selected_position(),
+              payload = list()
+            )
           )
         }
         session$sendCustomMessage(
@@ -3644,6 +3684,7 @@ rill_server <- function(config, store) {
     )
 
     session$onSessionEnded(function() {
+      opening_telemetry$finish("disconnected")
       article_preparer$close()
       if (is.function(pending_reader_question_cancel)) {
         try(pending_reader_question_cancel(), silent = TRUE)
