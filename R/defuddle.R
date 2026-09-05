@@ -174,6 +174,11 @@ fetch_defuddled_markdown_local <- function(
 }
 
 run_defuddle_cli <- function(command, args, timeout) {
+  if (identical(command, "bundled")) {
+    invocation <- bundled_defuddle_invocation()
+    command <- invocation$command
+    args <- c(invocation$args, args)
+  }
   resolved <- unname(Sys.which(command))
   if (!nzchar(resolved)) {
     cli::cli_abort(
@@ -205,6 +210,40 @@ run_defuddle_cli <- function(command, args, timeout) {
     stdout = paste(stdout, collapse = "\n"),
     stderr = stderr
   )
+}
+
+bundled_defuddle_invocation <- function(
+  runtimes = Sys.which(c("node", "deno"))
+) {
+  bundle <- rill_package_file("defuddle", "defuddle.cjs")
+  if (nzchar(runtimes[["node"]])) {
+    return(list(command = unname(runtimes[["node"]]), args = bundle))
+  }
+  if (nzchar(runtimes[["deno"]])) {
+    return(list(
+      command = unname(runtimes[["deno"]]),
+      args = c(
+        "run",
+        "--cached-only",
+        "--no-prompt",
+        "--allow-read",
+        "--allow-net",
+        paste0(
+          "--allow-env=HTTP_PROXY,HTTPS_PROXY,ALL_PROXY,NO_PROXY,",
+          "http_proxy,https_proxy,all_proxy,no_proxy"
+        ),
+        bundle
+      )
+    ))
+  }
+  cli::cli_abort(
+    "Bundled Defuddle requires Node.js 18 or later, or Deno 2 or later.",
+    class = "rill_defuddle_cli_missing"
+  )
+}
+
+bundled_defuddle_version <- function() {
+  readLines(rill_package_file("defuddle", "version.txt"), warn = FALSE)[[1L]]
 }
 
 word_count <- function(markdown) {
@@ -271,10 +310,14 @@ document_from_defuddle <- function(entry, config) {
     canonical_url = entry$canonical_url %||% NA_character_,
     acquisition_method = "web_extraction",
     producer = paste0("defuddle-", backend),
-    producer_version = first_metadata_value(
-      metadata$defuddle_version,
-      metadata$version
-    ),
+    producer_version = if (
+      identical(backend, "local") &&
+        identical(config$defuddle_command, "bundled")
+    ) {
+      bundled_defuddle_version()
+    } else {
+      first_metadata_value(metadata$defuddle_version, metadata$version)
+    },
     title = first_metadata_value(metadata$title, entry$title),
     author = first_metadata_value(metadata$author, entry$author),
     site = first_metadata_value(

@@ -1,0 +1,12 @@
+{
+  "name": "rill-defuddle-build",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "defuddle": "0.19.3",
+    "esbuild": "0.25.12"
+  }
+}

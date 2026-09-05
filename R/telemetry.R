@@ -155,6 +155,8 @@ reading_telemetry <- function(enabled) {
         return(invisible(NULL))
       }
       state$id <- id
+      state$began_at <- Sys.time()
+      state$flushed <- FALSE
       state$span <- telemetry_start(
         "article.open",
         list("reading.surface" = surface),
@@ -173,7 +175,24 @@ reading_telemetry <- function(enabled) {
       }
       invisible(NULL)
     },
-    complete = function(id, elapsed_ms) {
+    flushed = function(id) {
+      if (
+        is.null(state$span) || !identical(id, state$id) || isTRUE(state$flushed)
+      ) {
+        return(invisible(NULL))
+      }
+      state$flushed <- TRUE
+      telemetry_attributes(
+        state$span,
+        list(
+          "reading.server_flush_ms" = as.numeric(
+            difftime(Sys.time(), state$began_at, units = "secs")
+          ) *
+            1000
+        )
+      )
+    },
+    complete = function(id, elapsed_ms, dom_ready_ms = NULL) {
       if (
         is.null(state$span) ||
           !identical(id, state$id) ||
@@ -184,6 +203,21 @@ reading_telemetry <- function(enabled) {
           elapsed_ms > 120000
       ) {
         return(invisible(NULL))
+      }
+      if (
+        is.numeric(dom_ready_ms) &&
+          length(dom_ready_ms) == 1L &&
+          is.finite(dom_ready_ms) &&
+          dom_ready_ms >= 0 &&
+          dom_ready_ms <= elapsed_ms
+      ) {
+        telemetry_attributes(
+          state$span,
+          list(
+            "reading.dom_ready_ms" = dom_ready_ms,
+            "reading.paint_delay_ms" = elapsed_ms - dom_ready_ms
+          )
+        )
       }
       finish("visible", elapsed_ms)
     },

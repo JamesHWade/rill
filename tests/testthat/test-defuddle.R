@@ -485,6 +485,98 @@ testthat::test_that("local Defuddle requires an installed executable", {
   )
 })
 
+testthat::test_that("the bundled extractor selects an available local runtime", {
+  node <- bundled_defuddle_invocation(c(
+    node = "/runtime/node",
+    deno = "/runtime/deno"
+  ))
+  testthat::expect_identical(node$command, "/runtime/node")
+  testthat::expect_identical(
+    node$args,
+    rill_package_file("defuddle", "defuddle.cjs")
+  )
+  deno <- bundled_defuddle_invocation(c(node = "", deno = "/runtime/deno"))
+  testthat::expect_identical(deno$command, "/runtime/deno")
+  testthat::expect_identical(deno$args[[1L]], "run")
+  testthat::expect_contains(deno$args, "--cached-only")
+  testthat::expect_contains(deno$args, "--no-prompt")
+  testthat::expect_identical("--allow-env" %in% deno$args, FALSE)
+  testthat::expect_error(
+    bundled_defuddle_invocation(c(node = "", deno = "")),
+    class = "rill_defuddle_cli_missing"
+  )
+})
+
+testthat::test_that("the shipped CLI extracts a structured article on Node and Deno", {
+  available <- Sys.which(c("node", "deno"))
+  testthat::skip_if_not(any(nzchar(available)), "Node or Deno is required")
+  path <- withr::local_tempfile(fileext = ".html")
+  writeLines(
+    paste0(
+      "<!doctype html><html><head><title>Building a reading room</title>",
+      "<meta name='author' content='An author'></head><body><article>",
+      "<h1>Building a reading room</h1>",
+      "<p>A reading room needs comfortable chairs, good lighting, and a place ",
+      "to put books. This first paragraph explains the design decisions.</p>",
+      "<h2>Materials</h2><p>The second paragraph explains how to choose ",
+      "materials that will last, and links to ",
+      "<a href='https://example.com/materials'>the materials guide</a>.</p>",
+      "<ul><li>Wooden shelves</li><li>Adjustable lighting</li></ul>",
+      "<img src='https://example.com/room.jpg' alt='Reading room'>",
+      "</article></body></html>"
+    ),
+    path
+  )
+  for (runtime in names(available)[nzchar(available)]) {
+    runtimes <- c(node = "", deno = "")
+    runtimes[[runtime]] <- available[[runtime]]
+    invocation <- bundled_defuddle_invocation(runtimes)
+    result <- run_defuddle_cli(
+      invocation$command,
+      c(invocation$args, "parse", path, "--md", "--frontmatter"),
+      timeout = 30
+    )
+    testthat::expect_identical(result$status, 0L, info = result$stderr)
+    parsed <- parse_markdown_frontmatter(result$stdout)
+    testthat::expect_identical(parsed$metadata$title, "Building a reading room")
+    testthat::expect_identical(parsed$metadata$author, "An author")
+    html <- xml2::read_html(as.character(render_document(list(
+      markdown = parsed$markdown
+    ))))
+    testthat::expect_identical(
+      xml2::xml_text(xml2::xml_find_first(html, ".//h2")),
+      "Materials"
+    )
+    testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+    testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+      "https://example.com/materials"
+    )
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "src"),
+      "https://example.com/room.jpg"
+    )
+  }
+})
+
+testthat::test_that("bundled extraction records the shipped producer version", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  testthat::local_mocked_bindings(
+    fetch_defuddled_markdown = function(...) {
+      "# Extracted article\n\nReadable content."
+    }
+  )
+  document <- document_from_defuddle(
+    entry,
+    list(defuddle_backend = "local", defuddle_command = "bundled")
+  )
+  testthat::expect_identical(document$producer, "defuddle-local")
+  testthat::expect_identical(document$producer_version, "0.19.3")
+  testthat::expect_identical(document$acquisition_method, "web_extraction")
+})
+
 testthat::test_that("today preparation extracts only uncached articles", {
   store <- rill_store(list(demo_mode = TRUE))
   store$memory$documents <- list()

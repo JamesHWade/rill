@@ -57,11 +57,13 @@ testthat::test_that("only the current validated browser acknowledgement ends an 
       opening <- reading_telemetry(TRUE)
       opening$begin(first, "story_list")
       opening$begin(second, "orientation")
+      opening$flushed(first)
+      opening$flushed(second)
       opening$complete(first, 100)
       opening$complete(second, Inf)
       opening$complete(second, "private-token")
       opening$complete(second, 120001)
-      opening$complete(second, 450)
+      opening$complete(second, 450, 400)
       opening$complete(second, 451)
       opening$finish("disconnected")
     }),
@@ -82,6 +84,16 @@ testthat::test_that("only the current validated browser acknowledgement ends an 
     450
   )
   testthat::expect_identical(record$traces[[2]]$status, "ok")
+  testthat::expect_null(record$traces[[1]]$attributes$reading.server_flush_ms)
+  testthat::expect_gte(record$traces[[2]]$attributes$reading.server_flush_ms, 0)
+  testthat::expect_identical(
+    record$traces[[2]]$attributes$reading.dom_ready_ms,
+    400
+  )
+  testthat::expect_identical(
+    record$traces[[2]]$attributes$reading.paint_delay_ms,
+    50
+  )
   testthat::expect_no_match(
     paste(unlist(lapply(record$traces, `[[`, "attributes")), collapse = "\n"),
     "private-token|aaaaaaaa|bbbbbbbb"

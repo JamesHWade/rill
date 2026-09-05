@@ -220,8 +220,20 @@ DEFUDDLE_BACKEND=hosted
 DEFUDDLE_API_KEY=your-key
 ```
 
-To keep extraction within the Rill installation, install the Defuddle CLI with
-`npm install -g defuddle`, then configure that backend:
+To keep extraction within the Rill installation, use the bundled Defuddle CLI
+with Node.js 18+ or Deno 2+. Connect Cloud supplies Deno:
+
+```text
+DEFUDDLE_BACKEND=local
+DEFUDDLE_COMMAND=bundled
+```
+
+The pinned bundle includes its dependencies, runs without npm downloads, and
+records its version with each extracted Document. This avoids a dependency on
+the hosted extractor's availability. Public sources may still reject direct
+requests, in which case the feed copy remains readable.
+
+Alternatively, install the CLI with `npm install -g defuddle` and configure:
 
 ```text
 DEFUDDLE_BACKEND=local
@@ -231,8 +243,8 @@ DEFUDDLE_COMMAND=defuddle
 `DEFUDDLE_COMMAND` may also be an explicit executable path. Rill invokes
 `defuddle parse <url> --md --frontmatter`, applies the same public-URL safety
 check as the hosted adapter, and records `defuddle-local` as the extraction
-engine. The executable must be installed in the runtime environment, so the
-hosted backend is usually simpler for Connect deployments.
+engine. An external executable must be installed in the runtime environment;
+the bundled command only requires Node.js or Deno.
 
 Both backends fetch public pages without an authenticated browser session.
 Paywalled or browser-only pages can instead be extracted in the reader's

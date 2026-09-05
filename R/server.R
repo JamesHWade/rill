@@ -2471,7 +2471,11 @@ rill_server <- function(config, store) {
         if (!is.list(report)) {
           return(invisible(NULL))
         }
-        opening_telemetry$complete(report$id, report$elapsed_ms)
+        opening_telemetry$complete(
+          report$id,
+          report$elapsed_ms,
+          report$dom_ready_ms
+        )
       },
       ignoreInit = TRUE
     )
@@ -2647,6 +2651,11 @@ rill_server <- function(config, store) {
           surface <- "story_list"
         }
         opening_telemetry$begin(request$telemetry_id, surface)
+        opening_id <- opening_telemetry$id()
+        session$onFlushed(
+          \() opening_telemetry$flushed(opening_id),
+          once = TRUE
+        )
         opening_telemetry$activate()
         telemetry_local_span("article.selection")
         position <- as.integer(request$position %||% NA_integer_)

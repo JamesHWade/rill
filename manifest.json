@@ -2697,8 +2697,17 @@
     }
   },
   "files": {
+    "inst/defuddle/defuddle.cjs": {
+      "checksum": "0a947373a43e3d7ed875aac55695f795"
+    },
+    "inst/defuddle/LICENSES.txt": {
+      "checksum": "22c5864f46effa673b70cf8af3094b96"
+    },
+    "inst/defuddle/version.txt": {
+      "checksum": "b38630ea116d02ff1c8e90bd7437eb56"
+    },
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "30d0992a179a0c1b7fe290c14fff52d4"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2710,7 +2719,7 @@
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "477d05fafabaa99bf6d59220bcac922a"
+      "checksum": "1cf616b37526737786bcf97da72bb9df"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2800,7 +2809,7 @@
       "checksum": "a263c3aa1f6d2c607a51ed358ce7f02e"
     },
     "R/defuddle.R": {
-      "checksum": "83b6d1cc30fa95c9ec684b4a3c1aa957"
+      "checksum": "bbbc5e9b0e080c2811df5bfc71673eac"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2842,10 +2851,10 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "f3c0180401252c504682c8773aba5bad"
+      "checksum": "ce52f517475464abd51efc5cde8121ad"
     },
     "R/telemetry.R": {
-      "checksum": "049b001e5ea377d629464e8bc04c4193"
+      "checksum": "8c574df1a5e8024840c5027369e8ad01"
     },
     "R/ui.R": {
       "checksum": "77634603b9eeb20d4004d4c75301d496"
