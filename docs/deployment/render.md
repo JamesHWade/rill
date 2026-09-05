@@ -128,7 +128,14 @@ rill::approve_reader_admission(
 )
 ```
 
-Keep this an invitation-only operator workflow.
+The hosted Reader bound to `RILL_ACTOR_ID` can also open **Access requests**
+in the Library sidebar, refresh pending requests, select an invited person, and
+choose **Approve access**. Both Auth0 hosting modes revalidate that Reader's
+identity before listing requests or approving access. Other Readers and local
+demo sessions do not receive this control. Email and display name help the owner
+recognize an invitation; they never grant owner privileges. Approvals record the
+owner's internal Reader ID and create a separate, empty Library. Keep this an
+invitation-only operator workflow.
 
 ## Verify before inviting a Reader
 

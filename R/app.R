@@ -45,7 +45,19 @@ rill_app <- function() {
 
   app <- shiny::shinyApp(
     ui = rill_ui(config),
-    server = identity_server_handler(rill_server(config, store), identity)
+    server = identity_server_handler(
+      rill_server(config, store),
+      identity,
+      on_authenticated = function(resolution, session) {
+        access_requests_server(
+          "access_requests",
+          store,
+          identity,
+          resolution,
+          session = session
+        )
+      }
+    )
   )
   app$httpHandler <- identity_http_handler(app$httpHandler, identity)
   app$httpHandler <- capture_http_handler(app$httpHandler, store, config)

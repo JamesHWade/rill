@@ -82,7 +82,7 @@ jobs:
             filter = paste0(
               "agent-runs-postgres|orientation-backends|",
               "orientation-destination|orientation-postgres|",
-              "polling-postgres|feed-refresh-postgres"
+              "polling-postgres|feed-refresh-postgres|access-requests"
             )
           )
         shell: Rscript {0}
