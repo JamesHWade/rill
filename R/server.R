@@ -1988,7 +1988,7 @@ rill_server <- function(config, store) {
             }
             if (!is.null(result$failure)) {
               result$failure$entry_id <- id
-              preparation_failures(tail(
+              preparation_failures(utils::tail(
                 c(preparation_failures(), list(result$failure)),
                 20L
               ))

@@ -116,7 +116,7 @@ preparation_candidates <- function(
   ids <- ids[
     ids %in% entries$entry_id[!is.na(dates) & dates >= now - 7 * 86400]
   ]
-  head(
+  utils::head(
     Filter(
       function(id) {
         attempt <- preparation_attempt(store, id)
@@ -538,7 +538,7 @@ article_preparation_controller <- function(store, config, reader_id, updated) {
       if (state$closed) {
         return(invisible(NULL))
       }
-      state$queue <- head(unique(c(ids, state$queue)), 500L)
+      state$queue <- utils::head(unique(c(ids, state$queue)), 500L)
       if (retry) {
         state$retry <- unique(c(ids, state$retry))
       }

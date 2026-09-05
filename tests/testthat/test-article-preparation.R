@@ -150,9 +150,9 @@ testthat::test_that("the real article worker reports failure without discarding 
   withr::defer(close_article_preparation(job))
   testthat::expect_type(job, "list")
   job$process$wait(timeout = 30000)
-  messages <- testthat::capture_messages(
+  messages <- testthat::capture_messages({
     result <- poll_article_preparation(job, store, config)
-  )
+  })
   testthat::expect_identical(result$failure$code, "extractor_missing")
   testthat::expect_match(messages, result$failure$reference, fixed = TRUE)
   testthat::expect_identical(
@@ -178,9 +178,9 @@ testthat::test_that("scheduled preparation is bounded and isolates failed articl
     "Complete public article."
   })
   config <- list(defuddle_backend = "hosted")
-  testthat::capture_messages(
+  testthat::capture_messages({
     result <- prepare_recent_articles(store, config, limit = 2L)
-  )
+  })
   testthat::expect_identical(result, list(prepared = 1L, failed = 1L))
   testthat::expect_length(called, 2L)
   testthat::expect_length(store$memory$documents, 1L)
@@ -204,14 +204,16 @@ testthat::test_that("a timed-out worker is stopped and leaves its copy retryable
     process = list(
       is_alive = \() TRUE,
       get_result = \() stop("not ready: private-token"),
-      kill = function() killed <<- TRUE
+      kill = function() {
+        killed <<- TRUE
+      }
     )
   )
   config <- list(defuddle_backend = "hosted")
   testthat::expect_null(poll_article_preparation(job, store, config))
-  logs <- testthat::capture_messages(
+  logs <- testthat::capture_messages({
     result <- poll_article_preparation(job, store, config, timeout = 0)
-  )
+  })
   testthat::expect_identical(killed, TRUE)
   testthat::expect_identical(file.exists(directory), FALSE)
   testthat::expect_identical(
