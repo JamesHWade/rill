@@ -276,6 +276,15 @@ rill_store <- function(config) {
       )
     }
   )
+  initialized <- FALSE
+  on.exit(
+    {
+      if (!initialized) {
+        pool::poolClose(database_pool)
+      }
+    },
+    add = TRUE
+  )
 
   store <- structure(
     list(
@@ -288,6 +297,7 @@ rill_store <- function(config) {
   store_apply_schema(store, legacy_reader_id = legacy_reader_id)
   store_migrate_legacy_feed_titles(store, legacy_reader_id)
   store_expire_reader_admissions(store)
+  initialized <- TRUE
   store
 }
 
@@ -323,11 +333,12 @@ store_apply_schema <- function(
     )
   }
   pool::poolWithTransaction(store$pool, function(connection) {
-    DBI::dbExecute(
+    # Consume SELECT results so RPostgres does not cancel an unfinished query.
+    DBI::dbGetQuery(
       connection,
       "SELECT pg_advisory_xact_lock(hashtext('rill:schema-migrations'))"
     )
-    DBI::dbExecute(
+    DBI::dbGetQuery(
       connection,
       "SELECT set_config('rill.legacy_reader_id', $1, true)",
       params = list(legacy_reader_id)

@@ -105,6 +105,36 @@ PostgreSQL polling lock, refreshes only due Feeds with active Subscriptions,
 records per-Feed outcomes, and exits nonzero only for a systemic error or the
 configured failure threshold.
 
+## Diagnose startup failures
+
+Distinguish dependency installation from the application worker's startup log.
+The September 5, 2026 failures in publications 16 and 17 occurred after the
+dependencies loaded, with `canceling statement due to user request`, followed
+by a checked-out pool object warning. Publication 17 used `d207d5a`; the same
+failure in publication 16 preceded that commit.
+
+Rill's migration setup previously used `dbExecute()` for two `SELECT`
+statements. With RPostgres 1.4.10, clearing those unread results sends database
+cancellation requests. A connection intermediary can delay a cancellation until
+the next query has started. Startup now consumes both results with
+`dbGetQuery()` and closes the pool or store if later initialization fails.
+Schema failures still stop startup.
+
+The regression fixture in `tests/testthat/fixtures/postgres-cancel-proxy.py`
+reproduces delayed cancellation against a disposable loopback PostgreSQL
+database. Before the fix, the reproduction failed on its second startup with
+the same cancellation error and pool warning. After the fix, 100 consecutive
+startups succeeded without sending cancellation requests. The package suite
+also covers failed pool and application initialization cleanup. These results
+establish a reproducible mechanism; they do not prove the hosted cause or a
+successful Connect deployment.
+
+After publishing the fix, verify the source commit and a fresh worker startup,
+then open the authenticated Library and reload it. Record the publication,
+startup log outcome, and Library result in #45 and #50 before treating the
+hosted failure as resolved. The manual assistive-technology checks in #50
+remain separate from database startup verification.
+
 ## Diagnose preparation failures
 
 When Today reports that reading copies could not be prepared, its Preparation

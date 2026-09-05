@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Hosted startup no longer sends unnecessary database cancellation requests that can interrupt initialization; failed startup also closes its database pool (#45, #50).
+
 * Articles open from saved or clearly labeled feed copies without waiting for extraction; full articles prepare in the background and after Feed refresh, with bounded retries and an explicit action to load a newer copy without changing an active reading or Ask Rill session (#45).
 
 * Disabled Readers no longer keep Feeds eligible for scheduled polling; shared Feeds remain eligible while another active Reader follows them, and existing Subscriptions are preserved (#26).
