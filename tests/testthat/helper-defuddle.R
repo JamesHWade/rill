@@ -10,3 +10,30 @@ preparation_test_store <- function() {
   )
   store
 }
+
+preparation_test_agent_run <- function(store, document, status = "completed") {
+  run <- store_start_agent_run(
+    store,
+    reader_id = "reader",
+    kind = "question",
+    request_key = "fallback-question",
+    pinned_inputs = list(document_id = document$document_id)
+  )
+  run <- store_claim_agent_run(
+    store,
+    reader_id = "reader",
+    run_id = run$run_id,
+    worker_id = "test",
+    lease_expires_at = Sys.time() + 60
+  )
+  if (identical(status, "running")) {
+    return(run)
+  }
+  store_finish_agent_run(
+    store,
+    reader_id = "reader",
+    run_id = run$run_id,
+    worker_id = "test",
+    status = status
+  )
+}

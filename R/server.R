@@ -193,10 +193,14 @@ rill_server <- function(config, store) {
     }
 
     current_context <- function() {
+      view <- input$view %||% "unread"
       list(
-        view = input$view %||% "unread",
+        view = view,
         feed_id = selected_feed(),
-        sort = input$story_sort %||% "newest"
+        sort = input$story_sort %||% "newest",
+        calendar = if (view %in% c("today", "week", "month")) {
+          calendar_window()$window
+        }
       )
     }
 
@@ -972,6 +976,13 @@ rill_server <- function(config, store) {
       }
     }
 
+    reset_reader_chat <- function() {
+      reader_agent(NULL)
+      reader_agent_document_id(NULL)
+      active_agent_run(NULL)
+      clear_reader_chat(session)
+    }
+
     reader_agent_for <- function(document) {
       agent <- reader_agent()
       if (
@@ -1537,19 +1548,32 @@ rill_server <- function(config, store) {
       store_list_feeds(store, actor_id)
     })
 
-    queue_entries <- shiny::reactive({
-      refresh_tick()
+    calendar_window <- shiny::reactive({
       view <- input$view %||% "unread"
       if (view %in% c("today", "week", "month")) {
         shiny::invalidateLater(60 * 1000, session)
       }
+      now <- reader_calendar_now()
+      timezone <- normalize_reader_timezone(input$reader_timezone)
+      list(
+        now = now,
+        timezone = timezone,
+        window = entry_view_window(view, now, timezone)
+      )
+    })
+
+    queue_entries <- shiny::reactive({
+      refresh_tick()
+      calendar <- calendar_window()
       store_list_entries(
         store,
         actor_id,
-        view = view,
+        view = input$view %||% "unread",
         feed_id = selected_feed(),
         limit = 150L,
-        sort = input$story_sort %||% "newest"
+        sort = input$story_sort %||% "newest",
+        now = calendar$now,
+        timezone = calendar$timezone
       )
     })
 
@@ -2169,6 +2193,40 @@ rill_server <- function(config, store) {
       shiny::tags$h1(label)
     })
 
+    output$calendar_context <- shiny::renderUI({
+      calendar <- calendar_window()
+      window <- calendar$window
+      if (is.null(window$since)) {
+        return(NULL)
+      }
+      timezone <- calendar$timezone
+      start <- as.Date(format(window$since, "%Y-%m-%d", tz = timezone))
+      end <- as.Date(format(window$before, "%Y-%m-%d", tz = timezone)) - 1L
+      date_label <- function(date) sub("  ", " ", format(date, "%b %e, %Y"))
+      label <- date_label(start)
+      if (end != start) {
+        label <- paste(label, "\u2013", date_label(end))
+      }
+      zone_label <- format(calendar$now, "%Z", tz = timezone)
+      if (!identical(input$reader_timezone, timezone)) {
+        zone_label <- "UTC (browser time zone unavailable)"
+      }
+      shiny::tags$p(
+        class = "calendar-context",
+        title = paste0(
+          "Published from midnight on ",
+          date_label(start),
+          " to midnight after ",
+          date_label(end),
+          " in ",
+          timezone,
+          ". Uses the time added when no publication time is available."
+        ),
+        label,
+        shiny::tags$span(class = "calendar-zone", paste("\u00b7", zone_label))
+      )
+    })
+
     output$story_count <- shiny::renderUI({
       count <- nrow(queue_entries())
       noun <- if (count == 1L) "story" else "stories"
@@ -2257,7 +2315,11 @@ rill_server <- function(config, store) {
         ))
       }
 
-      reader_article_header_ui(selected_entry(), selected_document())
+      reader_article_header_ui(
+        selected_entry(),
+        selected_document(),
+        can_prepare = is.null(selected_document_id())
+      )
     })
 
     output$reader_body <- shiny::renderUI({
@@ -2525,10 +2587,7 @@ rill_server <- function(config, store) {
           !identical(previous_id, entry_id) ||
             !identical(previous_document_id, pinned_document_id)
         ) {
-          reader_agent(NULL)
-          reader_agent_document_id(NULL)
-          active_agent_run(NULL)
-          clear_reader_chat(session)
+          reset_reader_chat()
         }
         retain_entry(entry_id)
         selected_id(entry_id)
@@ -3318,9 +3377,64 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$prepare_article,
+      {
+        shiny::req(!is.null(selected_id()), is.null(selected_document_id()))
+        if (reader_response_in_flight()) {
+          shiny::showNotification(
+            "Wait for the current answer before preparing a new copy.",
+            type = "message"
+          )
+          return(invisible(NULL))
+        }
+        entry <- selected_entry()
+        shiny::req(isTRUE(entry$library_access))
+        previous <- selected_document()
+        shiny::req(identical(previous$acquisition_method, "feed_fallback"))
+        stage <- "extraction"
+        result <- tryCatch(
+          shiny::withProgress(
+            message = "Preparing the full article",
+            value = 0.5,
+            {
+              document <- document_from_defuddle(entry, config)
+              stage <- "storage"
+              save_prepared_document(store, actor_id, previous, document)
+            }
+          ),
+          error = function(error) error
+        )
+        if (inherits(result, "error")) {
+          failure <- preparation_failure(result, stage, config)
+          failure$title <- entry$title
+          preparation_failures(list(failure))
+          shiny::showModal(preparation_failures_ui(preparation_failures()))
+          return(invisible(NULL))
+        }
+        preparation_failures(list())
+        bump_refresh()
+        if (!identical(previous$document_id, selected_document()$document_id)) {
+          reset_reader_chat()
+        }
+        shiny::showNotification("Full article prepared.", type = "message")
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
       input$prepare_today,
       {
         shiny::req(identical(input$view, "today"))
+        if (reader_response_in_flight()) {
+          shiny::showNotification(
+            "Wait for the current answer before preparing new copies.",
+            type = "message"
+          )
+          return(invisible(NULL))
+        }
+        previous_document_id <- if (!is.null(selected_id())) {
+          selected_document()$document_id
+        }
         result <- tryCatch(
           shiny::withProgress(
             message = "Preparing today's reading copies",
@@ -3330,6 +3444,8 @@ rill_server <- function(config, store) {
                 store,
                 config,
                 reader_id = actor_id,
+                now = calendar_window()$now,
+                timezone = calendar_window()$timezone,
                 progress = function(index, total, title) {
                   shiny::setProgress(
                     value = index / total,
@@ -3360,6 +3476,13 @@ rill_server <- function(config, store) {
         }
 
         preparation_failures(result$failures %||% list())
+        bump_refresh()
+        if (
+          !is.null(previous_document_id) &&
+            !identical(previous_document_id, selected_document()$document_id)
+        ) {
+          reset_reader_chat()
+        }
         if (length(preparation_failures())) {
           shiny::showModal(preparation_failures_ui(preparation_failures()))
         }

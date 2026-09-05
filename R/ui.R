@@ -454,9 +454,14 @@ story_sidebar_ui <- function() {
     shiny::tags$header(
       class = "pane-header",
       shiny::tags$div(
-        class = "queue-title",
-        shiny::tags$p(class = "eyebrow", "Reading queue"),
-        shiny::uiOutput("list_title", container = shiny::tags$div)
+        class = "queue-heading",
+        shiny::tags$div(
+          class = "queue-title",
+          shiny::tags$p(class = "eyebrow", "Reading queue"),
+          shiny::uiOutput("list_title", container = shiny::tags$div),
+          shiny::uiOutput("calendar_context", container = shiny::tags$div)
+        ),
+        shiny::uiOutput("story_count", container = shiny::tags$div)
       ),
       htmltools::tagQuery(
         bslib::toolbar(
@@ -491,8 +496,7 @@ story_sidebar_ui <- function() {
               `aria-label` = "Sort stories"
             )$allTags()
           ),
-          shiny::uiOutput("story_count", container = shiny::tags$div),
-          align = "right",
+          align = "left",
           gap = "8px"
         )
       )$addClass("queue-controls")$allTags()
@@ -679,7 +683,8 @@ reader_pane_ui <- function(config) {
   )
 }
 
-reader_article_header_ui <- function(entry, document) {
+reader_article_header_ui <- function(entry, document, can_prepare = TRUE) {
+  is_fallback <- identical(document$acquisition_method, "feed_fallback")
   reading_minutes <- max(
     1L,
     ceiling(as.integer(document$word_count %||% 0L) / 225)
@@ -809,16 +814,35 @@ reader_article_header_ui <- function(entry, document) {
     shiny::tags$div(
       class = "article-copy-status",
       `aria-label` = paste(
-        "Stored reading copy prepared by",
+        if (is_fallback) {
+          "Feed copy prepared by"
+        } else {
+          "Stored reading copy prepared by"
+        },
         document$producer %||% "feed fallback",
         "with details below"
       ),
       bsicons::bs_icon("file-earmark-text"),
-      shiny::tags$strong("Stored reading copy"),
+      shiny::tags$strong(
+        if (is_fallback) "Feed copy" else "Stored reading copy"
+      ),
       shiny::tags$span(
         class = "article-copy-producer",
-        paste("Prepared by", document$producer %||% "feed fallback")
-      )
+        if (is_fallback) {
+          "Full article not yet prepared"
+        } else {
+          paste("Prepared by", document$producer %||% "feed fallback")
+        }
+      ),
+      if (is_fallback && isTRUE(can_prepare) && isTRUE(entry$library_access)) {
+        shiny::actionButton(
+          "prepare_article",
+          "Prepare full article",
+          icon = bsicons::bs_icon("cloud-arrow-down"),
+          class = "btn-prepare-today",
+          title = "Try extracting the full article again; keep this feed copy if it fails."
+        )
+      }
     )
   )
 }
@@ -1509,13 +1533,17 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
             "import_opml",
             label = NULL,
             accept = c(".opml", ".xml", "text/x-opml", "application/xml"),
-            buttonLabel = "Import OPML",
+            buttonLabel = shiny::tagList(
+              bsicons::bs_icon("upload"),
+              "Import OPML"
+            ),
             placeholder = "No file selected"
           )
         ),
         shiny::downloadButton(
           "export_opml",
           "Export OPML",
+          icon = bsicons::bs_icon("download"),
           class = "btn-opml-export"
         )
       ),

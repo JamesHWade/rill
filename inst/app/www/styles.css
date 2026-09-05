@@ -733,6 +733,7 @@ body.bslib-page-fill {
 .opml-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 6px;
 }
 
@@ -763,7 +764,11 @@ body.bslib-page-fill {
 
 .opml-upload .btn-file,
 .btn-opml-export {
-  min-height: 32px;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 7px 8px;
   border: 1px solid var(--sidebar-border);
   border-radius: 4px !important;
@@ -775,9 +780,8 @@ body.bslib-page-fill {
   text-decoration: none;
 }
 
-.btn-opml-export {
-  display: grid;
-  place-items: center;
+.opml-actions .bi {
+  flex: 0 0 auto;
 }
 
 .opml-upload .btn-file:hover,
@@ -823,26 +827,50 @@ body.bslib-page-fill {
 .pane-header {
   display: flex;
   min-height: 96px;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
   padding: 19px 21px 17px;
   border-bottom: 1px solid var(--line);
 }
 
-.pane-header > div:first-child {
+.queue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queue-title {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.calendar-context {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.calendar-zone {
+  margin-left: 4px;
 }
 
 .queue-controls {
   display: flex;
-  flex: 0 0 auto;
+  width: 100%;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start !important;
   gap: 8px;
 }
 
 .queue-controls > * {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 6px;
 }
 
 .read-actions-trigger {
@@ -1721,7 +1749,8 @@ div.story-list.shiny-html-output {
 }
 
 .article-copy-status {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   align-items: center;
   margin-top: 18px;
@@ -2452,6 +2481,8 @@ div.story-list.shiny-html-output {
     position: static !important;
     display: block !important;
     overflow: visible !important;
+    /* Compact visibility belongs to the active surface, not sidebar overlays. */
+    opacity: 1 !important;
   }
 
   .app-shell > .bslib-sidebar-layout > .collapse-toggle,
@@ -2706,14 +2737,9 @@ div.story-list.shiny-html-output {
   .pane-header {
     min-height: 0;
     flex: 0 0 auto;
-    flex-wrap: wrap;
-    align-items: center;
+    align-items: stretch;
     gap: 12px;
     padding: 14px 16px 13px;
-  }
-
-  .queue-title {
-    flex: 1 1 160px;
   }
 
   .pane-header h1 {
@@ -2722,7 +2748,6 @@ div.story-list.shiny-html-output {
 
   .queue-controls {
     width: 100%;
-    flex: 1 1 100%;
     flex-wrap: wrap;
     justify-content: flex-start !important;
     gap: 6px !important;

@@ -144,9 +144,25 @@ run_defuddle_cli <- function(command, args, timeout) {
 }
 
 word_count <- function(markdown) {
-  words <- strsplit(trimws(gsub("[`#>*_~\\[\\]()]", " ", markdown)), "\\s+")[[
-    1
-  ]]
+  html <- as.character(render_document(list(markdown = markdown)))
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
+  blocks <- xml2::xml_find_all(
+    parsed,
+    paste(
+      ".//address | .//article | .//aside | .//blockquote | .//br | .//dd |",
+      ".//div | .//dl | .//dt | .//fieldset | .//figcaption | .//figure |",
+      ".//footer | .//h1 | .//h2 | .//h3 | .//h4 | .//h5 | .//h6 |",
+      ".//header | .//hr | .//li | .//main | .//nav | .//ol | .//p |",
+      ".//pre | .//section | .//table | .//td | .//th | .//tr | .//ul"
+    )
+  )
+  for (index in rev(seq_along(blocks))) {
+    node <- blocks[[index]]
+    text <- xml2::xml_new_root("span")
+    xml2::xml_text(text) <- paste0(" ", xml2::xml_text(node), " ")
+    xml2::xml_replace(node, text)
+  }
+  words <- strsplit(trimws(xml2::xml_text(parsed)), "\\s+")[[1]]
   as.integer(sum(nzchar(words)))
 }
 
@@ -220,7 +236,11 @@ document_fallback <- function(entry, reason = "feed-content") {
   content <- entry$feed_content %||%
     entry$summary %||%
     "No readable content was supplied by this feed."
-  content <- plain_summary(content, max_chars = 20000L)
+  content <- if (identical(reason, "orientation-feed-copy")) {
+    plain_summary(content, max_chars = 20000L)
+  } else {
+    feed_content_markdown(content, entry$url)
+  }
 
   captured_at <- utc_now()
   new_rill_document(
@@ -240,12 +260,66 @@ document_fallback <- function(entry, reason = "feed-content") {
   )
 }
 
+feed_content_markdown <- function(content, source_url) {
+  has_html <- grepl("<[A-Za-z][A-Za-z0-9-]*([[:space:]][^<>]*)?/?>", content)
+  html <- commonmark::markdown_html(
+    content,
+    footnotes = TRUE,
+    extensions = c("table", "strikethrough", "autolink", "tasklist")
+  )
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
+  links_changed <- FALSE
+  nodes <- xml2::xml_find_all(parsed, ".//*[@href or @src or @poster]")
+  for (node in nodes) {
+    for (attribute in intersect(
+      names(xml2::xml_attrs(node)),
+      c("href", "src", "poster")
+    )) {
+      destination <- xml2::xml_attr(node, attribute)
+      if (attribute == "href" && startsWith(destination, "#")) {
+        next
+      }
+      absolute <- xml2::url_absolute(destination, source_url)
+      links_changed <- links_changed || !identical(destination, absolute)
+      xml2::xml_attr(node, attribute) <- absolute
+    }
+  }
+  html <- paste(
+    vapply(
+      xml2::xml_children(xml2::xml_find_first(parsed, ".//body")),
+      as.character,
+      character(1)
+    ),
+    collapse = "\n"
+  )
+  html <- sanitize_rendered_html(html)
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
+  if (
+    !nzchar(trimws(xml2::xml_text(parsed))) &&
+      !length(xml2::xml_find_all(
+        parsed,
+        paste(
+          ".//img[@src] | .//iframe[@src] | .//video[@src] | .//audio[@src] |",
+          ".//video//source[@src] | .//audio//source[@src]"
+        )
+      ))
+  ) {
+    cli::cli_abort(
+      "The feed contains no readable text or supported media.",
+      class = "rill_document_invalid"
+    )
+  }
+  if (!has_html && !links_changed) {
+    return(content)
+  }
+  html
+}
+
 save_prepared_document <- function(store, reader_id, previous, document) {
   store_save_document(store, document)
   if (
     !is.null(previous) &&
-      identical(previous$acquisition_method, "feed_fallback") &&
-      identical(previous$producer, "orientation-feed-copy")
+      identical(previous$acquisition_method, "feed_fallback")
   ) {
     store_replace_selected_document(
       store,
@@ -518,7 +592,7 @@ normalize_video_embeds <- function(markdown) {
       parsed <- xml2::read_html(value)
       iframe <- xml2::xml_find_first(parsed, ".//iframe")
       embed_url <- video_embed_url(xml2::xml_attr(iframe, "src") %||% "")
-      if (is.na(embed_url)) "" else paste0("![](", embed_url, ")")
+      if (is.na(embed_url)) "" else paste0('<img src="', embed_url, '">')
     },
     character(1)
   )
@@ -670,7 +744,7 @@ sanitize_rendered_html <- function(html) {
     root,
     paste(
       ".//script | .//style | .//object | .//embed | .//form | .//input |",
-      ".//button | .//svg | .//math | .//link | .//meta"
+      ".//button | .//svg | .//math | .//link | .//meta | .//base"
     )
   )
   if (length(blocked)) {

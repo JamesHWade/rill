@@ -82,10 +82,16 @@ a bounded Agent Run. In PostgreSQL mode, its pinned Document identity, lifecycle
 usage, terminal reason, and Deputy run ID persist across app restarts. Demo-mode
 Agent Runs reset with the R process.
 
+Today, This week, and This month use the browser's local calendar and show their
+date range and time zone. Calendar views update as the local day changes; a
+story already open for reading stays open. UTC is the labeled fallback if the
+browser's time zone is unavailable.
+
 The Today view includes **Prepare**, which extracts and persistently caches any
 missing clean reading copies. Existing captured or extracted documents are
 preserved, and failures remain available for a later retry. The same operation
-can run outside the app with `rill::prepare_today()`.
+can run outside the app with `rill::prepare_today()`, using the scheduled
+process's time zone.
 
 ## Maintain Orientation
 
@@ -181,8 +187,13 @@ configuration.
 Selecting an uncached article runs the configured Defuddle backend, separates
 its YAML metadata from the Markdown body, stores that document in
 `documents`, and renders the Markdown with reader typography. If
-extraction fails, Rill stores a plain-text fallback from the feed so the reading
-action still succeeds.
+extraction fails, Rill stores a sanitized feed copy that preserves paragraphs,
+images, links, and lists. The reader labels this as a **Feed copy** and offers
+**Prepare full article** to retry extraction. A successful retry upgrades the
+selected fallback while retaining the earlier immutable copy; browser captures
+and pinned Orientation evidence are not replaced. Failed retries keep the
+existing copy and show safe diagnostic details. Automatic Orientation retains
+its bounded text-only feed inputs.
 
 Recognized YouTube and Vimeo video references render as privacy-enhanced,
 sandboxed embeds. Rill removes arbitrary embedded frames and executable markup

@@ -324,6 +324,56 @@ testthat::test_that("calendar views use local calendar boundaries", {
   testthat::expect_null(entry_view_since("all", now, "America/Detroit"))
 })
 
+testthat::test_that("browser time zones are validated without changing the process zone", {
+  withr::local_envvar(TZ = "UTC")
+  for (timezone in list(
+    NULL,
+    "",
+    NA_character_,
+    c("UTC", "Europe/London"),
+    1,
+    "not/a-zone"
+  )) {
+    testthat::expect_identical(normalize_reader_timezone(timezone), "UTC")
+  }
+  testthat::expect_identical(
+    normalize_reader_timezone("America/Detroit"),
+    "America/Detroit"
+  )
+  testthat::expect_identical(Sys.getenv("TZ"), "UTC")
+})
+
+testthat::test_that("local calendar days handle daylight saving and fractional offsets", {
+  spring <- entry_view_window(
+    "today",
+    as.POSIXct("2026-03-08 12:00:00", tz = "UTC"),
+    "America/Detroit"
+  )
+  fall <- entry_view_window(
+    "today",
+    as.POSIXct("2026-11-01 12:00:00", tz = "UTC"),
+    "America/Detroit"
+  )
+  nepal <- entry_view_window(
+    "today",
+    as.POSIXct("2026-09-04 20:00:00", tz = "UTC"),
+    "Asia/Kathmandu"
+  )
+
+  testthat::expect_equal(
+    as.numeric(difftime(spring$before, spring$since, units = "hours")),
+    23
+  )
+  testthat::expect_equal(
+    as.numeric(difftime(fall$before, fall$since, units = "hours")),
+    25
+  )
+  testthat::expect_identical(
+    format(nepal$since, tz = "UTC", usetz = TRUE),
+    "2026-09-04 18:15:00 UTC"
+  )
+})
+
 testthat::test_that("the memory store filters local calendar views", {
   store <- rill_store(list(demo_mode = TRUE))
   future <- store$memory$entries[6, , drop = FALSE]

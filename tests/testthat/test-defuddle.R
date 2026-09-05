@@ -66,6 +66,365 @@ testthat::test_that("reader feed labels do not alter captured source metadata", 
   testthat::expect_identical(document$site, "The R Blog")
 })
 
+testthat::test_that("feed fallbacks preserve Markdown autolinks and adjacent text", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$feed_content <- paste(
+    "See <https://example.com/article> for **details**.",
+    "Contact <reader@example.com> or <mailto:editor@example.com> for help.",
+    sep = "\n\n"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+
+  testthat::expect_identical(document$markdown, entry$feed_content)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c(
+      "https://example.com/article",
+      "mailto:reader@example.com",
+      "mailto:editor@example.com"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(html, ".//strong")),
+    "details"
+  )
+  testthat::expect_match(xml2::xml_text(html), "for help.", fixed = TRUE)
+})
+
+testthat::test_that("Markdown feed copies resolve source-relative links and images", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "Read [details](/posts/details) and [more][related].",
+    "![Image](../image.png)",
+    "[related]: related?mode=full",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c(
+      "https://example.com/posts/details",
+      "https://example.com/posts/story/related?mode=full"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/image.png"
+  )
+})
+
+testthat::test_that("resolving source URLs keeps in-document fragment links local", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "[Notes](#notes) and <a href='#details'>details</a>.",
+    "<h2 id='notes'>Notes</h2><h2 id='details'>Details</h2>",
+    "![Image](photo.png)",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("#notes", "#details")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//h2"), "id"),
+    c("notes", "details")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
+testthat::test_that("resolving source URLs keeps generated footnotes local", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- "Text[^note].\n\n![Image](photo.png)\n\n[^note]: A note."
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_attr(
+      xml2::xml_find_all(
+        html,
+        ".//a[@data-footnote-ref or @data-footnote-backref]"
+      ),
+      "href"
+    ),
+    c("#fn-note", "#fnref-note")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
+testthat::test_that("HTML feed copies resolve bare relative destinations before sanitizing", {
+  content <- feed_content_markdown(
+    "<p><a href='details'>Details</a><img src='photo.png'><a href='javascript:unsafe()'>Unsafe</a></p>",
+    "https://example.com/posts/story/"
+  )
+  html <- xml2::read_html(content)
+
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("https://example.com/posts/story/details", NA_character_)
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/posts/story/photo.png"
+  )
+})
+
+testthat::test_that("feed copies preserve Markdown around embedded HTML", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/article"
+  entry$feed_content <- paste(
+    "# Heading\n\n**Important**: <https://example.com/details>",
+    "<img src='/photo.jpg' alt='Photo'>",
+    "Read [the source](https://example.com/source) and *consider it*.",
+    "- First point\n- Second point",
+    "<script>unsafe()</script>",
+    sep = "\n\n"
+  )
+
+  html <- xml2::read_html(as.character(render_document(document_fallback(
+    entry
+  ))))
+
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//h1")),
+    "Heading"
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//strong")),
+    "Important"
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(html, ".//em")),
+    "consider it"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c("https://example.com/details", "https://example.com/source")
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//img"), "src"),
+    "https://example.com/photo.jpg"
+  )
+  testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+  testthat::expect_no_match(as.character(html), "script|unsafe")
+})
+
+testthat::test_that("feed copies recognize HTML tag boundaries", {
+  for (content in c(
+    "<A HREF='/article'>Read this.</A>",
+    "<a href='/article'>Read this.</a>",
+    "<a\nhref='/article'>Read this.</a><br/>More."
+  )) {
+    html <- xml2::read_html(feed_content_markdown(
+      content,
+      "https://example.com/article"
+    ))
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+      "https://example.com/article"
+    )
+    testthat::expect_match(xml2::xml_text(html), "Read this.", fixed = TRUE)
+  }
+})
+
+testthat::test_that("feed fallbacks retain article structure safely", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/articles/pelicans/"
+  entry$feed_content <- paste0(
+    "<p>Read the <a href='/comparison/'>comparison grid</a>.</p>",
+    "<p><img src='/grid.webp' alt='Pelican comparison grid'></p>",
+    "<ul><li>First observation.</li><li>Second observation.</li></ul>",
+    "<base href='https://unsafe.example/'><script>unsafe()</script>",
+    "<p onclick='unsafe()'>Conclusion.</p>"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+
+  testthat::expect_length(xml2::xml_find_all(html, ".//li"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 3L)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "alt"),
+    "Pelican comparison grid"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+    "https://example.com/comparison/"
+  )
+  testthat::expect_no_match(
+    as.character(render_document(document)),
+    "script|onclick|unsafe|<base"
+  )
+  testthat::expect_identical(document$acquisition_method, "feed_fallback")
+})
+
+testthat::test_that("feed copies retain image-only articles but reject empty markup", {
+  image <- feed_content_markdown(
+    "<img src='/grid.webp' alt='Comparison'>",
+    "https://example.com/article"
+  )
+  testthat::expect_match(
+    image,
+    'src="https://example.com/grid.webp"',
+    fixed = TRUE
+  )
+  testthat::expect_error(
+    feed_content_markdown("<p> </p>", "https://example.com/article"),
+    class = "rill_document_invalid"
+  )
+  testthat::expect_error(
+    feed_content_markdown(
+      "<script>unsafe()</script>",
+      "https://example.com/article"
+    ),
+    class = "rill_document_invalid"
+  )
+})
+
+testthat::test_that("feed copies retain HTML5 media with nested sources", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+
+  for (media in c("video", "audio")) {
+    entry$feed_content <- paste0(
+      "<",
+      media,
+      " controls><source src='clip.mp4'>",
+      "<source src='../clip.ogg'></",
+      media,
+      ">"
+    )
+    html <- xml2::read_html(as.character(render_document(document_fallback(
+      entry
+    ))))
+
+    testthat::expect_length(
+      xml2::xml_find_all(html, paste0(".//", media, "[@controls]")),
+      1L
+    )
+    testthat::expect_identical(
+      xml2::xml_attr(
+        xml2::xml_find_all(html, paste0(".//", media, "//source")),
+        "src"
+      ),
+      c(
+        "https://example.com/posts/story/clip.mp4",
+        "https://example.com/posts/clip.ogg"
+      )
+    )
+  }
+})
+
+testthat::test_that("feed Markdown must render readable content even when unchanged", {
+  for (content in c(
+    "<!-- Only a comment -->",
+    "[details]: https://example.com/details",
+    " \n\t"
+  )) {
+    testthat::expect_error(
+      feed_content_markdown(content, "https://example.com/article"),
+      class = "rill_document_invalid"
+    )
+  }
+  markdown <- "<!-- A comment -->\n\n**Readable text**."
+  testthat::expect_identical(
+    feed_content_markdown(markdown, "https://example.com/article"),
+    markdown
+  )
+})
+
+testthat::test_that("feed-copy word counts use visible text with block boundaries", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  cases <- list(
+    list(content = "<p>Hello</p><p>reader</p>", words = 2L),
+    list(content = "<ul><li>One</li><li>Two</li></ul>", words = 2L),
+    list(content = "<p>un<strong>break</strong>able</p>", words = 1L),
+    list(content = "<p>one<br>two</p>", words = 2L),
+    list(content = "Read [these details](details).", words = 3L),
+    list(content = "# Title\n\nWords in **bold**.", words = 4L),
+    list(
+      content = "<img src='image.png' alt='An image with many words'>",
+      words = 0L
+    ),
+    list(
+      content = paste0(
+        "<div class='one two three'><p>Hello <strong>reader</strong>.</p>",
+        "<p><a href='details' title='A long link title'>Read this</a></p></div>"
+      ),
+      words = 4L
+    )
+  )
+
+  for (case in cases) {
+    entry$feed_content <- case$content
+    document <- document_fallback(entry)
+
+    testthat::expect_identical(
+      document$word_count,
+      case$words,
+      info = case$content
+    )
+  }
+})
+
+testthat::test_that("preparation does not replace a newer browser capture selection", {
+  store <- preparation_test_store()
+  entry <- as.list(store$memory$entries[1, , drop = FALSE])
+  fallback <- document_fallback(entry, reason = "feed-fallback")
+  captured <- new_rill_document(
+    entry$entry_id,
+    entry$url,
+    "Private browser copy.",
+    "browser_capture",
+    "clipper",
+    reader_id = "reader"
+  )
+  prepared <- new_rill_document(
+    entry$entry_id,
+    entry$url,
+    "Full public article.",
+    "web_extraction",
+    "defuddle-test"
+  )
+  store_save_document(store, fallback)
+  store_select_document(store, "reader", fallback$document_id)
+  store_save_document(store, captured)
+  store_select_document(store, "reader", captured$document_id)
+
+  save_prepared_document(store, "reader", fallback, prepared)
+
+  testthat::expect_identical(
+    store_get_document(store, "reader", entry$entry_id)$document_id,
+    captured$document_id
+  )
+  testthat::expect_identical(
+    store_get_document_by_id(store, "reader", fallback$document_id)$markdown,
+    fallback$markdown
+  )
+})
+
 testthat::test_that("local Defuddle uses the CLI markdown contract", {
   call <- NULL
   runner <- function(command, args, timeout) {
@@ -357,6 +716,7 @@ testthat::test_that("today preparation retries feed fallbacks", {
     fallback$document_id,
     entry$entry_id
   )
+  store_select_document(store, "reader", fallback$document_id)
   testthat::local_mocked_bindings(
     document_from_defuddle = function(entry, config) {
       new_rill_document(
@@ -567,6 +927,48 @@ testthat::test_that("rendered documents restore safe video embeds", {
   )
   testthat::expect_match(html, 'sandbox="allow-scripts', fixed = TRUE)
   testthat::expect_no_match(html, "<img", fixed = TRUE)
+})
+
+testthat::test_that("feed-copy video embeds survive the complete rendering pipeline", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  entry$feed_content <- paste(
+    "# Video notes",
+    "![YouTube](https://i.ytimg.com/vi/U4xozqrcWdQ/hqdefault.jpg)",
+    "<div><iframe src='https://player.vimeo.com/video/12345' onload='bad()'></iframe></div>",
+    "<iframe src='https://attacker.example/embed/12345'></iframe>",
+    "Read [the details](details).",
+    sep = "\n\n"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+  frames <- xml2::xml_find_all(html, ".//iframe")
+
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "src"),
+    c(
+      "https://www.youtube-nocookie.com/embed/U4xozqrcWdQ",
+      "https://player.vimeo.com/video/12345"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "sandbox"),
+    rep("allow-scripts allow-same-origin allow-presentation", 2L)
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(frames, "onload"),
+    rep(NA_character_, 2L)
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(html, ".//h1")),
+    "Video notes"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//a"), "href"),
+    "https://example.com/posts/story/details"
+  )
+  testthat::expect_no_match(xml2::xml_text(html), "![](", fixed = TRUE)
 })
 
 testthat::test_that("the sanitizer permits only known video providers", {

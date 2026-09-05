@@ -403,6 +403,24 @@ testthat::test_that("the reader includes source-bounded Ask Rill chat", {
   )
 })
 
+testthat::test_that("feed copies offer an explicit full-article retry except when pinned", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$library_access <- TRUE
+  document <- document_fallback(entry, reason = "feed-fallback")
+
+  html <- htmltools::renderTags(reader_article_header_ui(entry, document))$html
+  testthat::expect_match(html, "Feed copy", fixed = TRUE)
+  testthat::expect_match(html, "Full article not yet prepared", fixed = TRUE)
+  testthat::expect_match(html, 'id="prepare_article"', fixed = TRUE)
+
+  pinned <- htmltools::renderTags(reader_article_header_ui(
+    entry,
+    document,
+    can_prepare = FALSE
+  ))$html
+  testthat::expect_no_match(pinned, 'id="prepare_article"', fixed = TRUE)
+})
+
 testthat::test_that("Reading keeps source actions and provenance explicit", {
   data <- sample_rill_data()
   entry <- as.list(data$entries[1, , drop = FALSE])
