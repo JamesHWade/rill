@@ -66,6 +66,51 @@ testthat::test_that("reader feed labels do not alter captured source metadata", 
   testthat::expect_identical(document$site, "The R Blog")
 })
 
+testthat::test_that("feed fallbacks preserve Markdown autolinks and adjacent text", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$feed_content <- paste(
+    "See <https://example.com/article> for **details**.",
+    "Contact <reader@example.com> or <mailto:editor@example.com> for help.",
+    sep = "\n\n"
+  )
+
+  document <- document_fallback(entry, reason = "feed-fallback")
+  html <- xml2::read_html(as.character(render_document(document)))
+
+  testthat::expect_identical(document$markdown, entry$feed_content)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+    c(
+      "https://example.com/article",
+      "mailto:reader@example.com",
+      "mailto:editor@example.com"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(html, ".//strong")),
+    "details"
+  )
+  testthat::expect_match(xml2::xml_text(html), "for help.", fixed = TRUE)
+})
+
+testthat::test_that("feed copies recognize HTML tag boundaries", {
+  for (content in c(
+    "<A HREF='/article'>Read this.</A>",
+    "<a href='/article'>Read this.</a>",
+    "<a\nhref='/article'>Read this.</a><br/>More."
+  )) {
+    html <- xml2::read_html(feed_content_markdown(
+      content,
+      "https://example.com/article"
+    ))
+    testthat::expect_identical(
+      xml2::xml_attr(xml2::xml_find_all(html, ".//a"), "href"),
+      "https://example.com/article"
+    )
+    testthat::expect_match(xml2::xml_text(html), "Read this.", fixed = TRUE)
+  }
+})
+
 testthat::test_that("feed fallbacks retain article structure safely", {
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
   entry$url <- "https://example.com/articles/pelicans/"

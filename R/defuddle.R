@@ -245,7 +245,7 @@ document_fallback <- function(entry, reason = "feed-content") {
 }
 
 feed_content_markdown <- function(content, source_url) {
-  if (!grepl("<[A-Za-z][^>]*>", content)) {
+  if (!grepl("<[A-Za-z][A-Za-z0-9-]*([[:space:]][^<>]*)?/?>", content)) {
     return(content)
   }
   html <- sanitize_rendered_html(paste0("<div>", content, "</div>"))
