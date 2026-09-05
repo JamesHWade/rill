@@ -475,3 +475,75 @@ testthat::test_that("the schema has an immutable document head boundary", {
   testthat::expect_match(schema, "display_title text", fixed = TRUE)
   testthat::expect_match(schema, "read_reason text", fixed = TRUE)
 })
+testthat::test_that("queue queries omit article bodies and filter retained IDs before limiting", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    full <- store_list_entries(store, "reader", view = "all", limit = 500L)
+    id <- tail(full$entry_id, 1L)
+    rows <- store_list_entries(
+      store,
+      "reader",
+      view = "all",
+      limit = 1L,
+      include_content = FALSE,
+      entry_ids = id
+    )
+    testthat::expect_identical(rows$entry_id, id)
+    testthat::expect_identical("feed_content" %in% names(rows), FALSE)
+    testthat::expect_identical(
+      rows$title,
+      full$title[full$entry_id == id]
+    )
+    testthat::expect_equal(
+      nrow(store_list_entries(
+        store,
+        "reader",
+        view = "all",
+        entry_ids = character()
+      )),
+      0L
+    )
+  }
+})
+testthat::test_that("public copy repair is conditional and preserves historical selections", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    entry <- as.list(store_list_entries(store, "reader", view = "all")[1, ])
+    old <- new_rill_document(
+      entry_id = entry$entry_id,
+      source_url = entry$url,
+      markdown = "Flattened old copy.",
+      acquisition_method = "feed_fallback",
+      producer = "orientation-feed-copy"
+    )
+    store_save_document(store, old)
+    old_record <- store_get_document_record(store, old$document_id)
+    store_select_document(store, "reader", old$document_id)
+    repaired <- document_fallback(entry)
+    testthat::expect_identical(
+      store_replace_public_document(store, old$document_id, repaired),
+      TRUE
+    )
+    testthat::expect_identical(
+      public_reading_document(store, entry$entry_id)$document_id,
+      repaired$document_id
+    )
+    testthat::expect_identical(
+      store_get_document(store, "reader", entry$entry_id)$document_id,
+      old$document_id
+    )
+    testthat::expect_identical(
+      store_get_document_record(store, old$document_id),
+      old_record
+    )
+    stale <- document_fallback(entry)
+    testthat::expect_identical(
+      store_replace_public_document(store, old$document_id, stale),
+      FALSE
+    )
+    testthat::expect_identical(
+      public_reading_document(store, entry$entry_id)$document_id,
+      repaired$document_id
+    )
+  }
+})

@@ -1005,3 +1005,43 @@ testthat::test_that("raw trusted video frames survive markdown tag filtering", {
   )
   testthat::expect_no_match(html, "attacker.example", fixed = TRUE)
 })
+testthat::test_that("Orientation feed copies preserve readable structure", {
+  entry <- list(
+    entry_id = "structured-feed",
+    url = "https://example.com/article",
+    title = "Structured feed",
+    feed_content = paste0(
+      "<h2>Projects</h2><p>One.</p><p>Two.</p>",
+      "<ul><li><a href='/project'>Project</a></li></ul>",
+      "<img src='/photo.jpg' alt='Photo'>"
+    )
+  )
+  document <- document_fallback(entry, reason = "orientation-feed-copy")
+  html <- xml2::read_html(as.character(render_document(document)))
+  testthat::expect_length(xml2::xml_find_all(html, ".//h2"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//li/a"), 1L)
+  testthat::expect_identical(
+    xml2::xml_attr(xml2::xml_find_first(html, ".//img"), "src"),
+    "https://example.com/photo.jpg"
+  )
+})
+testthat::test_that("extraction diagnostics classify gateways without retaining response content", {
+  response <- httr2::response(
+    status_code = 403L,
+    headers = list(
+      "content-type" = "text/html; charset=utf-8",
+      "server" = "cloudflare",
+      "cf-mitigated" = "challenge",
+      "set-cookie" = "private-secret"
+    ),
+    body = charToRaw("<html>Private article URL and private-secret</html>")
+  )
+  attributes <- extraction_response_attributes(response)
+  testthat::expect_identical(attributes$http.response.challenge, TRUE)
+  testthat::expect_identical(attributes$http.response.content_type, "text/html")
+  testthat::expect_no_match(
+    jsonlite::toJSON(attributes),
+    "private|article|cookie"
+  )
+})

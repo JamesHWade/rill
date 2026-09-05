@@ -62,6 +62,10 @@ fetch_defuddled_markdown_hosted <- function(source_url, config) {
     } else {
       NULL
     }
+    request <- httr2::req_error(request, is_error = function(response) {
+      telemetry_attributes(span, extraction_response_attributes(response))
+      httr2::resp_status(response) >= 400L
+    })
     response <- withCallingHandlers(
       httr2::req_perform(request),
       httr2_fetch = function(event) {
@@ -84,6 +88,48 @@ fetch_defuddled_markdown_hosted <- function(source_url, config) {
     response
   })
   httr2::resp_body_string(response)
+}
+
+extraction_response_attributes <- function(response) {
+  type <- tolower(sub(
+    ";.*$",
+    "",
+    httr2::resp_header(response, "content-type") %||% ""
+  ))
+  server <- tolower(httr2::resp_header(response, "server") %||% "")
+  list(
+    "http.response.status_code" = httr2::resp_status(response),
+    "http.response.content_type" = if (
+      type %in%
+        c(
+          "text/html",
+          "text/plain",
+          "text/markdown",
+          "application/json"
+        )
+    ) {
+      type
+    } else {
+      "other"
+    },
+    "http.response.gateway" = if (
+      server %in%
+        c(
+          "cloudflare",
+          "cloudfront",
+          "envoy",
+          "nginx"
+        )
+    ) {
+      server
+    } else {
+      "other"
+    },
+    "http.response.challenge" = identical(
+      httr2::resp_header(response, "cf-mitigated"),
+      "challenge"
+    )
+  )
 }
 
 fetch_defuddled_markdown_local <- function(
@@ -254,11 +300,7 @@ document_fallback <- function(entry, reason = "feed-content") {
   content <- entry$feed_content %||%
     entry$summary %||%
     "No readable content was supplied by this feed."
-  content <- if (identical(reason, "orientation-feed-copy")) {
-    plain_summary(content, max_chars = 20000L)
-  } else {
-    feed_content_markdown(content, entry$url)
-  }
+  content <- feed_content_markdown(content, entry$url)
 
   captured_at <- utc_now()
   new_rill_document(
@@ -267,6 +309,7 @@ document_fallback <- function(entry, reason = "feed-content") {
     canonical_url = entry$canonical_url %||% NA_character_,
     acquisition_method = "feed_fallback",
     producer = reason,
+    producer_version = "2",
     title = entry$title,
     author = entry$author %||% NA_character_,
     site = first_metadata_value(entry$source_feed_title, entry$feed_title),

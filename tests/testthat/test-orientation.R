@@ -275,7 +275,7 @@ testthat::test_that("Orientation skips unusable feed copies within its bound", {
     !names(store$memory$document_heads) %in% entry_ids
   ]
   store$memory$documents[document_ids] <- NULL
-  store$memory$entries$feed_content[[1L]] <- "<img src='cover.jpg'>"
+  store$memory$entries$feed_content[[1L]] <- "<script>unreadable()</script>"
 
   prepared <- prepare_orientation_documents(store, reader_id, limit = 1L)
 

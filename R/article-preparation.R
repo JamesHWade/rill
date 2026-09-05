@@ -8,6 +8,15 @@ reading_document <- function(store, reader_id, entry) {
   )
   telemetry_attributes(span, list("copy.cached" = !is.null(current)))
   if (!is.null(current)) {
+    if (
+      identical(current$producer, "orientation-feed-copy") &&
+        is.na(current$producer_version) &&
+        is.na(current$reader_id)
+    ) {
+      repaired <- document_fallback(entry)
+      store_replace_public_document(store, current$document_id, repaired)
+      return(store_get_document(store, reader_id, entry$entry_id))
+    }
     return(current)
   }
   fallback <- telemetry_span("article.feed_copy", document_fallback(entry))

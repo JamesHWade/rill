@@ -10,6 +10,39 @@ testthat::test_that("reading a cache miss never calls the extractor", {
   testthat::expect_identical(reading_document(store, "reader", entry), document)
 })
 
+testthat::test_that("reading repairs flattened public copies without changing pins", {
+  store <- preparation_test_store()
+  id <- store$memory$entries$entry_id[[1]]
+  store$memory$entries$feed_content[[1]] <- paste0(
+    "<h2>Projects</h2><p>First paragraph.</p><p>Second paragraph.</p>",
+    "<ul><li><a href='/project'>A project</a></li></ul>",
+    "<img src='/photo.jpg' alt='Project photo'>"
+  )
+  entry <- store_get_entry(store, "reader", id)
+  old <- new_rill_document(
+    entry_id = id,
+    source_url = entry$url,
+    markdown = plain_summary(entry$feed_content, max_chars = 20000L),
+    acquisition_method = "feed_fallback",
+    producer = "orientation-feed-copy"
+  )
+  store_save_document(store, old)
+  store_select_document(store, "reader", old$document_id)
+  testthat::expect_identical(reading_document(store, "reader", entry), old)
+  repaired <- public_reading_document(store, id)
+  html <- xml2::read_html(as.character(render_document(repaired)))
+  testthat::expect_length(xml2::xml_find_all(html, ".//h2"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//p"), 2L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//li/a"), 1L)
+  testthat::expect_length(xml2::xml_find_all(html, ".//img"), 1L)
+  testthat::expect_identical(
+    store_get_document_record(store, old$document_id),
+    old
+  )
+  store$memory$document_selections <- store$memory$document_selections[0, ]
+  testthat::expect_identical(reading_document(store, "reader", entry), repaired)
+})
+
 testthat::test_that("preparation leases prevent duplicate work and stale completion", {
   store <- preparation_test_store()
   id <- store$memory$entries$entry_id[[1]]

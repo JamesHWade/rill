@@ -2788,7 +2788,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "5c7385d671ab1d19af1aa3ed1698a915"
+      "checksum": "7736c4a092b78e27eeace969b3cd26e7"
     },
     "R/capture.R": {
       "checksum": "1cc009061fd1f576d5575e5af21daea0"
@@ -2797,10 +2797,10 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "fd3e8d74e2741b79219a3983052abcd8"
+      "checksum": "a263c3aa1f6d2c607a51ed358ce7f02e"
     },
     "R/defuddle.R": {
-      "checksum": "b142c85a74d5a9e6d741c1e2d635c8d0"
+      "checksum": "83b6d1cc30fa95c9ec684b4a3c1aa957"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2842,7 +2842,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "f43d9ed7e68c760cb69d565b21238402"
+      "checksum": "c19b5b0bec571a97be9f68235a4ac43b"
     },
     "R/telemetry.R": {
       "checksum": "6fea18bdb711e7b479e86d78bc9180ad"

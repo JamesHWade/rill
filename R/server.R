@@ -1570,6 +1570,7 @@ rill_server <- function(config, store) {
     queue_entries <- shiny::reactive({
       refresh_tick()
       calendar <- calendar_window()
+      telemetry_local_span("queue.entries")
       store_list_entries(
         store,
         actor_id,
@@ -1578,7 +1579,8 @@ rill_server <- function(config, store) {
         limit = 150L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
-        timezone = calendar$timezone
+        timezone = calendar$timezone,
+        include_content = FALSE
       )
     })
 
@@ -1899,16 +1901,27 @@ rill_server <- function(config, store) {
         return(rows)
       }
 
-      all_rows <- store_list_entries(
+      missing_ids <- setdiff(ids, as.character(rows$entry_id))
+      if (!length(missing_ids)) {
+        return(rows)
+      }
+      telemetry_local_span("queue.retained_entries")
+      retained <- store_list_entries(
         store,
         actor_id,
         view = "all",
         feed_id = selected_feed(),
         limit = 500L,
-        sort = input$story_sort %||% "newest"
+        sort = input$story_sort %||% "newest",
+        include_content = FALSE,
+        entry_ids = missing_ids
       )
-      visible_ids <- unique(c(as.character(rows$entry_id), ids))
-      all_rows[all_rows$entry_id %in% visible_ids, , drop = FALSE]
+      combined <- rbind(rows, retained)
+      combined[
+        entry_sort_index(combined, input$story_sort %||% "newest"),
+        ,
+        drop = FALSE
+      ]
     })
 
     selected_feed_title <- shiny::reactive({
@@ -2366,6 +2379,7 @@ rill_server <- function(config, store) {
     })
 
     output$story_list <- shiny::renderUI({
+      telemetry_local_span("queue.render")
       rows <- entries()
       if (!nrow(rows)) {
         return(empty_story_list(
