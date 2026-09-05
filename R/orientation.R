@@ -191,6 +191,112 @@ orientation_boundary <- function(candidates) {
   )
 }
 
+orientation_state_token <- function(state) {
+  cards <- vapply(
+    state$orientation$cards %||% list(),
+    `[[`,
+    character(1),
+    "basis_hash"
+  )
+  rill_id(
+    "orientation-state",
+    state$orientation$revision_id %||% "",
+    state$boundary$hash,
+    paste(cards, collapse = "\u241f")
+  )
+}
+
+store_orientation_poll_token <- function(store, reader_id, state = NULL) {
+  if (!identical(store$mode, "postgres")) {
+    state <- state %||% orientation_status(store, reader_id)
+    return(orientation_state_token(state))
+  }
+
+  # Only the final fingerprint crosses the database connection on each poll.
+  rows <- DBI::dbGetQuery(
+    store$pool,
+    paste(
+      "WITH orientation_record AS (",
+      paste(
+        "SELECT revision_id, updated_at, payload FROM orientations",
+        "WHERE reader_id = $1"
+      ),
+      "), unread_entries AS (",
+      paste(
+        "SELECT e.entry_id, e.feed_id, f.source_kind,",
+        "row_number() OVER (ORDER BY",
+        "COALESCE(e.published_at, e.inserted_at) DESC, e.entry_id) AS",
+        "queue_position"
+      ),
+      "FROM entries e",
+      "JOIN feeds f ON f.feed_id = e.feed_id",
+      paste(
+        "JOIN subscriptions sub ON sub.feed_id = e.feed_id",
+        "AND sub.reader_id = $1 AND sub.status = 'active'"
+      ),
+      paste(
+        "LEFT JOIN entry_state st ON st.entry_id = e.entry_id",
+        "AND st.reader_id = $1"
+      ),
+      "WHERE COALESCE(st.hidden, false) = false AND st.read_at IS NULL",
+      paste("AND", postgres_capture_entry_visible_sql("$1")),
+      paste(
+        "ORDER BY COALESCE(e.published_at, e.inserted_at) DESC,",
+        "e.entry_id LIMIT 500"
+      ),
+      "), candidate_documents AS (",
+      paste(
+        "SELECT unread.queue_position, unread.entry_id, d.document_id,",
+        "d.content_hash, d.record_hash"
+      ),
+      "FROM unread_entries unread",
+      paste(
+        "LEFT JOIN reader_document_selections selected",
+        "ON selected.reader_id = $1",
+        "AND selected.entry_id = unread.entry_id"
+      ),
+      paste(
+        "LEFT JOIN public_document_heads public",
+        "ON public.entry_id = unread.entry_id"
+      ),
+      paste(
+        "JOIN documents d ON d.document_id =",
+        "COALESCE(selected.document_id, public.document_id)"
+      ),
+      "WHERE (unread.source_kind <> 'capture' OR d.reader_id = $1)",
+      "AND NOT EXISTS (",
+      "SELECT 1 FROM orientation_record current,",
+      paste(
+        "jsonb_array_elements(COALESCE(",
+        "current.payload -> 'dismissals', '[]'::jsonb",
+        ")) dismissal"
+      ),
+      paste(
+        "WHERE dismissal ->> 'entry_id' = unread.entry_id",
+        "AND dismissal ->> 'document_id' = d.document_id"
+      ),
+      ") ORDER BY unread.queue_position LIMIT 12",
+      "), fingerprint AS (",
+      "SELECT concat_ws('|',",
+      paste(
+        "COALESCE((SELECT revision_id FROM orientation_record), ''),",
+        "COALESCE((SELECT extract(epoch FROM updated_at)::text",
+        "FROM orientation_record), ''),"
+      ),
+      "COALESCE((SELECT string_agg(concat_ws(':',",
+      paste(
+        "queue_position::text, entry_id, document_id, content_hash,",
+        "record_hash), '|' ORDER BY queue_position)"
+      ),
+      "FROM candidate_documents), '')",
+      ") AS value)",
+      "SELECT md5(value) AS poll_token FROM fingerprint"
+    ),
+    params = list(reader_id)
+  )
+  rows$poll_token[[1L]]
+}
+
 orientation_status <- function(store, reader_id, limit = 12L) {
   orientation <- store_get_orientation(store, reader_id)
   candidates <- orientation_candidates(

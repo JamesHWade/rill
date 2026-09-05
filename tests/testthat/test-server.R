@@ -422,7 +422,7 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
     session$flushReact()
     initial <- orientation_state()
     initial_tick <- refresh_tick()
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     testthat::expect_identical(refresh_tick(), initial_tick)
@@ -436,12 +436,46 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
     )
 
     testthat::expect_length(initial$orientation$cards, 2L)
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     current <- orientation_state()
     testthat::expect_length(current$orientation$cards, 1L)
     testthat::expect_gt(refresh_tick(), initial_tick)
+  })
+})
+
+testthat::test_that("Orientation polling does not reload Library content", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  entry_reads <- 0L
+  document_reads <- 0L
+  original_list_entries <- store_list_entries
+  original_list_documents <- store_list_documents
+  testthat::local_mocked_bindings(
+    store_orientation_poll_token = \(...) "unchanged",
+    store_list_entries = function(...) {
+      entry_reads <<- entry_reads + 1L
+      original_list_entries(...)
+    },
+    store_list_documents = function(...) {
+      document_reads <<- document_reads + 1L
+      original_list_documents(...)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    reads_after_render <- c(entry_reads, document_reads)
+
+    session$elapse(rill_session_poll_interval_ms)
+    session$flushReact()
+
+    testthat::expect_identical(
+      c(entry_reads, document_reads),
+      reads_after_render
+    )
   })
 })
 
@@ -780,7 +814,7 @@ testthat::test_that("a session observes an external Orientation disable", {
       enabled = FALSE,
       config = config
     )
-    session$elapse(1000)
+    session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     testthat::expect_identical(orientation_destination_status()$enabled, FALSE)

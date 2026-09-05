@@ -139,8 +139,16 @@ new_reader_identity_adapter <- function(
   )
 }
 
-identity_auth0_provider <- function(domain) {
-  shinyOAuth::oauth_provider_auth0(domain)
+identity_oidc_provider <- function(...) {
+  shinyOAuth::oauth_provider_oidc_discover(...)
+}
+
+identity_auth0_provider <- function(issuer) {
+  identity_oidc_provider(
+    issuer = issuer,
+    name = "auth0",
+    issuer_match = "host"
+  )
 }
 
 identity_oauth_client <- function(...) {
@@ -153,7 +161,7 @@ identity_oauth_module_server <- function(...) {
 
 identity_auth0_client <- function(config) {
   identity_oauth_client(
-    provider = identity_auth0_provider(config$auth0_domain),
+    provider = identity_auth0_provider(config$oidc_issuer),
     client_id = config$auth0_client_id,
     client_secret = config$auth0_client_secret,
     redirect_uri = config$auth0_redirect_uri,
@@ -1225,7 +1233,7 @@ reader_identity_guard_session <- function(adapter, resolution, session) {
   }
   guard <- shiny::observe(
     {
-      shiny::invalidateLater(1000, session)
+      shiny::invalidateLater(rill_session_poll_interval_ms, session)
       current <- tryCatch(
         adapter$session_status(resolution),
         error = \(error) NULL
