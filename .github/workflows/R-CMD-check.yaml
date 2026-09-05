@@ -76,13 +76,8 @@ jobs:
         with:
           extra-packages: any::rcmdcheck
           needs: check
-      - name: Test PostgreSQL contracts
+      - name: Test all contracts with PostgreSQL
         run: |
-          testthat::test_local(
-            filter = paste0(
-              "agent-runs-postgres|orientation-backends|",
-              "orientation-destination|orientation-postgres|",
-              "polling-postgres|feed-refresh-postgres|access-requests"
-            )
-          )
+          stopifnot(nzchar(Sys.getenv("RILL_TEST_DATABASE_URL")))
+          testthat::test_local()
         shell: Rscript {0}
