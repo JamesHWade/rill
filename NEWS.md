@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Articles open from saved or clearly labeled feed copies without waiting for extraction; full articles prepare in the background and after Feed refresh, with bounded retries and an explicit action to load a newer copy without changing an active reading or Ask Rill session (#45).
+
 * Disabled Readers no longer keep Feeds eligible for scheduled polling; shared Feeds remain eligible while another active Reader follows them, and existing Subscriptions are preserved (#26).
 
 * The hosted Library owner can review pending Access requests and approve an invited Reader into a separate, empty Library from the sidebar; approvals recheck the owner's identity and record who granted access (#26, #45).

@@ -93,6 +93,8 @@ rill_server <- function(config, store) {
     )
     selected_id <- shiny::reactiveVal(NULL)
     selected_document_id <- shiny::reactiveVal(NULL)
+    reading_copy <- shiny::reactiveVal(NULL)
+    preparation_tick <- shiny::reactiveVal(0L)
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
     selected_position <- shiny::reactiveVal(NA_integer_)
     selected_feed <- shiny::reactiveVal(NULL)
@@ -209,6 +211,7 @@ rill_server <- function(config, store) {
         return(invisible(FALSE))
       }
       selected_id(NULL)
+      reading_copy(NULL)
       selected_document_id(NULL)
       selected_orientation_provenance(NULL)
       selected_position(NA_integer_)
@@ -1940,6 +1943,7 @@ rill_server <- function(config, store) {
 
     selected_document <- shiny::reactive({
       entry <- selected_entry()
+      shiny::req(!is.null(entry))
       document_id <- selected_document_id()
       if (!is.null(document_id)) {
         document <- store_get_document_by_id(store, actor_id, document_id)
@@ -1954,14 +1958,66 @@ rill_server <- function(config, store) {
         }
         return(document)
       }
-      shiny::withProgress(
-        message = "Preparing a clean reading copy",
-        value = 0.5,
-        {
-          get_or_extract_document(store, actor_id, entry, config)
-        }
-      )
+      current <- reading_copy()
+      if (!is.null(current) && identical(current$entry_id, entry$entry_id)) {
+        return(current)
+      }
+      document <- reading_document(store, actor_id, entry)
+      reading_copy(document)
+      document
     })
+
+    article_preparer <- article_preparation_controller(
+      store,
+      config,
+      actor_id,
+      updated = function(id, result) {
+        if (session$isClosed()) {
+          return(invisible(NULL))
+        }
+        shiny::withReactiveDomain(
+          session,
+          shiny::isolate({
+            if (!is.null(result)) {
+              preparation_failures(Filter(
+                function(failure) {
+                  !identical(failure$entry_id, id)
+                },
+                preparation_failures()
+              ))
+            }
+            if (!is.null(result$failure)) {
+              result$failure$entry_id <- id
+              preparation_failures(tail(
+                c(preparation_failures(), list(result$failure)),
+                20L
+              ))
+              status_kind("warning")
+              status_text(
+                "Some full articles aren't available yet. Feed copies are preserved."
+              )
+            } else if (!is.null(result) && !length(preparation_failures())) {
+              status_kind("success")
+              status_text("Full article prepared. Load it when you're ready.")
+            }
+            preparation_tick(preparation_tick() + 1L)
+          })
+        )
+      }
+    )
+    shiny::observeEvent(
+      selected_id(),
+      {
+        if (!is.null(selected_document_id())) {
+          return(invisible(NULL))
+        }
+        if (full_reading_document(selected_document())) {
+          return(invisible(NULL))
+        }
+        article_preparer$request(selected_id())
+      },
+      ignoreNULL = TRUE
+    )
 
     refresh_result <- shiny::reactiveVal(NULL)
     refresh_job <- NULL
@@ -2016,6 +2072,7 @@ rill_server <- function(config, store) {
         )
       )
       bump_refresh(feeds_changed = TRUE)
+      article_preparer$request(preparation_candidates(store, actor_id))
       invisible(result)
     }
     poll_refresh <- function() {
@@ -2315,10 +2372,25 @@ rill_server <- function(config, store) {
         ))
       }
 
+      document <- selected_document()
+      preparation_tick()
+      state <- if (
+        !full_reading_document(document) && is.null(selected_document_id())
+      ) {
+        shiny::invalidateLater(30000, session)
+        article_preparation_status(
+          store,
+          selected_id(),
+          article_preparer$busy(selected_id())
+        )
+      } else {
+        "missing"
+      }
       reader_article_header_ui(
         selected_entry(),
-        selected_document(),
-        can_prepare = is.null(selected_document_id())
+        document,
+        can_prepare = is.null(selected_document_id()),
+        preparation = state
       )
     })
 
@@ -2588,6 +2660,7 @@ rill_server <- function(config, store) {
             !identical(previous_document_id, pinned_document_id)
         ) {
           reset_reader_chat()
+          reading_copy(NULL)
         }
         retain_entry(entry_id)
         selected_id(entry_id)
@@ -3380,9 +3453,21 @@ rill_server <- function(config, store) {
       input$prepare_article,
       {
         shiny::req(!is.null(selected_id()), is.null(selected_document_id()))
+        entry <- selected_entry()
+        shiny::req(isTRUE(entry$library_access))
+        article_preparer$request(entry$entry_id, retry = TRUE)
+        preparation_tick(preparation_tick() + 1L)
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$use_prepared_article,
+      {
+        shiny::req(!is.null(selected_id()), is.null(selected_document_id()))
         if (reader_response_in_flight()) {
           shiny::showNotification(
-            "Wait for the current answer before preparing a new copy.",
+            "Wait for the current answer before loading a new copy.",
             type = "message"
           )
           return(invisible(NULL))
@@ -3391,32 +3476,34 @@ rill_server <- function(config, store) {
         shiny::req(isTRUE(entry$library_access))
         previous <- selected_document()
         shiny::req(identical(previous$acquisition_method, "feed_fallback"))
-        stage <- "extraction"
-        result <- tryCatch(
-          shiny::withProgress(
-            message = "Preparing the full article",
-            value = 0.5,
-            {
-              document <- document_from_defuddle(entry, config)
-              stage <- "storage"
-              save_prepared_document(store, actor_id, previous, document)
-            }
-          ),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          failure <- preparation_failure(result, stage, config)
-          failure$title <- entry$title
-          preparation_failures(list(failure))
-          shiny::showModal(preparation_failures_ui(preparation_failures()))
+        document <- public_reading_document(store, entry$entry_id)
+        shiny::req(full_reading_document(document))
+        current <- store_get_document(store, actor_id, entry$entry_id)
+        if (
+          !is.null(current) &&
+            !identical(current$document_id, previous$document_id) &&
+            !identical(current$document_id, document$document_id)
+        ) {
+          shiny::showNotification(
+            "Your selected reading copy changed. Reopen the story to load it.",
+            type = "message"
+          )
           return(invisible(NULL))
         }
-        preparation_failures(list())
+        store_replace_selected_document(
+          store,
+          actor_id,
+          previous$document_id,
+          document$document_id
+        )
+        current <- store_get_document(store, actor_id, entry$entry_id)
+        shiny::req(
+          !is.null(current),
+          identical(current$document_id, document$document_id)
+        )
+        reading_copy(document)
+        reset_reader_chat()
         bump_refresh()
-        if (!identical(previous$document_id, selected_document()$document_id)) {
-          reset_reader_chat()
-        }
-        shiny::showNotification("Full article prepared.", type = "message")
       },
       ignoreInit = TRUE
     )
@@ -3425,79 +3512,35 @@ rill_server <- function(config, store) {
       input$prepare_today,
       {
         shiny::req(identical(input$view, "today"))
-        if (reader_response_in_flight()) {
-          shiny::showNotification(
-            "Wait for the current answer before preparing new copies.",
-            type = "message"
-          )
-          return(invisible(NULL))
-        }
-        previous_document_id <- if (!is.null(selected_id())) {
-          selected_document()$document_id
-        }
-        result <- tryCatch(
-          shiny::withProgress(
-            message = "Preparing today's reading copies",
-            value = 0,
-            {
-              prepare_today_documents(
-                store,
-                config,
-                reader_id = actor_id,
-                now = calendar_window()$now,
-                timezone = calendar_window()$timezone,
-                progress = function(index, total, title) {
-                  shiny::setProgress(
-                    value = index / total,
-                    detail = title
-                  )
-                }
-              )
-            }
+        entries <- tryCatch(
+          store_list_entries(
+            store,
+            actor_id,
+            view = "today",
+            limit = 500L,
+            now = calendar_window()$now,
+            timezone = calendar_window()$timezone
           ),
           error = function(error) error
         )
-        if (inherits(result, "error")) {
-          failure <- if (inherits(result, "rill_preparation_failed")) {
-            result$diagnostic
-          } else {
-            preparation_failure(result, "library", config)
-          }
+        if (inherits(entries, "error")) {
+          failure <- preparation_failure(entries, "library", config)
           preparation_failures(list(failure))
           status_kind("error")
-          status_text("Today's reading copies couldn't be prepared")
-          shiny::showNotification(
-            failure$message,
-            type = "error",
-            duration = 8
-          )
-          shiny::showModal(preparation_failures_ui(preparation_failures()))
-          return()
+          status_text("Today's reading copies couldn't be queued")
+          return(invisible(NULL))
         }
-
-        preparation_failures(result$failures %||% list())
-        bump_refresh()
-        if (
-          !is.null(previous_document_id) &&
-            !identical(previous_document_id, selected_document()$document_id)
-        ) {
-          reset_reader_chat()
-        }
-        if (length(preparation_failures())) {
-          shiny::showModal(preparation_failures_ui(preparation_failures()))
-        }
-        status <- format_prepare_today_status(result)
-        status_kind(if (result$failed > 0L) "warning" else "success")
-        status_text(status)
-        shiny::showNotification(
-          status,
-          type = if (result$failed > 0L) "warning" else "message",
-          duration = 8
+        preparation_failures(list())
+        article_preparer$request(entries$entry_id, retry = TRUE)
+        preparation_tick(preparation_tick() + 1L)
+        status_kind("info")
+        status_text(
+          "Preparing today's articles in the background. Keep reading."
         )
         record_event(
-          "today_prepared",
+          "today_preparation_requested",
           surface = "reading_queue",
-          payload = result[c("total", "cached", "prepared", "failed")]
+          payload = list(total = nrow(entries))
         )
       },
       ignoreInit = TRUE
@@ -3580,6 +3623,7 @@ rill_server <- function(config, store) {
     )
 
     session$onSessionEnded(function() {
+      article_preparer$close()
       if (is.function(pending_reader_question_cancel)) {
         try(pending_reader_question_cancel(), silent = TRUE)
         pending_reader_question_cancel <<- NULL

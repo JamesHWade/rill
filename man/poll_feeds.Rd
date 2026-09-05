@@ -15,6 +15,9 @@ Subscription when its polling interval has elapsed. Each run and per-Feed
 outcome is recorded in the durable store. Concurrent runs are skipped, and
 isolated Feed failures are tolerated until \code{RILL_POLL_FAILURE_THRESHOLD} is
 reached.
+After releasing the Feed lock, the poller prepares missing public article
+copies from the past seven days, up to 100 articles or ten minutes per run.
+Extraction failures are isolated and retried with durable backoff.
 }
 \details{
 The due interval defaults to 60 minutes and can be changed with

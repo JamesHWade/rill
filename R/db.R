@@ -91,6 +91,7 @@ rill_store <- function(config) {
     memory$feeds <- sample$feeds
     memory$entries <- sample$entries
     memory$documents <- sample$documents
+    memory$article_preparations <- list()
     memory$document_heads <- stats::setNames(
       vapply(sample$documents, `[[`, character(1), "document_id"),
       vapply(sample$documents, `[[`, character(1), "entry_id")
