@@ -354,6 +354,41 @@ testthat::test_that("feed Markdown must render readable content even when unchan
   )
 })
 
+testthat::test_that("feed-copy word counts use visible text with block boundaries", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$url <- "https://example.com/posts/story/"
+  cases <- list(
+    list(content = "<p>Hello</p><p>reader</p>", words = 2L),
+    list(content = "<ul><li>One</li><li>Two</li></ul>", words = 2L),
+    list(content = "<p>un<strong>break</strong>able</p>", words = 1L),
+    list(content = "<p>one<br>two</p>", words = 2L),
+    list(content = "Read [these details](details).", words = 3L),
+    list(content = "# Title\n\nWords in **bold**.", words = 4L),
+    list(
+      content = "<img src='image.png' alt='An image with many words'>",
+      words = 0L
+    ),
+    list(
+      content = paste0(
+        "<div class='one two three'><p>Hello <strong>reader</strong>.</p>",
+        "<p><a href='details' title='A long link title'>Read this</a></p></div>"
+      ),
+      words = 4L
+    )
+  )
+
+  for (case in cases) {
+    entry$feed_content <- case$content
+    document <- document_fallback(entry)
+
+    testthat::expect_identical(
+      document$word_count,
+      case$words,
+      info = case$content
+    )
+  }
+})
+
 testthat::test_that("preparation does not replace a newer browser capture selection", {
   store <- preparation_test_store()
   entry <- as.list(store$memory$entries[1, , drop = FALSE])

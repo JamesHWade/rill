@@ -144,9 +144,25 @@ run_defuddle_cli <- function(command, args, timeout) {
 }
 
 word_count <- function(markdown) {
-  words <- strsplit(trimws(gsub("[`#>*_~\\[\\]()]", " ", markdown)), "\\s+")[[
-    1
-  ]]
+  html <- as.character(render_document(list(markdown = markdown)))
+  parsed <- xml2::read_html(paste0("<div>", html, "</div>"))
+  blocks <- xml2::xml_find_all(
+    parsed,
+    paste(
+      ".//address | .//article | .//aside | .//blockquote | .//br | .//dd |",
+      ".//div | .//dl | .//dt | .//fieldset | .//figcaption | .//figure |",
+      ".//footer | .//h1 | .//h2 | .//h3 | .//h4 | .//h5 | .//h6 |",
+      ".//header | .//hr | .//li | .//main | .//nav | .//ol | .//p |",
+      ".//pre | .//section | .//table | .//td | .//th | .//tr | .//ul"
+    )
+  )
+  for (index in rev(seq_along(blocks))) {
+    node <- blocks[[index]]
+    text <- xml2::xml_new_root("span")
+    xml2::xml_text(text) <- paste0(" ", xml2::xml_text(node), " ")
+    xml2::xml_replace(node, text)
+  }
+  words <- strsplit(trimws(xml2::xml_text(parsed)), "\\s+")[[1]]
   as.integer(sum(nzchar(words)))
 }
 
