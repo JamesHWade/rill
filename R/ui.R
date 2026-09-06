@@ -966,7 +966,8 @@ orientation_ui <- function(
   orientation,
   candidates,
   preparing = FALSE,
-  processing_note = NULL
+  processing_note = NULL,
+  failure = NULL
 ) {
   if (is.null(orientation)) {
     return(shiny::tags$section(
@@ -981,9 +982,11 @@ orientation_ui <- function(
         if (preparing) {
           "Evaluating the current unread Documents\u2026"
         } else {
-          "Orientation will appear after Rill evaluates your unread Documents."
+          failure %||%
+            "Orientation will appear after Rill evaluates your unread Documents."
         }
       ),
+      orientation_retry_button(failure, "retry_orientation"),
       orientation_processing_ui(processing_note),
       orientation_browse_button("Browse unread stories")
     ))
@@ -1018,6 +1021,8 @@ orientation_ui <- function(
         orientation_boundary(candidates),
         preparing
       ),
+      orientation_failure_ui(failure),
+      orientation_retry_button(failure, "retry_orientation"),
       orientation_processing_ui(processing_note),
       orientation_browse_button("Browse unread stories")
     ))
@@ -1057,6 +1062,8 @@ orientation_ui <- function(
           orientation_boundary(candidates),
           preparing
         ),
+        orientation_failure_ui(failure),
+        orientation_retry_button(failure, "retry_orientation"),
         orientation_processing_ui(processing_note),
         orientation_browse_button("Browse the full unread queue")
       )
@@ -1127,7 +1134,8 @@ orientation_queue_status_ui <- function(
   orientation,
   candidates,
   preparing = FALSE,
-  processing_note = NULL
+  processing_note = NULL,
+  failure = NULL
 ) {
   if (!is.null(orientation)) {
     current_ids <- vapply(
@@ -1150,7 +1158,8 @@ orientation_queue_status_ui <- function(
     if (preparing) {
       "Evaluating the current unread Documents\u2026"
     } else {
-      "Orientation will appear after Rill evaluates your unread Documents."
+      failure %||%
+        "Orientation will appear after Rill evaluates your unread Documents."
     }
   } else {
     orientation$status
@@ -1173,7 +1182,32 @@ orientation_queue_status_ui <- function(
         preparing
       )
     },
+    if (!is.null(orientation)) orientation_failure_ui(failure),
+    orientation_retry_button(failure, "retry_orientation_queue"),
     orientation_processing_ui(processing_note)
+  )
+}
+
+orientation_failure_ui <- function(failure) {
+  if (is.null(failure)) {
+    return(NULL)
+  }
+  shiny::tags$p(
+    class = "orientation-status",
+    role = "status",
+    `aria-live` = "polite",
+    failure
+  )
+}
+
+orientation_retry_button <- function(failure, input_id) {
+  if (is.null(failure)) {
+    return(NULL)
+  }
+  shiny::actionButton(
+    input_id,
+    "Retry Orientation",
+    class = "btn-outline-secondary"
   )
 }
 

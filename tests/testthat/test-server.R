@@ -4913,3 +4913,308 @@ testthat::test_that("OPML import registers feeds before any refresh", {
     testthat::expect_equal(nrow(store_list_feeds(store, config$actor_id)), 4L)
   })
 })
+
+testthat::test_that("disabled Orientation hides recovery until it can run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  store$memory$orientations[[config$actor_id]] <- NULL
+  confirm_test_orientation_destination(store, config)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      calls <<- calls + 1L
+      list(status = "failed", run = list(terminal_reason = "wall_time_limit"))
+    }
+  )
+
+  later::with_temp_loop({
+    for (disable in c("reader", "external")) {
+      set_orientation_enabled(store, config$actor_id, TRUE, config)
+      shiny::testServer(rill_server(config, store), {
+        session$setInputs(orientation_disable = NULL)
+        session$flushReact()
+        testthat::expect_match(output$reader_header$html, "Retry Orientation")
+        expected_calls <- calls
+
+        if (disable == "reader") {
+          session$setInputs(orientation_disable = 1L)
+        } else {
+          set_orientation_enabled(store, config$actor_id, FALSE, config)
+          session$elapse(rill_session_poll_interval_ms)
+        }
+        session$flushReact()
+        testthat::expect_no_match(
+          output$reader_header$html,
+          "Retry Orientation"
+        )
+        testthat::expect_no_match(
+          output$orientation_queue_status$html,
+          "Retry Orientation"
+        )
+
+        set_orientation_enabled(store, config$actor_id, TRUE, config)
+        session$elapse(rill_session_poll_interval_ms)
+        session$flushReact()
+        testthat::expect_match(output$reader_header$html, "Retry Orientation")
+        testthat::expect_identical(calls, expected_calls)
+      })
+    }
+  })
+})
+
+testthat::test_that("a current Orientation clears an earlier maintenance failure", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[
+    config$actor_id
+  ]]$boundary$hash <- "previous-boundary"
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      calls <<- calls + 1L
+      list(
+        status = "failed",
+        run = list(terminal_reason = "HTTP 401")
+      )
+    }
+  )
+
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    testthat::expect_match(output$reader_header$html, "Retry Orientation")
+
+    store$memory$orientations[[config$actor_id]]$boundary <-
+      orientation_status(store, config$actor_id)$boundary
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_identical(
+      orientation_status(store, config$actor_id)$due,
+      FALSE
+    )
+    testthat::expect_null(orientation_failure())
+    testthat::expect_no_match(output$reader_header$html, "Retry Orientation")
+    testthat::expect_identical(calls, 1L)
+  }))
+})
+
+testthat::test_that("stopped Orientation attempts do not trace retained cards as published", {
+  testthat::skip_if_not_installed("otelsdk")
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[
+    config$actor_id
+  ]]$boundary$hash <- "previous-boundary"
+  retained <- store_get_orientation(store, config$actor_id)
+  terminal_status <- NULL
+  resolve_outcome <- NULL
+  pending_result <- NULL
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      run <- list(
+        run_id = "current-attempt",
+        status = terminal_status,
+        terminal_reason = if (terminal_status == "failed") {
+          "wall_time_limit"
+        } else {
+          "reader_question"
+        }
+      )
+      pending_result <<- list(run = run, orientation = retained)
+      list(
+        status = "running",
+        run = run,
+        promise = promises::promise(function(resolve, reject) {
+          resolve_outcome <<- resolve
+        }),
+        interrupt = \(reason) invisible(NULL)
+      )
+    }
+  )
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop({
+      for (status in c("cancelled", "failed", "completed")) {
+        terminal_status <- status
+        shiny::testServer(rill_server(config, store), {
+          session$flushReact()
+          resolve_outcome(pending_result)
+          deadline <- Sys.time() + 2
+          while (orientation_preparing() && Sys.time() < deadline) {
+            later::run_now(0.01)
+            session$flushReact()
+          }
+          testthat::expect_match(
+            output$reader_header$html,
+            retained$question,
+            fixed = TRUE
+          )
+          if (terminal_status != "completed") {
+            testthat::expect_match(
+              output$reader_header$html,
+              "Retry Orientation"
+            )
+          }
+        })
+      }
+    }),
+    what = "traces"
+  )
+  traces <- Filter(
+    \(trace) identical(trace$name, "orientation.maintain"),
+    record$traces
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      traces,
+      \(trace) trace$attributes$orientation.outcome,
+      character(1)
+    )),
+    c("cancelled", "failed", "stopped")
+  )
+  testthat::expect_all_true(vapply(
+    traces,
+    \(trace) is.null(trace$attributes$orientation.card_count),
+    logical(1)
+  ))
+})
+
+testthat::test_that("Orientation exposes provider rejection and permits one explicit retry", {
+  testthat::skip_if_not_installed("otelsdk")
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[config$actor_id]] <- NULL
+  provider_calls <- 0L
+  resolve_retry <- NULL
+  testthat::local_mocked_bindings(
+    rill_orientation_agent = function(candidates, ...) {
+      agent <- new.env(parent = emptyenv())
+      agent$get_model <- \() "gpt-test"
+      agent$get_provider <- \() stop("No provider object in this test.")
+      orientation_test_tool_state(
+        agent,
+        list(
+          status = "One source deserves attention.",
+          question = "What deserves a closer reading?",
+          introduction = "Start with this source.",
+          cards = list(list(
+            document_id = candidates[[1L]]$document$document_id,
+            role = "anchor",
+            frame = "unresolved_question",
+            interpretation = "This source raises a useful question.",
+            why_now = "It is in the current unread set.",
+            evidence = substr(candidates[[1L]]$document$markdown, 1L, 80L)
+          ))
+        )
+      )
+      agent$run_async <- function(...) {
+        provider_calls <<- provider_calls + 1L
+        if (provider_calls <= 2L) {
+          return(promises::promise_reject(rlang::error_cnd(
+            "httr2_http_401",
+            message = "Private provider error with sk-secret and source content."
+          )))
+        }
+        promises::promise(function(resolve, reject) {
+          resolve_retry <<- resolve
+        })
+      }
+      agent$interrupt <- \(reason) TRUE
+      agent
+    }
+  )
+
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop({
+      for (index in seq_len(3L)) {
+        shiny::testServer(rill_server(config, store), {
+          session$flushReact()
+          deadline <- Sys.time() + 2
+          while (orientation_preparing() && Sys.time() < deadline) {
+            later::run_now(0.01)
+            session$flushReact()
+          }
+          html <- output$reader_header$html
+          testthat::expect_match(html, "provider rejected", fixed = TRUE)
+          testthat::expect_match(html, "Retry Orientation", fixed = TRUE)
+          testthat::expect_no_match(
+            html,
+            "Orientation will appear",
+            fixed = TRUE
+          )
+          testthat::expect_no_match(
+            html,
+            "sk-secret|Private provider|source content"
+          )
+          testthat::expect_match(
+            output$orientation_queue_status$html,
+            "provider rejected",
+            fixed = TRUE
+          )
+          if (index == 3L) {
+            testthat::expect_identical(provider_calls, 2L)
+            set_orientation_enabled(store, config$actor_id, FALSE, config)
+            session$setInputs(retry_orientation = 1L)
+            testthat::expect_identical(provider_calls, 2L)
+            set_orientation_enabled(store, config$actor_id, TRUE, config)
+            session$setInputs(retry_orientation = 2L)
+            testthat::expect_identical(provider_calls, 3L)
+            session$setInputs(retry_orientation = 3L)
+            testthat::expect_identical(provider_calls, 3L)
+            resolve_retry(orientation_test_agent_result())
+            deadline <- Sys.time() + 2
+            while (orientation_preparing() && Sys.time() < deadline) {
+              later::run_now(0.01)
+              session$flushReact()
+            }
+            session$flushReact()
+            testthat::expect_no_match(
+              output$reader_header$html,
+              "provider rejected"
+            )
+            testthat::expect_match(
+              output$reader_header$html,
+              "What deserves a closer reading?",
+              fixed = TRUE
+            )
+            session$setInputs(retry_orientation = 4L)
+            testthat::expect_identical(provider_calls, 3L)
+          }
+        })
+      }
+    }),
+    what = "traces"
+  )
+  traces <- lapply(record$traces, `[[`, "attributes")
+  published <- Filter(
+    function(trace) {
+      identical(trace$orientation.outcome, "published")
+    },
+    traces
+  )
+  testthat::expect_length(published, 1L)
+  testthat::expect_equal(published[[1L]]$orientation.card_count, 1)
+  testthat::expect_identical(published[[1L]]$orientation.explicit_retry, TRUE)
+  testthat::expect_no_match(
+    as.character(canonical_json(traces)),
+    "sk-secret|Private provider|source content"
+  )
+})

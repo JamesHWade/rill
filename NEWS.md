@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Orientation reports failed evaluations, offers an explicit retry, and preserves current selections while recovering; production traces distinguish reused attempts, failed requests, and published selections (#45, #50).
+
 * Article preparation can use a bundled, versioned Defuddle CLI with Node.js or Deno, including Connect Cloud's Deno runtime, without installing JavaScript packages during reading (#45).
 
 * Operational telemetry now separates article opening, database work, background queue and worker time, and extraction HTTP status and retries; Logfire traces correlate safe failure references without exporting article content, URLs, or raw exceptions (#45).
