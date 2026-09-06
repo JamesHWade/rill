@@ -1057,7 +1057,11 @@ store_complete_orientation_run <- function(
 }
 
 orientation_abort <- function(message) {
-  cli::cli_abort(message, class = "rill_orientation_invalid")
+  cli::cli_abort(
+    message,
+    class = "rill_orientation_invalid",
+    .envir = parent.frame()
+  )
 }
 
 orientation_string <- function(value, field) {
@@ -1074,23 +1078,8 @@ orientation_string <- function(value, field) {
   value
 }
 
-validate_orientation <- function(store, orientation) {
-  if (!inherits(orientation, "rill_orientation")) {
-    orientation_abort("Orientation must be a {.cls rill_orientation} object.")
-  }
-  orientation_string(orientation$orientation_id, "orientation_id")
-  orientation_string(orientation$revision_id, "revision_id")
-  orientation_string(orientation$reader_id, "reader_id")
+validate_orientation_content <- function(orientation) {
   orientation_string(orientation$status, "status")
-  orientation_string(orientation$agent_run_id, "agent_run_id")
-  orientation_string(orientation$policy_version, "policy_version")
-  if (!is.list(orientation$dismissals)) {
-    orientation_abort("Orientation {.field dismissals} must be a list.")
-  }
-  if (!is.list(orientation$boundary)) {
-    orientation_abort("Orientation {.field boundary} must be a list.")
-  }
-  orientation_string(orientation$boundary$hash, "boundary.hash")
   if (!is.list(orientation$cards) || length(orientation$cards) > 3L) {
     orientation_abort("Orientation must contain zero to three cards.")
   }
@@ -1122,6 +1111,44 @@ validate_orientation <- function(store, orientation) {
       orientation_abort("An Orientation card has an unknown editorial frame.")
     }
     document_id <- orientation_string(card$document_id, "card.document_id")
+    orientation_string(card$interpretation, "card.interpretation")
+    orientation_string(card$why_now, "card.why_now")
+    orientation_string(card$evidence, "card.evidence")
+    document_ids <- c(document_ids, document_id)
+    roles <- c(roles, role)
+  }
+  if (anyDuplicated(document_ids)) {
+    orientation_abort("Orientation cards must identify distinct Documents.")
+  }
+  if (
+    length(roles) &&
+      (!identical(roles[[1L]], "anchor") ||
+        any(roles[-1L] == "anchor"))
+  ) {
+    orientation_abort("An Orientation reading path must begin with one anchor.")
+  }
+  invisible(orientation)
+}
+
+validate_orientation <- function(store, orientation) {
+  if (!inherits(orientation, "rill_orientation")) {
+    orientation_abort("Orientation must be a {.cls rill_orientation} object.")
+  }
+  orientation_string(orientation$orientation_id, "orientation_id")
+  orientation_string(orientation$revision_id, "revision_id")
+  orientation_string(orientation$reader_id, "reader_id")
+  orientation_string(orientation$agent_run_id, "agent_run_id")
+  orientation_string(orientation$policy_version, "policy_version")
+  if (!is.list(orientation$dismissals)) {
+    orientation_abort("Orientation {.field dismissals} must be a list.")
+  }
+  if (!is.list(orientation$boundary)) {
+    orientation_abort("Orientation {.field boundary} must be a list.")
+  }
+  orientation_string(orientation$boundary$hash, "boundary.hash")
+  validate_orientation_content(orientation)
+  for (card in orientation$cards) {
+    document_id <- orientation_string(card$document_id, "card.document_id")
     entry_id <- orientation_string(card$entry_id, "card.entry_id")
     orientation_string(card$basis_hash, "card.basis_hash")
     orientation_string(card$card_id, "card.card_id")
@@ -1129,8 +1156,6 @@ validate_orientation <- function(store, orientation) {
       card$rationale_hash,
       "card.rationale_hash"
     )
-    orientation_string(card$interpretation, "card.interpretation")
-    orientation_string(card$why_now, "card.why_now")
     evidence <- orientation_string(card$evidence, "card.evidence")
     if (!identical(rationale_hash, orientation_card_rationale(card))) {
       orientation_abort("An Orientation card has an invalid rationale hash.")
@@ -1155,18 +1180,6 @@ validate_orientation <- function(store, orientation) {
         "An Orientation card is outside the evaluated Library boundary."
       )
     }
-    document_ids <- c(document_ids, document_id)
-    roles <- c(roles, role)
-  }
-  if (anyDuplicated(document_ids)) {
-    orientation_abort("Orientation cards must identify distinct Documents.")
-  }
-  if (
-    length(roles) &&
-      (!identical(roles[[1L]], "anchor") ||
-        any(roles[-1L] == "anchor"))
-  ) {
-    orientation_abort("An Orientation reading path must begin with one anchor.")
   }
   producing_run <- store_get_agent_run(
     store,

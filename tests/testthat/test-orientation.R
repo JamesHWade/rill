@@ -877,3 +877,15 @@ testthat::test_that("publication rechecks its boundary at the store seam", {
     "running"
   )
 })
+
+testthat::test_that("Orientation field errors retain their native message and class", {
+  error <- testthat::expect_error(
+    orientation_string(NULL, "card.role"),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_match(
+    conditionMessage(error),
+    "Orientation card.role must be a non-empty string.",
+    fixed = TRUE
+  )
+})

@@ -323,6 +323,87 @@ testthat::test_that("Orientation rejects a completed run without submission", {
   testthat::expect_null(store_get_orientation(store, reader_id))
 })
 
+testthat::test_that("Orientation publishes an accepted correction after rejected evidence", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
+  state <- NULL
+  agent_factory <- function(candidates, ...) {
+    agent <- new.env(parent = emptyenv())
+    agent$get_model <- \() "gpt-test"
+    agent$get_provider <- \() stop("No provider object in this test.")
+    state <<- rill_orientation_tool_state()
+    attr(agent, "rill_orientation_tool_state") <- state
+    agent$run_async <- function(...) {
+      source <- rill_orientation_source_tool(candidates, state)()
+      submit <- rill_orientation_submit_tool(state)
+      cards <- list(list(
+        document_id = source[[1L]]$document_id,
+        role = "anchor",
+        frame = "unresolved_question",
+        interpretation = "The source establishes a useful boundary.",
+        why_now = "It bears on the current reading question.",
+        evidence = "A paraphrase that is not in the source."
+      ))
+      testthat::expect_error(
+        submit(
+          status = "One source deserves attention.",
+          question = "What should stay separate?",
+          introduction = "Start with this source.",
+          cards = cards
+        ),
+        class = "rill_orientation_invalid"
+      )
+      cards[[1L]]$evidence <- "Rill keeps the source feed"
+      submit(
+        status = "One source deserves attention.",
+        question = "What should stay separate?",
+        introduction = "Start with this source.",
+        cards = cards
+      )
+      promises::promise_resolve(orientation_test_agent_result(
+        tool_calls = 3L,
+        run_id = "deputy-orientation-corrected"
+      ))
+    }
+    agent$interrupt <- \(reason) TRUE
+    agent
+  }
+
+  control <- maintain_orientation_async(
+    store = store,
+    reader_id = reader_id,
+    worker_id = "orientation-worker-1",
+    model = "openai/gpt-test",
+    candidate_limit = 3L,
+    destination_check = orientation_test_destination_check(store, reader_id),
+    agent_factory = agent_factory,
+    schedule_timeout = FALSE
+  )
+  resolved <- NULL
+  rejected <- NULL
+  promises::then(
+    control$promise,
+    \(value) resolved <<- value,
+    onRejected = \(error) rejected <<- error
+  )
+  deadline <- Sys.time() + 2
+  while (is.null(resolved) && is.null(rejected) && Sys.time() < deadline) {
+    later::run_now(0.01)
+  }
+  run <- store_get_agent_run(store, reader_id, control$run$run_id)
+  orientation <- store_get_orientation(store, reader_id)
+
+  testthat::expect_null(rejected)
+  testthat::expect_identical(state$submission_attempts, 2L)
+  testthat::expect_identical(state$submission_calls, 1L)
+  testthat::expect_identical(run$status, "completed")
+  testthat::expect_identical(orientation$agent_run_id, run$run_id)
+  testthat::expect_identical(
+    orientation$cards[[1L]]$evidence,
+    "Rill keeps the source feed"
+  )
+})
+
 testthat::test_that("a Reader's active question leaves Orientation maintenance busy", {
   reader_id <- "reader-1"
   store <- local_orientation_backend_store("memory", reader_id)
