@@ -5218,3 +5218,77 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
     "sk-secret|Private provider|source content"
   )
 })
+
+testthat::test_that("Orientation exports nested failure diagnostics on its span and log", {
+  testthat::skip_if_not_installed("otelsdk")
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[config$actor_id]] <- NULL
+  logs <- list()
+  testthat::local_mocked_bindings(
+    telemetry_log = function(level, message, attributes = list()) {
+      if (message == "orientation.maintenance_failed") {
+        logs[[length(logs) + 1L]] <<- attributes
+      }
+    },
+    rill_orientation_agent = function(...) {
+      agent <- new.env(parent = emptyenv())
+      agent$get_model <- \() "gpt-test"
+      agent$get_provider <- \() stop("No provider object in this test.")
+      state <- orientation_test_tool_state(agent, source_calls = 1L)
+      state$submission_attempts <- 1L
+      agent$run_async <- function(...) {
+        promises::promise_reject(rlang::error_cnd(
+          "rlib_error_3_0",
+          message = "Private source text",
+          parent = rlang::error_cnd(
+            c("httr2_http_429", "sk_secret", "request_123456789"),
+            message = "https://private.example/?key=sk-secret"
+          )
+        ))
+      }
+      agent$interrupt <- \(reason) TRUE
+      agent
+    }
+  )
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+      session$flushReact()
+      deadline <- Sys.time() + 2
+      while (orientation_preparing() && Sys.time() < deadline) {
+        later::run_now(0.01)
+        session$flushReact()
+      }
+      testthat::expect_match(output$reader_header$html, "Retry Orientation")
+    })),
+    what = "traces"
+  )
+  traces <- Filter(
+    \(trace) identical(trace$name, "orientation.maintain"),
+    record$traces
+  )
+  testthat::expect_length(traces, 1L)
+  testthat::expect_length(logs, 1L)
+  for (attributes in list(traces[[1L]]$attributes, logs[[1L]])) {
+    testthat::expect_identical(
+      attributes$orientation.failure_stage,
+      "agent_execution"
+    )
+    testthat::expect_identical(attributes$error.type, "rlib_error_3_0")
+    testthat::expect_identical(attributes$error.root_type, "httr2_http_429")
+    testthat::expect_equal(attributes$http.response.status_code, 429)
+    testthat::expect_equal(attributes$orientation.source_calls, 1)
+    testthat::expect_equal(attributes$orientation.submission_attempts, 1)
+    testthat::expect_equal(attributes$orientation.submission_calls, 0)
+  }
+  testthat::expect_length(traces[[1L]]$events, 0L)
+  testthat::expect_no_match(
+    paste(unlist(list(traces = record$traces, logs = logs)), collapse = "\n"),
+    "Private source|private.example|sk-secret|sk_secret|request_123456789"
+  )
+})

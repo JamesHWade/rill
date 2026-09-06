@@ -221,7 +221,8 @@ maintain_orientation_async <- function(
   retry_id = NULL,
   agent_factory = rill_orientation_agent,
   schedule_timeout = TRUE,
-  started_at = Sys.time()
+  started_at = Sys.time(),
+  diagnostics = orientation_diagnostics()
 ) {
   state <- orientation_status(store, reader_id, limit = candidate_limit)
   if (!isTRUE(state$due)) {
@@ -236,6 +237,7 @@ maintain_orientation_async <- function(
     ))
   }
 
+  diagnostics$at("destination_check")
   destination_state <- assert_orientation_destination_enabled(
     destination_check
   )
@@ -253,10 +255,16 @@ maintain_orientation_async <- function(
   if (nzchar(trimws(base_url %||% ""))) {
     agent_arguments$base_url <- base_url
   }
+  diagnostics$at("agent_setup")
   agent <- tryCatch(
     do.call(agent_factory, agent_arguments),
-    error = \(error) error
+    error = function(error) {
+      diagnostics$capture(error)
+      error
+    }
   )
+  diagnostics$agent(agent)
+  diagnostics$at("runtime_identity")
   runtime_identity <- if (inherits(agent, "error")) {
     list(
       model = model,
@@ -284,6 +292,7 @@ maintain_orientation_async <- function(
   )
   request_key <- orientation_request_key(pinned_inputs)
   run_id <- rill_id("agent-run", reader_id, request_key)
+  diagnostics$at("run_start")
   run <- tryCatch(
     store_start_agent_run(
       store,
@@ -363,6 +372,7 @@ maintain_orientation_async <- function(
     }
     retry_key <- orientation_retry_request_key(request_key, retry_id)
     retry_run_id <- rill_id("agent-run", reader_id, retry_key)
+    diagnostics$at("run_retry")
     run <- tryCatch(
       store_retry_agent_run(
         store,
@@ -444,6 +454,7 @@ maintain_orientation_async <- function(
 
   deadline <- started_at + rill_orientation_wall_time_seconds()
   run_id <- run$run_id
+  diagnostics$at("run_claim")
   run <- tryCatch(
     store_claim_agent_run(
       store,
@@ -811,7 +822,9 @@ maintain_orientation_async <- function(
     )
   }
 
+  diagnostics$at("prompt_construction")
   prompt <- orientation_maintenance_prompt(boundary, state$orientation)
+  diagnostics$at("destination_recheck")
   destination_error <- tryCatch(
     {
       assert_orientation_destination_enabled(
@@ -827,6 +840,7 @@ maintain_orientation_async <- function(
   } else if (inherits(agent, "error")) {
     promises::promise_reject(agent)
   } else {
+    diagnostics$at("agent_execution")
     tryCatch(
       agent$run_async(
         prompt,
@@ -838,6 +852,7 @@ maintain_orientation_async <- function(
   promise <- promises::then(
     response,
     onFulfilled = function(result) {
+      diagnostics$at("result_validation")
       settled_result <<- result
       current <- store_get_agent_run(store, reader_id, run$run_id)
       if (
@@ -872,6 +887,7 @@ maintain_orientation_async <- function(
             stop(orientation_stop_error("output_not_submitted"))
           }
           output <- orientation_submitted_output(agent)
+          diagnostics$at("boundary_check")
           current_boundary <- orientation_boundary(orientation_candidates(
             store,
             reader_id,
@@ -884,6 +900,7 @@ maintain_orientation_async <- function(
             )
           }
 
+          diagnostics$at("output_validation")
           orientation <- rill_orientation_from_output(
             output,
             reader_id = reader_id,
@@ -892,6 +909,7 @@ maintain_orientation_async <- function(
             agent_run_id = run$run_id
           )
           orientation$policy_version <- policy_version
+          diagnostics$at("publication")
           published <- store_complete_orientation_run(
             store,
             orientation,
@@ -911,6 +929,7 @@ maintain_orientation_async <- function(
           published
         },
         error = function(error) {
+          diagnostics$capture(error)
           fail_run(error, result)
           stop(error)
         }
@@ -930,6 +949,7 @@ maintain_orientation_async <- function(
           return(cancel_run(result))
         }
       }
+      diagnostics$capture(error)
       fail_run(error, result)
       stop(error)
     }
