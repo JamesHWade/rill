@@ -1,10 +1,61 @@
+orientation_known_error_classes <- function() {
+  c(
+    "condition",
+    "error",
+    "simpleError",
+    "rlang_error",
+    "rlib_error_3_0",
+    "httr2_error",
+    "httr2_failure",
+    "httr2_http",
+    paste0("httr2_http_", 100:599),
+    "curl_error",
+    "deputy_error",
+    "deputy_run_active",
+    "deputy_run_stopped",
+    "deputy_provider",
+    "deputy_tool",
+    "deputy_tool_execution",
+    "deputy_permission",
+    "deputy_permission_denied",
+    "deputy_budget",
+    "deputy_budget_exceeded",
+    "deputy_cost_unavailable",
+    "deputy_request_limit",
+    "deputy_compaction_error",
+    "rill_deputy_api_incompatible",
+    "rill_agent_url_invalid",
+    "rill_agent_run_conflict",
+    "rill_agent_run_claim_failed",
+    "rill_agent_run_draining",
+    "rill_agent_run_replay_conflict",
+    "rill_agent_run_retry_unavailable",
+    "rill_agent_run_status_invalid",
+    "rill_orientation_agent_stopped",
+    "rill_orientation_boundary_changed",
+    "rill_orientation_confirmation_required",
+    "rill_orientation_destination_disabled",
+    "rill_orientation_destination_invalid",
+    "rill_orientation_duplicate_submission",
+    "rill_orientation_endpoint_required",
+    "rill_orientation_invalid",
+    "rill_orientation_policy_required",
+    "rill_orientation_publication_rejected",
+    "rill_orientation_retry_inputs_changed",
+    "rill_orientation_retry_invalid",
+    "rill_orientation_source_not_inspected",
+    "rill_orientation_unavailable"
+  )
+}
+
 orientation_error_attributes <- function(error) {
+  known_classes <- orientation_known_error_classes()
   classes <- character()
   types <- character()
   depth <- 0L
   while (inherits(error, "condition") && depth < 8L) {
-    current <- utils::head(class(error), 8L)
-    current[!grepl("^[a-zA-Z0-9_.]{1,80}$", current)] <- "unknown"
+    current <- unname(utils::head(class(error), 8L))
+    current[!current %in% known_classes] <- "unknown"
     types <- c(types, current[[1L]])
     classes <- union(classes, current)
     depth <- depth + 1L

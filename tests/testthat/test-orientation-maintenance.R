@@ -1537,7 +1537,7 @@ testthat::test_that("Orientation failure messages classify actionable provider f
   )
 })
 
-test_that("Orientation identifies setup, execution, validation, and publication failures", {
+testthat::test_that("Orientation identifies setup, execution, validation, and publication failures", {
   for (failure_stage in c(
     "agent_setup",
     "sync_execution",
@@ -1549,7 +1549,7 @@ test_that("Orientation identifies setup, execution, validation, and publication 
     store <- local_orientation_backend_store("memory", reader_id)
     diagnostics <- orientation_diagnostics()
     failure <- rlang::error_cnd("rlib_error_3_0", message = "Private source")
-    local_mocked_bindings(
+    testthat::local_mocked_bindings(
       store_complete_orientation_run = function(...) stop(failure)
     )
     agent_factory <- function(...) {
@@ -1604,8 +1604,8 @@ test_that("Orientation identifies setup, execution, validation, and publication 
       later::run_now(0.01)
     }
 
-    expect_s3_class(rejected, "error")
-    expect_identical(
+    testthat::expect_s3_class(rejected, "error")
+    testthat::expect_identical(
       diagnostics$attributes(rejected)$orientation.failure_stage,
       if (failure_stage == "sync_execution") {
         "agent_execution"
@@ -1613,10 +1613,10 @@ test_that("Orientation identifies setup, execution, validation, and publication 
         failure_stage
       }
     )
-    expect_identical(
+    testthat::expect_identical(
       store_get_agent_run(store, reader_id, control$run$run_id)$status,
       "failed"
     )
-    expect_null(store_get_orientation(store, reader_id))
+    testthat::expect_null(store_get_orientation(store, reader_id))
   }
 })

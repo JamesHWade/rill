@@ -358,9 +358,10 @@ Rill refuses to start when `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` 
 For Orientation failures, inspect `orientation.maintain` and the matching
 `orientation.maintenance_failed` log. `orientation.failure_stage` separates
 agent setup, execution, result validation, source boundary checks, output
-validation, and publication. `error.classes` retains bounded condition class
-identifiers through up to eight nested causes; `error.root_type` identifies the
-deepest cause only when the chain is complete. `error.chain_truncated` marks
+validation, and publication. `error.classes` retains allowlisted condition class
+identifiers through up to eight nested causes, replacing unrecognized classes
+with `unknown`; `error.root_type` identifies the deepest cause only when the
+chain is complete. `error.chain_truncated` marks
 longer chains. `http.response.status_code` is included only when a condition
 class explicitly identifies an HTTP status. Source-read, submission-attempt,
 and successful-submission counts show how far the agent got. These diagnostics
