@@ -896,3 +896,23 @@ testthat::test_that("background refresh exposes accessible progress and manual-r
   testthat::expect_length(buttons, 2L)
   testthat::expect_all_true(is.na(xml2::xml_attr(buttons, "data-auto-reset")))
 })
+
+testthat::test_that("Orientation failure retains current cards and evidence", {
+  reader_id <- "reader-1"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = reader_id))
+  state <- orientation_status(store, reader_id)
+  failure <- orientation_failure_message("agent_error:httr2_http_401")
+  ui <- orientation_ui(state$orientation, state$candidates, failure = failure)
+  html <- htmltools::renderTags(ui)$html
+  query <- htmltools::tagQuery(ui)
+
+  testthat::expect_match(html, state$orientation$question, fixed = TRUE)
+  testthat::expect_match(
+    html,
+    state$orientation$cards[[1L]]$evidence,
+    fixed = TRUE
+  )
+  testthat::expect_match(html, "provider rejected", fixed = TRUE)
+  testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
+  testthat::expect_length(query$find("#retry_orientation")$selectedTags(), 1L)
+})

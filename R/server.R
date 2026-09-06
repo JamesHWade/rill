@@ -102,6 +102,7 @@ rill_server <- function(config, store) {
     selected_feed <- shiny::reactiveVal(NULL)
     orientation_preparing <- shiny::reactiveVal(FALSE)
     orientation_control <- shiny::reactiveVal(NULL)
+    orientation_failure <- shiny::reactiveVal(NULL)
     orientation_attempted_boundary <- shiny::reactiveVal(NULL)
     orientation_destination_tick <- shiny::reactiveVal(0L)
     orientation_destination_poll_token <- NULL
@@ -1679,7 +1680,9 @@ rill_server <- function(config, store) {
       }
     })
 
-    start_orientation_maintenance <- function() {
+    start_orientation_maintenance <- function(
+      retry_id = orientation_automatic_retry_id()
+    ) {
       destination <- tryCatch(
         orientation_destination_state(store, actor_id, config),
         error = \(error) NULL
@@ -1699,6 +1702,9 @@ rill_server <- function(config, store) {
         error = \(error) error
       )
       if (inherits(prepared, "error")) {
+        orientation_failure(orientation_failure_message(
+          orientation_failure_reason(prepared)
+        ))
         telemetry_log(
           "warn",
           "orientation.preparation_failed",
@@ -1717,6 +1723,18 @@ rill_server <- function(config, store) {
 
       orientation_attempted_boundary(boundary_hash)
       orientation_preparing(TRUE)
+      orientation_failure(NULL)
+      span <- telemetry_start(
+        "orientation.maintain",
+        list(
+          "orientation.candidate_count" = state$boundary$candidate_count,
+          "orientation.explicit_retry" = !identical(
+            retry_id,
+            orientation_automatic_retry_id()
+          )
+        )
+      )
+      finish_trace <- telemetry_finalizer(span)
       control <- tryCatch(
         maintain_orientation_async(
           store = store,
@@ -1727,11 +1745,21 @@ rill_server <- function(config, store) {
           destination_check = \() {
             orientation_destination_state(store, actor_id, config)
           },
-          retry_id = orientation_automatic_retry_id()
+          retry_id = retry_id
         ),
         error = \(error) error
       )
       if (inherits(control, "error")) {
+        orientation_failure(orientation_failure_message(
+          orientation_failure_reason(control)
+        ))
+        finish_trace(
+          "error",
+          list(
+            "orientation.outcome" = "start_failed",
+            "error.type" = class(control)[[1L]]
+          )
+        )
         orientation_preparing(FALSE)
         telemetry_log(
           "warn",
@@ -1748,6 +1776,17 @@ rill_server <- function(config, store) {
       )
       orientation_control(control)
       if (!identical(control$status, "running") || is.null(control$promise)) {
+        if (control$status %in% c("failed", "cancelled", "interrupted")) {
+          orientation_failure(orientation_failure_message(
+            control$run$terminal_reason %||% control$status
+          ))
+        }
+        finish_trace(
+          attributes = list(
+            "orientation.outcome" = control$status,
+            "orientation.execution_started" = FALSE
+          )
+        )
         orientation_preparing(FALSE)
         orientation_control(NULL)
         if (control$status %in% c("busy", "running")) {
@@ -1758,7 +1797,25 @@ rill_server <- function(config, store) {
         return(invisible(control))
       }
 
-      settle <- function(value = NULL) {
+      settle <- function(value = NULL, error = NULL) {
+        outcome <- if (!is.null(error)) {
+          "failed"
+        } else if (!is.null(value$orientation$revision_id)) {
+          "published"
+        } else {
+          "stopped"
+        }
+        finish_trace(
+          status = if (is.null(error)) "ok" else "error",
+          attributes = list(
+            "orientation.outcome" = outcome,
+            "orientation.execution_started" = TRUE,
+            "orientation.card_count" = if (identical(outcome, "published")) {
+              length(value$orientation$cards)
+            },
+            "error.type" = if (!is.null(error)) class(error)[[1L]]
+          )
+        )
         if (session$isClosed()) {
           return(value)
         }
@@ -1774,6 +1831,13 @@ rill_server <- function(config, store) {
         }
         orientation_preparing(FALSE)
         orientation_control(NULL)
+        if (!is.null(error)) {
+          orientation_failure(orientation_failure_message(
+            orientation_failure_reason(error)
+          ))
+        } else {
+          orientation_failure(NULL)
+        }
         bump_refresh()
         value
       }
@@ -1786,11 +1850,36 @@ rill_server <- function(config, store) {
             "orientation.maintenance_failed",
             list("error.type" = class(error)[[1L]])
           )
-          settle(NULL)
+          settle(NULL, error = error)
         }
       )
       invisible(control)
     }
+
+    retry_orientation <- function() {
+      if (is.null(shiny::isolate(orientation_failure()))) {
+        return(invisible(NULL))
+      }
+      orientation_attempted_boundary(NULL)
+      start_orientation_maintenance(
+        retry_id = rill_id(
+          "orientation-reader-retry",
+          session_id,
+          utc_now(),
+          stats::runif(1)
+        )
+      )
+    }
+    shiny::observeEvent(
+      input$retry_orientation,
+      retry_orientation(),
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$retry_orientation_queue,
+      retry_orientation(),
+      ignoreInit = TRUE
+    )
 
     if (!isTRUE(config$demo_mode)) {
       shiny::observe({
@@ -2355,6 +2444,7 @@ rill_server <- function(config, store) {
         state$orientation,
         state$candidates,
         preparing = orientation_preparing(),
+        failure = orientation_failure(),
         processing_note = orientation_processing_note(
           store,
           state$orientation,
@@ -2415,6 +2505,7 @@ rill_server <- function(config, store) {
           state$orientation,
           state$candidates,
           preparing = orientation_preparing(),
+          failure = orientation_failure(),
           processing_note = orientation_processing_note(
             store,
             state$orientation,

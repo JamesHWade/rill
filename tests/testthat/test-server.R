@@ -4913,3 +4913,130 @@ testthat::test_that("OPML import registers feeds before any refresh", {
     testthat::expect_equal(nrow(store_list_feeds(store, config$actor_id)), 4L)
   })
 })
+
+testthat::test_that("Orientation exposes provider rejection and permits one explicit retry", {
+  testthat::skip_if_not_installed("otelsdk")
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[config$actor_id]] <- NULL
+  provider_calls <- 0L
+  resolve_retry <- NULL
+  testthat::local_mocked_bindings(
+    rill_orientation_agent = function(candidates, ...) {
+      agent <- new.env(parent = emptyenv())
+      agent$get_model <- \() "gpt-test"
+      agent$get_provider <- \() stop("No provider object in this test.")
+      orientation_test_tool_state(
+        agent,
+        list(
+          status = "One source deserves attention.",
+          question = "What deserves a closer reading?",
+          introduction = "Start with this source.",
+          cards = list(list(
+            document_id = candidates[[1L]]$document$document_id,
+            role = "anchor",
+            frame = "unresolved_question",
+            interpretation = "This source raises a useful question.",
+            why_now = "It is in the current unread set.",
+            evidence = substr(candidates[[1L]]$document$markdown, 1L, 80L)
+          ))
+        )
+      )
+      agent$run_async <- function(...) {
+        provider_calls <<- provider_calls + 1L
+        if (provider_calls <= 2L) {
+          return(promises::promise_reject(rlang::error_cnd(
+            "httr2_http_401",
+            message = "Private provider error with sk-secret and source content."
+          )))
+        }
+        promises::promise(function(resolve, reject) {
+          resolve_retry <<- resolve
+        })
+      }
+      agent$interrupt <- \(reason) TRUE
+      agent
+    }
+  )
+
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop({
+      for (index in seq_len(3L)) {
+        shiny::testServer(rill_server(config, store), {
+          session$flushReact()
+          deadline <- Sys.time() + 2
+          while (orientation_preparing() && Sys.time() < deadline) {
+            later::run_now(0.01)
+            session$flushReact()
+          }
+          html <- output$reader_header$html
+          testthat::expect_match(html, "provider rejected", fixed = TRUE)
+          testthat::expect_match(html, "Retry Orientation", fixed = TRUE)
+          testthat::expect_no_match(
+            html,
+            "Orientation will appear",
+            fixed = TRUE
+          )
+          testthat::expect_no_match(
+            html,
+            "sk-secret|Private provider|source content"
+          )
+          testthat::expect_match(
+            output$orientation_queue_status$html,
+            "provider rejected",
+            fixed = TRUE
+          )
+          if (index == 3L) {
+            testthat::expect_identical(provider_calls, 2L)
+            set_orientation_enabled(store, config$actor_id, FALSE, config)
+            session$setInputs(retry_orientation = 1L)
+            testthat::expect_identical(provider_calls, 2L)
+            set_orientation_enabled(store, config$actor_id, TRUE, config)
+            session$setInputs(retry_orientation = 2L)
+            testthat::expect_identical(provider_calls, 3L)
+            session$setInputs(retry_orientation = 3L)
+            testthat::expect_identical(provider_calls, 3L)
+            resolve_retry(orientation_test_agent_result())
+            deadline <- Sys.time() + 2
+            while (orientation_preparing() && Sys.time() < deadline) {
+              later::run_now(0.01)
+              session$flushReact()
+            }
+            session$flushReact()
+            testthat::expect_no_match(
+              output$reader_header$html,
+              "provider rejected"
+            )
+            testthat::expect_match(
+              output$reader_header$html,
+              "What deserves a closer reading?",
+              fixed = TRUE
+            )
+            session$setInputs(retry_orientation = 4L)
+            testthat::expect_identical(provider_calls, 3L)
+          }
+        })
+      }
+    }),
+    what = "traces"
+  )
+  traces <- lapply(record$traces, `[[`, "attributes")
+  published <- Filter(
+    function(trace) {
+      identical(trace$orientation.outcome, "published")
+    },
+    traces
+  )
+  testthat::expect_length(published, 1L)
+  testthat::expect_equal(published[[1L]]$orientation.card_count, 1)
+  testthat::expect_identical(published[[1L]]$orientation.explicit_retry, TRUE)
+  testthat::expect_no_match(
+    as.character(canonical_json(traces)),
+    "sk-secret|Private provider|source content"
+  )
+})

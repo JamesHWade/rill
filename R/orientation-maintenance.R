@@ -148,6 +148,26 @@ orientation_cancellation_confirmed <- function(
       ))
 }
 
+orientation_failure_message <- function(reason) {
+  if (grepl("(^|:)httr2_http_(401|403)$", reason)) {
+    return(paste(
+      "The provider rejected Orientation's request.",
+      "The app's provider credentials or permissions need attention.",
+      "You can keep reading and retry after they are corrected."
+    ))
+  }
+  if (grepl("(^|:)httr2_http_429$", reason)) {
+    return(paste(
+      "The provider's rate or usage limit stopped Orientation.",
+      "You can keep reading and retry later."
+    ))
+  }
+  paste(
+    "Rill couldn't finish evaluating your unread Documents.",
+    "You can keep reading and retry Orientation."
+  )
+}
+
 orientation_failure_reason <- function(error) {
   paste0("agent_error:", class(error)[[1L]])
 }

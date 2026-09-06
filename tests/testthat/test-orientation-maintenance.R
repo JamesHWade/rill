@@ -1509,3 +1509,26 @@ testthat::test_that("Orientation exposes cancellation and wall-time boundaries",
   )
   testthat::expect_null(store_get_orientation(timed_store, reader_id))
 })
+
+testthat::test_that("Orientation failure messages classify actionable provider failures", {
+  testthat::expect_match(
+    orientation_failure_message("agent_error:httr2_http_403"),
+    "credentials or permissions",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    orientation_failure_message("agent_error:httr2_http_429"),
+    "rate or usage limit",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    orientation_failure_message("wall_time_limit"),
+    "couldn't finish",
+    fixed = TRUE
+  )
+  testthat::expect_no_match(
+    orientation_failure_message("private-provider-value"),
+    "private-provider-value",
+    fixed = TRUE
+  )
+})
