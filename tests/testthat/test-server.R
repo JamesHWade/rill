@@ -4914,6 +4914,91 @@ testthat::test_that("OPML import registers feeds before any refresh", {
   })
 })
 
+testthat::test_that("stopped Orientation attempts do not trace retained cards as published", {
+  testthat::skip_if_not_installed("otelsdk")
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[
+    config$actor_id
+  ]]$boundary$hash <- "previous-boundary"
+  retained <- store_get_orientation(store, config$actor_id)
+  terminal_status <- NULL
+  resolve_outcome <- NULL
+  pending_result <- NULL
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      run <- list(
+        run_id = "current-attempt",
+        status = terminal_status,
+        terminal_reason = if (terminal_status == "failed") {
+          "wall_time_limit"
+        } else {
+          "reader_question"
+        }
+      )
+      pending_result <<- list(run = run, orientation = retained)
+      list(
+        status = "running",
+        run = run,
+        promise = promises::promise(function(resolve, reject) {
+          resolve_outcome <<- resolve
+        }),
+        interrupt = \(reason) invisible(NULL)
+      )
+    }
+  )
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop({
+      for (status in c("cancelled", "failed", "completed")) {
+        terminal_status <- status
+        shiny::testServer(rill_server(config, store), {
+          session$flushReact()
+          resolve_outcome(pending_result)
+          deadline <- Sys.time() + 2
+          while (orientation_preparing() && Sys.time() < deadline) {
+            later::run_now(0.01)
+            session$flushReact()
+          }
+          testthat::expect_match(
+            output$reader_header$html,
+            retained$question,
+            fixed = TRUE
+          )
+          if (terminal_status != "completed") {
+            testthat::expect_match(
+              output$reader_header$html,
+              "Retry Orientation"
+            )
+          }
+        })
+      }
+    }),
+    what = "traces"
+  )
+  traces <- Filter(
+    \(trace) identical(trace$name, "orientation.maintain"),
+    record$traces
+  )
+  testthat::expect_identical(
+    unname(vapply(
+      traces,
+      \(trace) trace$attributes$orientation.outcome,
+      character(1)
+    )),
+    c("cancelled", "failed", "stopped")
+  )
+  testthat::expect_all_true(vapply(
+    traces,
+    \(trace) is.null(trace$attributes$orientation.card_count),
+    logical(1)
+  ))
+})
+
 testthat::test_that("Orientation exposes provider rejection and permits one explicit retry", {
   testthat::skip_if_not_installed("otelsdk")
   withr::local_envvar(DATABASE_URL = "")

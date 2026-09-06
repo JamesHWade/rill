@@ -1798,15 +1798,22 @@ rill_server <- function(config, store) {
       }
 
       settle <- function(value = NULL, error = NULL) {
+        run_status <- value$run$status %||% "stopped"
         outcome <- if (!is.null(error)) {
           "failed"
-        } else if (!is.null(value$orientation$revision_id)) {
+        } else if (run_status %in% c("failed", "cancelled", "interrupted")) {
+          run_status
+        } else if (
+          identical(run_status, "completed") &&
+            identical(value$run$run_id, control$run$run_id) &&
+            identical(value$orientation$agent_run_id, control$run$run_id)
+        ) {
           "published"
         } else {
           "stopped"
         }
         finish_trace(
-          status = if (is.null(error)) "ok" else "error",
+          status = if (identical(outcome, "failed")) "error" else "ok",
           attributes = list(
             "orientation.outcome" = outcome,
             "orientation.execution_started" = TRUE,
@@ -1831,9 +1838,13 @@ rill_server <- function(config, store) {
         }
         orientation_preparing(FALSE)
         orientation_control(NULL)
-        if (!is.null(error)) {
+        if (outcome %in% c("failed", "cancelled", "interrupted")) {
           orientation_failure(orientation_failure_message(
-            orientation_failure_reason(error)
+            if (!is.null(error)) {
+              orientation_failure_reason(error)
+            } else {
+              value$run$terminal_reason %||% outcome
+            }
           ))
         } else {
           orientation_failure(NULL)

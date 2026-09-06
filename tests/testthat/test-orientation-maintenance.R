@@ -1511,6 +1511,10 @@ testthat::test_that("Orientation exposes cancellation and wall-time boundaries",
 })
 
 testthat::test_that("Orientation failure messages classify actionable provider failures", {
+  testthat::expect_identical(
+    orientation_failure_message(NA_character_),
+    orientation_failure_message("wall_time_limit")
+  )
   testthat::expect_match(
     orientation_failure_message("agent_error:httr2_http_403"),
     "credentials or permissions",
