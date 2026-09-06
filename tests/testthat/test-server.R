@@ -4914,6 +4914,47 @@ testthat::test_that("OPML import registers feeds before any refresh", {
   })
 })
 
+testthat::test_that("a current Orientation clears an earlier maintenance failure", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  confirm_test_orientation_destination(store, config)
+  store$memory$orientations[[
+    config$actor_id
+  ]]$boundary$hash <- "previous-boundary"
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      calls <<- calls + 1L
+      list(
+        status = "failed",
+        run = list(terminal_reason = "HTTP 401")
+      )
+    }
+  )
+
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    testthat::expect_match(output$reader_header$html, "Retry Orientation")
+
+    store$memory$orientations[[config$actor_id]]$boundary <-
+      orientation_status(store, config$actor_id)$boundary
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_identical(
+      orientation_status(store, config$actor_id)$due,
+      FALSE
+    )
+    testthat::expect_null(orientation_failure())
+    testthat::expect_no_match(output$reader_header$html, "Retry Orientation")
+    testthat::expect_identical(calls, 1L)
+  }))
+})
+
 testthat::test_that("stopped Orientation attempts do not trace retained cards as published", {
   testthat::skip_if_not_installed("otelsdk")
   withr::local_envvar(DATABASE_URL = "")

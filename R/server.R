@@ -1714,10 +1714,11 @@ rill_server <- function(config, store) {
       }
       state <- orientation_status(store, actor_id)
       boundary_hash <- state$boundary$hash
-      if (
-        !isTRUE(state$due) ||
-          identical(orientation_attempted_boundary(), boundary_hash)
-      ) {
+      if (!isTRUE(state$due)) {
+        orientation_failure(NULL)
+        return(invisible(NULL))
+      }
+      if (identical(orientation_attempted_boundary(), boundary_hash)) {
         return(invisible(NULL))
       }
 
