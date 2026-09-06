@@ -337,6 +337,59 @@ testthat::test_that("structured output becomes a validated source-linked Orienta
   )
 })
 
+testthat::test_that("invalid editorial content stays correctable before acceptance", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 1L)
+  state <- rill_orientation_tool_state()
+  source <- rill_orientation_source_tool(candidates, state)()
+  submit <- rill_orientation_submit_tool(state)
+  output <- list(
+    status = "One source deserves attention.",
+    question = "What should stay separate?",
+    introduction = "Start with this source.",
+    cards = list(list(
+      document_id = source[[1L]]$document_id,
+      role = "anchor",
+      frame = "unresolved_question",
+      interpretation = "The source establishes a useful boundary.",
+      why_now = "It bears on the current reading question.",
+      evidence = "Rill keeps the source feed"
+    ))
+  )
+  for (field in c("status", "question", "introduction")) {
+    invalid <- output
+    invalid[field] <- list(NULL)
+    testthat::expect_error(
+      do.call(submit, invalid),
+      class = "rill_orientation_invalid"
+    )
+  }
+  for (field in c("role", "frame", "interpretation", "why_now")) {
+    invalid <- output
+    invalid$cards[[1L]][[field]] <- ""
+    testthat::expect_error(
+      do.call(submit, invalid),
+      class = "rill_orientation_invalid"
+    )
+  }
+  invalid <- output
+  invalid$cards[[1L]]$role <- "contrast"
+  testthat::expect_error(
+    do.call(submit, invalid),
+    class = "rill_orientation_invalid"
+  )
+  invalid <- output
+  invalid$cards[[2L]] <- invalid$cards[[1L]]
+  testthat::expect_error(
+    do.call(submit, invalid),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_null(state$output)
+  testthat::expect_identical(state$submission_calls, 0L)
+  testthat::expect_identical(do.call(submit, output), "Orientation accepted.")
+  testthat::expect_identical(state$submission_calls, 1L)
+})
+
 testthat::test_that("invalid Source Evidence can be corrected before submission is accepted", {
   store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)

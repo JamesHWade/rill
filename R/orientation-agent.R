@@ -270,11 +270,17 @@ rill_orientation_output_type <- function() {
       "Compact factual status, especially when no cards clear the threshold."
     ),
     question = ellmer::type_string(
-      "The framing question connecting the selected reading path.",
+      paste(
+        "The framing question connecting the selected reading path.",
+        "Required when cards are selected."
+      ),
       required = FALSE
     ),
     introduction = ellmer::type_string(
-      "One concise sentence explaining how to read the path.",
+      paste(
+        "One concise sentence explaining how to read the path.",
+        "Required when cards are selected."
+      ),
       required = FALSE
     ),
     cards = ellmer::type_array(ellmer::type_object(
@@ -366,7 +372,7 @@ rill_orientation_output_cards <- function(output, inspected_payload) {
       "document_id"
     )
   )
-  lapply(cards, function(card) {
+  cards <- lapply(cards, function(card) {
     for (field in c("role", "frame")) {
       if (is.factor(card[[field]])) {
         card[[field]] <- as.character(card[[field]])
@@ -396,6 +402,9 @@ rill_orientation_output_cards <- function(output, inspected_payload) {
       evidence = evidence
     )
   })
+  output$cards <- cards
+  validate_orientation_content(output)
+  cards
 }
 
 rill_orientation_from_output <- function(

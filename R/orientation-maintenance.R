@@ -120,7 +120,7 @@ orientation_sources_inspected <- function(agent) {
 orientation_output_submitted <- function(agent) {
   state <- rill_orientation_agent_tool_state(agent)
   !is.null(state) &&
-    identical(state$submission_attempts, 1L) &&
+    state$submission_attempts >= 1L &&
     identical(state$submission_calls, 1L) &&
     is.list(state$output)
 }
