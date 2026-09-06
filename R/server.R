@@ -1742,6 +1742,7 @@ rill_server <- function(config, store) {
         )
       )
       finish_trace <- telemetry_finalizer(span)
+      diagnostics <- orientation_diagnostics()
       control <- tryCatch(
         maintain_orientation_async(
           store = store,
@@ -1752,7 +1753,8 @@ rill_server <- function(config, store) {
           destination_check = \() {
             orientation_destination_state(store, actor_id, config)
           },
-          retry_id = retry_id
+          retry_id = retry_id,
+          diagnostics = diagnostics
         ),
         error = \(error) error
       )
@@ -1762,16 +1764,16 @@ rill_server <- function(config, store) {
         ))
         finish_trace(
           "error",
-          list(
-            "orientation.outcome" = "start_failed",
-            "error.type" = class(control)[[1L]]
+          c(
+            list("orientation.outcome" = "start_failed"),
+            diagnostics$attributes(control)
           )
         )
         orientation_preparing(FALSE)
         telemetry_log(
           "warn",
           "orientation.start_failed",
-          list("error.type" = class(control)[[1L]])
+          diagnostics$attributes(control)
         )
         return(invisible(NULL))
       }
@@ -1821,13 +1823,15 @@ rill_server <- function(config, store) {
         }
         finish_trace(
           status = if (identical(outcome, "failed")) "error" else "ok",
-          attributes = list(
-            "orientation.outcome" = outcome,
-            "orientation.execution_started" = TRUE,
-            "orientation.card_count" = if (identical(outcome, "published")) {
-              length(value$orientation$cards)
-            },
-            "error.type" = if (!is.null(error)) class(error)[[1L]]
+          attributes = c(
+            list(
+              "orientation.outcome" = outcome,
+              "orientation.execution_started" = TRUE,
+              "orientation.card_count" = if (identical(outcome, "published")) {
+                length(value$orientation$cards)
+              }
+            ),
+            diagnostics$attributes(error)
           )
         )
         if (session$isClosed()) {
@@ -1866,7 +1870,7 @@ rill_server <- function(config, store) {
           telemetry_log(
             "warn",
             "orientation.maintenance_failed",
-            list("error.type" = class(error)[[1L]])
+            diagnostics$attributes(error)
           )
           settle(NULL, error = error)
         }

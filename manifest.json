@@ -2829,11 +2829,14 @@
     "R/orientation-agent.R": {
       "checksum": "d4b589286b25ca125cce1c4476897b00"
     },
+    "R/orientation-diagnostics.R": {
+      "checksum": "7c357867ae1121eb3e1b5f141e4a0c27"
+    },
     "R/orientation-destination.R": {
       "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
     },
     "R/orientation-maintenance.R": {
-      "checksum": "01005f840062435425cfba20641e8f8a"
+      "checksum": "ed73a7b31f9bb79559a74e3a19754524"
     },
     "R/orientation.R": {
       "checksum": "56549db920f4bb398a7d68f94d35ca4a"
@@ -2851,7 +2854,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "962940b975e88fcd451fb3f7f607d92a"
+      "checksum": "22f2aa2ee9c5d94d027471be48e9a282"
     },
     "R/telemetry.R": {
       "checksum": "8c574df1a5e8024840c5027369e8ad01"

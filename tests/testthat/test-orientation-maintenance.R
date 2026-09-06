@@ -1536,3 +1536,87 @@ testthat::test_that("Orientation failure messages classify actionable provider f
     fixed = TRUE
   )
 })
+
+test_that("Orientation identifies setup, execution, validation, and publication failures", {
+  for (failure_stage in c(
+    "agent_setup",
+    "sync_execution",
+    "agent_execution",
+    "output_validation",
+    "publication"
+  )) {
+    reader_id <- "reader-1"
+    store <- local_orientation_backend_store("memory", reader_id)
+    diagnostics <- orientation_diagnostics()
+    failure <- rlang::error_cnd("rlib_error_3_0", message = "Private source")
+    local_mocked_bindings(
+      store_complete_orientation_run = function(...) stop(failure)
+    )
+    agent_factory <- function(...) {
+      if (failure_stage == "agent_setup") {
+        stop(failure)
+      }
+      agent <- new.env(parent = emptyenv())
+      agent$get_model <- \() "gpt-test"
+      agent$get_provider <- \() stop("No provider object in this test.")
+      orientation_test_tool_state(
+        agent,
+        list(status = "Nothing to add.", cards = list())
+      )
+      agent$run_async <- function(...) {
+        if (failure_stage == "sync_execution") {
+          stop(failure)
+        }
+        if (failure_stage == "agent_execution") {
+          return(promises::promise_reject(failure))
+        }
+        if (failure_stage == "output_validation") {
+          orientation_test_tool_state(
+            agent,
+            list(
+              status = "Invalid",
+              cards = list(list(document_id = "outside-boundary"))
+            )
+          )
+          diagnostics$agent(agent)
+        }
+        promises::promise_resolve(orientation_test_agent_result())
+      }
+      agent$interrupt <- \(reason) TRUE
+      agent
+    }
+    control <- maintain_orientation_async(
+      store,
+      reader_id,
+      "worker-1",
+      model = "openai/gpt-test",
+      destination_check = orientation_test_destination_check(store, reader_id),
+      agent_factory = agent_factory,
+      schedule_timeout = FALSE,
+      diagnostics = diagnostics
+    )
+    rejected <- NULL
+    promises::then(control$promise, onRejected = function(error) {
+      rejected <<- error
+    })
+    deadline <- Sys.time() + 2
+    while (is.null(rejected) && Sys.time() < deadline) {
+      later::run_now(0.01)
+    }
+
+    expect_s3_class(rejected, "error")
+    expect_identical(
+      diagnostics$attributes(rejected)$orientation.failure_stage,
+      if (failure_stage == "sync_execution") {
+        "agent_execution"
+      } else {
+        failure_stage
+      }
+    )
+    expect_identical(
+      store_get_agent_run(store, reader_id, control$run$run_id)$status,
+      "failed"
+    )
+    expect_null(store_get_orientation(store, reader_id))
+  }
+})
