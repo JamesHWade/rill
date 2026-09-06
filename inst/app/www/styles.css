@@ -1333,6 +1333,18 @@ div.story-list.shiny-html-output {
   line-height: 1.55;
 }
 
+.orientation-status pre,
+.orientation-status > p {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.orientation-status details {
+  margin-top: 8px;
+}
+
 .orientation-disclosure {
   display: flex;
   max-width: 660px;

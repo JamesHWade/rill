@@ -5130,7 +5130,7 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
         if (provider_calls <= 2L) {
           return(promises::promise_reject(rlang::error_cnd(
             "httr2_http_401",
-            message = "Private provider error with sk-secret and source content."
+            message = "The project does not have model access."
           )))
         }
         promises::promise(function(resolve, reject) {
@@ -5153,7 +5153,12 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
             session$flushReact()
           }
           html <- output$reader_header$html
-          testthat::expect_match(html, "provider rejected", fixed = TRUE)
+          expected_message <- if (index < 3L) {
+            "The project does not have model access."
+          } else {
+            "provider rejected"
+          }
+          testthat::expect_match(html, expected_message, fixed = TRUE)
           testthat::expect_match(html, "Retry Orientation", fixed = TRUE)
           testthat::expect_no_match(
             html,
@@ -5166,7 +5171,7 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
           )
           testthat::expect_match(
             output$orientation_queue_status$html,
-            "provider rejected",
+            expected_message,
             fixed = TRUE
           )
           if (index == 3L) {
@@ -5265,6 +5270,10 @@ testthat::test_that("Orientation exports nested failure diagnostics on its span 
         session$flushReact()
       }
       testthat::expect_match(output$reader_header$html, "Retry Orientation")
+      testthat::expect_s3_class(orientation_failure(), "rlib_error_3_0")
+      testthat::expect_match(output$reader_header$html, "Private source text")
+      testthat::expect_match(output$reader_header$html, "Caused by error")
+      testthat::expect_match(output$reader_header$html, "Error details")
     })),
     what = "traces"
   )

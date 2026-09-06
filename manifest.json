@@ -2740,7 +2740,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "973026d39befdf19555de6e0153cb625"
+      "checksum": "1dc1b3a2ae02c7188e693dfd51f7d9b7"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2830,7 +2830,7 @@
       "checksum": "d4b589286b25ca125cce1c4476897b00"
     },
     "R/orientation-diagnostics.R": {
-      "checksum": "df04680d1fafd598cc355a36ca2e2179"
+      "checksum": "3f730e4d0510b5241f73d7c34bf30511"
     },
     "R/orientation-destination.R": {
       "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
@@ -2854,13 +2854,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "22f2aa2ee9c5d94d027471be48e9a282"
+      "checksum": "b7009b6aa278518531414ee9e55d5f87"
     },
     "R/telemetry.R": {
-      "checksum": "8c574df1a5e8024840c5027369e8ad01"
+      "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "e9326d8bd83fb59aafc4e006e068565c"
+      "checksum": "5582c1cd4e2d3c7fc9e2bfe85b21b6a6"
     }
   },
   "users": null

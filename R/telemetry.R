@@ -280,6 +280,7 @@ telemetry_log <- function(
     error = otel::log_error
   )
 
+  attributes <- Filter(Negate(is.null), attributes)
   tryCatch(
     logger(message, attributes = attributes, logger = "rill"),
     error = function(error) invisible(NULL)

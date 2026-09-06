@@ -975,10 +975,7 @@ orientation_ui <- function(
       rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
       shiny::tags$h1("Choose something worth reading"),
-      shiny::tags$p(
-        class = "orientation-status",
-        role = "status",
-        `aria-live` = "polite",
+      orientation_failure_ui(
         if (preparing) {
           "Evaluating the current unread Documents\u2026"
         } else {
@@ -1169,12 +1166,7 @@ orientation_queue_status_ui <- function(
     class = "orientation-queue-status",
     `aria-label` = "Orientation status",
     shiny::tags$strong("Orientation"),
-    shiny::tags$p(
-      class = "orientation-status",
-      role = "status",
-      `aria-live` = "polite",
-      status
-    ),
+    orientation_failure_ui(status),
     if (!is.null(orientation)) {
       orientation_evaluated_basis(
         orientation,
@@ -1191,6 +1183,20 @@ orientation_queue_status_ui <- function(
 orientation_failure_ui <- function(failure) {
   if (is.null(failure)) {
     return(NULL)
+  }
+  if (inherits(failure, "condition")) {
+    return(shiny::tags$div(
+      class = "orientation-status",
+      shiny::tags$p(
+        role = "status",
+        `aria-live` = "polite",
+        conditionMessage(failure)
+      ),
+      shiny::tags$details(
+        shiny::tags$summary("Error details"),
+        shiny::tags$pre(paste(format(failure), collapse = "\n"))
+      )
+    ))
   }
   shiny::tags$p(
     class = "orientation-status",

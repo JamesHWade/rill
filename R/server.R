@@ -1708,9 +1708,7 @@ rill_server <- function(config, store) {
         error = \(error) error
       )
       if (inherits(prepared, "error")) {
-        orientation_failure(orientation_failure_message(
-          orientation_failure_reason(prepared)
-        ))
+        orientation_failure(prepared)
         telemetry_log(
           "warn",
           "orientation.preparation_failed",
@@ -1759,9 +1757,7 @@ rill_server <- function(config, store) {
         error = \(error) error
       )
       if (inherits(control, "error")) {
-        orientation_failure(orientation_failure_message(
-          orientation_failure_reason(control)
-        ))
+        orientation_failure(diagnostics$error() %||% control)
         finish_trace(
           "error",
           c(
@@ -1850,13 +1846,13 @@ rill_server <- function(config, store) {
         orientation_preparing(FALSE)
         orientation_control(NULL)
         if (outcome %in% c("failed", "cancelled", "interrupted")) {
-          orientation_failure(orientation_failure_message(
-            if (!is.null(error)) {
-              orientation_failure_reason(error)
-            } else {
-              value$run$terminal_reason %||% outcome
-            }
-          ))
+          orientation_failure(
+            diagnostics$error() %||%
+              error %||%
+              orientation_failure_message(
+                value$run$terminal_reason %||% outcome
+              )
+          )
         } else {
           orientation_failure(NULL)
         }

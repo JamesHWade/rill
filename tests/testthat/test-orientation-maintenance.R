@@ -1605,6 +1605,12 @@ testthat::test_that("Orientation identifies setup, execution, validation, and pu
     }
 
     testthat::expect_s3_class(rejected, "error")
+    testthat::expect_identical(diagnostics$error(), rejected)
+    if (failure_stage == "output_validation") {
+      html <- htmltools::renderTags(orientation_failure_ui(rejected))$html
+      testthat::expect_match(html, conditionMessage(rejected), fixed = TRUE)
+      testthat::expect_match(html, "boundary", fixed = TRUE)
+    }
     testthat::expect_identical(
       diagnostics$attributes(rejected)$orientation.failure_stage,
       if (failure_stage == "sync_execution") {
