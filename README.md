@@ -368,6 +368,14 @@ and successful-submission counts show how far the agent got. These diagnostics
 exclude exception messages, calls, stacks, response bodies, and tool payloads.
 Failures before execution use the same fields on `orientation.start_failed`.
 
+The Reader session retains the original Orientation error condition. The failure
+notice displays its native message, including nested causes, and **Error details**
+shows the condition's native formatting and available backtrace. This preserves
+ellmer's provider explanation and httr2's HTTP error details, as well as Rill's
+specific validation errors. These details stay in the current Reader session;
+they are not persisted in the Agent Run ledger or exported to Logfire. Reloading
+the session loses them.
+
 Because this is OTLP rather than a Logfire-specific client, Grafana Cloud, Honeycomb, or another collector can replace Logfire without changing the app's instrumentation. The `events` table is deliberately separate: those records are the material for later ranking, daily review, and behavioral analysis.
 
 ## Deploy a personal instance to Posit Connect Cloud

@@ -79,9 +79,11 @@ orientation_error_attributes <- function(error) {
 orientation_diagnostics <- function() {
   stage <- "candidate_selection"
   failure <- NULL
+  original_error <- NULL
   tool_state <- NULL
   capture <- function(error) {
     if (is.null(failure)) {
+      original_error <<- error
       failure <<- c(
         list("orientation.failure_stage" = stage),
         orientation_error_attributes(error)
@@ -99,6 +101,7 @@ orientation_diagnostics <- function() {
       invisible(NULL)
     },
     capture = capture,
+    error = \() original_error,
     attributes = function(error = NULL) {
       if (!is.null(error)) {
         capture(error)

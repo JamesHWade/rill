@@ -58,6 +58,7 @@ testthat::test_that("Orientation diagnostics preserve the original failure throu
     message = "Reader text"
   )
   diagnostics$capture(original)
+  testthat::expect_identical(diagnostics$error(), original)
   diagnostics$at("publication")
   attributes <- diagnostics$attributes(simpleError("Database password"))
 
@@ -65,6 +66,7 @@ testthat::test_that("Orientation diagnostics preserve the original failure throu
     attributes$orientation.failure_stage,
     "output_validation"
   )
+  testthat::expect_identical(diagnostics$error(), original)
   testthat::expect_identical(attributes$error.type, "rill_orientation_invalid")
   testthat::expect_identical(attributes$orientation.source_calls, 1L)
   testthat::expect_identical(attributes$orientation.submission_attempts, 1L)
@@ -103,4 +105,30 @@ testthat::test_that("Orientation exports only known class identifiers at every d
       "sk_secret|request_123456789|Private source"
     )
   }
+})
+
+testthat::test_that("Orientation retains ellmer and httr2's native provider error", {
+  chat <- ellmer::chat_openai(model = "gpt-test", credentials = \() "test-key")
+  response <- httr2::response_json(
+    status_code = 401L,
+    body = list(
+      error = list(message = "The project does not have model access.")
+    )
+  )
+  error <- httr2::with_mocked_responses(
+    list(response),
+    tryCatch(chat$chat("test"), error = identity)
+  )
+  testthat::expect_s3_class(error, "httr2_http_401")
+  diagnostics <- orientation_diagnostics()
+  diagnostics$capture(error)
+  testthat::expect_identical(diagnostics$error(), error)
+  testthat::expect_identical(diagnostics$error()$resp, error$resp)
+  html <- htmltools::renderTags(orientation_failure_ui(diagnostics$error()))$html
+  testthat::expect_match(html, "HTTP 401", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "The project does not have model access.",
+    fixed = TRUE
+  )
 })

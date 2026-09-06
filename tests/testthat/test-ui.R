@@ -916,3 +916,23 @@ testthat::test_that("Orientation failure retains current cards and evidence", {
   testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
   testthat::expect_length(query$find("#retry_orientation")$selectedTags(), 1L)
 })
+
+testthat::test_that("Orientation reports native errors and causes as escaped text", {
+  error <- tryCatch(
+    rlang::abort(
+      "Orientation failed",
+      parent = rlang::error_cnd(
+        "httr2_http_429",
+        message = "Quota exceeded for <model>",
+        response = list(body = "private response payload")
+      )
+    ),
+    error = identity
+  )
+  html <- htmltools::renderTags(orientation_failure_ui(error))$html
+  testthat::expect_match(html, "Error details", fixed = TRUE)
+  testthat::expect_match(html, "Quota exceeded for &lt;model&gt;", fixed = TRUE)
+  testthat::expect_match(html, "Caused by error", fixed = TRUE)
+  testthat::expect_match(html, "Backtrace", fixed = TRUE)
+  testthat::expect_no_match(html, "private response payload", fixed = TRUE)
+})
