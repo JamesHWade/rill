@@ -336,3 +336,146 @@ testthat::test_that("structured output becomes a validated source-linked Orienta
     class = "rill_orientation_invalid"
   )
 })
+
+testthat::test_that("invalid Source Evidence can be corrected before submission is accepted", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 1L)
+  state <- rill_orientation_tool_state()
+  source <- rill_orientation_source_tool(candidates, state)()
+  submit <- rill_orientation_submit_tool(state)
+  output <- list(
+    status = "One source deserves attention.",
+    question = "What should stay separate?",
+    introduction = "Start with this source.",
+    cards = list(list(
+      document_id = source[[1L]]$document_id,
+      role = "anchor",
+      frame = "unresolved_question",
+      interpretation = "The source establishes a useful boundary.",
+      why_now = "It bears on the current reading question.",
+      evidence = "A paraphrase that is not in the source."
+    ))
+  )
+  testthat::expect_error(
+    do.call(submit, output),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_null(state$output)
+  testthat::expect_identical(state$submission_calls, 0L)
+
+  output$cards[[1L]]$evidence <- "Rill keeps the source feed"
+  testthat::expect_identical(do.call(submit, output), "Orientation accepted.")
+  testthat::expect_identical(state$submission_attempts, 2L)
+  testthat::expect_identical(state$submission_calls, 1L)
+  orientation <- rill_orientation_from_output(
+    state$output,
+    reader_id = "reader-1",
+    boundary = orientation_boundary(candidates),
+    candidates = candidates,
+    agent_run_id = "orientation-run-1"
+  )
+  register_orientation_test_run(store, "reader-1", "orientation-run-1")
+  testthat::expect_identical(
+    store_save_orientation(store, orientation)$cards[[1L]]$evidence,
+    output$cards[[1L]]$evidence
+  )
+})
+
+testthat::test_that("ellmer returns a rejected quotation to the model for correction", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 1L)
+  state <- rill_orientation_tool_state()
+  chat <- ellmer::chat_openai_compatible(
+    base_url = "https://provider.example/v1",
+    model = "gpt-test",
+    credentials = \() "test-key"
+  )
+  chat$register_tool(rill_orientation_source_tool(candidates, state))
+  chat$register_tool(rill_orientation_submit_tool(state))
+  output <- list(
+    status = "One source deserves attention.",
+    question = "What should stay separate?",
+    introduction = "Start with this source.",
+    cards = list(list(
+      document_id = candidates[[1L]]$document$document_id,
+      role = "anchor",
+      frame = "unresolved_question",
+      interpretation = "The source establishes a useful boundary.",
+      why_now = "It bears on the current reading question.",
+      evidence = "A paraphrase that is not in the source."
+    ))
+  )
+  response <- function(name = NULL, arguments = list(), id = "call") {
+    message <- list(role = "assistant", content = "Done.")
+    if (!is.null(name)) {
+      message$content <- NULL
+      message$tool_calls <- list(list(
+        id = id,
+        type = "function",
+        `function` = list(
+          name = name,
+          arguments = as.character(jsonlite::toJSON(
+            arguments,
+            auto_unbox = TRUE
+          ))
+        )
+      ))
+    }
+    httr2::response_json(
+      body = list(
+        choices = list(list(index = 0L, message = message)),
+        usage = list(prompt_tokens = 10L, completion_tokens = 10L)
+      )
+    )
+  }
+  rejected <- response("submit_orientation", output, "bad-quote")
+  output$cards[[1L]]$evidence <- "Rill keeps the source feed"
+  responses <- list(
+    response("read_orientation_candidates", id = "read"),
+    rejected,
+    response("submit_orientation", output, "corrected-quote"),
+    response()
+  )
+  testthat::expect_warning(
+    result <- httr2::with_mocked_responses(
+      responses,
+      chat$chat("Maintain Orientation.", echo = "none")
+    ),
+    class = "ellmer_tool_failure"
+  )
+  testthat::expect_identical(as.character(result), "Done.")
+  contents <- unlist(
+    lapply(chat$get_turns(), \(turn) turn@contents),
+    recursive = FALSE
+  )
+  results <- Filter(
+    \(content) inherits(content, "ellmer::ContentToolResult"),
+    contents
+  )
+  testthat::expect_length(results, 3L)
+  testthat::expect_match(
+    conditionMessage(results[[2L]]@error),
+    "Orientation Source Evidence was not in the inspected source text.",
+    fixed = TRUE
+  )
+  testthat::expect_identical(results[[3L]]@value, "Orientation accepted.")
+  testthat::expect_identical(state$submission_attempts, 2L)
+  testthat::expect_identical(state$submission_calls, 1L)
+  orientation <- rill_orientation_from_output(
+    state$output,
+    reader_id = "reader-1",
+    boundary = orientation_boundary(candidates),
+    candidates = candidates,
+    agent_run_id = "orientation-run-1"
+  )
+  testthat::expect_identical(orientation$cards[[1L]]$role, "anchor")
+  testthat::expect_identical(
+    orientation$cards[[1L]]$frame,
+    "unresolved_question"
+  )
+  register_orientation_test_run(store, "reader-1", "orientation-run-1")
+  testthat::expect_identical(
+    store_save_orientation(store, orientation)$cards[[1L]]$evidence,
+    output$cards[[1L]]$evidence
+  )
+})

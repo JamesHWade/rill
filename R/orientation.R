@@ -1057,7 +1057,11 @@ store_complete_orientation_run <- function(
 }
 
 orientation_abort <- function(message) {
-  cli::cli_abort(message, class = "rill_orientation_invalid")
+  cli::cli_abort(
+    message,
+    class = "rill_orientation_invalid",
+    .envir = parent.frame()
+  )
 }
 
 orientation_string <- function(value, field) {

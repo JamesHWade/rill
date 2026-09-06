@@ -368,6 +368,13 @@ and successful-submission counts show how far the agent got. These diagnostics
 exclude exception messages, calls, stacks, response bodies, and tool payloads.
 Failures before execution use the same fields on `orientation.start_failed`.
 
+Orientation checks submitted Source Evidence against the exact bounded text
+returned by its source tool before accepting a submission. A rejected quotation
+returns a native tool error to the agent, which can correct and resubmit within
+the existing request, tool, time, and cost limits. Only one valid submission is
+accepted. Publication still rechecks the current Library boundary, immutable
+Documents, and producing Agent Run.
+
 The Reader session retains the original Orientation error condition. The failure
 notice displays its native message, including nested causes, and **Error details**
 shows the condition's native formatting and available backtrace. This preserves
