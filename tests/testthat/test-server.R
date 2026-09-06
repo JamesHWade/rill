@@ -4914,6 +4914,58 @@ testthat::test_that("OPML import registers feeds before any refresh", {
   })
 })
 
+testthat::test_that("disabled Orientation hides recovery until it can run", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$demo_mode <- FALSE
+  config$orientation_enabled <- TRUE
+  config$agent_policy_url <- "https://provider.example/privacy"
+  store <- rill_store(list(demo_mode = TRUE, actor_id = config$actor_id))
+  store$memory$orientations[[config$actor_id]] <- NULL
+  confirm_test_orientation_destination(store, config)
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    maintain_orientation_async = function(...) {
+      calls <<- calls + 1L
+      list(status = "failed", run = list(terminal_reason = "wall_time_limit"))
+    }
+  )
+
+  later::with_temp_loop({
+    for (disable in c("reader", "external")) {
+      set_orientation_enabled(store, config$actor_id, TRUE, config)
+      shiny::testServer(rill_server(config, store), {
+        session$setInputs(orientation_disable = NULL)
+        session$flushReact()
+        testthat::expect_match(output$reader_header$html, "Retry Orientation")
+        expected_calls <- calls
+
+        if (disable == "reader") {
+          session$setInputs(orientation_disable = 1L)
+        } else {
+          set_orientation_enabled(store, config$actor_id, FALSE, config)
+          session$elapse(rill_session_poll_interval_ms)
+        }
+        session$flushReact()
+        testthat::expect_no_match(
+          output$reader_header$html,
+          "Retry Orientation"
+        )
+        testthat::expect_no_match(
+          output$orientation_queue_status$html,
+          "Retry Orientation"
+        )
+
+        set_orientation_enabled(store, config$actor_id, TRUE, config)
+        session$elapse(rill_session_poll_interval_ms)
+        session$flushReact()
+        testthat::expect_match(output$reader_header$html, "Retry Orientation")
+        testthat::expect_identical(calls, expected_calls)
+      })
+    }
+  })
+})
+
 testthat::test_that("a current Orientation clears an earlier maintenance failure", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

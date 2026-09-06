@@ -1593,6 +1593,12 @@ rill_server <- function(config, store) {
       state
     })
 
+    orientation_display_failure <- shiny::reactive({
+      if (isTRUE(orientation_destination_status()$enabled)) {
+        orientation_failure()
+      }
+    })
+
     focus_orientation_destination <- function() {
       session$onFlushed(
         \() {
@@ -2456,7 +2462,7 @@ rill_server <- function(config, store) {
         state$orientation,
         state$candidates,
         preparing = orientation_preparing(),
-        failure = orientation_failure(),
+        failure = orientation_display_failure(),
         processing_note = orientation_processing_note(
           store,
           state$orientation,
@@ -2517,7 +2523,7 @@ rill_server <- function(config, store) {
           state$orientation,
           state$candidates,
           preparing = orientation_preparing(),
-          failure = orientation_failure(),
+          failure = orientation_display_failure(),
           processing_note = orientation_processing_note(
             store,
             state$orientation,
