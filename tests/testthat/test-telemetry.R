@@ -355,3 +355,31 @@ testthat::test_that("extractor runtime diagnostics omit executable paths", {
     list(runtime.node.available = TRUE, runtime.npm.available = FALSE)
   )
 })
+
+testthat::test_that("failure logs omit absent optional attributes", {
+  testthat::skip_if_not_installed("otelsdk")
+  logfile <- withr::local_tempfile()
+  callr::r(
+    function(path) {
+      pkgload::load_all(path, quiet = TRUE)
+      rill:::telemetry_log(
+        "warn",
+        "orientation.maintenance_failed",
+        rill:::orientation_error_attributes(rlang::error_cnd(
+          "rill_orientation_invalid",
+          message = "Private source text"
+        ))
+      )
+      otel::get_default_logger_provider()$flush()
+      NULL
+    },
+    args = list(path = normalizePath(testthat::test_path("..", ".."))),
+    env = c(OTEL_R_LOGS_EXPORTER = "stdout", OTEL_R_EMIT_SCOPES = ""),
+    stdout = logfile,
+    stderr = logfile
+  )
+  logs <- paste(readLines(logfile), collapse = "\n")
+  testthat::expect_match(logs, "orientation.maintenance_failed", fixed = TRUE)
+  testthat::expect_match(logs, "rill_orientation_invalid", fixed = TRUE)
+  testthat::expect_no_match(logs, "OpenTelemetry error|Private source text")
+})
