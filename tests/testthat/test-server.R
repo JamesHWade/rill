@@ -5301,3 +5301,26 @@ testthat::test_that("Orientation exports nested failure diagnostics on its span 
     "Private source|private.example|sk-secret|sk_secret|request_123456789"
   )
 })
+
+testthat::test_that("queue saves are scoped and do not open the story", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+    session$setInputs(queue_save = "sample-entry-2")
+    entry <- store_get_entry(store, config$actor_id, "sample-entry-2")
+    testthat::expect_identical(entry$saved, TRUE)
+    testthat::expect_identical(entry$read_at, NA_character_)
+    session$setInputs(queue_save = "missing-entry")
+    testthat::expect_identical(
+      store_get_entry(store, config$actor_id, "sample-entry-2")$saved,
+      TRUE
+    )
+    session$setInputs(queue_save = "sample-entry-2")
+    testthat::expect_identical(
+      store_get_entry(store, config$actor_id, "sample-entry-2")$saved,
+      FALSE
+    )
+  })
+})

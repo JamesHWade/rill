@@ -194,6 +194,10 @@ body.bslib-page-fill {
   display: none;
 }
 
+body:has(#shiny-disconnected-overlay) .rill-system-status {
+  z-index: 99999;
+}
+
 .rill-system-status-icon {
   display: grid;
   width: 30px;
@@ -3021,4 +3025,45 @@ div.story-list.shiny-html-output {
 #feed_refresh_activity {
   font-size: 0.8rem;
   overflow-wrap: anywhere;
+}
+
+/* Queue actions remain available without a touch gesture. */
+.story-row { position: relative; }
+.story-row .story-card { padding-right: 52px; }
+.story-actions-toggle {
+  position: absolute;
+  right: 4px;
+  top: 8px;
+  width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+}
+.story-actions-toggle:hover { background: var(--story-hover); }
+.story-actions { display: flex; gap: 8px; padding: 8px 16px; }
+.story-actions[hidden] { display: none; }
+.story-actions .reader-action { min-height: 44px; }
+@media (max-width: 767.98px) {
+  .story-card, #reader-document { touch-action: pan-y pinch-zoom; }
+}
+
+/* Keep source text readable while Shiny refreshes an output. The system
+   status and native progress controls announce work without fading text. */
+.shiny-bound-output.recalculating,
+.shiny-bound-output.recalculating > * { opacity: 1; }
+
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .compact-app-bar { z-index: 1047; }
+  .story-pane > .sidebar-content,
+  .nav-sidebar > .sidebar-content {
+    display: block !important;
+    overflow-y: auto;
+  }
+  .story-list,
+  .nav-sidebar .feed-list,
+  .nav-sidebar .sidebar-footer {
+    overflow: visible;
+  }
 }

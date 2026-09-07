@@ -1,0 +1,492 @@
+[
+  {
+    "state": "loading",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "orientation",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "library",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "library",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "queue",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "reading",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "ask-rill",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "manage-feeds",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "library",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "state": "empty",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "native-error",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "disconnected",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "disconnected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "access-pending",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "state": "access-denied",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-running",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-completed",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-interrupted",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "loading",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "orientation",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "library",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "queue",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "reading",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "ask-rill",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "manage-feeds",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "targets": [
+          [
+            "button[data-dismiss=\"modal\"]"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "native-error",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "disconnected",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "disconnected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "access-pending",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "state": "access-denied",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-running",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-completed",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "state": "agent-interrupted",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  }
+]

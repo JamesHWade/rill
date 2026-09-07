@@ -1,5 +1,6 @@
 rill_ui <- function(config) {
   bslib::page_fillable(
+    lang = "en",
     if (identical(config$identity_mode, "auth0")) {
       shinyOAuth::use_shinyOAuth()
     },
@@ -614,6 +615,7 @@ reader_pane_ui <- function(config) {
   bslib::layout_sidebar(
     shiny::tags$div(
       id = "rill-primary-surface",
+      role = "region",
       class = "reader-scroll",
       tabindex = "-1",
       `aria-label` = "Reading surface",
@@ -713,6 +715,20 @@ reader_article_header_ui <- function(
         onclick = "rillOpenQueue()",
         bsicons::bs_icon("arrow-left"),
         "Queue"
+      ),
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action reader-previous",
+        onclick = "rillMoveStory(-1)",
+        `aria-keyshortcuts` = "k",
+        "Previous"
+      ),
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action reader-next",
+        onclick = "rillMoveStory(1)",
+        `aria-keyshortcuts` = "j",
+        "Next"
       ),
       if (isTRUE(entry$library_access)) {
         shiny::tagList(
@@ -1776,7 +1792,7 @@ story_card <- function(entry, index, selected = FALSE) {
     if (selected) "is-selected"
   )
 
-  shiny::tags$button(
+  card <- shiny::tags$button(
     type = "button",
     class = paste(classes, collapse = " "),
     `data-entry-id` = entry_id,
@@ -1807,6 +1823,38 @@ story_card <- function(entry, index, selected = FALSE) {
     ),
     shiny::tags$h3(entry$title),
     shiny::tags$p(entry$summary %||% "")
+  )
+  shiny::tags$div(
+    class = "story-row",
+    card,
+    shiny::tags$button(
+      type = "button",
+      class = "story-actions-toggle",
+      `aria-label` = paste("Actions for", entry$title),
+      `aria-expanded` = "false",
+      onclick = "rillToggleStoryActions(this)",
+      bsicons::bs_icon("three-dots")
+    ),
+    shiny::tags$div(
+      class = "story-actions",
+      hidden = NA,
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action",
+        onclick = onclick,
+        "Read"
+      ),
+      shiny::tags$button(
+        type = "button",
+        class = "reader-action",
+        `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
+        onclick = sprintf(
+          "rillSaveQueueEntry(this, %s)",
+          jsonlite::toJSON(entry_id, auto_unbox = TRUE)
+        ),
+        if (isTRUE(entry$saved)) "Saved" else "Save"
+      )
+    )
   )
 }
 
@@ -1866,5 +1914,49 @@ empty_story_list <- function(view, feed_title = NULL) {
     shiny::tags$p(class = "empty-eyebrow", "Reading queue"),
     shiny::tags$h3(state$title),
     shiny::tags$p(state$body)
+  )
+}
+
+reader_agent_status_ui <- function(run, pending = NULL) {
+  if (!is.null(pending)) {
+    return(shiny::tags$p(
+      class = "reader-agent-run-status",
+      role = "status",
+      `aria-live` = "polite",
+      bsicons::bs_icon("hourglass-split"),
+      "Stopping Orientation before answering\u2026"
+    ))
+  }
+  if (is.null(run) || identical(run$status, "completed")) {
+    return(NULL)
+  }
+  if (run$status %in% c("pending", "running")) {
+    return(shiny::tags$p(
+      class = "reader-agent-run-status",
+      role = "status",
+      `aria-live` = "polite",
+      bsicons::bs_icon("stars"),
+      "Reading the selected source\u2026"
+    ))
+  }
+  if (identical(run$status, "cancelling")) {
+    return(shiny::tags$p(
+      class = "reader-agent-run-status",
+      role = "status",
+      `aria-live` = "polite",
+      bsicons::bs_icon("stop-circle"),
+      "Stopping the response\u2026"
+    ))
+  }
+
+  shiny::tags$div(
+    class = "reader-agent-retry",
+    role = "alert",
+    shiny::tags$p("That response stopped before it completed."),
+    shiny::actionButton(
+      "retry_agent_run",
+      "Retry",
+      class = "btn-sm"
+    )
   )
 }

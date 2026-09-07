@@ -936,3 +936,34 @@ testthat::test_that("Orientation reports native errors and causes as escaped tex
   testthat::expect_match(html, "Backtrace", fixed = TRUE)
   testthat::expect_no_match(html, "private response payload", fixed = TRUE)
 })
+
+testthat::test_that("queue actions have a named button and explicit state", {
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$feed_title <- "The R Blog"
+  entry$read_at <- NA_character_
+  entry$saved <- TRUE
+  html <- htmltools::renderTags(story_card(entry, 1L))$html
+  testthat::expect_match(
+    html,
+    'aria-label="Actions for A calmer way',
+    fixed = TRUE
+  )
+  testthat::expect_match(html, 'aria-expanded="false"', fixed = TRUE)
+  testthat::expect_match(html, 'class="story-actions" hidden', fixed = TRUE)
+  testthat::expect_match(html, 'aria-pressed="true"', fixed = TRUE)
+  testthat::expect_match(html, '>Saved</button>', fixed = TRUE)
+})
+
+testthat::test_that("agent states announce progress and expose recovery", {
+  running <- reader_agent_status_ui(list(status = "running"))
+  testthat::expect_identical(running$attribs$role, "status")
+  testthat::expect_identical(running$attribs$`aria-live`, "polite")
+  interrupted <- reader_agent_status_ui(list(status = "interrupted"))
+  testthat::expect_identical(interrupted$attribs$role, "alert")
+  testthat::expect_match(
+    htmltools::renderTags(interrupted)$html,
+    'id="retry_agent_run"',
+    fixed = TRUE
+  )
+  testthat::expect_null(reader_agent_status_ui(list(status = "completed")))
+})

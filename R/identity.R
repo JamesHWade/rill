@@ -1211,6 +1211,7 @@ identity_show_denied_modal <- function(config, status = "denied") {
   pending <- identical(status, "pending")
   shiny::showModal(shiny::modalDialog(
     title = if (pending) "Access requested" else "Access denied",
+    shiny::tags$span(`data-rill-access-status` = status, hidden = NA),
     shiny::tags$p(
       if (pending) {
         paste(

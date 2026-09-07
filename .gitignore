@@ -16,3 +16,5 @@ rsconnect/
 .playwright-mcp/
 
 tools/defuddle/node_modules/
+
+scripts/browser/node_modules/

@@ -145,6 +145,15 @@ testthat::test_that("hourly Feed polling is explicit and kill-switched", {
     "DATABASE_URL: ${{ secrets.RILL_DATABASE_URL }}",
     fixed = TRUE
   )
+  workflow_config <- yaml::read_yaml(workflow)
+  testthat::expect_identical(
+    workflow_config$jobs$poll$env$DEFUDDLE_BACKEND,
+    "local"
+  )
+  testthat::expect_identical(
+    workflow_config$jobs$poll$env$DEFUDDLE_COMMAND,
+    "bundled"
+  )
   testthat::expect_no_match(contents, "OPENAI_API_KEY", fixed = TRUE)
   testthat::expect_no_match(contents, "AUTH0_CLIENT_SECRET", fixed = TRUE)
 })
