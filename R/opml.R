@@ -116,13 +116,14 @@ read_opml <- function(file) {
     body,
     ".//*[local-name()='outline' and @xmlUrl]"
   )
-  if (length(nodes) > 10000L) {
+  nodes <- nodes[!vapply(nodes, opml_is_commented, logical(1))]
+  feed_urls <- trimws(xml2::xml_attr(nodes, "xmlUrl"))
+  if (length(unique(feed_urls[nzchar(feed_urls)])) > 10000L) {
     cli::cli_abort(
       "The OPML document contains more than 10,000 subscriptions.",
       class = "rill_error_opml"
     )
   }
-  nodes <- nodes[!vapply(nodes, opml_is_commented, logical(1))]
   catalog_node <- xml2::xml_find_first(
     root,
     "./head/*[local-name()='groups' and namespace-uri()='https://rill.run/opml']"

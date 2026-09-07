@@ -2824,7 +2824,7 @@
       "checksum": "cb1fedd9d9854824c7492804f109d314"
     },
     "R/opml.R": {
-      "checksum": "144402dff7b883297547fa956b4a97bb"
+      "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
       "checksum": "647c60eea65e4e809de3e7ce3b8d7a5c"
@@ -2854,19 +2854,19 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "678e138ad1c44f1c7073eb718099e4d4"
+      "checksum": "5d48dedf13e0f1d0a5addc374fa94f65"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "c86940e7b988fa3c41d7ba87a3a16159"
+      "checksum": "de134900d6de305f3377e6100a37d392"
     },
     "R/groups.R": {
-      "checksum": "8e374b25f0ecb3709d4d0cf02b79b350"
+      "checksum": "518bbf18f5d78808d5ae4748c836a632"
     },
     "inst/sql/013_feed_groups.sql": {
-      "checksum": "4d6b9eeabb837dc4b924b5e8cc10a6b0"
+      "checksum": "34bbf3194f462446829880b0e71c10a7"
     }
   },
   "users": null

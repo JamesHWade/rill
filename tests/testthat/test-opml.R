@@ -271,3 +271,38 @@ testthat::test_that("an empty Library preserves its Group catalog through OPML",
   testthat::expect_equal(nrow(result), 0L)
   testthat::expect_setequal(attr(result, "group_catalog"), c("Empty", "Later"))
 })
+
+testthat::test_that("overlapping OPML exports count unique subscriptions on import", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  feeds <- data.frame(
+    title = paste("Feed", seq_len(5001L)),
+    feed_url = paste0("https://example.com/feed/", seq_len(5001L))
+  )
+  feeds$groups <- rep(list(c("One", "Two")), nrow(feeds))
+  write_opml(feeds, file)
+  testthat::expect_length(
+    xml2::xml_find_all(xml2::read_xml(file), "//outline[@xmlUrl]"),
+    10002L
+  )
+  result <- read_opml(file)
+  testthat::expect_equal(nrow(result), 5001L)
+  testthat::expect_setequal(result$feed_url, feeds$feed_url)
+  testthat::expect_identical(result$groups, rep(list(c("One", "Two")), 5001L))
+})
+
+testthat::test_that("OPML still limits distinct subscriptions", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  writeLines(
+    c(
+      '<opml version="2.0"><body>',
+      paste0(
+        '<outline xmlUrl="https://example.com/feed/',
+        seq_len(10001L),
+        '"/>'
+      ),
+      '</body></opml>'
+    ),
+    file
+  )
+  testthat::expect_error(read_opml(file), class = "rill_error_opml")
+})

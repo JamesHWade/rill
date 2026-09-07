@@ -109,7 +109,8 @@ store_project_group_folder <- function(connection, reader_id, feed_ids = NULL) {
       "WHERE m.reader_id = s.reader_id AND m.feed_id = s.feed_id",
       "ORDER BY lower(g.name), g.name LIMIT 1), 'Unsorted')",
       "WHERE s.reader_id = $1",
-      scope
+      scope,
+      "AND EXISTS (SELECT 1 FROM feeds f WHERE f.feed_id = s.feed_id AND f.source_kind = 'subscription')"
     ),
     params = c(list(reader_id), as.list(feed_ids))
   )
@@ -119,7 +120,12 @@ memory_project_group_folder <- function(store, reader_id) {
   groups <- store_list_groups(store, reader_id)
   members <- store_group_memberships(store, reader_id)
   rows <- store$memory$subscriptions
-  for (i in which(rows$reader_id == reader_id)) {
+  subscription_ids <- store$memory$feeds$feed_id[
+    store$memory$feeds$source_kind == "subscription"
+  ]
+  for (i in which(
+    rows$reader_id == reader_id & rows$feed_id %in% subscription_ids
+  )) {
     ids <- members$group_id[members$feed_id == rows$feed_id[[i]]]
     names <- groups$name[groups$group_id %in% ids]
     rows$folder[[i]] <- if (length(names)) names[[1]] else "Unsorted"
@@ -214,22 +220,24 @@ store_update_group_memberships <- function(
   }
   if (identical(store$mode, "postgres")) {
     pool::poolWithTransaction(store$pool, function(connection) {
-      # Lock all selected Subscriptions before changing any membership.
-      for (id in sort(feed_ids)) {
-        row <- DBI::dbGetQuery(
-          connection,
-          paste(
-            "SELECT feed_id FROM subscriptions WHERE reader_id = $1",
-            "AND feed_id = $2 AND status = 'active' FOR UPDATE"
-          ),
-          params = list(reader_id, id)
+      slots <- paste0("$", seq_along(feed_ids) + 1L, collapse = ", ")
+      rows <- DBI::dbGetQuery(
+        connection,
+        paste(
+          "SELECT s.feed_id FROM subscriptions s JOIN feeds f USING (feed_id)",
+          "WHERE s.reader_id = $1 AND s.status = 'active'",
+          "AND f.source_kind = 'subscription' AND s.feed_id IN (",
+          slots,
+          ")",
+          "ORDER BY s.feed_id FOR UPDATE OF s"
+        ),
+        params = c(list(reader_id), as.list(feed_ids))
+      )
+      if (nrow(rows) != length(feed_ids)) {
+        cli::cli_abort(
+          "Choose active feed Subscriptions.",
+          class = "rill_subscription_inactive"
         )
-        if (nrow(row) != 1L) {
-          cli::cli_abort(
-            "That Subscription is not active.",
-            class = "rill_subscription_inactive"
-          )
-        }
       }
       for (id in feed_ids) {
         if (action == "replace") {
@@ -261,7 +269,12 @@ store_update_group_memberships <- function(
   } else {
     rows <- store$memory$subscriptions
     active <- rows$feed_id[
-      rows$reader_id == reader_id & rows$status == "active"
+      rows$reader_id == reader_id &
+        rows$status == "active" &
+        rows$feed_id %in%
+          store$memory$feeds$feed_id[
+            store$memory$feeds$source_kind == "subscription"
+          ]
     ]
     if (!all(feed_ids %in% active)) {
       cli::cli_abort(
@@ -294,12 +307,15 @@ store_update_group_memberships <- function(
 }
 
 store_set_legacy_folder <- function(store, reader_id, feed_id, folder) {
-  active <- store_list_feeds(store, reader_id)$feed_id
-  if (!feed_id %in% active) {
+  active <- store_list_feeds(store, reader_id)
+  if (!feed_id %in% active$feed_id) {
     cli::cli_abort(
       "That Subscription is not active.",
       class = "rill_subscription_inactive"
     )
+  }
+  if (active$source_kind[match(feed_id, active$feed_id)] != "subscription") {
+    return(invisible(NULL))
   }
   ids <- if (tolower(folder) == "unsorted") {
     character()
@@ -336,12 +352,19 @@ store_group_feed_ids <- function(
     feeds <- if (identical(store$mode, "postgres")) {
       DBI::dbGetQuery(
         store$pool,
-        "SELECT feed_id FROM subscriptions WHERE reader_id = $1 AND status = 'active'",
+        "SELECT s.feed_id FROM subscriptions s JOIN feeds f USING (feed_id) WHERE s.reader_id = $1 AND s.status = 'active' AND f.source_kind = 'subscription'",
         params = list(reader_id)
       )$feed_id
     } else {
       rows <- store$memory$subscriptions
-      rows$feed_id[rows$reader_id == reader_id & rows$status == "active"]
+      rows$feed_id[
+        rows$reader_id == reader_id &
+          rows$status == "active" &
+          rows$feed_id %in%
+            store$memory$feeds$feed_id[
+              store$memory$feeds$source_kind == "subscription"
+            ]
+      ]
     }
     return(setdiff(feeds, members$feed_id))
   }
@@ -362,7 +385,7 @@ group_filter_sql <- function(group_ids, group_match, ungrouped, parameters) {
   if (isTRUE(ungrouped)) {
     return(list(
       sql = paste(
-        "NOT EXISTS (SELECT 1 FROM subscription_groups m WHERE",
+        "EXISTS (SELECT 1 FROM feeds gf WHERE gf.feed_id = e.feed_id AND gf.source_kind = 'subscription') AND NOT EXISTS (SELECT 1 FROM subscription_groups m WHERE",
         base,
         ")"
       ),
@@ -391,4 +414,25 @@ group_filter_sql <- function(group_ids, group_match, ungrouped, parameters) {
     paste("EXISTS (SELECT 1 FROM subscription_groups m WHERE", where, ")")
   }
   list(sql = sql, parameters = c(parameters, as.list(ids)))
+}
+
+
+group_navigation_index <- function(feeds, groups) {
+  eligible <- which(feeds$source_kind == "subscription")
+  memberships <- feeds$group_ids[eligible]
+  rows <- split(
+    rep(eligible, lengths(memberships)),
+    factor(unlist(memberships, use.names = FALSE), levels = groups$group_id)
+  )
+  rows <- c(unname(rows), list(eligible[lengths(memberships) == 0L]))
+  list(
+    group_ids = c(groups$group_id, ""),
+    names = c(groups$name, "Ungrouped"),
+    rows = rows,
+    unread = vapply(
+      rows,
+      function(index) sum(feeds$unread_count[index], na.rm = TRUE),
+      numeric(1)
+    )
+  )
 }

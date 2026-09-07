@@ -163,6 +163,7 @@ testthat::test_that("migration 013 preserves existing folders and inactive membe
   store_move_feed(store, "reader", feeds[[1]], "Research / Methods")
   store_move_feed(store, "reader", feeds[[2]], "Unsorted")
   store_unsubscribe_feed(store, "reader", feeds[[1]])
+  capture_document(store, capture_test_payload(), "reader")
   DBI::dbExecute(store$pool, "DROP TABLE subscription_groups")
   DBI::dbExecute(store$pool, "DROP TABLE feed_groups")
   DBI::dbExecute(
@@ -183,6 +184,7 @@ testthat::test_that("migration 013 preserves existing folders and inactive membe
     "SELECT reader_id, feed_id, folder, status FROM subscriptions ORDER BY reader_id, feed_id"
   )
   testthat::expect_identical(after, before)
+  testthat::expect_disjoint(store_list_groups(store, "reader")$name, "Captured")
   groups <- store_list_groups(store, "reader")
   own <- groups$group_id[groups$name == "Research / Methods"]
   other <- store_list_groups(store, "other")$group_id
@@ -204,4 +206,69 @@ testthat::test_that("migration 013 preserves existing folders and inactive membe
   )
   store_apply_schema(store)
   testthat::expect_equal(store_group_memberships(store, "reader"), memberships)
+})
+
+testthat::test_that("Captures stay outside Subscription Groups", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    captured <- capture_document(store, capture_test_payload(), "reader")
+    sources <- store_list_feeds(store, "reader")
+    capture_id <- sources$feed_id[sources$source_kind == "capture"]
+    subscription_id <- sources$feed_id[sources$source_kind == "subscription"][[
+      1
+    ]]
+    testthat::expect_length(capture_id, 1L)
+    testthat::expect_disjoint(
+      store_list_groups(store, "reader")$name,
+      "Captured"
+    )
+    testthat::expect_disjoint(
+      store_group_memberships(store, "reader")$feed_id,
+      capture_id
+    )
+    group <- store_create_group(store, "reader", "Research")
+    before <- store_group_memberships(store, "reader")
+    testthat::expect_error(
+      store_update_group_memberships(
+        store,
+        "reader",
+        c(subscription_id, capture_id),
+        group
+      ),
+      class = "rill_subscription_inactive"
+    )
+    testthat::expect_equal(store_group_memberships(store, "reader"), before)
+    testthat::expect_disjoint(
+      store_list_entries(store, "reader", ungrouped = TRUE)$entry_id,
+      captured$entry_id
+    )
+    testthat::expect_contains(
+      store_list_entries(store, "reader")$entry_id,
+      captured$entry_id
+    )
+    store_update_group_memberships(store, "reader", subscription_id, group)
+    store_rename_group(store, "reader", group, "Renamed")
+    store_delete_group(store, "reader", group)
+    testthat::expect_identical(
+      store_list_feeds(store, "reader", source_kind = "capture")$folder,
+      "Captured"
+    )
+  }
+})
+
+testthat::test_that("navigation indexes overlap and empty Groups without indexing Captures", {
+  groups <- data.frame(
+    group_id = c("one", "two", "empty"),
+    name = c("One", "Two", "Empty")
+  )
+  feeds <- data.frame(
+    feed_id = c("a", "b", "c", "capture"),
+    source_kind = c(rep("subscription", 3), "capture"),
+    unread_count = c(2L, 3L, 5L, 7L)
+  )
+  feeds$group_ids <- list(c("one", "two"), "two", character(), character())
+  index <- group_navigation_index(feeds, groups)
+  testthat::expect_identical(index$rows, list(1L, c(1L, 2L), integer(), 3L))
+  testthat::expect_equal(index$unread, c(2, 5, 0, 5))
+  testthat::expect_identical(index$group_ids, c("one", "two", "empty", ""))
 })

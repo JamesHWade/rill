@@ -2320,6 +2320,10 @@ rill_server <- function(config, store) {
       invisible(NULL)
     }
 
+    navigation_groups <- shiny::reactive({
+      group_navigation_index(feeds(), feed_groups())
+    })
+
     output$feed_nav <- shiny::renderUI({
       telemetry_local_span("navigation.render")
       feed_rows <- feeds()
@@ -2338,22 +2342,15 @@ rill_server <- function(config, store) {
       ))
 
       {
-        catalog <- feed_groups()
-        ids <- c(catalog$group_id, "")
-        names <- c(catalog$name, "Ungrouped")
+        index <- navigation_groups()
+        ids <- index$group_ids
+        names <- index$names
         links <- c(
           links,
           lapply(seq_along(ids), function(i) {
             id <- ids[[i]]
             folder <- names[[i]]
-            keep <- vapply(
-              feed_rows$group_ids,
-              function(member) {
-                if (nzchar(id)) id %in% member else !length(member)
-              },
-              logical(1)
-            )
-            rows <- feed_rows[keep, , drop = FALSE]
+            rows <- feed_rows[index$rows[[i]], , drop = FALSE]
             active <- if (nzchar(id)) {
               id %in% selected_group_ids()
             } else {
@@ -2370,7 +2367,7 @@ rill_server <- function(config, store) {
                   jsonlite::toJSON(id, auto_unbox = TRUE)
                 ),
                 shiny::tags$span(folder),
-                shiny::tags$small(sum(rows$unread_count, na.rm = TRUE))
+                shiny::tags$small(index$unread[[i]])
               ),
               shiny::tags$details(
                 open = if (
@@ -2413,6 +2410,25 @@ rill_server <- function(config, store) {
           })
         )
       }
+      captures <- feed_rows[feed_rows$source_kind == "capture", , drop = FALSE]
+      links <- c(
+        links,
+        lapply(seq_len(nrow(captures)), function(i) {
+          feed <- captures[i, , drop = FALSE]
+          active <- identical(selected_feed(), feed$feed_id[[1]])
+          shiny::tags$button(
+            type = "button",
+            class = paste("feed-link", if (active) "is-active"),
+            `aria-current` = if (active) "true" else NULL,
+            onclick = sprintf(
+              "rillSelectFeed(%s)",
+              jsonlite::toJSON(feed$feed_id[[1]], auto_unbox = TRUE)
+            ),
+            shiny::tags$span(feed$title),
+            shiny::tags$small(feed$unread_count)
+          )
+        })
+      )
       shiny::tagList(links)
     })
 
@@ -2486,7 +2502,11 @@ rill_server <- function(config, store) {
         )
         groups <- feed_groups()
         group_choices <- stats::setNames(groups$group_id, groups$name)
-        active <- rows[rows$status == "active", , drop = FALSE]
+        active <- rows[
+          rows$status == "active" & rows$source_kind == "subscription",
+          ,
+          drop = FALSE
+        ]
         shiny::updateSelectizeInput(
           session,
           "bulk_group_feeds",
@@ -2990,6 +3010,13 @@ rill_server <- function(config, store) {
       input$apply_reading_groups,
       {
         ids <- input$reading_groups %||% character()
+        if (!length(ids)) {
+          shiny::showNotification(
+            "Choose at least one Group to read.",
+            type = "warning"
+          )
+          return()
+        }
         shiny::req(all(ids %in% feed_groups()$group_id))
         clear_selection()
         selected_feed(NULL)

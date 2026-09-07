@@ -5457,3 +5457,42 @@ testthat::test_that("Group management and combined reading share a single queue 
     testthat::expect_identical(selected_feed_title(), "AI")
   }))
 })
+
+testthat::test_that("an empty Read Groups request preserves the current queue scope", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_group = NULL, apply_reading_groups = NULL)
+    id <- feed_groups()$group_id[[1]]
+    session$setInputs(select_group = list(id = id, nonce = 1))
+    before <- queue_entries()$entry_id
+    session$setInputs(reading_groups = character(), apply_reading_groups = 1L)
+    testthat::expect_identical(selected_group_ids(), id)
+    testthat::expect_identical(queue_entries()$entry_id, before)
+  }))
+})
+
+testthat::test_that("Captures retain separate navigation without Group controls", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  captured <- capture_document(store, capture_test_payload(), config$actor_id)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_feed = NULL)
+    nav <- output$feed_nav$html
+    testthat::expect_match(nav, "Local captures", fixed = TRUE)
+    testthat::expect_disjoint(
+      unlist(navigation_groups()$rows),
+      which(feeds()$source_kind == "capture")
+    )
+    id <- feeds()$feed_id[feeds()$source_kind == "capture"]
+    session$setInputs(select_feed = list(id = id, nonce = 1))
+    testthat::expect_identical(queue_entries()$entry_id, captured$entry_id)
+    testthat::expect_no_match(
+      output$feed_organization_control$html,
+      "Save Groups",
+      fixed = TRUE
+    )
+  }))
+})

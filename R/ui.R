@@ -1536,15 +1536,21 @@ feed_refresh_status_ui <- function(result) {
 }
 
 feed_manager_choices <- function(feeds) {
-  labels <- paste(
-    feeds$title,
-    "\u00b7",
-    if ("groups" %in% names(feeds)) {
-      vapply(feeds$groups, paste, character(1), collapse = ", ")
-    } else {
-      feeds$folder
-    }
-  )
+  organization <- if ("groups" %in% names(feeds)) {
+    vapply(
+      feeds$groups,
+      function(groups) {
+        if (length(groups)) paste(groups, collapse = ", ") else "Ungrouped"
+      },
+      character(1)
+    )
+  } else {
+    feeds$folder
+  }
+  if ("source_kind" %in% names(feeds)) {
+    organization[feeds$source_kind == "capture"] <- "Captures"
+  }
+  labels <- paste(feeds$title, "\u00b7", organization)
   labels <- paste0(
     labels,
     ifelse(
@@ -1705,20 +1711,24 @@ feed_organization_control_ui <- function(
       "Rename feed",
       class = "btn-rename-feed"
     ),
-    shiny::selectizeInput(
-      "feed_groups",
-      label = "Groups",
-      choices = if (is.null(groups)) {
-        character()
-      } else {
-        stats::setNames(groups$group_id, groups$name)
-      },
-      selected = unlist(feed$group_ids, use.names = FALSE),
-      multiple = TRUE,
-      options = list(closeAfterSelect = TRUE),
-      width = "100%"
-    ),
-    shiny::actionButton("save_feed_groups", "Save Groups"),
+    if (identical(feed$source_kind %||% "subscription", "subscription")) {
+      shiny::tagList(
+        shiny::selectizeInput(
+          "feed_groups",
+          label = "Groups",
+          choices = if (is.null(groups)) {
+            character()
+          } else {
+            stats::setNames(groups$group_id, groups$name)
+          },
+          selected = unlist(feed$group_ids, use.names = FALSE),
+          multiple = TRUE,
+          options = list(closeAfterSelect = TRUE),
+          width = "100%"
+        ),
+        shiny::actionButton("save_feed_groups", "Save Groups")
+      )
+    },
     if (identical(feed$source_kind %||% "subscription", "subscription")) {
       shiny::actionButton(
         "unsubscribe_feed",
@@ -1978,7 +1988,11 @@ reader_agent_status_ui <- function(run, pending = NULL) {
 
 
 group_management_ui <- function(feeds, groups) {
-  active <- feeds[feeds$status == "active", , drop = FALSE]
+  active <- feeds[
+    feeds$status == "active" & feeds$source_kind == "subscription",
+    ,
+    drop = FALSE
+  ]
   choices <- stats::setNames(groups$group_id, groups$name)
   shiny::tagList(
     shiny::tags$hr(),

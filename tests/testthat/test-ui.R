@@ -976,3 +976,27 @@ testthat::test_that("combined Group controls stay separate from refreshing navig
   testthat::expect_match(html, "All selected Groups", fixed = TRUE)
   testthat::expect_match(html, 'onclick="rillOpenQueue()"', fixed = TRUE)
 })
+
+testthat::test_that("ungrouped feed choices are searchable and Captures cannot be grouped", {
+  feeds <- data.frame(
+    feed_id = c("feed", "capture"),
+    title = c("Loose feed", "Local captures"),
+    folder = c("Unsorted", "Captured"),
+    source_kind = c("subscription", "capture"),
+    status = "active",
+    poll_status = "new"
+  )
+  feeds$groups <- list(character(), character())
+  choices <- feed_manager_choices(feeds)
+  testthat::expect_contains(names(choices), "Loose feed · Ungrouped")
+  testthat::expect_contains(names(choices), "Local captures · Captures")
+  bulk <- htmltools::renderTags(group_management_ui(
+    feeds,
+    data.frame(group_id = character(), name = character())
+  ))$html
+  testthat::expect_no_match(bulk, "Local captures", fixed = TRUE)
+  single <- htmltools::renderTags(feed_organization_control_ui(as.list(feeds[
+    2,
+  ])))$html
+  testthat::expect_no_match(single, "Save Groups", fixed = TRUE)
+})
