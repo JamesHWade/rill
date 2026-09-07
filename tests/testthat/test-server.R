@@ -1707,7 +1707,7 @@ testthat::test_that("a replacement session restores a completed question", {
     session$flushReact()
     deadline <- Sys.time() + 3
     while (length(appended) == 0L && Sys.time() < deadline) {
-      later::run_now(0.05)
+      shiny::maskReactiveContext(later::run_now(0.05))
       session$flushReact()
     }
 
@@ -1781,13 +1781,13 @@ testthat::test_that("a replacement session stops polling a legacy response", {
     session$flushReact()
     deadline <- Sys.time() + 1
     while (poll_reads == 0L && Sys.time() < deadline) {
-      later::run_now(0.05)
+      shiny::maskReactiveContext(later::run_now(0.05))
       session$flushReact()
     }
     observed_reads <- poll_reads
     settle_deadline <- Sys.time() + 0.6
     while (Sys.time() < settle_deadline) {
-      later::run_now(0.05)
+      shiny::maskReactiveContext(later::run_now(0.05))
       session$flushReact()
     }
 
