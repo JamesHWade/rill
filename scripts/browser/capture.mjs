@@ -90,10 +90,6 @@ try {
     await capture('agent-interrupted', width);
   }
   if (label === 'after') {
-    assert.deepEqual(results.flatMap(r => r.violations), []);
-    assert.ok(results.every(r => !r.ui.horizontalOverflow));
-  }
-  if (label === 'after') {
     assert.deepEqual(results.flatMap(r => r.violations), [], 'No WCAG violations in final captures');
     assert.ok(results.every(r => !r.ui.horizontalOverflow), 'No viewport overflow');
   }
