@@ -1,6 +1,6 @@
 # rill 0.0.0.9000
 
-* Feed refresh supports RSS 1.0 sources such as Nature and The Oatmeal, preserves saved entries when a feed is empty, and keeps the polling lock alive during slow fetches; scheduled polling prepares available articles before reporting source failures and includes failure counts by condition class in its logs.
+* Feed refresh supports RSS 1.0 sources such as Nature and The Oatmeal, preserves saved entries when a feed is empty, and keeps the polling lock alive during slow fetches; scheduled polling prepares available articles before reporting source failures and includes failure counts by condition class in its logs (#45).
 
 * Orientation lets its agent correct rejected source quotations before accepting a submission and correctly handles ellmer's typed card fields (#45, #50).
 

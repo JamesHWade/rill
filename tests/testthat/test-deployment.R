@@ -157,7 +157,7 @@ testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
   )
   manifest <- jsonlite::read_json(manifest_path)
   description <- read.dcf(file.path(dirname(manifest_path), "DESCRIPTION"))
-  remotes <- trimws(strsplit(description[[1L, "Remotes"]], ",")[[1L]])
+  remotes <- trimws(strsplit(description[[1L, "Remotes"]], "[,\n]")[[1L]])
   testthat::expect_identical(
     remotes[grepl("^JamesHWade/deputy@", remotes)],
     paste0("JamesHWade/deputy@", manifest$packages$deputy$description$RemoteSha)
