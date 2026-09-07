@@ -100,6 +100,7 @@ rill_server <- function(config, store) {
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
     selected_position <- shiny::reactiveVal(NA_integer_)
     selected_feed <- shiny::reactiveVal(NULL)
+    selected_folder <- shiny::reactiveVal(NULL)
     orientation_preparing <- shiny::reactiveVal(FALSE)
     orientation_control <- shiny::reactiveVal(NULL)
     orientation_failure <- shiny::reactiveVal(NULL)
@@ -202,6 +203,7 @@ rill_server <- function(config, store) {
       list(
         view = view,
         feed_id = selected_feed(),
+        folder = selected_folder(),
         sort = input$story_sort %||% "newest",
         calendar = if (view %in% c("today", "week", "month")) {
           calendar_window()$window
@@ -1577,6 +1579,7 @@ rill_server <- function(config, store) {
         actor_id,
         view = input$view %||% "unread",
         feed_id = selected_feed(),
+        folder = selected_folder(),
         limit = 150L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
@@ -2021,6 +2024,7 @@ rill_server <- function(config, store) {
         actor_id,
         view = "all",
         feed_id = selected_feed(),
+        folder = selected_folder(),
         limit = 500L,
         sort = input$story_sort %||% "newest",
         include_content = FALSE,
@@ -2035,6 +2039,9 @@ rill_server <- function(config, store) {
     })
 
     selected_feed_title <- shiny::reactive({
+      if (!is.null(selected_folder())) {
+        return(selected_folder())
+      }
       feed_id <- selected_feed()
       if (is.null(feed_id)) {
         return(NULL)
@@ -2280,7 +2287,7 @@ rill_server <- function(config, store) {
       telemetry_local_span("navigation.render")
       feed_rows <- feeds()
       all_unread <- sum(feed_rows$unread_count, na.rm = TRUE)
-      all_active <- is.null(selected_feed())
+      all_active <- is.null(selected_feed()) && is.null(selected_folder())
       links <- list(shiny::tags$button(
         type = "button",
         class = paste("feed-link", if (all_active) "is-active"),
@@ -2291,33 +2298,62 @@ rill_server <- function(config, store) {
       ))
 
       if (nrow(feed_rows)) {
+        groups <- split(feed_rows, feed_rows$folder)
         links <- c(
           links,
-          lapply(seq_len(nrow(feed_rows)), function(index) {
-            feed <- feed_rows[index, , drop = FALSE]
-            onclick <- sprintf(
-              "rillSelectFeed(%s)",
-              jsonlite::toJSON(as.character(feed$feed_id), auto_unbox = TRUE)
-            )
-            shiny::tags$button(
-              type = "button",
-              class = paste(
-                "feed-link",
-                if (identical(selected_feed(), as.character(feed$feed_id))) {
-                  "is-active"
-                }
+          lapply(names(groups), function(folder) {
+            rows <- groups[[folder]]
+            active <- identical(selected_folder(), folder)
+            shiny::tags$div(
+              class = "feed-folder",
+              shiny::tags$button(
+                type = "button",
+                class = paste("feed-link", if (active) "is-active"),
+                `aria-current` = if (active) "true" else NULL,
+                onclick = sprintf(
+                  "rillSelectFolder(%s)",
+                  jsonlite::toJSON(folder, auto_unbox = TRUE)
+                ),
+                shiny::tags$span(folder),
+                shiny::tags$small(sum(rows$unread_count, na.rm = TRUE))
               ),
-              `aria-current` = if (
-                identical(selected_feed(), as.character(feed$feed_id))
-              ) {
-                "true"
-              } else {
-                NULL
-              },
-              onclick = onclick,
-              title = feed$title,
-              shiny::tags$span(feed$title),
-              shiny::tags$small(feed$unread_count)
+              shiny::tags$details(
+                open = if (
+                  !is.null(selected_feed()) &&
+                    selected_feed() %in% rows$feed_id
+                ) {
+                  NA
+                } else {
+                  NULL
+                },
+                shiny::tags$summary(paste(
+                  nrow(rows),
+                  if (nrow(rows) == 1L) "feed in" else "feeds in",
+                  folder
+                )),
+                lapply(seq_len(nrow(rows)), function(index) {
+                  feed <- rows[index, , drop = FALSE]
+                  active <- identical(
+                    selected_feed(),
+                    as.character(feed$feed_id)
+                  )
+                  shiny::tags$button(
+                    type = "button",
+                    class = paste("feed-link", if (active) "is-active"),
+                    `aria-current` = if (active) "true" else NULL,
+                    onclick = sprintf(
+                      "rillSelectFeed(%s)",
+                      jsonlite::toJSON(
+                        as.character(feed$feed_id),
+                        auto_unbox = TRUE
+                      )
+                    ),
+                    title = feed$title,
+                    shiny::tags$span(feed$title),
+                    shiny::tags$small(feed$unread_count)
+                  )
+                })
+              )
             )
           })
         )
@@ -2690,6 +2726,7 @@ rill_server <- function(config, store) {
       input$select_feed,
       {
         clear_selection()
+        selected_folder(NULL)
         selected_feed(input$select_feed$id %||% NULL)
         record_event(
           "feed_filter",
@@ -2701,10 +2738,28 @@ rill_server <- function(config, store) {
     )
 
     shiny::observeEvent(
+      input$select_folder,
+      {
+        folder <- input$select_folder$id
+        shiny::req(
+          is.character(folder),
+          length(folder) == 1L,
+          folder %in% feeds()$folder
+        )
+        clear_selection()
+        selected_feed(NULL)
+        selected_folder(folder)
+        record_event("folder_filter", surface = "sidebar")
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
       input$browse_orientation_queue,
       {
         clear_selection()
         selected_feed(NULL)
+        selected_folder(NULL)
         browse_queue_pending(!identical(input$view %||% "unread", "unread"))
         shiny::updateRadioButtons(session, "view", selected = "unread")
         bump_refresh()
@@ -3734,6 +3789,7 @@ rill_server <- function(config, store) {
         store,
         actor_id,
         feed_id = selected_feed(),
+        folder = selected_folder(),
         before = before,
         reason = reason
       )
@@ -3746,6 +3802,7 @@ rill_server <- function(config, store) {
         payload <- list(
           count = count,
           feed_id = selected_feed(),
+          folder = selected_folder(),
           reason = reason
         )
         if (!is.null(before)) {

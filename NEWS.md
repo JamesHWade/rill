@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder.
+
 * Startup waits for the Library before announcing readiness and offers reload recovery after a delay; Ask Rill displays running and retry states, and dismissed dialogs restore keyboard focus (#50, #51).
 
 * Scheduled polling uses Rill's bundled extractor and reports how many articles prepared or failed before reporting feed failures (#45).
