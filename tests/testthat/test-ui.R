@@ -99,8 +99,8 @@ testthat::test_that("feed management exposes OPML import and export", {
     folder = "Research",
     source_kind = "subscription"
   )))$html
-  testthat::expect_match(selected, 'id="feed_folder"', fixed = TRUE)
-  testthat::expect_match(selected, 'id="move_feed"', fixed = TRUE)
+  testthat::expect_match(selected, 'id="feed_groups"', fixed = TRUE)
+  testthat::expect_match(selected, 'id="save_feed_groups"', fixed = TRUE)
   testthat::expect_match(selected, 'id="unsubscribe_feed"', fixed = TRUE)
 
   capture <- htmltools::renderTags(feed_organization_control_ui(list(
@@ -966,4 +966,13 @@ testthat::test_that("agent states announce progress and expose recovery", {
     fixed = TRUE
   )
   testthat::expect_null(reader_agent_status_ui(list(status = "completed")))
+})
+
+testthat::test_that("combined Group controls stay separate from refreshing navigation", {
+  html <- htmltools::renderTags(group_reading_control_ui())$html
+  testthat::expect_match(html, 'id="reading_groups"', fixed = TRUE)
+  testthat::expect_match(html, 'id="reading_group_match"', fixed = TRUE)
+  testthat::expect_match(html, "Any selected Group", fixed = TRUE)
+  testthat::expect_match(html, "All selected Groups", fixed = TRUE)
+  testthat::expect_match(html, 'onclick="rillOpenQueue()"', fixed = TRUE)
 })

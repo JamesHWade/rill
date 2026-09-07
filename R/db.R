@@ -137,6 +137,8 @@ rill_store <- function(config) {
       deactivated_at = NA_character_,
       stringsAsFactors = FALSE
     )
+    memory$feed_groups <- empty_feed_groups()
+    memory$subscription_groups <- empty_subscription_groups()
     memory$events <- data.frame(
       event_id = character(),
       reader_id = character(),
@@ -229,6 +231,15 @@ rill_store <- function(config) {
       ),
       class = "rill_store"
     )
+    for (i in seq_len(nrow(subscription_feeds))) {
+      subscription <- subscription_feeds[i, , drop = FALSE]
+      store_set_legacy_folder(
+        store,
+        legacy_reader_id,
+        subscription$feed_id,
+        subscription$folder
+      )
+    }
     orientation <- sample_rill_orientation(
       store,
       legacy_reader_id
@@ -377,13 +388,7 @@ store_apply_schema <- function(
         store_adopt_initial_release_schema(connection)
         store_verify_baseline_schema(connection)
       } else {
-        statements <- Filter(
-          nzchar,
-          trimws(strsplit(migration$sql, ";", fixed = TRUE)[[1]])
-        )
-        for (statement in statements) {
-          DBI::dbExecute(connection, statement)
-        }
+        DBI::dbExecute(connection, migration$sql, immediate = TRUE)
       }
 
       DBI::dbExecute(
@@ -657,8 +662,8 @@ store_list_feeds <- function(
           "f.last_polled_at, f.created_at, s.display_title, s.status,",
           "s.subscribed_at, s.updated_at, s.deactivated_at,"
         ),
-        "COUNT(e.entry_id) FILTER (WHERE st.read_at IS NULL)::integer AS unread_count,",
-        "COUNT(e.entry_id)::integer AS entry_count",
+        "COUNT(e.entry_id) FILTER (WHERE st.read_at IS NULL AND NOT COALESCE(st.hidden, false))::integer AS unread_count,",
+        "COUNT(e.entry_id) FILTER (WHERE NOT COALESCE(st.hidden, false))::integer AS entry_count",
         "FROM subscriptions s",
         "JOIN feeds f ON f.feed_id = s.feed_id",
         paste(
@@ -684,7 +689,7 @@ store_list_feeds <- function(
     if (!is.null(source_kind)) {
       feeds <- feeds[feeds$source_kind %in% source_kind, , drop = FALSE]
     }
-    return(feeds)
+    return(store_attach_feed_groups(store, reader_id, feeds))
   }
 
   feeds <- store$memory$feeds
@@ -707,6 +712,11 @@ store_list_feeds <- function(
   feeds$folder_subscription <- NULL
   feeds <- resolve_feed_titles(feeds)
   visible_entry_ids <- memory_reader_visible_entry_ids(store, reader_id)
+  hidden_ids <- store$memory$state$entry_id[
+    store$memory$state$reader_id == reader_id &
+      store$memory$state$hidden %in% TRUE
+  ]
+  visible_entry_ids <- setdiff(visible_entry_ids, hidden_ids)
   feeds$unread_count <- vapply(
     feeds$feed_id,
     function(feed_id) {
@@ -736,7 +746,12 @@ store_list_feeds <- function(
   if (!is.null(source_kind)) {
     feeds <- feeds[feeds$source_kind %in% source_kind, , drop = FALSE]
   }
-  feeds[order(tolower(feeds$folder), tolower(feeds$title)), , drop = FALSE]
+  feeds <- feeds[
+    order(tolower(feeds$folder), tolower(feeds$title)),
+    ,
+    drop = FALSE
+  ]
+  store_attach_feed_groups(store, reader_id, feeds)
 }
 
 store_list_active_feeds <- function(store, source_kind = "subscription") {
@@ -804,6 +819,9 @@ store_subscribe_feed <- function(
         class = "rill_feed_missing"
       )
     }
+    if (!is.null(folder)) {
+      store_set_legacy_folder(store, reader_id, feed_id, folder)
+    }
     return(invisible(feed_id))
   }
 
@@ -827,6 +845,9 @@ store_subscribe_feed <- function(
     subscriptions$updated_at[[index]] <- now
     subscriptions$deactivated_at[[index]] <- NA_character_
     store$memory$subscriptions <- subscriptions
+    if (!is.null(folder)) {
+      store_set_legacy_folder(store, reader_id, feed_id, folder)
+    }
     return(invisible(feed_id))
   }
   store$memory$subscriptions <- rbind(
@@ -843,6 +864,9 @@ store_subscribe_feed <- function(
       stringsAsFactors = FALSE
     )
   )
+  if (!is.null(folder)) {
+    store_set_legacy_folder(store, reader_id, feed_id, folder)
+  }
   invisible(feed_id)
 }
 
@@ -944,8 +968,12 @@ store_list_entries <- function(
   timezone = Sys.timezone(),
   include_content = TRUE,
   entry_ids = NULL,
-  folder = NULL
+  folder = NULL,
+  group_ids = NULL,
+  group_match = "any",
+  ungrouped = FALSE
 ) {
+  group_match <- match.arg(group_match, c("any", "all"))
   view <- normalize_entry_view(view)
   sort <- normalize_entry_sort(sort)
   limit <- max(1L, min(as.integer(limit), 500L))
@@ -983,6 +1011,14 @@ store_list_entries <- function(
       parameters <- append(parameters, folder)
       clauses <- c(clauses, paste0("sub.folder = $", length(parameters)))
     }
+    group_filter <- group_filter_sql(
+      group_ids,
+      group_match,
+      ungrouped,
+      parameters
+    )
+    clauses <- c(clauses, group_filter$sql)
+    parameters <- group_filter$parameters
     if (identical(view, "unread")) {
       clauses <- c(clauses, "s.read_at IS NULL")
     }
@@ -1091,6 +1127,16 @@ store_list_entries <- function(
   entries$hidden[is.na(entries$hidden)] <- FALSE
 
   keep <- !entries$hidden
+  group_feeds <- store_group_feed_ids(
+    store,
+    reader_id,
+    group_ids,
+    group_match,
+    ungrouped
+  )
+  if (!is.null(group_feeds)) {
+    keep <- keep & entries$feed_id %in% group_feeds
+  }
   if (!is.null(folder)) {
     keep <- keep & entries$folder == folder
   }
@@ -2295,8 +2341,12 @@ store_mark_entries_read <- function(
   feed_id = NULL,
   before = NULL,
   reason,
-  folder = NULL
+  folder = NULL,
+  group_ids = NULL,
+  group_match = "any",
+  ungrouped = FALSE
 ) {
+  group_match <- match.arg(group_match, c("any", "all"))
   allowed_reasons <- c("bulk_all", "bulk_older_than_day")
   if (
     !is.character(reason) ||
@@ -2331,6 +2381,14 @@ store_mark_entries_read <- function(
         paste0("sub.folder = $", length(parameters))
       )
     }
+    group_filter <- group_filter_sql(
+      group_ids,
+      group_match,
+      ungrouped,
+      parameters
+    )
+    entry_clauses <- c(entry_clauses, group_filter$sql)
+    parameters <- group_filter$parameters
     if (!is.null(before)) {
       parameters <- append(parameters, before)
       entry_clauses <- c(
@@ -2392,6 +2450,16 @@ store_mark_entries_read <- function(
     drop = FALSE
   ]
   keep <- rep(TRUE, nrow(entries))
+  group_feeds <- store_group_feed_ids(
+    store,
+    reader_id,
+    group_ids,
+    group_match,
+    ungrouped
+  )
+  if (!is.null(group_feeds)) {
+    keep <- keep & entries$feed_id %in% group_feeds
+  }
   if (!is.null(feed_id) && nzchar(feed_id)) {
     keep <- keep & entries$feed_id == feed_id
   }
@@ -2795,38 +2863,7 @@ store_rename_feed <- function(store, reader_id, feed_id, title) {
 
 store_move_feed <- function(store, reader_id, feed_id, folder) {
   folder <- normalize_subscription_folder(folder)
-  if (identical(store$mode, "postgres")) {
-    updated <- DBI::dbExecute(
-      store$pool,
-      paste(
-        "UPDATE subscriptions SET folder = $3, updated_at = now()",
-        "WHERE reader_id = $1 AND feed_id = $2 AND status = 'active'"
-      ),
-      params = list(reader_id, feed_id, folder)
-    )
-    if (!identical(updated, 1L)) {
-      cli::cli_abort(
-        "That Subscription is not active.",
-        class = "rill_subscription_inactive"
-      )
-    }
-    return(invisible(folder))
-  }
-
-  index <- which(
-    store$memory$subscriptions$reader_id == reader_id &
-      store$memory$subscriptions$feed_id == feed_id &
-      store$memory$subscriptions$status == "active"
-  )
-  if (!length(index)) {
-    cli::cli_abort(
-      "That Subscription is not active.",
-      class = "rill_subscription_inactive"
-    )
-  }
-  index <- index[[1L]]
-  store$memory$subscriptions$folder[[index]] <- folder
-  store$memory$subscriptions$updated_at[[index]] <- utc_now()
+  store_set_legacy_folder(store, reader_id, feed_id, folder)
   invisible(folder)
 }
 

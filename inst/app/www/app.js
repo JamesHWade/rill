@@ -1273,6 +1273,21 @@
     );
   };
 
+  window.rillSelectGroup = function (id) {
+    if (!window.Shiny) return;
+    const shell = document.querySelector(".app-shell");
+    if (compactReaderMode.matches) pendingCompactQueue = true;
+    if (shell && document.getElementById("rill-orientation")) {
+      shell.classList.add("orientation-queue-visible");
+    }
+    showCompactSurface("queue", { focus: false });
+    window.Shiny.setInputValue(
+      "select_group",
+      { id, nonce: Math.random() },
+      { priority: "event" }
+    );
+  };
+
   window.rillCloseReader = function () {
     if (!window.Shiny) return;
     pendingEntrySurface = null;

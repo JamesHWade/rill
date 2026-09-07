@@ -11,10 +11,12 @@ read_opml(file)
 }
 \value{
 A data frame with \code{title}, \code{feed_url}, \code{site_url}, and \code{folder}
-columns.
+columns, plus a \code{groups} list column of Group names.
 }
 \description{
 \code{read_opml()} reads an OPML 1.0, 1.1, or 2.0 subscription list into a
 data frame. Nested outline groups are represented as slash-separated folder
-paths. Commented outlines are ignored.
+paths. Repeated feeds contribute all memberships to a \code{groups} list column.
+Commented outlines are ignored. Rill metadata preserves exact Group names
+and empty Groups in the \code{group_catalog} attribute.
 }

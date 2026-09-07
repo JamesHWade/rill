@@ -4,15 +4,19 @@
 \alias{write_opml}
 \title{Write feed subscriptions to an OPML file}
 \usage{
-write_opml(feeds, file, title = "Rill subscriptions")
+write_opml(feeds, file, title = "Rill subscriptions", groups = character())
 }
 \arguments{
 \item{feeds}{A data frame containing a \code{feed_url} column and optional
-\code{title}, \code{site_url}, and \code{folder} columns.}
+\code{title}, \code{site_url}, and \code{folder} columns. An optional \code{groups} list column
+exports overlapping memberships as repeated outlines with Rill metadata.
+Other readers may retain only one membership per feed.}
 
 \item{file}{A path for the OPML output file.}
 
 \item{title}{The title stored in the OPML document head.}
+
+\item{groups}{Group names to preserve, including empty Groups.}
 }
 \value{
 \code{file}, invisibly.

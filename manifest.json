@@ -2719,7 +2719,7 @@
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "f9f198cf911699d5b5000c0c35eda762"
+      "checksum": "b4fc8e82173e6d4b720662d4b91d610c"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2740,7 +2740,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "363f69f1594ab05b1698dd08567b4013"
+      "checksum": "33945adc2056dfed6b0065b20d3bafdf"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2806,7 +2806,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "97d982e533a7b9ddffc135b9bb56ddb4"
+      "checksum": "b8f90720bbb6745c248148d9282aeacd"
     },
     "R/defuddle.R": {
       "checksum": "42383c4831739c9545a9965d9c47d923"
@@ -2824,7 +2824,7 @@
       "checksum": "cb1fedd9d9854824c7492804f109d314"
     },
     "R/opml.R": {
-      "checksum": "c9fe82988299e886d1c647083b031ded"
+      "checksum": "144402dff7b883297547fa956b4a97bb"
     },
     "R/orientation-agent.R": {
       "checksum": "647c60eea65e4e809de3e7ce3b8d7a5c"
@@ -2854,13 +2854,19 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "103adc1eb3b9fba2536f2a16874aba78"
+      "checksum": "678e138ad1c44f1c7073eb718099e4d4"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "6f651c1efb701963b8435270edb67950"
+      "checksum": "c86940e7b988fa3c41d7ba87a3a16159"
+    },
+    "R/groups.R": {
+      "checksum": "8e374b25f0ecb3709d4d0cf02b79b350"
+    },
+    "inst/sql/013_feed_groups.sql": {
+      "checksum": "4d6b9eeabb837dc4b924b5e8cc10a6b0"
     }
   },
   "users": null

@@ -101,6 +101,14 @@ rill_server <- function(config, store) {
     selected_position <- shiny::reactiveVal(NA_integer_)
     selected_feed <- shiny::reactiveVal(NULL)
     selected_folder <- shiny::reactiveVal(NULL)
+    selected_group_ids <- shiny::reactiveVal(character())
+    selected_ungrouped <- shiny::reactiveVal(FALSE)
+    selected_group_match <- shiny::reactiveVal("any")
+    feed_groups <- shiny::reactive({
+      refresh_tick()
+      feed_management_tick()
+      store_list_groups(store, actor_id)
+    })
     orientation_preparing <- shiny::reactiveVal(FALSE)
     orientation_control <- shiny::reactiveVal(NULL)
     orientation_failure <- shiny::reactiveVal(NULL)
@@ -204,6 +212,9 @@ rill_server <- function(config, store) {
         view = view,
         feed_id = selected_feed(),
         folder = selected_folder(),
+        group_ids = selected_group_ids(),
+        group_match = selected_group_match(),
+        ungrouped = selected_ungrouped(),
         sort = input$story_sort %||% "newest",
         calendar = if (view %in% c("today", "week", "month")) {
           calendar_window()$window
@@ -1580,6 +1591,9 @@ rill_server <- function(config, store) {
         view = input$view %||% "unread",
         feed_id = selected_feed(),
         folder = selected_folder(),
+        group_ids = selected_group_ids(),
+        group_match = selected_group_match(),
+        ungrouped = selected_ungrouped(),
         limit = 150L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
@@ -2025,6 +2039,9 @@ rill_server <- function(config, store) {
         view = "all",
         feed_id = selected_feed(),
         folder = selected_folder(),
+        group_ids = selected_group_ids(),
+        group_match = selected_group_match(),
+        ungrouped = selected_ungrouped(),
         limit = 500L,
         sort = input$story_sort %||% "newest",
         include_content = FALSE,
@@ -2039,14 +2056,26 @@ rill_server <- function(config, store) {
     })
 
     shiny::observe({
-      folder <- selected_folder()
-      if (!is.null(folder) && !folder %in% feeds()$folder) {
+      ids <- selected_group_ids()
+      valid <- intersect(ids, feed_groups()$group_id)
+      if (!identical(ids, valid)) {
         clear_selection()
-        selected_folder(NULL)
+        selected_group_ids(valid)
       }
     })
 
     selected_feed_title <- shiny::reactive({
+      if (selected_ungrouped()) {
+        return("Ungrouped")
+      }
+      if (length(selected_group_ids())) {
+        groups <- feed_groups()
+        names <- groups$name[match(selected_group_ids(), groups$group_id)]
+        return(paste(
+          names,
+          collapse = if (selected_group_match() == "all") " + " else " or "
+        ))
+      }
       if (!is.null(selected_folder())) {
         return(selected_folder())
       }
@@ -2295,7 +2324,10 @@ rill_server <- function(config, store) {
       telemetry_local_span("navigation.render")
       feed_rows <- feeds()
       all_unread <- sum(feed_rows$unread_count, na.rm = TRUE)
-      all_active <- is.null(selected_feed()) && is.null(selected_folder())
+      all_active <- is.null(selected_feed()) &&
+        !length(selected_group_ids()) &&
+        !selected_ungrouped() &&
+        is.null(selected_folder())
       links <- list(shiny::tags$button(
         type = "button",
         class = paste("feed-link", if (all_active) "is-active"),
@@ -2305,13 +2337,28 @@ rill_server <- function(config, store) {
         shiny::tags$small(all_unread)
       ))
 
-      if (nrow(feed_rows)) {
-        groups <- split(feed_rows, feed_rows$folder)
+      {
+        catalog <- feed_groups()
+        ids <- c(catalog$group_id, "")
+        names <- c(catalog$name, "Ungrouped")
         links <- c(
           links,
-          lapply(names(groups), function(folder) {
-            rows <- groups[[folder]]
-            active <- identical(selected_folder(), folder)
+          lapply(seq_along(ids), function(i) {
+            id <- ids[[i]]
+            folder <- names[[i]]
+            keep <- vapply(
+              feed_rows$group_ids,
+              function(member) {
+                if (nzchar(id)) id %in% member else !length(member)
+              },
+              logical(1)
+            )
+            rows <- feed_rows[keep, , drop = FALSE]
+            active <- if (nzchar(id)) {
+              id %in% selected_group_ids()
+            } else {
+              selected_ungrouped()
+            }
             shiny::tags$div(
               class = "feed-folder",
               shiny::tags$button(
@@ -2319,8 +2366,8 @@ rill_server <- function(config, store) {
                 class = paste("feed-link", if (active) "is-active"),
                 `aria-current` = if (active) "true" else NULL,
                 onclick = sprintf(
-                  "rillSelectFolder(%s)",
-                  jsonlite::toJSON(folder, auto_unbox = TRUE)
+                  "rillSelectGroup(%s)",
+                  jsonlite::toJSON(id, auto_unbox = TRUE)
                 ),
                 shiny::tags$span(folder),
                 shiny::tags$small(sum(rows$unread_count, na.rm = TRUE))
@@ -2369,6 +2416,42 @@ rill_server <- function(config, store) {
       shiny::tagList(links)
     })
 
+    reading_group_choices <- NULL
+    shiny::observeEvent(feed_groups(), {
+      groups <- feed_groups()
+      if (identical(groups, reading_group_choices)) {
+        return()
+      }
+      reading_group_choices <<- groups
+      shiny::updateSelectizeInput(
+        session,
+        "reading_groups",
+        choices = stats::setNames(groups$group_id, groups$name),
+        selected = intersect(
+          input$reading_groups %||% character(),
+          groups$group_id
+        )
+      )
+    })
+    shiny::observeEvent(
+      selected_group_ids(),
+      {
+        shiny::updateSelectizeInput(
+          session,
+          "reading_groups",
+          selected = selected_group_ids()
+        )
+      },
+      ignoreNULL = FALSE
+    )
+    shiny::observeEvent(selected_group_match(), {
+      shiny::updateRadioButtons(
+        session,
+        "reading_group_match",
+        selected = selected_group_match()
+      )
+    })
+
     management_feed_id <- shiny::reactive({
       if (is.null(input$managed_feed)) selected_feed() else input$managed_feed
     })
@@ -2401,6 +2484,37 @@ rill_server <- function(config, store) {
           choices = feed_manager_choices(rows),
           selected = management_feed_id() %||% ""
         )
+        groups <- feed_groups()
+        group_choices <- stats::setNames(groups$group_id, groups$name)
+        active <- rows[rows$status == "active", , drop = FALSE]
+        shiny::updateSelectizeInput(
+          session,
+          "bulk_group_feeds",
+          choices = feed_manager_choices(active)[-1],
+          selected = intersect(
+            input$bulk_group_feeds %||% character(),
+            active$feed_id
+          )
+        )
+        shiny::updateSelectizeInput(
+          session,
+          "bulk_groups",
+          choices = group_choices,
+          selected = intersect(
+            input$bulk_groups %||% character(),
+            groups$group_id
+          )
+        )
+        shiny::updateSelectInput(
+          session,
+          "managed_group",
+          choices = c("Choose a Group" = "", group_choices),
+          selected = if ((input$managed_group %||% "") %in% groups$group_id) {
+            input$managed_group
+          } else {
+            ""
+          }
+        )
       },
       ignoreInit = TRUE
     )
@@ -2426,9 +2540,115 @@ rill_server <- function(config, store) {
       }
       feed_organization_control_ui(
         as.list(selected[1, , drop = FALSE]),
-        folders = unique(feed_rows$folder)
+        groups = feed_groups()
       )
     })
+
+    output$group_management_control <- shiny::renderUI({
+      input$manage_feeds
+      shiny::isolate(group_management_ui(management_feeds(), feed_groups()))
+    })
+
+    change_groups <- function(action) {
+      result <- tryCatch(
+        {
+          action()
+          NULL
+        },
+        error = identity
+      )
+      if (inherits(result, "error")) {
+        shiny::showNotification(conditionMessage(result), type = "error")
+        return(invisible(NULL))
+      }
+      feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
+      bump_refresh()
+      record_event("groups_updated", surface = "feed_manager")
+      status_kind("success")
+      status_text("Groups updated")
+      shiny::showNotification("Groups updated", type = "message")
+    }
+    shiny::observeEvent(
+      input$create_group,
+      {
+        change_groups(function() {
+          store_create_group(store, actor_id, input$new_group_name)
+        })
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$rename_group,
+      {
+        shiny::req(input$managed_group)
+        change_groups(function() {
+          store_rename_group(
+            store,
+            actor_id,
+            input$managed_group,
+            input$group_name
+          )
+        })
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$delete_group,
+      {
+        shiny::req(input$managed_group)
+        change_groups(function() {
+          store_delete_group(store, actor_id, input$managed_group)
+        })
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$save_feed_groups,
+      {
+        shiny::req(management_feed_id())
+        change_groups(function() {
+          store_update_group_memberships(
+            store,
+            actor_id,
+            management_feed_id(),
+            input$feed_groups %||% character()
+          )
+        })
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$add_feed_groups,
+      {
+        shiny::req(input$bulk_group_feeds, input$bulk_groups)
+        change_groups(function() {
+          store_update_group_memberships(
+            store,
+            actor_id,
+            input$bulk_group_feeds,
+            input$bulk_groups,
+            "add"
+          )
+        })
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$remove_feed_groups,
+      {
+        shiny::req(input$bulk_group_feeds, input$bulk_groups)
+        change_groups(function() {
+          store_update_group_memberships(
+            store,
+            actor_id,
+            input$bulk_group_feeds,
+            input$bulk_groups,
+            "remove"
+          )
+        })
+      },
+      ignoreInit = TRUE
+    )
 
     output$orientation_destination_settings <- shiny::renderUI({
       orientation_destination_settings_ui(orientation_destination_status())
@@ -2694,7 +2914,8 @@ rill_server <- function(config, store) {
         write_opml(
           feed_rows,
           file,
-          title = paste(config$app_name, "subscriptions")
+          title = paste(config$app_name, "subscriptions"),
+          groups = store_list_groups(store, actor_id)$name
         )
         record_event(
           "opml_exported",
@@ -2735,12 +2956,50 @@ rill_server <- function(config, store) {
       {
         clear_selection()
         selected_folder(NULL)
+        selected_group_ids(character())
+        selected_ungrouped(FALSE)
         selected_feed(input$select_feed$id %||% NULL)
         record_event(
           "feed_filter",
           surface = "sidebar",
           payload = list(feed_id = selected_feed())
         )
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$select_group,
+      {
+        id <- input$select_group$id
+        shiny::req(
+          is.character(id),
+          length(id) == 1L,
+          id == "" || id %in% feed_groups()$group_id
+        )
+        clear_selection()
+        selected_feed(NULL)
+        selected_folder(NULL)
+        selected_group_ids(if (nzchar(id)) id else character())
+        selected_ungrouped(!nzchar(id))
+        selected_group_match("any")
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$apply_reading_groups,
+      {
+        ids <- input$reading_groups %||% character()
+        shiny::req(all(ids %in% feed_groups()$group_id))
+        clear_selection()
+        selected_feed(NULL)
+        selected_folder(NULL)
+        selected_group_ids(ids)
+        selected_ungrouped(FALSE)
+        selected_group_match(match.arg(
+          input$reading_group_match %||% "any",
+          c("any", "all")
+        ))
       },
       ignoreInit = TRUE
     )
@@ -2768,6 +3027,8 @@ rill_server <- function(config, store) {
         clear_selection()
         selected_feed(NULL)
         selected_folder(NULL)
+        selected_group_ids(character())
+        selected_ungrouped(FALSE)
         browse_queue_pending(!identical(input$view %||% "unread", "unread"))
         shiny::updateRadioButtons(session, "view", selected = "unread")
         bump_refresh()
@@ -3798,6 +4059,9 @@ rill_server <- function(config, store) {
         actor_id,
         feed_id = selected_feed(),
         folder = selected_folder(),
+        group_ids = selected_group_ids(),
+        group_match = selected_group_match(),
+        ungrouped = selected_ungrouped(),
         before = before,
         reason = reason
       )
@@ -3811,6 +4075,9 @@ rill_server <- function(config, store) {
           count = count,
           feed_id = selected_feed(),
           folder = selected_folder(),
+          group_ids = selected_group_ids(),
+          group_match = selected_group_match(),
+          ungrouped = selected_ungrouped(),
           reason = reason
         )
         if (!is.null(before)) {

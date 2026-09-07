@@ -57,12 +57,14 @@ opml_is_commented <- function(node) {
 #'
 #' `read_opml()` reads an OPML 1.0, 1.1, or 2.0 subscription list into a
 #' data frame. Nested outline groups are represented as slash-separated folder
-#' paths. Commented outlines are ignored.
+#' paths. Repeated feeds contribute all memberships to a `groups` list column.
+#' Commented outlines are ignored. Rill metadata preserves exact Group names
+#' and empty Groups in the `group_catalog` attribute.
 #'
 #' @param file A path to an OPML file.
 #'
 #' @return A data frame with `title`, `feed_url`, `site_url`, and `folder`
-#'   columns.
+#'   columns, plus a `groups` list column of Group names.
 #' @export
 read_opml <- function(file) {
   if (!is.character(file) || length(file) != 1L || is.na(file)) {
@@ -121,8 +123,20 @@ read_opml <- function(file) {
     )
   }
   nodes <- nodes[!vapply(nodes, opml_is_commented, logical(1))]
+  catalog_node <- xml2::xml_find_first(
+    root,
+    "./head/*[local-name()='groups' and namespace-uri()='https://rill.run/opml']"
+  )
+  catalog <- if (inherits(catalog_node, "xml_missing")) {
+    character()
+  } else {
+    opml_decode_groups(xml2::xml_text(catalog_node))
+  }
   if (!length(nodes)) {
-    return(empty_opml_subscriptions())
+    result <- empty_opml_subscriptions()
+    result$groups <- list()
+    attr(result, "group_catalog") <- catalog
+    return(result)
   }
 
   rows <- lapply(nodes, function(node) {
@@ -130,13 +144,26 @@ read_opml <- function(file) {
     title <- opml_attribute(node, "title") %||%
       opml_attribute(node, "text") %||%
       feed_url
-    data.frame(
+    row <- data.frame(
       title = opml_label(title),
       feed_url = feed_url,
       site_url = opml_attribute(node, "htmlUrl"),
       folder = opml_folder(node),
       stringsAsFactors = FALSE
     )
+    metadata <- xml2::xml_attr(
+      node,
+      "rill:groups",
+      ns = c(rill = "https://rill.run/opml")
+    )
+    row$groups <- list(
+      if (is.na(metadata)) {
+        if (tolower(row$folder) == "unsorted") character() else row$folder
+      } else {
+        opml_decode_groups(metadata)
+      }
+    )
+    row
   })
   subscriptions <- do.call(rbind, rows)
   subscriptions <- subscriptions[
@@ -144,13 +171,54 @@ read_opml <- function(file) {
     ,
     drop = FALSE
   ]
-  subscriptions <- subscriptions[
-    !duplicated(subscriptions$feed_url),
-    ,
-    drop = FALSE
-  ]
+  subscriptions <- opml_merge_groups(subscriptions)
+  attr(subscriptions, "group_catalog") <- unique(c(
+    catalog,
+    unlist(subscriptions$groups, use.names = FALSE)
+  ))
   rownames(subscriptions) <- NULL
   subscriptions
+}
+
+opml_group_names <- function(value) {
+  if (!is.character(value) || anyNA(value) || !all(nzchar(trimws(value)))) {
+    cli::cli_abort(
+      "Group names must be non-empty strings.",
+      class = "rill_error_opml"
+    )
+  }
+  unique(trimws(value))
+}
+
+opml_decode_groups <- function(value) {
+  tryCatch(
+    {
+      decoded <- jsonlite::fromJSON(value)
+      if (identical(trimws(value), "[]")) {
+        decoded <- character()
+      }
+      opml_group_names(decoded)
+    },
+    error = function(error) {
+      cli::cli_abort("Invalid Rill Group metadata.", class = "rill_error_opml")
+    }
+  )
+}
+
+opml_merge_groups <- function(feeds) {
+  if (!"groups" %in% names(feeds)) {
+    feeds$groups <- lapply(feeds$folder, function(folder) {
+      if (tolower(folder) == "unsorted") character() else folder
+    })
+  }
+  ids <- unique(feeds$feed_url)
+  memberships <- lapply(ids, function(id) {
+    unique(unlist(feeds$groups[feeds$feed_url == id], use.names = FALSE))
+  })
+  rows <- feeds[match(ids, feeds$feed_url), , drop = FALSE]
+  rows$groups <- memberships
+  rownames(rows) <- NULL
+  rows
 }
 
 opml_http_url <- function(value) {
@@ -175,15 +243,21 @@ normalize_opml_subscriptions <- function(feeds, strict_urls = TRUE) {
       class = "rill_error_opml"
     )
   }
+  catalog <- attr(feeds, "group_catalog")
+  memberships <- if ("groups" %in% names(feeds)) {
+    lapply(feeds$groups, opml_group_names)
+  } else {
+    NULL
+  }
   feeds <- as.data.frame(feeds, stringsAsFactors = FALSE)
   if (!"title" %in% names(feeds)) {
     feeds$title <- feeds$feed_url
   }
   if (!"site_url" %in% names(feeds)) {
-    feeds$site_url <- NA_character_
+    feeds$site_url <- rep(NA_character_, nrow(feeds))
   }
   if (!"folder" %in% names(feeds)) {
-    feeds$folder <- "Unsorted"
+    feeds$folder <- rep("Unsorted", nrow(feeds))
   }
 
   feeds <- feeds[c("title", "feed_url", "site_url", "folder")]
@@ -218,13 +292,19 @@ normalize_opml_subscriptions <- function(feeds, strict_urls = TRUE) {
       character(1)
     )
   }
-  feeds <- feeds[!duplicated(feeds$feed_url), , drop = FALSE]
+  if (!is.null(memberships)) {
+    feeds$groups <- memberships
+  }
+  feeds <- opml_merge_groups(feeds)
   feeds <- feeds[
     order(tolower(feeds$folder), tolower(feeds$title), feeds$feed_url),
     ,
     drop = FALSE
   ]
   rownames(feeds) <- NULL
+  if (!is.null(catalog)) {
+    attr(feeds, "group_catalog") <- catalog
+  }
   feeds
 }
 
@@ -242,13 +322,21 @@ opml_folder_parts <- function(folder) {
 #' Slash-separated folder paths are written as nested outline groups.
 #'
 #' @param feeds A data frame containing a `feed_url` column and optional
-#'   `title`, `site_url`, and `folder` columns.
+#'   `title`, `site_url`, and `folder` columns. An optional `groups` list column
+#'   exports overlapping memberships as repeated outlines with Rill metadata.
+#'   Other readers may retain only one membership per feed.
 #' @param file A path for the OPML output file.
 #' @param title The title stored in the OPML document head.
+#' @param groups Group names to preserve, including empty Groups.
 #'
 #' @return `file`, invisibly.
 #' @export
-write_opml <- function(feeds, file, title = "Rill subscriptions") {
+write_opml <- function(
+  feeds,
+  file,
+  title = "Rill subscriptions",
+  groups = character()
+) {
   if (!is.character(file) || length(file) != 1L || is.na(file)) {
     cli::cli_abort(
       "{.arg file} must be a single path.",
@@ -267,10 +355,26 @@ write_opml <- function(feeds, file, title = "Rill subscriptions") {
       class = "rill_error_opml"
     )
   }
+  groups <- opml_group_names(groups)
+  groups <- unique(c(groups, attr(feeds, "group_catalog")))
+  overlapping <- "groups" %in%
+    names(feeds) ||
+    anyDuplicated(feeds$feed_url) > 0L
   feeds <- normalize_opml_subscriptions(feeds)
+  if (overlapping) {
+    groups <- unique(c(groups, unlist(feeds$groups, use.names = FALSE)))
+  }
 
   document <- xml2::xml_new_root("opml", version = "2.0")
+  xml2::xml_set_attr(document, "xmlns:rill", "https://rill.run/opml")
   head <- xml2::xml_add_child(document, "head")
+  if (overlapping || length(groups)) {
+    xml2::xml_add_child(
+      head,
+      "rill:groups",
+      as.character(jsonlite::toJSON(groups))
+    )
+  }
   xml2::xml_add_child(head, "title", title)
   xml2::xml_add_child(
     head,
@@ -282,29 +386,56 @@ write_opml <- function(feeds, file, title = "Rill subscriptions") {
 
   folder_nodes <- new.env(parent = emptyenv())
   for (index in seq_len(nrow(feeds))) {
-    parent <- body
-    folder_key <- ""
-    for (part in opml_folder_parts(feeds$folder[[index]])) {
-      folder_key <- paste(folder_key, part, sep = "\u241f")
-      if (!exists(folder_key, envir = folder_nodes, inherits = FALSE)) {
-        node <- xml2::xml_add_child(parent, "outline")
-        xml2::xml_set_attrs(node, c(text = part, title = part))
-        assign(folder_key, node, envir = folder_nodes)
+    memberships <- if (overlapping) {
+      feeds$groups[[index]]
+    } else {
+      feeds$folder[[index]]
+    }
+    if (!length(memberships)) {
+      memberships <- "Unsorted"
+    }
+    for (membership in memberships) {
+      parent <- body
+      folder_key <- ""
+      for (part in if (overlapping) {
+        if (
+          identical(membership, "Unsorted") && !length(feeds$groups[[index]])
+        ) {
+          character()
+        } else {
+          membership
+        }
+      } else {
+        opml_folder_parts(membership)
+      }) {
+        folder_key <- paste(folder_key, part, sep = "\u241f")
+        if (!exists(folder_key, envir = folder_nodes, inherits = FALSE)) {
+          node <- xml2::xml_add_child(parent, "outline")
+          xml2::xml_set_attrs(node, c(text = part, title = part))
+          assign(folder_key, node, envir = folder_nodes)
+        }
+        parent <- get(folder_key, envir = folder_nodes, inherits = FALSE)
       }
-      parent <- get(folder_key, envir = folder_nodes, inherits = FALSE)
-    }
 
-    node <- xml2::xml_add_child(parent, "outline")
-    attributes <- c(
-      text = feeds$title[[index]],
-      title = feeds$title[[index]],
-      type = "rss",
-      xmlUrl = feeds$feed_url[[index]]
-    )
-    if (!is.na(feeds$site_url[[index]])) {
-      attributes <- c(attributes, htmlUrl = feeds$site_url[[index]])
+      node <- xml2::xml_add_child(parent, "outline")
+      attributes <- c(
+        text = feeds$title[[index]],
+        title = feeds$title[[index]],
+        type = "rss",
+        xmlUrl = feeds$feed_url[[index]]
+      )
+      if (!is.na(feeds$site_url[[index]])) {
+        attributes <- c(attributes, htmlUrl = feeds$site_url[[index]])
+      }
+      xml2::xml_set_attrs(node, attributes)
+      if (overlapping) {
+        xml2::xml_set_attr(
+          node,
+          "rill:groups",
+          as.character(jsonlite::toJSON(feeds$groups[[index]]))
+        )
+      }
     }
-    xml2::xml_set_attrs(node, attributes)
   }
 
   xml2::write_xml(document, file, options = "format", encoding = "UTF-8")
@@ -389,6 +520,10 @@ import_opml_subscriptions <- function(
     subscriptions,
     strict_urls = FALSE
   )
+  subscriptions <- opml_merge_groups(subscriptions)
+  for (name in attr(subscriptions, "group_catalog")) {
+    store_create_group(store, actor_id, name)
+  }
   existing <- store_list_feeds(
     store,
     actor_id,
@@ -470,8 +605,19 @@ import_opml_subscriptions <- function(
         store_subscribe_feed(
           store,
           actor_id,
+          feed$feed_id
+        )
+        ids <- vapply(
+          subscription$groups[[1]],
+          function(name) store_create_group(store, actor_id, name),
+          character(1)
+        )
+        store_update_group_memberships(
+          store,
+          actor_id,
           feed$feed_id,
-          folder = subscription$folder[[1]]
+          ids,
+          "add"
         )
         store_rename_feed(
           store,

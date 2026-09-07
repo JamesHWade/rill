@@ -27,6 +27,13 @@ together with that Reader's organization and preferences. An inactive
 Subscription preserves those choices for later restoration.
 _Avoid_: Feed
 
+**Group**:
+A named Reader-owned collection of Subscriptions used to organize and filter
+reading. A Subscription may belong to several Groups. Groups remain when empty;
+Ungrouped means an active Subscription has no Group memberships. Reading state
+belongs to the Reader and Feed Entry and is shared across every Group view.
+_Avoid_: Folder, tag
+
 **Library**:
 A Reader's private collection of Subscriptions, Captures, reading-copy
 selections, and reading state.
