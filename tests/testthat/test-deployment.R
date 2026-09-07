@@ -156,6 +156,12 @@ testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
     "Connect manifest is not included in the built R package"
   )
   manifest <- jsonlite::read_json(manifest_path)
+  description <- read.dcf(file.path(dirname(manifest_path), "DESCRIPTION"))
+  remotes <- trimws(strsplit(description[[1L, "Remotes"]], ",")[[1L]])
+  testthat::expect_identical(
+    remotes[grepl("^JamesHWade/deputy@", remotes)],
+    paste0("JamesHWade/deputy@", manifest$packages$deputy$description$RemoteSha)
+  )
 
   testthat::expect_identical(manifest$platform, "4.6.0")
   testthat::expect_contains(
