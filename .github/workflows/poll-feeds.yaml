@@ -16,7 +16,7 @@ jobs:
   poll:
     if: ${{ vars.RILL_POLLING_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       DATABASE_URL: ${{ secrets.RILL_DATABASE_URL }}
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
