@@ -332,7 +332,7 @@ rill_server <- function(config, store) {
               schedule_visible_agent_run_poll(run_id, delay = 0.25)
               return(NULL)
             }
-            if (identical(draining_agent_run_id(), run_id)) {
+            if (identical(shiny::isolate(draining_agent_run_id()), run_id)) {
               draining_agent_run_id(NULL)
             }
             if (
