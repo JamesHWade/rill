@@ -2329,6 +2329,19 @@ div.story-list.shiny-html-output {
   box-shadow: var(--shadow);
 }
 
+.modal-footer .btn-default {
+  color: var(--ink);
+  background-color: var(--paper);
+  border-color: var(--green);
+}
+
+.modal-footer .btn-default:hover,
+.modal-footer .btn-default:focus-visible,
+.modal-footer .btn-default:active {
+  color: var(--on-primary);
+  background-color: var(--green);
+}
+
 .modal-header,
 .modal-footer,
 .popover-header {

@@ -53,6 +53,7 @@ try {
     await page.evaluate(() => window.rillOpenLibrary());
     await page.getByRole('button', {name: 'Manage feeds', exact: true}).click();
     await page.getByRole('dialog').waitFor();
+    await page.waitForFunction(() => document.querySelector('.modal.show')?.contains(document.activeElement));
     await capture('manage-feeds', width);
     await page.getByRole('button', {name: 'Done', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
@@ -91,6 +92,10 @@ try {
   if (label === 'after') {
     assert.deepEqual(results.flatMap(r => r.violations), []);
     assert.ok(results.every(r => !r.ui.horizontalOverflow));
+  }
+  if (label === 'after') {
+    assert.deepEqual(results.flatMap(r => r.violations), [], 'No WCAG violations in final captures');
+    assert.ok(results.every(r => !r.ui.horizontalOverflow), 'No viewport overflow');
   }
 } finally {
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(results, null, 2));

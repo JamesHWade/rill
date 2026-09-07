@@ -73,7 +73,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "selectedDocumentId": "1969285fb5572f1614fa83f80ca0621a21a72cf0705543e547c8c57461f4a23f",
       "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
       "visibleDialogs": 0
     },
@@ -89,7 +89,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "selectedDocumentId": "1969285fb5572f1614fa83f80ca0621a21a72cf0705543e547c8c57461f4a23f",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -105,7 +105,7 @@
       "connectionState": "connected",
       "activeSurface": "library",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "aba7e8363cfd6195338c6b32816598a2e419b436d69f6862bec51f910b87e675",
+      "selectedDocumentId": "1969285fb5572f1614fa83f80ca0621a21a72cf0705543e547c8c57461f4a23f",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },
@@ -201,7 +201,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "selectedDocumentId": "903fd4335f54199bcdedf2af0b46d4f49b21e7857192607cd793f1b8ece4b574",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -217,7 +217,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "selectedDocumentId": "903fd4335f54199bcdedf2af0b46d4f49b21e7857192607cd793f1b8ece4b574",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -233,7 +233,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "58bcbd369d70bbd752a12b688b84a0465e87caa3a601a5d4cea7812970a295d4",
+      "selectedDocumentId": "903fd4335f54199bcdedf2af0b46d4f49b21e7857192607cd793f1b8ece4b574",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -313,7 +313,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "selectedDocumentId": "8fb5b9cb881efd8cb86eeceb1f1a91236cfcb653d0e1a97f1493bbd1dcdaca5b",
       "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
       "visibleDialogs": 0
     },
@@ -329,7 +329,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "selectedDocumentId": "8fb5b9cb881efd8cb86eeceb1f1a91236cfcb653d0e1a97f1493bbd1dcdaca5b",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -345,21 +345,11 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "c24ee1cfaada5ceb681ef0f8c9dc6fe29268e5c69dbb805b4a8ac52dd232fa46",
+      "selectedDocumentId": "8fb5b9cb881efd8cb86eeceb1f1a91236cfcb653d0e1a97f1493bbd1dcdaca5b",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },
-    "violations": [
-      {
-        "id": "color-contrast",
-        "impact": "serious",
-        "targets": [
-          [
-            "button[data-dismiss=\"modal\"]"
-          ]
-        ]
-      }
-    ]
+    "violations": []
   },
   {
     "state": "empty",
@@ -451,7 +441,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "selectedDocumentId": "8a1372b3558bfb85e6f4e40a6c964849b0e9707003846dca2f5ab4700e087f73",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -467,7 +457,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "selectedDocumentId": "8a1372b3558bfb85e6f4e40a6c964849b0e9707003846dca2f5ab4700e087f73",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },
@@ -483,7 +473,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "43ad243a133bd0707a4b37bb368c97459561ebf607c03bd7b23dde32ff213145",
+      "selectedDocumentId": "8a1372b3558bfb85e6f4e40a6c964849b0e9707003846dca2f5ab4700e087f73",
       "focusedElement": "reader-agent-title",
       "visibleDialogs": 0
     },

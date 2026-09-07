@@ -65,7 +65,7 @@ credential-entry flow was not tested.
   sidebar resize handles expose their width; code blocks support keyboard
   focus for horizontal scrolling. Source text retains contrast during refresh.
 - Short phone viewports scroll the entire queue or Library so fixed controls
-  cannot consume the available content area. Native dialogs restore focus.
+  cannot consume the available content area. Native dialogs restore focus and their Done button retains readable contrast.
 - Startup waits for rendered Library content before announcing readiness and
   offers reload recovery after a delay. Access decisions suppress startup text.
 - Ask Rill's running and retry output renders even when its empty container was
@@ -110,7 +110,8 @@ screenshots of private production data.
 - The full PostgreSQL-backed source suite passed 2,933 assertions with no
   failures, warnings, or skips.
 - R CMD check passed with zero errors, warnings, or notes, including
-  PostgreSQL-backed tests.
+  PostgreSQL-backed tests. The subsequent modal-button CSS correction passed
+  light/dark browser checks and all 21 deployment assertions.
 - Air formatting, pkgdown reference checks, JavaScript syntax, and
   `git diff --check` passed.
 
