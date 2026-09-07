@@ -160,16 +160,31 @@ parse_feed_document <- function(
   folder = "Unsorted"
 ) {
   document <- xml2::read_xml(xml)
-  rss_items <- xml2::xml_find_all(
+  is_atom <- identical(xml2::xml_name(document), "feed")
+  channel <- xml2::xml_find_first(
     document,
-    "//*[local-name()='channel']/*[local-name()='item']"
+    "/*[local-name()='rss' or local-name()='RDF']/*[local-name()='channel']"
   )
-  atom_items <- xml2::xml_find_all(
-    document,
-    "/*[local-name()='feed']/*[local-name()='entry']"
-  )
-  items <- if (length(rss_items)) rss_items else atom_items
-  is_atom <- !length(rss_items)
+  if (!is_atom && inherits(channel, "xml_missing")) {
+    cli::cli_abort(
+      "The document is not an RSS or Atom feed.",
+      class = "rill_feed_unsupported_document"
+    )
+  }
+  items <- if (is_atom) {
+    xml2::xml_find_all(
+      document,
+      "/*[local-name()='feed']/*[local-name()='entry']"
+    )
+  } else {
+    xml2::xml_find_all(
+      document,
+      paste0(
+        "/*[local-name()='rss']/*[local-name()='channel']/*[local-name()='item']",
+        " | /*[local-name()='RDF']/*[local-name()='item']"
+      )
+    )
+  }
 
   feed_title <- if (is_atom) {
     xml_first_text(
@@ -178,8 +193,8 @@ parse_feed_document <- function(
     )
   } else {
     xml_first_text(
-      document,
-      "//*[local-name()='channel']/*[local-name()='title'][1]"
+      channel,
+      "./*[local-name()='title'][1]"
     )
   }
   site_url <- if (is_atom) {
@@ -190,8 +205,8 @@ parse_feed_document <- function(
     )
   } else {
     xml_first_text(
-      document,
-      "//*[local-name()='channel']/*[local-name()='link'][1]"
+      channel,
+      "./*[local-name()='link'][1]"
     )
   }
   if (!is.na(site_url)) {
@@ -218,6 +233,12 @@ parse_feed_document <- function(
       item,
       "./*[local-name()='guid' or local-name()='id'][1]"
     )
+    if (is.na(external_id)) {
+      external_id <- xml_first_text(
+        item,
+        "./@*[local-name()='about' and namespace-uri()='http://www.w3.org/1999/02/22-rdf-syntax-ns#']"
+      )
+    }
     published_raw <- xml_first_text(
       item,
       "./*[local-name()='pubDate' or local-name()='published' or local-name()='updated' or local-name()='date'][1]"
@@ -270,7 +291,7 @@ parse_feed_document <- function(
     feed_id = feed_id,
     feed_url = feed_url,
     site_url = site_url,
-    title = feed_title %||% feed_url,
+    title = if (is.na(feed_title)) feed_url else feed_title,
     folder = folder,
     etag = headers$etag %||% NA_character_,
     last_modified = headers$last_modified %||% NA_character_,
@@ -344,7 +365,7 @@ refresh_feed <- function(store, feed) {
   }
 
   result$feed$feed_id <- feed$feed_id
-  result$entries$feed_id <- feed$feed_id
+  result$entries$feed_id <- rep(feed$feed_id, nrow(result$entries))
   result$entries$entry_id <- vapply(
     seq_len(nrow(result$entries)),
     function(index) {

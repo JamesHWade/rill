@@ -34,6 +34,94 @@ testthat::test_that("Atom links and authors are recognized", {
   testthat::expect_equal(result$entries$author, "Ada")
 })
 
+testthat::test_that("RSS 1.0 preserves channel metadata and sibling items", {
+  rdf <- paste0(
+    '<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#" ',
+    'xmlns="http://purl.org/rss/1.0/" ',
+    'xmlns:dc="http://purl.org/dc/elements/1.1/" ',
+    'xmlns:content="http://purl.org/rss/1.0/modules/content/">',
+    '<channel r:about="https://example.org/feed">',
+    '<title>Research</title><link>https://example.org</link>',
+    '</channel><item r:about="urn:article:one"><title>First</title>',
+    '<link>/one</link><dc:creator>Ada</dc:creator>',
+    '<dc:date>2026-09-06T12:00:00Z</dc:date>',
+    '<content:encoded><![CDATA[<p>Source text.</p>]]></content:encoded>',
+    '</item><item r:about="urn:article:two"><title>Second</title>',
+    '<link>/two</link></item></r:RDF>'
+  )
+
+  result <- parse_feed_document(rdf, "https://example.org/feed")
+
+  testthat::expect_identical(result$feed$title, "Research")
+  testthat::expect_identical(result$feed$site_url, "https://example.org")
+  testthat::expect_identical(result$entries$title, c("First", "Second"))
+  testthat::expect_identical(
+    result$entries$url,
+    c("https://example.org/one", "https://example.org/two")
+  )
+  testthat::expect_identical(
+    result$entries$external_id,
+    c("urn:article:one", "urn:article:two")
+  )
+  testthat::expect_identical(result$entries$author, c("Ada", NA_character_))
+  testthat::expect_identical(
+    result$entries$published_at[[1L]],
+    "2026-09-06 12:00:00 UTC"
+  )
+  testthat::expect_identical(
+    result$entries$feed_content[[1L]],
+    "<p>Source text.</p>"
+  )
+})
+
+testthat::test_that("empty feeds refresh metadata without losing saved entries", {
+  documents <- c(
+    '<rss><channel><title>Empty RSS</title><link>/</link></channel></rss>',
+    '<feed xmlns="http://www.w3.org/2005/Atom"><title>Empty Atom</title><link href="/"/></feed>',
+    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><channel><title>Empty RDF</title><link>/</link></channel></rdf:RDF>',
+    '<rss><channel><title>No usable links</title><link>/</link><item><title>No link</title></item></channel></rss>'
+  )
+  titles <- c("Empty RSS", "Empty Atom", "Empty RDF", "No usable links")
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  feed <- as.list(store$memory$feeds[1L, , drop = FALSE])
+  original_entries <- store$memory$entries
+  testthat::local_mocked_bindings(fetch_feed = function(...) parsed)
+
+  for (index in seq_along(documents)) {
+    parsed <- parse_feed_document(
+      documents[[index]],
+      "https://example.org/redirected-feed",
+      headers = list(etag = "updated")
+    )
+    testthat::expect_identical(parsed$entries, empty_entries())
+    refreshed <- refresh_feed(store, feed)
+    saved <- store_list_feeds(store, "reader")
+    saved <- saved[saved$feed_id == feed$feed_id, , drop = FALSE]
+
+    testthat::expect_identical(refreshed$added, 0L)
+    testthat::expect_identical(refreshed$feed_id, feed$feed_id)
+    testthat::expect_identical(saved$title, titles[[index]])
+    testthat::expect_identical(saved$site_url, "https://example.org/")
+    testthat::expect_identical(saved$etag, "updated")
+    testthat::expect_identical(store$memory$entries, original_entries)
+  }
+})
+
+testthat::test_that("unrelated XML is not accepted as an empty feed", {
+  testthat::expect_error(
+    parse_feed_document(
+      "<error><message>Unavailable</message></error>",
+      "https://example.org/feed"
+    ),
+    class = "rill_feed_unsupported_document"
+  )
+  parsed <- parse_feed_document(
+    "<rss><channel/></rss>",
+    "https://example.org/feed"
+  )
+  testthat::expect_identical(parsed$feed$title, "https://example.org/feed")
+})
+
 testthat::test_that("local network feed URLs are rejected", {
   testthat::expect_snapshot(
     validate_public_http_url("http://127.0.0.1/feed"),

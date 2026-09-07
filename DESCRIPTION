@@ -44,7 +44,7 @@ Suggests:
     rlang,
     testthat (>= 3.3.0)
 Remotes:
-    JamesHWade/deputy
+    JamesHWade/deputy@4a8ee639df8c5e5e32567cb706b722f14732c923
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

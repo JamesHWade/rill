@@ -2713,7 +2713,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "6a9d812341e12572f77d4b140159d993"
+      "checksum": "f9f8362125af8210e8de55720c401aa3"
     },
     "inst/app/_brand.yml": {
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
@@ -2818,7 +2818,7 @@
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
     },
     "R/feeds.R": {
-      "checksum": "7e8552db45d7630b5ef64b46a81d6d6c"
+      "checksum": "9d4cb1a7a3f00b1772ad2d7dd6abbc5a"
     },
     "R/identity.R": {
       "checksum": "a8d08d99403314c2575c967327786215"
@@ -2842,7 +2842,7 @@
       "checksum": "dd248a86f238dfe16126d29a8379cc60"
     },
     "R/polling.R": {
-      "checksum": "2dfd70a691a1524b91a1d1423d37745f"
+      "checksum": "9eda78e63da1ff4d5a15f2c01c2ce90c"
     },
     "R/reader-admissions.R": {
       "checksum": "a36b28f095430f2cc08d770807fbc478"

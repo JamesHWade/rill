@@ -252,32 +252,76 @@ testthat::test_that("poll_feeds reports skipped and successful runs", {
   )
 })
 
-testthat::test_that("poll_feeds reports the configured failure threshold", {
-  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+testthat::test_that("failed polling prepares healthy articles before signaling the threshold", {
+  local_article_preparation_worker()
+  store <- preparation_test_store()
+  store$memory$entries <- store$memory$entries[0, , drop = FALSE]
+  store$memory$feeds$last_polled_at <- NA_character_
+  healthy <- store$memory$feeds$feed_url[[1L]]
+  xml <- paste0(
+    '<rss><channel><title>Healthy</title><link>https://example.org</link>',
+    '<item><guid>new</guid><title>New article</title>',
+    '<link>https://example.org/new</link></item></channel></rss>'
+  )
   testthat::local_mocked_bindings(
     rill_config = \() {
       list(
         demo_mode = FALSE,
         poll_interval_minutes = 60L,
-        poll_failure_threshold = 1L
+        poll_failure_threshold = 1L,
+        defuddle_backend = "hosted"
       )
     },
     init_telemetry = \(config) NULL,
     rill_store = \(config) store,
     rill_store_close = \(store) NULL,
-    run_due_feed_polling = function(...) {
-      list(
-        status = "failed",
-        due_count = 3L,
-        failed_count = 1L,
-        failure_threshold = 1L
-      )
+    fetch_feed = function(url, ...) {
+      if (!identical(url, healthy)) {
+        cli::cli_abort(
+          "Unavailable: https://example.org/private?token=secret",
+          class = "httr2_http_404"
+        )
+      }
+      parse_feed_document(xml, url)
+    },
+    fetch_defuddled_markdown = function(source_url, config) {
+      testthat::expect_identical(store$memory$feed_poll_locked, FALSE)
+      "Complete public article."
     }
   )
 
-  testthat::expect_error(
-    poll_feeds(),
-    class = "rill_feed_poll_failure_threshold"
+  messages <- testthat::capture_messages({
+    error <- tryCatch(poll_feeds(), error = identity)
+  })
+
+  testthat::expect_s3_class(error, "rill_feed_poll_failure_threshold")
+  testthat::expect_identical(error$result$succeeded_count, 1L)
+  testthat::expect_identical(error$result$failed_count, 2L)
+  testthat::expect_identical(
+    error$result$preparation,
+    list(prepared = 1L, failed = 0L)
+  )
+  entry <- store_get_entry(store, "reader", store$memory$entries$entry_id[[1L]])
+  document <- store_get_document(store, "reader", entry$entry_id)
+  testthat::expect_identical(document$markdown, "Complete public article.")
+  testthat::expect_identical(document$source_url, "https://example.org/new")
+  testthat::expect_match(
+    paste(messages, collapse = "\n"),
+    "httr2_http_404: 2",
+    fixed = TRUE
+  )
+  testthat::expect_no_match(
+    paste(messages, collapse = "\n"),
+    "private|secret|example.org"
+  )
+  testthat::expect_identical(store$memory$feed_poll_runs$status, "failed")
+  failures <- Filter(
+    \(outcome) identical(outcome$status, "failed"),
+    error$result$outcomes
+  )
+  testthat::expect_identical(
+    failures[[1L]]$error_message,
+    "Unavailable: https://example.org/private?token=secret"
   )
 })
 testthat::test_that("manual refresh checks only active feeds in this Library", {

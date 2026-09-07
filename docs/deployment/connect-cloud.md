@@ -103,7 +103,17 @@ these repository settings:
 The workflow needs neither Auth0 nor OpenAI credentials. It acquires Rill's
 PostgreSQL polling lock, refreshes only due Feeds with active Subscriptions,
 records per-Feed outcomes, and exits nonzero only for a systemic error or the
-configured failure threshold.
+configured failure threshold. After releasing the polling lock, it prepares
+available recent articles even when some Feeds failed, then signals any
+threshold failure. The run log includes the run ID, success and failure counts,
+and failure counts by native condition class. Native error messages remain in
+`feed_poll_outcomes` for operator diagnosis; join `feeds` on `feed_id` to inspect
+the corresponding source URL.
+
+Repeated `httr2_http_404` failures require checking the source's feed URL;
+`httr2_http_403` means the source refused the request. These failures do not
+remove Subscriptions or saved articles. Repair the source or retry it through
+Manage feeds rather than raising the threshold to hide persistent failures.
 
 ## Diagnose startup failures
 
