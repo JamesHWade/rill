@@ -2038,6 +2038,14 @@ rill_server <- function(config, store) {
       ]
     })
 
+    shiny::observe({
+      folder <- selected_folder()
+      if (!is.null(folder) && !folder %in% feeds()$folder) {
+        clear_selection()
+        selected_folder(NULL)
+      }
+    })
+
     selected_feed_title <- shiny::reactive({
       if (!is.null(selected_folder())) {
         return(selected_folder())
@@ -2322,7 +2330,7 @@ rill_server <- function(config, store) {
                   !is.null(selected_feed()) &&
                     selected_feed() %in% rows$feed_id
                 ) {
-                  NA
+                  "open"
                 } else {
                   NULL
                 },

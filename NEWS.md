@@ -1,6 +1,6 @@
 # rill 0.0.0.9000
 
-* Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder.
+* Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder (#75).
 
 * Startup waits for the Library before announcing readiness and offers reload recovery after a delay; Ask Rill displays running and retry states, and dismissed dialogs restore keyboard focus (#50, #51).
 
