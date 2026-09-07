@@ -155,6 +155,11 @@
     if (!status || !titleNode || !detailNode || !actionNode) return;
 
     window.clearTimeout(systemStatusTimer);
+    if (document.querySelector("[data-rill-access-status]")) {
+      status.hidden = true;
+      setAppBusy(false);
+      return;
+    }
     status.hidden = false;
     status.dataset.state = state;
     status.className = `rill-system-status is-${state}`;
@@ -177,7 +182,7 @@
     hasConnected = true;
     connectionState = "connected";
     syncReaderTimezone(true);
-    setAppBusy(false);
+    setAppBusy(true);
     if (restored) {
       setSystemStatus(
         "restored",
@@ -224,6 +229,11 @@
   }
 
   function enhanceNativeFeedback(root = document) {
+    if (document.querySelector("[data-rill-access-status]")) {
+      const status = document.getElementById("rill-system-status");
+      if (status) status.hidden = true;
+      setAppBusy(false);
+    }
     matchingNodes(root, ".shiny-notification").forEach(function (notice) {
       const urgent = notice.matches(
         ".shiny-notification-error, .shiny-notification-warning"
@@ -269,6 +279,27 @@
   function registerSystemEvents() {
     if (systemEventsRegistered || !window.jQuery) return;
     const events = window.jQuery(document);
+    const modalReturnFocus = new WeakMap();
+    events.on("show.bs.modal.rillModalFocus", function (event) {
+      if (event.target.id !== "shiny-modal") return;
+      const trigger = document.activeElement;
+      if (trigger && !event.target.contains(trigger)) {
+        modalReturnFocus.set(event.target, { element: trigger, id: trigger.id });
+      }
+    });
+    events.on("hidden.bs.modal.rillModalFocus", function (event) {
+      const saved = modalReturnFocus.get(event.target);
+      modalReturnFocus.delete(event.target);
+      if (!saved || event.target.hasAttribute("data-rill-orientation-confirmation")) return;
+      window.requestAnimationFrame(function () {
+        const trigger = saved.element.isConnected ? saved.element :
+          saved.id && document.getElementById(saved.id);
+        if (trigger && trigger.getClientRects().length && !visibleDialogOwnsEscape() &&
+            (focusWasLost() || event.target.contains(document.activeElement))) {
+          trigger.focus({ preventScroll: true });
+        }
+      });
+    });
     events.on("shiny:connected.rillSystemStatus", handleShinyConnected);
     events.on("shiny:disconnected.rillSystemStatus", handleShinyDisconnected);
     events.on("shiny:busy.rillSystemStatus", function () {
@@ -276,6 +307,7 @@
     });
     events.on("shiny:idle.rillSystemStatus", function () {
       if (connectionState !== "connected") return;
+      if (!document.getElementById("list_title")?.textContent.trim()) return;
       setAppBusy(false);
       if (!initialLoadComplete) {
         initialLoadComplete = true;
@@ -298,6 +330,15 @@
       }
     });
     systemEventsRegistered = true;
+    window.setTimeout(function () {
+      if (initialLoadComplete || !["starting", "connected"].includes(connectionState)) return;
+      setSystemStatus(
+        "loading",
+        "Still opening Rill",
+        "Sign-in or Library loading is taking longer than expected. You can reload to try again.",
+        { action: true }
+      );
+    }, 15000);
 
     window.setTimeout(function () {
       const socket =
@@ -850,9 +891,10 @@
         ? "reader"
         : "queue";
     }
-    if (pendingCompactQueue && !hasReader) {
+    if (compactSurface !== "library" && pendingCompactQueue && !hasReader) {
       compactSurface = "queue";
     } else if (
+      compactSurface !== "library" &&
       shell.classList.contains("orientation-queue-visible") &&
       !hasReader
     ) {
@@ -928,6 +970,7 @@
       pendingCompactQueue = false;
     } else if (
       compactReaderMode.matches &&
+      compactSurface !== "library" &&
       !nextId &&
       activeEntryId &&
       pendingEntrySurface === null
@@ -1062,6 +1105,10 @@
       : null;
     pendingCompactQueue = false;
     pendingEntrySurface = normalizeSelectionSurface(surface);
+    if (id === activeEntryId && pendingEntrySurface === activeEntrySurface &&
+        (!provenance || !provenance.document_id || provenance.document_id === activeDocumentId)) {
+      showCompactSurface("reader");
+    }
     pendingOrientationSelectionCardId =
       pendingEntrySurface === "orientation" && provenance
         ? provenance.card_id || null
@@ -1269,6 +1316,77 @@
     cards[nextIndex].click();
     return true;
   }
+
+  window.rillMoveStory = moveStory;
+
+  window.rillToggleStoryActions = function (button, expanded) {
+    const row = button.closest(".story-row");
+    const actions = row && row.querySelector(".story-actions");
+    if (!actions) return;
+    const open = expanded === undefined ? actions.hidden : expanded;
+    actions.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  };
+
+  let pendingQueueSaveFocus = null;
+  window.rillSaveQueueEntry = function (button, id) {
+    pendingQueueSaveFocus = { button, id };
+    window.Shiny.setInputValue("queue_save", id, { priority: "event" });
+  };
+  document.addEventListener("keydown", function (event) {
+    const actions = event.target.closest && event.target.closest(".story-actions");
+    if (event.key !== "Escape" || !actions || document.querySelector(".modal.show")) return;
+    const toggle = actions.parentElement.querySelector(".story-actions-toggle");
+    window.rillToggleStoryActions(toggle, false);
+    toggle.focus();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  let swipe = null;
+  document.addEventListener("touchstart", function (event) {
+    swipe = null;
+    if (!compactReaderMode.matches || event.touches.length !== 1 ||
+        document.querySelector(".modal.show") ||
+        window.getSelection().toString()) return;
+    const target = event.target;
+    const row = target.closest(".story-row");
+    const article = target.closest("#reader-document");
+    if (!row && !article) return;
+    if (target.closest("a, input, textarea, select, [contenteditable], .story-actions, .story-actions-toggle") ||
+        (article && target.closest("button, pre, table"))) return;
+    const touch = event.touches[0];
+    if (touch.clientX < 24 || touch.clientX > window.innerWidth - 24) return;
+    swipe = { x: touch.clientX, y: touch.clientY, row, article,
+      started: performance.now() };
+  }, { passive: true });
+  document.addEventListener("touchmove", function (event) {
+    if (!swipe) return;
+    if (event.touches.length !== 1 ||
+        Math.abs(event.touches[0].clientY - swipe.y) > 24) swipe = null;
+  }, { passive: true });
+  document.addEventListener("touchcancel", function () { swipe = null; });
+  document.addEventListener("touchend", function (event) {
+    const gesture = swipe;
+    swipe = null;
+    if (!gesture || !event.changedTouches.length ||
+        performance.now() - gesture.started > 800 ||
+        window.getSelection().toString()) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - gesture.x;
+    const dy = touch.clientY - gesture.y;
+    if (Math.abs(dx) < 72 || Math.abs(dy) > 24 ||
+        Math.abs(dx) < Math.abs(dy) * 3) return;
+    if (gesture.row && gesture.row.isConnected) {
+      window.rillToggleStoryActions(
+        gesture.row.querySelector(".story-actions-toggle"), dx < 0
+      );
+    } else if (gesture.article && gesture.article.isConnected) {
+      moveStory(dx < 0 ? 1 : -1);
+    }
+    if (event.cancelable) event.preventDefault();
+  }, { passive: false });
+
 
   function openOriginal() {
     const link = document.querySelector(".original-link");
@@ -1693,7 +1811,54 @@
     syncAskRillControls();
   }
 
+  const observedSidebars = new WeakSet();
+  const sidebarWidthObserver = new ResizeObserver(function (entries) {
+    entries.forEach(function ({ target }) {
+      const handle = target.parentElement.querySelector(":scope > .bslib-sidebar-resize-handle");
+      if (handle) {
+        const width = Math.round(target.getBoundingClientRect().width);
+        handle.setAttribute("aria-valuemin", "0");
+        handle.setAttribute("aria-valuemax", String(Math.round(target.parentElement.getBoundingClientRect().width)));
+        handle.setAttribute("aria-valuenow", String(width));
+        handle.setAttribute("aria-valuetext", `${width} pixels`);
+      }
+    });
+  });
+
+  function syncStoryNavigation() {
+    document.querySelectorAll("#reader-document pre").forEach(function (block) {
+      block.tabIndex = 0;
+    });
+    if (pendingQueueSaveFocus && !pendingQueueSaveFocus.button.isConnected) {
+      const card = document.querySelector(`.story-card[data-entry-id="${CSS.escape(pendingQueueSaveFocus.id)}"]`);
+      const row = card && card.closest(".story-row");
+      const toggle = row ? row.querySelector(".story-actions-toggle") : document.querySelector(".story-actions-toggle");
+      if (toggle && focusWasLost() &&
+          (!compactReaderMode.matches || compactSurface === "queue")) {
+        if (row) {
+          window.rillToggleStoryActions(toggle, true);
+          row.querySelector(".story-actions button:last-child").focus();
+        } else {
+          toggle.focus();
+        }
+      }
+      pendingQueueSaveFocus = null;
+    }
+    const cards = Array.from(document.querySelectorAll(".story-card"));
+    const index = cards.findIndex(card => card.classList.contains("is-selected"));
+    const previous = document.querySelector(".reader-previous");
+    const next = document.querySelector(".reader-next");
+    if (previous) previous.disabled = index <= 0;
+    if (next) next.disabled = index < 0 || index >= cards.length - 1;
+    document.querySelectorAll(".bslib-sidebar-layout > .sidebar").forEach(function (sidebar) {
+      if (observedSidebars.has(sidebar)) return;
+      observedSidebars.add(sidebar);
+      sidebarWidthObserver.observe(sidebar);
+    });
+  }
+
   function syncReaderSurfaces() {
+    syncStoryNavigation();
     syncReader();
     syncAskRillControls();
   }

@@ -1,5 +1,11 @@
 # rill 0.0.0.9000
 
+* Startup waits for the Library before announcing readiness and offers reload recovery after a delay; Ask Rill displays running and retry states, and dismissed dialogs restore keyboard focus (#50, #51).
+
+* Scheduled polling uses Rill's bundled extractor and reports how many articles prepared or failed before reporting feed failures (#45).
+
+* Mobile queues reveal Read and Save actions with a swipe or a named actions button, and reading supports previous/next swipes alongside visible buttons; page language, resize controls, and refreshing text have improved accessibility (#50).
+
 * Feed refresh supports RSS 1.0 sources such as Nature and The Oatmeal, preserves saved entries when a feed is empty, and keeps the polling lock alive during slow fetches; scheduled polling prepares available articles before reporting source failures and includes failure counts by condition class in its logs (#45).
 
 * Orientation lets its agent correct rejected source quotations before accepting a submission and correctly handles ellmer's typed card fields (#45, #50).

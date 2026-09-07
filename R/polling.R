@@ -43,6 +43,9 @@ poll_feeds <- function() {
   }
   report_feed_poll_failures(result)
   result$preparation <- prepare_recent_articles(store, config)
+  cli::cli_inform(c(
+    "i" = "Article preparation: {result$preparation$prepared} prepared; {result$preparation$failed} failed."
+  ))
   if (identical(result$status, "failed")) {
     cli::cli_abort(
       c(

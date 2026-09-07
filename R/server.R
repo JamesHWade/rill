@@ -2611,50 +2611,13 @@ rill_server <- function(config, store) {
     )
 
     output$reader_agent_status <- shiny::renderUI({
-      pending <- pending_reader_question()
-      if (!is.null(pending)) {
-        return(shiny::tags$p(
-          class = "reader-agent-run-status",
-          role = "status",
-          `aria-live` = "polite",
-          bsicons::bs_icon("hourglass-split"),
-          "Stopping Orientation before answering\u2026"
-        ))
-      }
-      run <- active_agent_run()
-      if (is.null(run) || identical(run$status, "completed")) {
-        return(NULL)
-      }
-      if (run$status %in% c("pending", "running")) {
-        return(shiny::tags$p(
-          class = "reader-agent-run-status",
-          role = "status",
-          `aria-live` = "polite",
-          bsicons::bs_icon("stars"),
-          "Reading the selected source\u2026"
-        ))
-      }
-      if (identical(run$status, "cancelling")) {
-        return(shiny::tags$p(
-          class = "reader-agent-run-status",
-          role = "status",
-          `aria-live` = "polite",
-          bsicons::bs_icon("stop-circle"),
-          "Stopping the response\u2026"
-        ))
-      }
-
-      shiny::tags$div(
-        class = "reader-agent-retry",
-        role = "alert",
-        shiny::tags$p("That response stopped before it completed."),
-        shiny::actionButton(
-          "retry_agent_run",
-          "Retry",
-          class = "btn-sm"
-        )
-      )
+      reader_agent_status_ui(active_agent_run(), pending_reader_question())
     })
+    shiny::outputOptions(
+      output,
+      "reader_agent_status",
+      suspendWhenHidden = FALSE
+    )
 
     output$sidebar_status <- shiny::renderUI({
       text <- status_text()
@@ -3218,6 +3181,22 @@ rill_server <- function(config, store) {
         }
         status_kind("success")
         status_text("Marked story as unread")
+        bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$queue_save,
+      {
+        entry_id <- input$queue_save
+        shiny::req(is.character(entry_id), length(entry_id) == 1L)
+        entry <- store_get_entry(store, actor_id, entry_id)
+        shiny::req(!is.null(entry))
+        value <- store_toggle_state(store, actor_id, entry_id, "saved")
+        record_event("save_changed", entry_id, payload = list(value = value))
+        status_kind("success")
+        status_text(if (value) "Story saved" else "Story removed from saved")
         bump_refresh()
       },
       ignoreInit = TRUE

@@ -1,0 +1,1010 @@
+[
+  {
+    "state": "loading",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "orientation",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "library",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "library",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "queue",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "reading",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "3f37978f774a0afb90bbacc6fd0726ea3d27f830feff6d289e062a1428ff62dd",
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "ask-rill",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "3f37978f774a0afb90bbacc6fd0726ea3d27f830feff6d289e062a1428ff62dd",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "manage-feeds",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "library",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "3f37978f774a0afb90bbacc6fd0726ea3d27f830feff6d289e062a1428ff62dd",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "native-error",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "disconnected",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "disconnected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "access-pending",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "access-denied",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "queue",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-running",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "0e6432c7a1ce8129b31338b1ee282278e7f83db747eb3ce6e29ed7e2eb58aca4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-completed",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "0e6432c7a1ce8129b31338b1ee282278e7f83db747eb3ce6e29ed7e2eb58aca4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-interrupted",
+    "width": 390,
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "0e6432c7a1ce8129b31338b1ee282278e7f83db747eb3ce6e29ed7e2eb58aca4",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "loading",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "targets": [
+          [
+            "#rill-primary-surface"
+          ]
+        ]
+      },
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "orientation",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "library",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "queue",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "reading",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "53fe7e88cb3770e8e79a2d94e7c2715c8625f84e1a5236fd83b1bb4dd58a29a9",
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "ask-rill",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "53fe7e88cb3770e8e79a2d94e7c2715c8625f84e1a5236fd83b1bb4dd58a29a9",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".sidebar-right > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "manage-feeds",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "53fe7e88cb3770e8e79a2d94e7c2715c8625f84e1a5236fd83b1bb4dd58a29a9",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout[data-open-desktop=\"open\"][data-bslib-sidebar-border=\"false\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout[data-open-desktop=\"open\"][data-bslib-sidebar-border=\"false\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "targets": [
+          [
+            "button[data-dismiss=\"modal\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "empty",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "native-error",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "disconnected",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "disconnected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "access-pending",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "targets": [
+          [
+            "#rill-primary-surface"
+          ]
+        ]
+      },
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "access-denied",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "targets": [
+          [
+            "#rill-primary-surface"
+          ]
+        ]
+      },
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[aria-hidden=\"false\"][role=\"separator\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-running",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "cabe2861015f865fedf509a5f4cd504b4b118dafa07ddf2291a2ef35ccd67f45",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".sidebar-right > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-completed",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "cabe2861015f865fedf509a5f4cd504b4b118dafa07ddf2291a2ef35ccd67f45",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".sidebar-right > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "state": "agent-interrupted",
+    "width": 1440,
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "cabe2861015f865fedf509a5f4cd504b4b118dafa07ddf2291a2ef35ccd67f45",
+      "focusedElement": "reader-agent-title",
+      "visibleDialogs": 0
+    },
+    "violations": [
+      {
+        "id": "aria-required-attr",
+        "impact": "critical",
+        "targets": [
+          [
+            ".sidebar-right > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            ".reading-shell > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ],
+          [
+            "#rill-app > .bslib-sidebar-layout.bslib-mb-spacing[data-open-desktop=\"open\"] > .bslib-sidebar-resize-handle[role=\"separator\"][aria-orientation=\"vertical\"]"
+          ]
+        ]
+      },
+      {
+        "id": "html-has-lang",
+        "impact": "serious",
+        "targets": [
+          [
+            "html"
+          ]
+        ]
+      }
+    ]
+  }
+]
