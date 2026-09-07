@@ -5324,3 +5324,73 @@ testthat::test_that("queue saves are scoped and do not open the story", {
     )
   })
 })
+
+
+testthat::test_that("folder selection scopes queues and resets when selecting a feed", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  folder_feed_ids <- store_list_feeds(store, config$actor_id)$feed_id
+  for (feed in folder_feed_ids[1:2]) {
+    store_move_feed(store, config$actor_id, feed, "Together")
+  }
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      select_folder = NULL,
+      select_feed = NULL,
+      mark_all_read = NULL
+    )
+    session$setInputs(select_folder = list(id = "Together", nonce = 1))
+    testthat::expect_identical(selected_folder(), "Together")
+    testthat::expect_identical(selected_feed_title(), "Together")
+    testthat::expect_setequal(queue_entries()$feed_id, folder_feed_ids[1:2])
+    testthat::expect_match(
+      output$feed_nav$html,
+      "rillSelectFolder",
+      fixed = TRUE
+    )
+    session$setInputs(mark_all_read = 1L)
+    testthat::expect_equal(nrow(queue_entries()), 0L)
+    session$setInputs(select_feed = list(id = folder_feed_ids[[3]], nonce = 1))
+    testthat::expect_null(selected_folder())
+    testthat::expect_setequal(queue_entries()$feed_id, folder_feed_ids[[3]])
+    nav <- xml2::read_html(output$feed_nav$html)
+    testthat::expect_length(
+      xml2::xml_find_all(nav, ".//details[@open='open']"),
+      1L
+    )
+  }))
+})
+
+
+testthat::test_that("feed management clears folders after their last feed leaves", {
+  withr::local_envvar(DATABASE_URL = "")
+  for (action in c("move", "unsubscribe")) {
+    config <- rill_config()
+    store <- rill_store(config)
+    managed_id <- store_list_feeds(store, config$actor_id)$feed_id[[1]]
+    store_move_feed(store, config$actor_id, managed_id, "Temporary")
+    later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+      session$setInputs(
+        select_folder = NULL,
+        move_feed = NULL,
+        unsubscribe_feed = NULL
+      )
+      session$setInputs(select_folder = list(id = "Temporary", nonce = 1))
+      testthat::expect_identical(selected_folder(), "Temporary")
+      session$setInputs(managed_feed = managed_id, feed_folder = "Moved")
+      if (action == "move") {
+        session$setInputs(move_feed = 1L)
+      } else {
+        session$setInputs(unsubscribe_feed = 1L)
+      }
+      testthat::expect_null(selected_folder())
+      testthat::expect_null(selected_feed_title())
+      testthat::expect_no_match(output$feed_nav$html, "Temporary", fixed = TRUE)
+      testthat::expect_setequal(
+        queue_entries()$feed_id,
+        store_list_feeds(store, config$actor_id)$feed_id
+      )
+    }))
+  }
+})

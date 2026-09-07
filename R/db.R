@@ -943,7 +943,8 @@ store_list_entries <- function(
   now = Sys.time(),
   timezone = Sys.timezone(),
   include_content = TRUE,
-  entry_ids = NULL
+  entry_ids = NULL,
+  folder = NULL
 ) {
   view <- normalize_entry_view(view)
   sort <- normalize_entry_sort(sort)
@@ -977,6 +978,10 @@ store_list_entries <- function(
     if (!is.null(feed_id) && nzchar(feed_id)) {
       parameters <- append(parameters, feed_id)
       clauses <- c(clauses, paste0("e.feed_id = $", length(parameters)))
+    }
+    if (!is.null(folder)) {
+      parameters <- append(parameters, folder)
+      clauses <- c(clauses, paste0("sub.folder = $", length(parameters)))
     }
     if (identical(view, "unread")) {
       clauses <- c(clauses, "s.read_at IS NULL")
@@ -1086,6 +1091,9 @@ store_list_entries <- function(
   entries$hidden[is.na(entries$hidden)] <- FALSE
 
   keep <- !entries$hidden
+  if (!is.null(folder)) {
+    keep <- keep & entries$folder == folder
+  }
   if (!is.null(feed_id) && nzchar(feed_id)) {
     keep <- keep & entries$feed_id == feed_id
   }
@@ -2286,7 +2294,8 @@ store_mark_entries_read <- function(
   reader_id,
   feed_id = NULL,
   before = NULL,
-  reason
+  reason,
+  folder = NULL
 ) {
   allowed_reasons <- c("bulk_all", "bulk_older_than_day")
   if (
@@ -2313,6 +2322,13 @@ store_mark_entries_read <- function(
       entry_clauses <- c(
         entry_clauses,
         paste0("e.feed_id = $", length(parameters))
+      )
+    }
+    if (!is.null(folder)) {
+      parameters <- append(parameters, folder)
+      entry_clauses <- c(
+        entry_clauses,
+        paste0("sub.folder = $", length(parameters))
       )
     }
     if (!is.null(before)) {
@@ -2364,6 +2380,9 @@ store_mark_entries_read <- function(
   }
 
   active_feeds <- store_list_feeds(store, reader_id)
+  if (!is.null(folder)) {
+    active_feeds <- active_feeds[active_feeds$folder == folder, , drop = FALSE]
+  }
   entries <- store$memory$entries[
     store$memory$entries$feed_id %in%
       active_feeds$feed_id &

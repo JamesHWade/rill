@@ -457,6 +457,25 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   text-align: left;
 }
 
+.feed-folder {
+  margin-top: 6px;
+}
+
+.feed-folder > .feed-link {
+  font-weight: 600;
+}
+
+.feed-folder details {
+  margin-left: 10px;
+}
+
+.feed-folder summary {
+  padding: 6px 10px;
+  color: var(--sidebar-faint);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
 .feed-link span {
   overflow: hidden;
   text-overflow: ellipsis;

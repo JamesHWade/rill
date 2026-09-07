@@ -547,3 +547,65 @@ testthat::test_that("public copy repair is conditional and preserves historical 
     )
   }
 })
+
+
+testthat::test_that("folder queues and bulk reads use the Reader's subscriptions", {
+  reader <- "folder-reader"
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, reader)
+    store_ensure_reader(store, "other-reader")
+    feeds <- store_list_feeds(store, reader)$feed_id
+    for (feed in feeds[1:2]) {
+      store_move_feed(store, reader, feed, "Together")
+    }
+    store_move_feed(store, reader, feeds[[3]], "Elsewhere")
+    all_entries <- store_list_entries(store, reader, view = "all")
+    expected <- all_entries$entry_id[all_entries$feed_id %in% feeds[1:2]]
+    testthat::expect_setequal(
+      store_list_entries(store, reader, folder = "Together")$entry_id,
+      expected
+    )
+    testthat::expect_equal(
+      nrow(store_list_entries(
+        store,
+        reader,
+        folder = "Together",
+        limit = 1L
+      )),
+      1L
+    )
+    testthat::expect_equal(
+      nrow(store_list_entries(
+        store,
+        reader,
+        folder = "Missing"
+      )),
+      0L
+    )
+    for (feed in feeds) {
+      store_subscribe_feed(store, "other-reader", feed, folder = "Elsewhere")
+    }
+    testthat::expect_equal(
+      nrow(store_list_entries(
+        store,
+        "other-reader",
+        folder = "Together"
+      )),
+      0L
+    )
+    testthat::expect_setequal(
+      store_mark_entries_read(
+        store,
+        reader,
+        folder = "Together",
+        reason = "bulk_all"
+      ),
+      expected
+    )
+    testthat::expect_setequal(
+      store_list_entries(store, reader)$feed_id,
+      feeds[[3]]
+    )
+    testthat::expect_equal(nrow(store_list_entries(store, "other-reader")), 6L)
+  }
+})
