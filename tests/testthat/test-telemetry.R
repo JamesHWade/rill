@@ -359,9 +359,14 @@ testthat::test_that("extractor runtime diagnostics omit executable paths", {
 testthat::test_that("failure logs omit absent optional attributes", {
   testthat::skip_if_not_installed("otelsdk")
   logfile <- withr::local_tempfile()
+  package_path <- getNamespaceInfo(asNamespace("rill"), "path")
   callr::r(
     function(path) {
-      pkgload::load_all(path, quiet = TRUE)
+      if (file.exists(file.path(path, "R", "telemetry.R"))) {
+        pkgload::load_all(path, quiet = TRUE, helpers = FALSE)
+      } else {
+        loadNamespace("rill", lib.loc = dirname(path))
+      }
       rill:::telemetry_log(
         "warn",
         "orientation.maintenance_failed",
@@ -373,7 +378,7 @@ testthat::test_that("failure logs omit absent optional attributes", {
       otel::get_default_logger_provider()$flush()
       NULL
     },
-    args = list(path = normalizePath(testthat::test_path("..", ".."))),
+    args = list(path = package_path),
     env = c(OTEL_R_LOGS_EXPORTER = "stdout", OTEL_R_EMIT_SCOPES = ""),
     stdout = logfile,
     stderr = logfile

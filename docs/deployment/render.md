@@ -67,8 +67,11 @@ Create one Render image-backed cron job with the same image digest and the
 command `poll`. Choose the polling schedule in Render. Render prevents runs of
 one cron job from overlapping, and Rill also uses a transaction-scoped
 PostgreSQL advisory lock that remains safe through PgBouncer transaction
-pooling. An accidental second scheduler exits successfully without fetching any
-Feed.
+pooling. The lock transaction disables `idle_in_transaction_session_timeout`
+locally so network fetching cannot release the lock through that timeout; the
+connection's prior setting returns on commit or rollback. An accidental second
+scheduler exits successfully without fetching any Feed. Keep an execution
+timeout on the scheduler to bound stalled processes.
 
 Set these secret environment variables on the web service:
 

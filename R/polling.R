@@ -7,7 +7,10 @@
 #' reached.
 #' After releasing the Feed lock, the poller prepares missing public article
 #' copies from the past seven days, up to 100 articles or ten minutes per run.
-#' Extraction failures are isolated and retried with durable backoff.
+#' Preparation runs even when Feed failures reach the threshold, before the
+#' poller signals the failure. Extraction failures are isolated and retried
+#' with durable backoff. Run logs include failure counts by condition class;
+#' source URLs and native error messages remain in the durable store.
 #'
 #' The due interval defaults to 60 minutes and can be changed with
 #' `RILL_POLL_INTERVAL_MINUTES`. The failure threshold defaults to five Feeds.
@@ -38,6 +41,8 @@ poll_feeds <- function() {
     ))
     return(invisible(result))
   }
+  report_feed_poll_failures(result)
+  result$preparation <- prepare_recent_articles(store, config)
   if (identical(result$status, "failed")) {
     cli::cli_abort(
       c(
@@ -51,10 +56,10 @@ poll_feeds <- function() {
           "."
         )
       ),
-      class = "rill_feed_poll_failure_threshold"
+      class = "rill_feed_poll_failure_threshold",
+      result = result
     )
   }
-  result$preparation <- prepare_recent_articles(store, config)
   if (identical(result$status, "partial")) {
     cli::cli_warn(paste0(
       result$failed_count,
@@ -68,6 +73,31 @@ poll_feeds <- function() {
     ))
   }
   invisible(result)
+}
+
+report_feed_poll_failures <- function(result) {
+  if (!result$failed_count) {
+    return(invisible(NULL))
+  }
+  cli::cli_inform(c(
+    "i" = "Feed polling run: {result$run_id}",
+    "i" = "{result$succeeded_count} of {result$due_count} due Feeds succeeded; {result$failed_count} failed."
+  ))
+  failed <- Filter(
+    \(outcome) identical(outcome$status, "failed"),
+    result$outcomes
+  )
+  counts <- table(vapply(failed, \(outcome) outcome$error_class, character(1)))
+  if (length(counts)) {
+    details <- paste(
+      names(counts),
+      as.integer(counts),
+      sep = ": ",
+      collapse = "; "
+    )
+    cli::cli_inform(c("i" = "Feed failures by condition class: {details}."))
+  }
+  invisible(NULL)
 }
 
 run_due_feed_polling <- function(
@@ -347,6 +377,13 @@ store_with_feed_poll_lock <- function(store, code) {
   }
 
   pool::poolWithTransaction(store$pool, function(connection) {
+    # The lock transaction intentionally waits while other connections save
+    # fetched Feeds. Keep its lock alive through network work without changing
+    # the timeout on pooled connections after commit or rollback.
+    DBI::dbExecute(
+      connection,
+      "SET LOCAL idle_in_transaction_session_timeout = 0"
+    )
     acquired <- isTRUE(DBI::dbGetQuery(
       connection,
       paste(

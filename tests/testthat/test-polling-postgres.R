@@ -58,6 +58,64 @@ testthat::test_that("the Feed polling migration is bundled", {
   testthat::expect_in("011_feed_polling", migration_ids)
 })
 
+testthat::test_that("the polling lock survives idle time and releases on success or error", {
+  database_url <- Sys.getenv("RILL_TEST_DATABASE_URL", unset = "")
+  testthat::skip_if(
+    !nzchar(database_url),
+    "RILL_TEST_DATABASE_URL is not configured"
+  )
+  connection_args <- postgres_connection_args(database_url)
+  connection_args$options <- paste(
+    connection_args$options %||% "",
+    "-c idle_in_transaction_session_timeout=500 -c default_transaction_read_only=on"
+  )
+  database_pool <- do.call(
+    pool::dbPool,
+    c(
+      list(drv = RPostgres::Postgres(), minSize = 2, maxSize = 2),
+      connection_args
+    )
+  )
+  withr::defer(pool::poolClose(database_pool))
+  store <- list(mode = "postgres", pool = database_pool)
+
+  result <- store_with_feed_poll_lock(store, function() {
+    Sys.sleep(0.8)
+    competing <- store_with_feed_poll_lock(store, function() {
+      stop("The lock must remain exclusive during fetching")
+    })
+    testthat::expect_identical(competing$acquired, FALSE)
+    DBI::dbGetQuery(database_pool, "SELECT 1 AS completed")$completed
+  })
+  testthat::expect_identical(result, list(acquired = TRUE, value = 1L))
+
+  testthat::expect_error(
+    store_with_feed_poll_lock(store, function() {
+      Sys.sleep(0.8)
+      cli::cli_abort(
+        "Polling interrupted.",
+        class = "rill_test_poll_interrupted"
+      )
+    }),
+    class = "rill_test_poll_interrupted"
+  )
+  retry <- store_with_feed_poll_lock(store, \() "retried")
+  testthat::expect_identical(retry, list(acquired = TRUE, value = "retried"))
+
+  connections <- list(
+    pool::poolCheckout(database_pool),
+    pool::poolCheckout(database_pool)
+  )
+  withr::defer(lapply(connections, pool::poolReturn))
+  for (connection in connections) {
+    timeout <- DBI::dbGetQuery(
+      connection,
+      "SHOW idle_in_transaction_session_timeout"
+    )[[1L]]
+    testthat::expect_identical(timeout, "500ms")
+  }
+})
+
 testthat::test_that("PostgreSQL serializes and records Feed polling", {
   database_url <- Sys.getenv("RILL_TEST_DATABASE_URL", unset = "")
   testthat::skip_if(

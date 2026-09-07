@@ -17,7 +17,10 @@ isolated Feed failures are tolerated until \code{RILL_POLL_FAILURE_THRESHOLD} is
 reached.
 After releasing the Feed lock, the poller prepares missing public article
 copies from the past seven days, up to 100 articles or ten minutes per run.
-Extraction failures are isolated and retried with durable backoff.
+Preparation runs even when Feed failures reach the threshold, before the
+poller signals the failure. Extraction failures are isolated and retried
+with durable backoff. Run logs include failure counts by condition class;
+source URLs and native error messages remain in the durable store.
 }
 \details{
 The due interval defaults to 60 minutes and can be changed with
