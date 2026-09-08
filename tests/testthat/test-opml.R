@@ -67,7 +67,12 @@ testthat::test_that("write_opml creates a portable subscription list", {
   )
   testthat::expect_equal(
     roundtrip[c("title", "feed_url", "site_url", "folder")],
-    normalize_opml_subscriptions(feeds)
+    normalize_opml_subscriptions(feeds)[c(
+      "title",
+      "feed_url",
+      "site_url",
+      "folder"
+    )]
   )
 })
 
@@ -112,8 +117,8 @@ testthat::test_that("OPML imports add and reorganize subscriptions", {
   testthat::expect_identical(result$updated, 1L)
   testthat::expect_equal(nrow(feeds), 4L)
   testthat::expect_identical(
-    feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
-    "Newsletters"
+    feeds$groups[[which(feeds$feed_url == "https://rweekly.org/atom.xml")]],
+    c("Community", "Newsletters")
   )
   testthat::expect_identical(
     feeds$title[feeds$feed_url == "https://example.com/feed.xml"],
@@ -142,8 +147,8 @@ testthat::test_that("OPML imports add and reorganize subscriptions", {
   testthat::expect_identical(other_library$folder, "Morning")
   testthat::expect_identical(other_library$title, "My R Weekly")
   testthat::expect_identical(
-    feeds$folder[feeds$feed_url == "https://rweekly.org/atom.xml"],
-    "Newsletters"
+    feeds$groups[[which(feeds$feed_url == "https://rweekly.org/atom.xml")]],
+    c("Community", "Newsletters")
   )
 })
 
@@ -208,4 +213,96 @@ testthat::test_that("failed OPML refreshes preserve shared source titles", {
   testthat::expect_identical(result$refresh_failed, 1L)
   testthat::expect_identical(shared_feed$title, source_title)
   testthat::expect_identical(reader_feed$title, "Private OPML label")
+})
+
+testthat::test_that("OPML preserves overlapping and empty Groups with exact names", {
+  feeds <- data.frame(
+    title = c("Shared", "Loose"),
+    feed_url = c("https://example.com/feed", "https://example.org/feed")
+  )
+  feeds$groups <- list(
+    c("Research / Methods", "R & <data>", "Unsorted"),
+    character()
+  )
+  file <- withr::local_tempfile(fileext = ".opml")
+  write_opml(feeds, file, groups = c("Empty", "Research / Methods"))
+  result <- read_opml(file)
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_setequal(
+    result$groups[[match("Shared", result$title)]],
+    feeds$groups[[1]]
+  )
+  testthat::expect_length(result$groups[[match("Loose", result$title)]], 0L)
+  testthat::expect_contains(attr(result, "group_catalog"), "Empty")
+  testthat::expect_length(
+    xml2::xml_find_all(xml2::read_xml(file), "//outline[@xmlUrl]"),
+    4L
+  )
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
+  summary <- import_opml_subscriptions(store, "reader", result, refresh = FALSE)
+  testthat::expect_equal(summary$imported, 2L)
+  testthat::expect_contains(store_list_groups(store, "reader")$name, "Empty")
+  imported <- store_list_feeds(store, "reader")
+  testthat::expect_setequal(
+    imported$groups[[match("https://example.com/feed", imported$feed_url)]],
+    feeds$groups[[1]]
+  )
+})
+
+testthat::test_that("repeated standard OPML outlines combine memberships", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  writeLines(
+    '<opml version="2.0"><body><outline text="One"><outline text="A" xmlUrl="https://example.com/feed"/></outline><outline text="Two"><outline text="A" xmlUrl="https://example.com/feed"/></outline></body></opml>',
+    file
+  )
+  result <- read_opml(file)
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_setequal(result$groups[[1]], c("One", "Two"))
+})
+
+testthat::test_that("an empty Library preserves its Group catalog through OPML", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  write_opml(
+    data.frame(feed_url = character()),
+    file,
+    groups = c("Empty", "Later")
+  )
+  result <- read_opml(file)
+  testthat::expect_equal(nrow(result), 0L)
+  testthat::expect_setequal(attr(result, "group_catalog"), c("Empty", "Later"))
+})
+
+testthat::test_that("overlapping OPML exports count unique subscriptions on import", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  feeds <- data.frame(
+    title = paste("Feed", seq_len(5001L)),
+    feed_url = paste0("https://example.com/feed/", seq_len(5001L))
+  )
+  feeds$groups <- rep(list(c("One", "Two")), nrow(feeds))
+  write_opml(feeds, file)
+  testthat::expect_length(
+    xml2::xml_find_all(xml2::read_xml(file), "//outline[@xmlUrl]"),
+    10002L
+  )
+  result <- read_opml(file)
+  testthat::expect_equal(nrow(result), 5001L)
+  testthat::expect_setequal(result$feed_url, feeds$feed_url)
+  testthat::expect_identical(result$groups, rep(list(c("One", "Two")), 5001L))
+})
+
+testthat::test_that("OPML still limits distinct subscriptions", {
+  file <- withr::local_tempfile(fileext = ".opml")
+  writeLines(
+    c(
+      '<opml version="2.0"><body>',
+      paste0(
+        '<outline xmlUrl="https://example.com/feed/',
+        seq_len(10001L),
+        '"/>'
+      ),
+      '</body></opml>'
+    ),
+    file
+  )
+  testthat::expect_error(read_opml(file), class = "rill_error_opml")
 })

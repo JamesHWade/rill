@@ -5346,7 +5346,7 @@ testthat::test_that("folder selection scopes queues and resets when selecting a 
     testthat::expect_setequal(queue_entries()$feed_id, folder_feed_ids[1:2])
     testthat::expect_match(
       output$feed_nav$html,
-      "rillSelectFolder",
+      "rillSelectGroup",
       fixed = TRUE
     )
     session$setInputs(mark_all_read = 1L)
@@ -5363,7 +5363,7 @@ testthat::test_that("folder selection scopes queues and resets when selecting a 
 })
 
 
-testthat::test_that("feed management clears folders after their last feed leaves", {
+testthat::test_that("feed management preserves empty Groups after their last feed leaves", {
   withr::local_envvar(DATABASE_URL = "")
   for (action in c("move", "unsubscribe")) {
     config <- rill_config()
@@ -5372,12 +5372,15 @@ testthat::test_that("feed management clears folders after their last feed leaves
     store_move_feed(store, config$actor_id, managed_id, "Temporary")
     later::with_temp_loop(shiny::testServer(rill_server(config, store), {
       session$setInputs(
-        select_folder = NULL,
+        select_group = NULL,
         move_feed = NULL,
         unsubscribe_feed = NULL
       )
-      session$setInputs(select_folder = list(id = "Temporary", nonce = 1))
-      testthat::expect_identical(selected_folder(), "Temporary")
+      id <- store_list_groups(store, config$actor_id)$group_id[
+        store_list_groups(store, config$actor_id)$name == "Temporary"
+      ]
+      session$setInputs(select_group = list(id = id, nonce = 1))
+      testthat::expect_identical(selected_group_ids(), id)
       session$setInputs(managed_feed = managed_id, feed_folder = "Moved")
       if (action == "move") {
         session$setInputs(move_feed = 1L)
@@ -5385,12 +5388,111 @@ testthat::test_that("feed management clears folders after their last feed leaves
         session$setInputs(unsubscribe_feed = 1L)
       }
       testthat::expect_null(selected_folder())
-      testthat::expect_null(selected_feed_title())
-      testthat::expect_no_match(output$feed_nav$html, "Temporary", fixed = TRUE)
-      testthat::expect_setequal(
-        queue_entries()$feed_id,
-        store_list_feeds(store, config$actor_id)$feed_id
-      )
+      testthat::expect_identical(selected_feed_title(), "Temporary")
+      testthat::expect_match(output$feed_nav$html, "Temporary", fixed = TRUE)
+      testthat::expect_equal(nrow(queue_entries()), 0L)
     }))
   }
+})
+
+testthat::test_that("Group management and combined reading share a single queue state", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  ids <- store_list_feeds(store, config$actor_id)$feed_id
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      create_group = NULL,
+      save_feed_groups = NULL,
+      add_feed_groups = NULL,
+      remove_feed_groups = NULL,
+      apply_reading_groups = NULL,
+      delete_group = NULL,
+      rename_group = NULL
+    )
+    session$setInputs(new_group_name = "AI", create_group = 1L)
+    ai <- feed_groups()$group_id[feed_groups()$name == "AI"]
+    session$setInputs(new_group_name = "Engineering", create_group = 2L)
+    engineering <- feed_groups()$group_id[feed_groups()$name == "Engineering"]
+    session$setInputs(
+      bulk_group_feeds = ids[1:2],
+      bulk_groups = ai,
+      add_feed_groups = 1L
+    )
+    session$setInputs(
+      bulk_group_feeds = ids[2:3],
+      bulk_groups = engineering,
+      add_feed_groups = 2L
+    )
+    session$setInputs(
+      reading_groups = c(ai, engineering),
+      reading_group_match = "any",
+      apply_reading_groups = 1L
+    )
+    testthat::expect_setequal(queue_entries()$feed_id, ids)
+    testthat::expect_equal(anyDuplicated(queue_entries()$entry_id), 0L)
+    session$setInputs(reading_group_match = "all", apply_reading_groups = 2L)
+    testthat::expect_setequal(queue_entries()$feed_id, ids[[2]])
+    session$setInputs(
+      managed_feed = ids[[2]],
+      feed_groups = ai,
+      save_feed_groups = 1L
+    )
+    testthat::expect_equal(nrow(queue_entries()), 0L)
+    session$setInputs(
+      managed_group = engineering,
+      group_name = "Software",
+      rename_group = 1L
+    )
+    testthat::expect_match(selected_feed_title(), "Software", fixed = TRUE)
+    session$setInputs(delete_group = 1L)
+    testthat::expect_identical(selected_group_ids(), ai)
+    testthat::expect_setequal(queue_entries()$feed_id, ids[1:2])
+    session$setInputs(
+      bulk_group_feeds = ids[1:2],
+      bulk_groups = ai,
+      remove_feed_groups = 1L
+    )
+    testthat::expect_equal(nrow(queue_entries()), 0L)
+    testthat::expect_identical(selected_feed_title(), "AI")
+  }))
+})
+
+testthat::test_that("an empty Read Groups request preserves the current queue scope", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_group = NULL, apply_reading_groups = NULL)
+    id <- feed_groups()$group_id[[1]]
+    session$setInputs(select_group = list(id = id, nonce = 1))
+    before <- queue_entries()$entry_id
+    session$setInputs(reading_groups = character(), apply_reading_groups = 1L)
+    testthat::expect_identical(selected_group_ids(), id)
+    testthat::expect_identical(queue_entries()$entry_id, before)
+  }))
+})
+
+testthat::test_that("Captures retain separate navigation without Group controls", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  captured <- capture_document(store, capture_test_payload(), config$actor_id)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(select_feed = NULL)
+    nav <- output$feed_nav$html
+    testthat::expect_match(nav, "Local captures", fixed = TRUE)
+    testthat::expect_disjoint(
+      unlist(navigation_groups()$rows),
+      which(feeds()$source_kind == "capture")
+    )
+    id <- feeds()$feed_id[feeds()$source_kind == "capture"]
+    session$setInputs(select_feed = list(id = id, nonce = 1))
+    testthat::expect_identical(queue_entries()$entry_id, captured$entry_id)
+    testthat::expect_no_match(
+      output$feed_organization_control$html,
+      "Save Groups",
+      fixed = TRUE
+    )
+  }))
 })

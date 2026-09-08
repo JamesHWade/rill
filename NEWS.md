@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Organize feeds into overlapping Groups, manage several feeds at once, and read feeds in any or all selected Groups. OPML preserves memberships and empty Groups when moving between Rill Libraries (#76).
+
 * Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder (#75).
 
 * Startup waits for the Library before announcing readiness and offers reload recovery after a delay; Ask Rill displays running and retry states, and dismissed dialogs restore keyboard focus (#50, #51).

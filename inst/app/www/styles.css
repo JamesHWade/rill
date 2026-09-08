@@ -476,6 +476,20 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   font-size: 0.8rem;
 }
 
+.group-reading-control {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.group-reading-control summary {
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.group-reading-control .form-group {
+  width: 100%;
+}
+
 .feed-link span {
   overflow: hidden;
   text-overflow: ellipsis;

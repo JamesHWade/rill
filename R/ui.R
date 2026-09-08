@@ -240,6 +240,7 @@ navigation_sidebar_ui <- function(config) {
       class = "feed-list",
       `aria-label` = "Feeds"
     ),
+    group_reading_control_ui(),
     shiny::tags$div(
       class = "sidebar-footer",
       shiny::uiOutput(shiny::NS("access_requests", "launcher")),
@@ -1535,7 +1536,21 @@ feed_refresh_status_ui <- function(result) {
 }
 
 feed_manager_choices <- function(feeds) {
-  labels <- paste(feeds$title, "\u00b7", feeds$folder)
+  organization <- if ("groups" %in% names(feeds)) {
+    vapply(
+      feeds$groups,
+      function(groups) {
+        if (length(groups)) paste(groups, collapse = ", ") else "Ungrouped"
+      },
+      character(1)
+    )
+  } else {
+    feeds$folder
+  }
+  if ("source_kind" %in% names(feeds)) {
+    organization[feeds$source_kind == "capture"] <- "Captures"
+  }
+  labels <- paste(feeds$title, "\u00b7", organization)
   labels <- paste0(
     labels,
     ifelse(
@@ -1582,7 +1597,7 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
       shiny::tags$h3("Find and organize a feed"),
       shiny::selectizeInput(
         "managed_feed",
-        "Search by feed name or folder",
+        "Search by feed name or Group",
         choices = if (is.null(feeds)) {
           c("Choose a feed" = "")
         } else {
@@ -1591,7 +1606,8 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
         selected = selected %||% "",
         width = "100%"
       ),
-      shiny::uiOutput("feed_organization_control")
+      shiny::uiOutput("feed_organization_control"),
+      shiny::uiOutput("group_management_control")
     ),
     shiny::tags$div(
       class = "feed-tool-section",
@@ -1635,24 +1651,28 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
       ),
       shiny::tags$p(
         class = "feed-tool-help",
-        "Folders are preserved when moving between readers."
+        "Rill preserves all Groups on export and import. Other readers may keep only one Group per feed."
       )
     )
   )
 }
 
-feed_organization_control_ui <- function(feed = NULL, folders = character()) {
+feed_organization_control_ui <- function(
+  feed = NULL,
+  folders = character(),
+  groups = NULL
+) {
   if (is.null(feed)) {
     return(shiny::tags$p(
       class = "feed-tool-help",
-      "Choose a feed to check its status, rename, move, or unsubscribe."
+      "Choose a feed to check its status, rename, assign Groups, or unsubscribe."
     ))
   }
 
   if (identical(feed$status, "inactive")) {
     return(shiny::tagList(
       shiny::tags$p(
-        "Unsubscribed. Restore this feed with its saved folder and reading state."
+        "Unsubscribed. Restore this feed with its saved Groups and reading state."
       ),
       shiny::actionButton("restore_feed", "Restore subscription")
     ))
@@ -1691,19 +1711,24 @@ feed_organization_control_ui <- function(feed = NULL, folders = character()) {
       "Rename feed",
       class = "btn-rename-feed"
     ),
-    shiny::selectizeInput(
-      "feed_folder",
-      label = "Folder",
-      choices = unique(c(feed$folder, folders)),
-      selected = feed$folder,
-      options = list(create = TRUE),
-      width = "100%"
-    ),
-    shiny::actionButton(
-      "move_feed",
-      "Move feed",
-      class = "btn-move-feed"
-    ),
+    if (identical(feed$source_kind %||% "subscription", "subscription")) {
+      shiny::tagList(
+        shiny::selectizeInput(
+          "feed_groups",
+          label = "Groups",
+          choices = if (is.null(groups)) {
+            character()
+          } else {
+            stats::setNames(groups$group_id, groups$name)
+          },
+          selected = unlist(feed$group_ids, use.names = FALSE),
+          multiple = TRUE,
+          options = list(closeAfterSelect = TRUE),
+          width = "100%"
+        ),
+        shiny::actionButton("save_feed_groups", "Save Groups")
+      )
+    },
     if (identical(feed$source_kind %||% "subscription", "subscription")) {
       shiny::actionButton(
         "unsubscribe_feed",
@@ -1957,6 +1982,79 @@ reader_agent_status_ui <- function(run, pending = NULL) {
       "retry_agent_run",
       "Retry",
       class = "btn-sm"
+    )
+  )
+}
+
+
+group_management_ui <- function(feeds, groups) {
+  active <- feeds[
+    feeds$status == "active" & feeds$source_kind == "subscription",
+    ,
+    drop = FALSE
+  ]
+  choices <- stats::setNames(groups$group_id, groups$name)
+  shiny::tagList(
+    shiny::tags$hr(),
+    shiny::tags$h3("Organize several feeds"),
+    shiny::selectizeInput(
+      "bulk_group_feeds",
+      "Search feeds by name or Group",
+      choices = feed_manager_choices(active)[-1],
+      multiple = TRUE,
+      options = list(closeAfterSelect = TRUE),
+      width = "100%"
+    ),
+    shiny::selectizeInput(
+      "bulk_groups",
+      "Groups to add or remove",
+      choices = choices,
+      multiple = TRUE,
+      options = list(closeAfterSelect = TRUE),
+      width = "100%"
+    ),
+    shiny::actionButton("add_feed_groups", "Add Groups"),
+    shiny::actionButton("remove_feed_groups", "Remove Groups"),
+    shiny::tags$h3("Manage Groups"),
+    shiny::textInput("new_group_name", "New Group name"),
+    shiny::actionButton("create_group", "Create Group"),
+    shiny::selectInput(
+      "managed_group",
+      "Group",
+      choices = c("Choose a Group" = "", choices)
+    ),
+    shiny::textInput("group_name", "New name"),
+    shiny::actionButton("rename_group", "Rename Group"),
+    shiny::tags$p(
+      class = "feed-tool-help",
+      "Deleting a Group removes its memberships. Your feeds and reading state are kept."
+    ),
+    shiny::actionButton("delete_group", "Delete Group")
+  )
+}
+
+
+group_reading_control_ui <- function() {
+  shiny::tags$details(
+    class = "group-reading-control",
+    shiny::tags$summary("Combine Groups"),
+    shiny::selectizeInput(
+      "reading_groups",
+      "Groups to read",
+      choices = character(),
+      multiple = TRUE,
+      options = list(closeAfterSelect = TRUE)
+    ),
+    shiny::radioButtons(
+      "reading_group_match",
+      "Include feeds in",
+      choices = c("Any selected Group" = "any", "All selected Groups" = "all"),
+      selected = "any"
+    ),
+    shiny::actionButton(
+      "apply_reading_groups",
+      "Read Groups",
+      onclick = "rillOpenQueue()"
     )
   )
 }
