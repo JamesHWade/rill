@@ -1685,7 +1685,10 @@ feed_organization_control_ui <- function(
         shiny::tags$p(
           role = "status",
           if (identical(feed$poll_status, "failed")) {
-            "Last check failed. Retry this feed or check its source URL."
+            paste(
+              "Last check failed. Repeated failures slow scheduled retries to at most once a day.",
+              "Retry this feed now or check its source URL."
+            )
           } else if (
             is.null(feed$last_polled_at) || is.na(feed$last_polled_at)
           ) {

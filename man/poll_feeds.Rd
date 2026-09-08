@@ -25,4 +25,6 @@ source URLs and native error messages remain in the durable store.
 \details{
 The due interval defaults to 60 minutes and can be changed with
 \code{RILL_POLL_INTERVAL_MINUTES}. The failure threshold defaults to five Feeds.
+Repeated failures back off from one hour to at most one day, without
+shortening the configured interval. Manual refresh bypasses this delay.
 }

@@ -52,7 +52,7 @@ testthat::test_that("Defuddle metadata uses one publication timestamp", {
 
   testthat::expect_identical(
     document$published_at,
-    "2026-08-31T04:15:00+00:00"
+    "2026-08-31T04:15:00Z"
   )
 })
 
@@ -64,6 +64,36 @@ testthat::test_that("reader feed labels do not alter captured source metadata", 
   document <- document_fallback(entry)
 
   testthat::expect_identical(document$site, "The R Blog")
+})
+
+testthat::test_that("extracted publication dates are absolute and storage-safe", {
+  dates <- c("2026-09-07 11:16:21 +0000 UTC", "Updated this week")
+  entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
+  entry$published_at <- "2026-09-01T12:30:00Z"
+  for (date in dates) {
+    testthat::local_mocked_bindings(
+      fetch_defuddled_markdown = function(...) {
+        paste("---", paste0("published: ", date), "---", "Article", sep = "\n")
+      }
+    )
+    document <- document_from_defuddle(entry, list(defuddle_backend = "local"))
+    testthat::expect_identical(
+      document$published_at,
+      if (date == dates[[1]]) "2026-09-07T11:16:21Z" else entry$published_at
+    )
+    testthat::expect_identical(
+      document$provenance$extractor_metadata$published,
+      date
+    )
+  }
+  testthat::expect_identical(
+    first_publication_value("Updated this week"),
+    NA_character_
+  )
+  testthat::expect_identical(
+    first_publication_value("yesterday"),
+    NA_character_
+  )
 })
 
 testthat::test_that("feed fallbacks preserve Markdown autolinks and adjacent text", {
@@ -457,6 +487,38 @@ testthat::test_that("local Defuddle uses the CLI markdown contract", {
   )
   testthat::expect_identical(call$timeout, 30)
   testthat::expect_match(markdown, "title: Local copy", fixed = TRUE)
+})
+
+testthat::test_that("local HTTP failures retain their status without exposing source details", {
+  for (status in c(403L, 404L, 429L, 503L)) {
+    error <- tryCatch(
+      fetch_defuddled_markdown_local(
+        "https://example.org/article",
+        list(defuddle_command = "bundled"),
+        runner = function(...) {
+          list(
+            status = 1L,
+            stdout = "",
+            stderr = paste("Error: Failed to fetch:", status, "Source failure")
+          )
+        }
+      ),
+      error = identity
+    )
+    failure <- preparation_failure(
+      error,
+      "extraction",
+      list(defuddle_backend = "local"),
+      emit = FALSE
+    )
+    testthat::expect_identical(failure$http_status, status)
+    testthat::expect_identical(failure$code, "http_failed")
+    testthat::expect_identical(failure$error_type, "rill_defuddle_http_failed")
+    testthat::expect_identical(
+      grepl("example.org|Source failure", jsonlite::toJSON(failure)),
+      FALSE
+    )
+  }
 })
 
 testthat::test_that("local Defuddle reports CLI failures", {
