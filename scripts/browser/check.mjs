@@ -128,7 +128,11 @@ try {
   await page.getByRole('dialog').waitFor();
   await page.waitForFunction(() => document.querySelector('.modal.show')?.contains(document.activeElement));
   await audit('dark-manage-feeds', 390);
-  await page.getByRole('button', {name: 'Add Groups', exact: true}).focus();
+  for (let step = 0; step < 40; step++) {
+    if (await page.evaluate(() => document.activeElement?.id === 'add_feed_groups')) break;
+    await page.keyboard.press('Tab');
+  }
+  assert.equal(await page.locator('#add_feed_groups').evaluate(el => el === document.activeElement && el.matches(':focus-visible')), true, 'Group action receives keyboard-visible focus');
   await audit('dark-group-action-focused', 390);
   await page.getByRole('button', {name: 'Done', exact: true}).click();
   await page.getByRole('dialog').waitFor({state: 'hidden'});
