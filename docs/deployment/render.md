@@ -1,5 +1,8 @@
 # Deploy Rill on Render
 
+For the two-Reader acceptance sequence and preview database isolation, use the
+[hosted proof runbook](hosted-proof.md).
+
 Rill ships one production image with two roles:
 
 - `web` starts Shiny on loopback and oauth2-proxy on the public port.

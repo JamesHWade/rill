@@ -124,6 +124,18 @@ try {
   await audit('dark-queue-reduced-motion', 390);
   await page.evaluate(() => window.rillOpenLibrary());
   await audit('dark-library-reduced-motion', 390);
+  await page.getByRole('button', {name: 'Manage feeds', exact: true}).click();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForFunction(() => document.querySelector('.modal.show')?.contains(document.activeElement));
+  await audit('dark-manage-feeds', 390);
+  for (let step = 0; step < 40; step++) {
+    if (await page.evaluate(() => document.activeElement?.id === 'add_feed_groups')) break;
+    await page.keyboard.press('Tab');
+  }
+  assert.equal(await page.locator('#add_feed_groups').evaluate(el => el === document.activeElement && el.matches(':focus-visible')), true, 'Group action receives keyboard-visible focus');
+  await audit('dark-group-action-focused', 390);
+  await page.getByRole('button', {name: 'Done', exact: true}).click();
+  await page.getByRole('dialog').waitFor({state: 'hidden'});
   await page.setViewportSize({ width: 320, height: 225 });
   await page.evaluate(() => window.rillOpenQueue());
   await audit('400-percent-reflow-equivalent', 320);
