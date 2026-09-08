@@ -167,6 +167,22 @@ testthat::test_that("failed attempt feedback distinguishes retained partial text
     "No answer text was retained",
     fixed = TRUE
   )
+  testthat::expect_null(unavailable$snapshot$output$response)
+  preview <- xml2::read_html(as.character(feedback_output_ui(
+    list(cards = list(list(interpretation = "A claim")))
+  )))
+  testthat::expect_length(
+    xml2::xml_find_all(preview, ".//pre | .//p[not(normalize-space())]"),
+    0L
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(preview, ".//p")),
+    "A claim"
+  )
+  missing_preview <- xml2::read_html(as.character(feedback_output_ui(
+    unavailable$snapshot$output
+  )))
+  testthat::expect_length(xml2::xml_find_all(missing_preview, ".//pre"), 0L)
   feedback_save(store, "reader", partial, "not_helpful", "execution")
   testthat::expect_identical(
     store_list_reader_feedback(store, "reader")[[

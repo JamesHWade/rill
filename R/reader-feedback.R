@@ -89,7 +89,11 @@ feedback_target <- function(store, reader_id, kind, source) {
     source_id <- run$run_id
     output <- list(
       question = run$pinned_inputs$question,
-      response = run$response_text %||% run$partial_response %||% "",
+      response = if (store_scalar_string(run$response_text)) {
+        run$response_text
+      } else if (store_scalar_string(run$partial_response)) {
+        run$partial_response
+      },
       response_state = if (store_scalar_string(run$response_text)) {
         "complete"
       } else if (store_scalar_string(run$partial_response)) {
@@ -276,7 +280,9 @@ feedback_withdraw <- function(store, reader_id, target_id) {
 
 feedback_output_ui <- function(output) {
   shiny::tagList(
-    shiny::tags$p(shiny::tags$strong(output$question)),
+    if (store_scalar_string(output$question)) {
+      shiny::tags$p(shiny::tags$strong(output$question))
+    },
     if (identical(output$response_state, "partial")) {
       shiny::tags$p(
         "This attempt did not finish. The retained partial response is shown below."
@@ -287,8 +293,10 @@ feedback_output_ui <- function(output) {
         "No answer text was retained for this attempt. You can rate its execution."
       )
     },
-    if (!is.null(output$introduction)) shiny::tags$p(output$introduction),
-    if (!is.null(output$response)) {
+    if (store_scalar_string(output$introduction)) {
+      shiny::tags$p(output$introduction)
+    },
+    if (store_scalar_string(output$response)) {
       shiny::tags$pre(
         style = "white-space:pre-wrap",
         output$response
@@ -296,12 +304,16 @@ feedback_output_ui <- function(output) {
     },
     lapply(output$cards, function(card) {
       shiny::tags$div(
-        shiny::tags$p(card$interpretation),
-        shiny::tags$p(card$why_now),
-        if (!is.null(card$evidence)) shiny::tags$blockquote(card$evidence)
+        if (store_scalar_string(card$interpretation)) {
+          shiny::tags$p(card$interpretation)
+        },
+        if (store_scalar_string(card$why_now)) shiny::tags$p(card$why_now),
+        if (store_scalar_string(card$evidence)) {
+          shiny::tags$blockquote(card$evidence)
+        }
       )
     }),
-    shiny::tags$p(output$status)
+    if (store_scalar_string(output$status)) shiny::tags$p(output$status)
   )
 }
 
