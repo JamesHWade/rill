@@ -1042,7 +1042,6 @@ orientation_ui <- function(
       orientation_failure_ui(failure),
       orientation_retry_button(failure, "retry_orientation"),
       orientation_processing_ui(processing_note),
-      shiny::actionButton("rate_orientation", "Rate this Orientation"),
       orientation_browse_button("Browse unread stories")
     ))
   }

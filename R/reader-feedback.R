@@ -466,6 +466,7 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
     })
   })
   shiny::observeEvent(input$rate_orientation, {
+    shiny::req(feedback_visible_orientation)
     feedback_return_focus <<- "rate_orientation"
     feedback_attempt(function() {
       feedback_open(feedback_target(
@@ -596,6 +597,9 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
           },
           feedback_visible_orientation$cards
         )
+        if (!length(feedback_visible_orientation$cards)) {
+          feedback_visible_orientation <<- NULL
+        }
       }
       invisible(NULL)
     }

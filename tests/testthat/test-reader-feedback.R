@@ -311,3 +311,47 @@ testthat::test_that("operator feedback review requires a durable store and close
     class = "rill_feedback_invalid"
   )
 })
+
+
+testthat::test_that("empty Orientation selections do not offer or create ratings", {
+  store <- local_orientation_backend_store("memory", "reader")
+  source <- list(
+    reader_id = "reader",
+    revision_id = "revision",
+    agent_run_id = "missing",
+    question = "Hidden question",
+    introduction = "Hidden introduction",
+    status = "No current selection",
+    cards = list(list(document_id = "gone", interpretation = "Hidden claim"))
+  )
+  html <- as.character(orientation_ui(source, list()))
+  testthat::expect_match(html, "No current Orientation selection", fixed = TRUE)
+  testthat::expect_length(
+    xml2::xml_find_all(xml2::read_html(html), "//*[@id='rate_orientation']"),
+    0L
+  )
+  shiny::testServer(
+    function(input, output, session) {
+      controller <- reader_feedback_server(
+        store,
+        "reader",
+        shiny::reactiveVal(NULL),
+        session
+      )
+    },
+    {
+      controller$set_orientation(source, list())
+      session$setInputs(rate_orientation = 1)
+      testthat::expect_null(controller$pending())
+      controller$set_orientation(
+        source,
+        list(list(document = list(document_id = "gone")))
+      )
+      session$setInputs(rate_orientation = 2)
+      testthat::expect_identical(
+        controller$pending()$snapshot$output$question,
+        "Hidden question"
+      )
+    }
+  )
+})

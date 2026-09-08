@@ -2860,7 +2860,7 @@
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "9d766752550ebe310d492bd837455357"
+      "checksum": "d4cb1e4075e09cb00df9566740f08c2a"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2869,7 +2869,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "44f8743fc82bf8f91b764c1162234538"
+      "checksum": "eb8a30c8a4b0bf61931cac24545d30a5"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"
