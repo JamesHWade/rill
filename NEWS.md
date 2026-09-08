@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Reading copies remain saveable when an extractor supplies a relative or nonstandard publication date, and local extraction diagnostics distinguish source HTTP failures from extractor failures (#78).
+
 * Organize feeds into overlapping Groups, manage several feeds at once, and read feeds in any or all selected Groups. OPML preserves memberships and empty Groups when moving between Rill Libraries (#76).
 
 * Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder (#75).
@@ -91,6 +93,8 @@
 * Trusted YouTube and Vimeo embeds now appear in clean reading copies through privacy-enhanced, sandboxed frames; arbitrary embedded frames remain blocked (#28).
 
 * The reader now supports `J`/`K` navigation, `O` to open the original, `S` to save, and `F` to star.
+
+* `poll_feeds()` backs off repeatedly failing Feeds from hourly retries to at most daily, while manual refresh remains immediate and successful checks restore the normal interval (#78).
 
 * `poll_feeds()` refreshes only due shared Feeds, prevents overlapping runs, records durable per-Feed outcomes, tolerates isolated failures, and exits non-zero only for systemic errors or the configured failure threshold (#22).
 

@@ -157,6 +157,21 @@ fetch_defuddled_markdown_local <- function(
     if (!nzchar(detail)) {
       detail <- paste0("The command exited with status ", result$status, ".")
     }
+    http_match <- regmatches(
+      detail,
+      regexec(
+        "^Error: Failed to fetch: ([45][0-9]{2})(?: |$)",
+        detail,
+        perl = TRUE
+      )
+    )[[1]]
+    if (length(http_match)) {
+      cli::cli_abort(
+        "The source returned HTTP {http_match[[2]]} during local extraction.",
+        class = c("rill_defuddle_http_failed", "rill_defuddle_cli_failed"),
+        http_status = as.integer(http_match[[2]])
+      )
+    }
     cli::cli_abort(
       c("Local Defuddle extraction failed.", "x" = "{detail}"),
       class = "rill_defuddle_cli_failed"
@@ -304,15 +319,22 @@ first_metadata_value <- function(value, fallback = NA_character_) {
 }
 
 first_publication_value <- function(value, fallback = NA_character_) {
-  published <- first_metadata_value(value, fallback)
-  if (is.na(published)) {
-    return(published)
+  for (candidate in c(as.list(value), as.list(fallback))) {
+    published <- first_metadata_value(candidate)
+    if (is.na(published) || !grepl("\\b[0-9]{4}\\b", published)) {
+      next
+    }
+    published <- strsplit(
+      published,
+      ",\\s*(?=\\d{4}-\\d{2}-\\d{2}[T ])",
+      perl = TRUE
+    )[[1]][[1]]
+    parsed <- suppressWarnings(parsedate::parse_date(published))
+    if (!is.na(parsed)) {
+      return(format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+    }
   }
-  strsplit(
-    published,
-    ",\\s*(?=\\d{4}-\\d{2}-\\d{2}[T ])",
-    perl = TRUE
-  )[[1]][[1]]
+  NA_character_
 }
 
 document_from_defuddle <- function(entry, config) {
@@ -344,8 +366,8 @@ document_from_defuddle <- function(entry, config) {
         first_metadata_value(entry$source_feed_title, entry$feed_title)
     ),
     published_at = first_publication_value(
-      metadata$published,
-      metadata$date %||% entry$published_at
+      c(as.list(metadata$published), as.list(metadata$date)),
+      entry$published_at
     ),
     markdown = parsed$markdown,
     captured_at = captured_at,
@@ -569,8 +591,12 @@ prepare_today_documents <- function(
 
 preparation_failure <- function(error, stage, config, emit = TRUE) {
   classes <- character()
+  local_http_status <- NA_integer_
   for (depth in seq_len(20L)) {
     classes <- c(classes, class(error))
+    if (inherits(error, "rill_defuddle_http_failed")) {
+      local_http_status <- error$http_status
+    }
     error <- error$parent
     if (!inherits(error, "condition")) {
       break
@@ -580,9 +606,10 @@ preparation_failure <- function(error, stage, config, emit = TRUE) {
   http_status <- if (length(http_class)) {
     as.integer(sub("httr2_http_", "", http_class[[1]]))
   } else {
-    NA_integer_
+    local_http_status
   }
   known_classes <- c(
+    "rill_defuddle_http_failed",
     "rill_defuddle_cli_missing",
     "rill_defuddle_cli_failed",
     "rill_document_invalid",

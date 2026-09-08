@@ -2809,7 +2809,7 @@
       "checksum": "b8f90720bbb6745c248148d9282aeacd"
     },
     "R/defuddle.R": {
-      "checksum": "42383c4831739c9545a9965d9c47d923"
+      "checksum": "9505dbe74bc45c843d29fe2ef3302b84"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2842,7 +2842,7 @@
       "checksum": "dd248a86f238dfe16126d29a8379cc60"
     },
     "R/polling.R": {
-      "checksum": "12ce9ea529756b4e928563cd099b9ae6"
+      "checksum": "97a3417444f755c2f4f50a69c359c770"
     },
     "R/reader-admissions.R": {
       "checksum": "a36b28f095430f2cc08d770807fbc478"
@@ -2860,7 +2860,7 @@
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "de134900d6de305f3377e6100a37d392"
+      "checksum": "57d4f891051b1e564c696488e2fdb1f9"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

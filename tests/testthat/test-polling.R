@@ -1,3 +1,59 @@
+testthat::test_that("scheduled polling backs off repeated failures and manual retry resets it", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    feed_id <- store_list_feeds(store, "reader")$feed_id[[1]]
+    now <- as.POSIXct("2026-09-08 01:00:00", tz = "UTC")
+    for (index in 1:6) {
+      run_id <- paste0("retry-", index)
+      store_start_feed_poll_run(
+        store,
+        run_id,
+        format(now, tz = "UTC", usetz = TRUE),
+        1L,
+        1L
+      )
+      store_record_feed_poll_outcome(
+        store,
+        list(
+          run_id = run_id,
+          feed_id = feed_id,
+          status = "failed",
+          added_count = 0L,
+          error_class = "httr2_http_403",
+          error_message = "Forbidden"
+        ),
+        format(now, tz = "UTC", usetz = TRUE),
+        format(now + index, tz = "UTC", usetz = TRUE)
+      )
+      due_at <- now + index + min(1440, 60 * 2^(index - 1L)) * 60
+      testthat::expect_disjoint(
+        store_list_due_feeds(store, due_at - 1, 60L)$feed_id,
+        feed_id
+      )
+      testthat::expect_contains(
+        store_list_due_feeds(store, due_at, 60L)$feed_id,
+        feed_id
+      )
+    }
+    result <- refresh_reader_feeds(
+      store,
+      "reader",
+      feed_ids = feed_id,
+      refresh = function(store, feed) list(feed_id = feed$feed_id, added = 0L)
+    )
+    testthat::expect_identical(result$succeeded_count, 1L)
+    feeds <- store_list_feeds(store, "reader")
+    checked <- as.POSIXct(
+      feeds$last_polled_at[match(feed_id, feeds$feed_id)],
+      tz = "UTC"
+    )
+    testthat::expect_contains(
+      store_list_due_feeds(store, checked + 3600, 60L)$feed_id,
+      feed_id
+    )
+  }
+})
+
 testthat::test_that("disabled Readers do not keep Feeds eligible for polling", {
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
   store_ensure_reader(store, "reader-two")

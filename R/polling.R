@@ -14,6 +14,8 @@
 #'
 #' The due interval defaults to 60 minutes and can be changed with
 #' `RILL_POLL_INTERVAL_MINUTES`. The failure threshold defaults to five Feeds.
+#' Repeated failures back off from one hour to at most one day, without
+#' shortening the configured interval. Manual refresh bypasses this delay.
 #'
 #' @return Invisibly, a polling-run summary with per-Feed outcomes.
 #' @export
@@ -403,10 +405,16 @@ store_with_feed_poll_lock <- function(store, code) {
 
 store_list_due_feeds <- function(store, now, interval_minutes) {
   if (identical(store$mode, "postgres")) {
-    return(DBI::dbGetQuery(
+    feeds <- DBI::dbGetQuery(
       store$pool,
       paste(
-        "SELECT f.* FROM feeds f",
+        "SELECT f.*, COALESCE(retry.failures, 0)::integer AS retry_failures FROM feeds f",
+        "LEFT JOIN LATERAL (",
+        "SELECT COALESCE(min(position) FILTER (WHERE status <> 'failed') - 1, count(*)) AS failures",
+        "FROM (SELECT status, row_number() OVER (ORDER BY completed_at DESC, run_id DESC) AS position",
+        "FROM (SELECT status, completed_at, run_id FROM feed_poll_outcomes",
+        "WHERE feed_id = f.feed_id ORDER BY completed_at DESC, run_id DESC LIMIT 6) recent) ordered",
+        ") retry ON f.poll_status = 'failed'",
         "WHERE f.source_kind = 'subscription' AND EXISTS (",
         "SELECT 1 FROM subscriptions s",
         "JOIN readers r ON r.reader_id = s.reader_id AND r.status = 'active'",
@@ -416,15 +424,48 @@ store_list_due_feeds <- function(store, now, interval_minutes) {
         "ORDER BY lower(f.title), f.feed_id"
       ),
       params = list(now, interval_minutes)
-    ))
+    )
+  } else {
+    feeds <- store_list_active_feeds(store)
+    outcomes <- store$memory$feed_poll_outcomes
+    feeds$retry_failures <- vapply(
+      seq_len(nrow(feeds)),
+      function(index) {
+        if (!identical(feeds$poll_status[[index]], "failed")) {
+          return(0L)
+        }
+        recent <- outcomes[
+          outcomes$feed_id == feeds$feed_id[[index]],
+          ,
+          drop = FALSE
+        ]
+        recent <- recent[
+          order(recent$completed_at, recent$run_id, decreasing = TRUE),
+          ,
+          drop = FALSE
+        ]
+        statuses <- utils::head(recent$status, 6L)
+        first_success <- match(
+          TRUE,
+          statuses != "failed",
+          nomatch = length(statuses) + 1L
+        )
+        as.integer(first_success - 1L)
+      },
+      integer(1)
+    )
   }
-
-  feeds <- store_list_active_feeds(store)
   last_polled_at <- suppressWarnings(as.POSIXct(
     feeds$last_polled_at,
     tz = "UTC"
   ))
-  due_before <- as.POSIXct(now, tz = "UTC") - interval_minutes * 60
+  delay <- ifelse(
+    feeds$retry_failures > 0L,
+    pmax(interval_minutes, pmin(1440, 60 * 2^(feeds$retry_failures - 1L))),
+    interval_minutes
+  )
+  due_before <- as.POSIXct(now, tz = "UTC") - delay * 60
+  feeds$retry_failures <- NULL
   feeds[
     is.na(last_polled_at) | last_polled_at <= due_before,
     ,
