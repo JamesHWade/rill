@@ -1686,7 +1686,7 @@ feed_organization_control_ui <- function(
           role = "status",
           if (identical(feed$poll_status, "failed")) {
             paste(
-              "Last check failed. Repeated failures slow scheduled retries to at most once a day.",
+              "Last check failed. Scheduled retries may be delayed after repeated failures.",
               "Retry this feed now or check its source URL."
             )
           } else if (
