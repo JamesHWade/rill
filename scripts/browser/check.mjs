@@ -126,6 +126,7 @@ try {
   await audit('dark-library-reduced-motion', 390);
   await page.getByRole('button', {name: 'Manage feeds', exact: true}).click();
   await page.getByRole('dialog').waitFor();
+  await page.waitForFunction(() => document.querySelector('.modal.show')?.contains(document.activeElement));
   await audit('dark-manage-feeds', 390);
   await page.getByRole('button', {name: 'Add Groups', exact: true}).focus();
   await audit('dark-group-action-focused', 390);
