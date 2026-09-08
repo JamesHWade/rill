@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Rate Orientation and Ask Rill outputs privately, with optional reasons and comments; review, revise, or withdraw saved ratings and their exact output snapshots (#74).
+
 * Reading copies remain saveable when an extractor supplies a relative or nonstandard publication date, and local extraction diagnostics distinguish source HTTP failures from extractor failures (#78).
 
 * Organize feeds into overlapping Groups, manage several feeds at once, and read feeds in any or all selected Groups. OPML preserves memberships and empty Groups when moving between Rill Libraries (#76).

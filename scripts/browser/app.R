@@ -73,6 +73,62 @@ app <- shiny::shinyApp(
       return(invisible(NULL))
     }
     store <- rill_store(config)
+    if (identical(query$feedback, "fixture")) {
+      for (reader_id in c(config$actor_id, "feedback-other-reader")) {
+        store_ensure_reader(store, reader_id)
+        run <- store_start_agent_run(
+          store,
+          reader_id,
+          "question",
+          "feedback-fixture",
+          pinned_inputs = list(
+            question = "Explain the source boundary.",
+            model = "fixture-model",
+            policy_version = "fixture-policy",
+            document_id = if (
+              identical(query$resume, "1") &&
+                identical(reader_id, config$actor_id)
+            ) {
+              names(store$memory$documents)[[1L]]
+            }
+          ),
+          worker_id = "fixture-worker"
+        )
+        store_claim_agent_run(
+          store,
+          reader_id,
+          run$run_id,
+          "fixture-worker",
+          lease_expires_at = Sys.time() + 120
+        )
+        store_record_agent_run_response(
+          store,
+          reader_id,
+          run$run_id,
+          "fixture-worker",
+          if (identical(reader_id, config$actor_id)) {
+            "Interpretation: keep source material separate from generated explanation."
+          } else {
+            "PRIVATE_OTHER_READER_OUTPUT"
+          }
+        )
+        run <- store_finish_agent_run(
+          store,
+          reader_id,
+          run$run_id,
+          "fixture-worker",
+          "completed"
+        )
+        if (!identical(reader_id, config$actor_id)) {
+          feedback_save(
+            store,
+            reader_id,
+            feedback_target(store, reader_id, "question", run),
+            "helpful"
+          )
+        }
+      }
+    }
     if (
       grepl(
         "stress",

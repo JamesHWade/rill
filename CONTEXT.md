@@ -66,6 +66,12 @@ A brief, source-linked suggestion that the current story relates to earlier
 reading. It may invite engagement but does not itself create a durable outcome.
 _Avoid_: Conclusion, synthesis
 
+**Reader Feedback**:
+A Reader's explicit assessment of a particular agent output or execution,
+retaining the rated output and its provenance for review. It remains private
+and is neither Source Evidence nor Reader Memory.
+_Avoid_: Implicit preference, approval
+
 **Carry-forward**:
 The transition from reading into a durable conclusion or follow-up after User
 Engagement. It never occurs from passive behavior alone.

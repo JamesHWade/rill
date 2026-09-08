@@ -4,6 +4,7 @@ testthat::test_that("the package exposes a focused application API", {
     c(
       "approve_reader_admission",
       "list_reader_admissions",
+      "list_reader_feedback",
       "poll_feeds",
       "prepare_today",
       "read_opml",

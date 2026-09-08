@@ -128,6 +128,12 @@ rill_server <- function(config, store) {
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
     active_agent_run <- shiny::reactiveVal(NULL)
+    feedback_controller <- reader_feedback_server(
+      store,
+      actor_id,
+      active_agent_run,
+      session
+    )
     draining_agent_run_id <- shiny::reactiveVal(NULL)
     pending_reader_question <- shiny::reactiveVal(NULL)
     agent_request_index <- shiny::reactiveVal(0L)
@@ -288,24 +294,6 @@ rill_server <- function(config, store) {
       "cancelled",
       "interrupted"
     )
-    completed_response_grace_seconds <- 2
-
-    completed_response_may_arrive <- function(run) {
-      if (
-        !identical(run$status, "completed") ||
-          is.null(run$terminal_at)
-      ) {
-        return(FALSE)
-      }
-      terminal_at <- tryCatch(
-        as.POSIXct(run$terminal_at, tz = "UTC"),
-        error = \(error) as.POSIXct(NA, tz = "UTC")
-      )
-      length(terminal_at) == 1L &&
-        !is.na(terminal_at) &&
-        Sys.time() < terminal_at + completed_response_grace_seconds
-    }
-
     schedule_visible_agent_run_poll <- NULL
     schedule_visible_agent_run_poll <- function(run_id, delay = 0.05) {
       if (is.function(visible_agent_run_poll_cancel)) {
@@ -934,6 +922,7 @@ rill_server <- function(config, store) {
     record_agent_run_partials <- function(run, deadline) {
       last_saved_at <- as.POSIXct(NA, tz = "UTC")
       function(partial) {
+        feedback_controller$remember_partial(run$run_id, partial)
         now <- Sys.time()
         if (
           nzchar(partial) &&
@@ -2803,9 +2792,14 @@ rill_server <- function(config, store) {
       telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
         state <- orientation_state()
+        feedback_token <- feedback_controller$set_orientation(
+          state$orientation,
+          state$candidates
+        )
         return(orientation_ui(
           state$orientation,
           state$candidates,
+          feedback_token = feedback_token,
           preparing = orientation_preparing(),
           failure = orientation_display_failure(),
           processing_note = orientation_processing_note(

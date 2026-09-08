@@ -282,7 +282,9 @@
     const modalReturnFocus = new WeakMap();
     events.on("show.bs.modal.rillModalFocus", function (event) {
       if (event.target.id !== "shiny-modal") return;
-      const trigger = document.activeElement;
+      const explicitReturnId = event.target.getAttribute("data-rill-return-focus");
+      const trigger = (explicitReturnId && document.getElementById(explicitReturnId)) ||
+        document.activeElement;
       if (trigger && !event.target.contains(trigger)) {
         modalReturnFocus.set(event.target, { element: trigger, id: trigger.id });
       }

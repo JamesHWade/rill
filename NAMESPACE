@@ -2,6 +2,7 @@
 
 export(approve_reader_admission)
 export(list_reader_admissions)
+export(list_reader_feedback)
 export(poll_feeds)
 export(prepare_today)
 export(read_opml)

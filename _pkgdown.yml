@@ -12,6 +12,7 @@ reference:
       - approve_reader_admission
       - poll_feeds
       - prepare_today
+      - list_reader_feedback
 
   - title: Subscription interchange
     desc: Move feed subscriptions into and out of Rill with OPML.

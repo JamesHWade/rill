@@ -2719,7 +2719,7 @@
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "b4fc8e82173e6d4b720662d4b91d610c"
+      "checksum": "d055e1f6fbaafebacb83394cae73f7f8"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2740,7 +2740,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "5edaf23414e714a7207a63dbf65d8a50"
+      "checksum": "5f1874b5307631fe8186a212f97882d4"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2782,13 +2782,13 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "738962f5bbc4276fb1068c7bdc6572cd"
+      "checksum": "76acba6ca84601646f459c0cdbd7e657"
     },
     "R/access-requests.R": {
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "3e19969be1c87666a89f92232be43277"
+      "checksum": "dff168f14f5faa0a350b720f5070db5e"
     },
     "R/agent.R": {
       "checksum": "efa560e90a333c7e504156c825527f99"
@@ -2806,7 +2806,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "b8f90720bbb6745c248148d9282aeacd"
+      "checksum": "9d7851e6d9072537541945c704d1907c"
     },
     "R/defuddle.R": {
       "checksum": "9505dbe74bc45c843d29fe2ef3302b84"
@@ -2854,19 +2854,25 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "5d48dedf13e0f1d0a5addc374fa94f65"
+      "checksum": "8b7b926d2e0641124ff81c7d9508647d"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "57d4f891051b1e564c696488e2fdb1f9"
+      "checksum": "c3d95ead2ba5fe4b370f64d4764417a0"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
     },
     "inst/sql/013_feed_groups.sql": {
       "checksum": "34bbf3194f462446829880b0e71c10a7"
+    },
+    "R/reader-feedback.R": {
+      "checksum": "c2a17956a8cc3bd3be90af8895110f9f"
+    },
+    "inst/sql/014_reader_feedback.sql": {
+      "checksum": "2905a9af9863e33d94dca74b56de379d"
     }
   },
   "users": null
