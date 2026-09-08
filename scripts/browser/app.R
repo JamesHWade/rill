@@ -84,7 +84,13 @@ app <- shiny::shinyApp(
           pinned_inputs = list(
             question = "Explain the source boundary.",
             model = "fixture-model",
-            policy_version = "fixture-policy"
+            policy_version = "fixture-policy",
+            document_id = if (
+              identical(query$resume, "1") &&
+                identical(reader_id, config$actor_id)
+            ) {
+              names(store$memory$documents)[[1L]]
+            }
           ),
           worker_id = "fixture-worker"
         )

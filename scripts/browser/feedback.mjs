@@ -17,8 +17,8 @@ try {
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    async function audit(state) {
-      await page.getByRole('dialog').waitFor();
+    async function audit(state, dialog = true) {
+      if (dialog) await page.getByRole('dialog').waitFor();
       await page.evaluate(async () => {
         await Promise.all(document.getAnimations().filter(a => Number.isFinite(a.effect.getComputedTiming().iterations)).map(a => a.finished.catch(() => {})));
       });
@@ -36,6 +36,8 @@ try {
     }
     await page.goto(`${url}?feedback=fixture`);
     await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
+    await page.getByRole('button', {name: 'Rate this Orientation', exact: true}).waitFor();
+    await audit('orientation-ready', false);
     await page.getByRole('button', {name: 'Rate this Orientation', exact: true}).click();
     await page.getByRole('dialog').waitFor();
     assert.equal(await page.getByRole('radio', {name: 'Helpful', exact: true}).isChecked(), false);
@@ -101,6 +103,17 @@ try {
     const remaining = Object.values(JSON.parse(await fs.readFile(await remainingDownload.path(), 'utf8')));
     assert.equal(remaining.length, 1);
     assert.equal(remaining[0].snapshot.kind, 'orientation');
+    await page.goto(`${url}?feedback=fixture&resume=1`);
+    await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
+    await page.getByRole('button', {name: 'Ask Rill', exact: true}).click();
+    await page.getByRole('button', {name: 'Rate this response', exact: true}).click();
+    await page.getByRole('dialog').waitFor();
+    await page.getByText('Review the exact output being rated', {exact: true}).click();
+    await page.getByRole('dialog').getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();
+    await audit('current-response-rating');
+    await page.getByRole('button', {name: 'Cancel', exact: true}).click();
+    await page.getByRole('dialog').waitFor({state: 'hidden'});
+    await page.waitForFunction(() => document.activeElement?.id === 'rate_response');
     await page.close();
   }
 } finally {

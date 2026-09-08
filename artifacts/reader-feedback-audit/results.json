@@ -1,6 +1,22 @@
 [
   {
     "width": 320,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
     "state": "orientation-rating",
     "ui": {
       "viewportWidth": 320,
@@ -25,7 +41,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "f4fabd0464f6b2342a4448b1db77660e8c8cc439496268049e6c89726b734258",
+      "selectedDocumentId": "190f3dcfa1f43dee58f578f3bc615620209d907716c7b800a967835467451d33",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -41,9 +57,41 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "f4fabd0464f6b2342a4448b1db77660e8c8cc439496268049e6c89726b734258",
+      "selectedDocumentId": "190f3dcfa1f43dee58f578f3bc615620209d907716c7b800a967835467451d33",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "3e3a96cc339f8e44de01ea6625f384e45ca3214a754308f4ec5ff5833a110024",
+      "focusedElement": "Review the exact output being rated",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
     },
     "violations": []
   },
@@ -73,7 +121,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "cd2157ab401bdb5500c01bd13dad5e88d71ced5cdad6438717eec3e67ab52574",
+      "selectedDocumentId": "6822fff6225f99e13b8ff7476509e8bfac043fc728799c082e56c900be702b23",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -89,9 +137,41 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "cd2157ab401bdb5500c01bd13dad5e88d71ced5cdad6438717eec3e67ab52574",
+      "selectedDocumentId": "6822fff6225f99e13b8ff7476509e8bfac043fc728799c082e56c900be702b23",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "aee20af3058dfec1aad5831d21c002a4d39bfcf928779427106a821c31d401bf",
+      "focusedElement": "Review the exact output being rated",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
     },
     "violations": []
   },
@@ -121,7 +201,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "3a7678d7d7949a3f54ede2405b89214a1b0fa7440ba61de9b6cf1f9ae9b58695",
+      "selectedDocumentId": "571f8ca7de408dffae4591f2117631f69cfbc36c1101ab1e83b074039d39d014",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -137,8 +217,24 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "3a7678d7d7949a3f54ede2405b89214a1b0fa7440ba61de9b6cf1f9ae9b58695",
+      "selectedDocumentId": "571f8ca7de408dffae4591f2117631f69cfbc36c1101ab1e83b074039d39d014",
       "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "56bd38e51fa902a38bcb8b71c484acb5fd4103a8f9f445ccf28bad3792242fc5",
+      "focusedElement": "Review the exact output being rated",
       "visibleDialogs": 1
     },
     "violations": []

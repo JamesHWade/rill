@@ -206,7 +206,7 @@ testthat::test_that("the server saves the response frozen when its dialog opened
       pinned_inputs = list(question = "Why?")
     )
     active_agent_run(source)
-    session$setInputs(rate_response = 1)
+    session$setInputs(rate_response = source$run_id)
     frozen <- feedback_controller$pending()
     source$response_text <- "Changed answer"
     active_agent_run(source)
@@ -343,11 +343,11 @@ testthat::test_that("empty Orientation selections do not offer or create ratings
       controller$set_orientation(source, list())
       session$setInputs(rate_orientation = 1)
       testthat::expect_null(controller$pending())
-      controller$set_orientation(
+      token <- controller$set_orientation(
         source,
         list(list(document = list(document_id = "gone")))
       )
-      session$setInputs(rate_orientation = 2)
+      session$setInputs(rate_orientation = token)
       testthat::expect_identical(
         controller$pending()$snapshot$output$question,
         "Hidden question"
@@ -428,7 +428,7 @@ testthat::test_that("failed streamed text is available for rating only in its se
         }
         testthat::expect_null(run$partial_response)
         active_agent_run(run)
-        session$setInputs(rate_response = status)
+        session$setInputs(rate_response = run$run_id)
         target <- feedback_controller$pending()
         testthat::expect_identical(
           target$snapshot$output$response_state,
@@ -462,7 +462,7 @@ testthat::test_that("failed streamed text is available for rating only in its se
         )
       },
       {
-        session$setInputs(rate_response = 1)
+        session$setInputs(rate_response = latest$run_id)
         testthat::expect_identical(
           controller$pending()$snapshot$output$response_state,
           "unavailable"
@@ -531,8 +531,8 @@ testthat::test_that("Orientation ratings freeze each displayed source identity w
         )
       },
       {
-        controller$set_orientation(source, candidates)
-        session$setInputs(rate_orientation = 1)
+        token <- controller$set_orientation(source, candidates)
+        session$setInputs(rate_orientation = token)
         frozen <- controller$pending()
         candidates[[2]]$document$title <- "Changed title"
         controller$set_orientation(source, candidates)
@@ -581,4 +581,92 @@ testthat::test_that("Orientation ratings freeze each displayed source identity w
       }
     )
   }
+})
+
+
+testthat::test_that("Orientation rating clicks must match the rendered view", {
+  for (change in c("revision", "visible_sources")) {
+    store <- local_orientation_backend_store("memory", "reader")
+    source <- list(
+      reader_id = "reader",
+      revision_id = "revision-1",
+      agent_run_id = "missing",
+      question = "First question",
+      cards = list(list(document_id = "a", interpretation = "Claim"))
+    )
+    candidates <- list(list(
+      document = list(document_id = "a", title = "First source")
+    ))
+    shiny::testServer(
+      function(input, output, session) {
+        controller <- reader_feedback_server(
+          store,
+          "reader",
+          shiny::reactiveVal(NULL),
+          session
+        )
+      },
+      {
+        old_token <- controller$set_orientation(source, candidates)
+        testthat::expect_identical(
+          controller$set_orientation(source, candidates),
+          old_token
+        )
+        if (identical(change, "revision")) {
+          source$revision_id <- "revision-2"
+          source$question <- "Second question"
+        } else {
+          candidates[[1]]$document$title <- "Changed source"
+        }
+        current_token <- controller$set_orientation(source, candidates)
+        session$setInputs(rate_orientation = old_token)
+        testthat::expect_null(controller$pending())
+        session$setInputs(rate_orientation = current_token)
+        testthat::expect_identical(
+          controller$pending()$snapshot$output$question,
+          source$question
+        )
+        testthat::expect_identical(
+          controller$pending()$snapshot$output$cards[[1]]$source$title,
+          candidates[[1]]$document$title
+        )
+      }
+    )
+  }
+})
+
+
+testthat::test_that("response rating clicks cannot move to a newer attempt", {
+  store <- local_orientation_backend_store("memory", "reader")
+  old <- list(
+    reader_id = "reader",
+    kind = "question",
+    run_id = "old",
+    status = "completed",
+    response_text = "Old answer",
+    pinned_inputs = list(question = "Old question")
+  )
+  current <- old
+  current$run_id <- "current"
+  current$response_text <- "Current answer"
+  active <- shiny::reactiveVal(old)
+  shiny::testServer(
+    function(input, output, session) {
+      controller <- reader_feedback_server(store, "reader", active, session)
+    },
+    {
+      active(current)
+      session$setInputs(rate_response = old$run_id)
+      testthat::expect_null(controller$pending())
+      session$setInputs(rate_response = current$run_id)
+      testthat::expect_identical(
+        controller$pending()$snapshot$source_id,
+        "current"
+      )
+      testthat::expect_identical(
+        controller$pending()$snapshot$output$response,
+        "Current answer"
+      )
+    }
+  )
 })

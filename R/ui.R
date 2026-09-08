@@ -988,7 +988,8 @@ orientation_ui <- function(
   candidates,
   preparing = FALSE,
   processing_note = NULL,
-  failure = NULL
+  failure = NULL,
+  feedback_token = NULL
 ) {
   if (is.null(orientation)) {
     return(shiny::tags$section(
@@ -1083,7 +1084,13 @@ orientation_ui <- function(
         orientation_failure_ui(failure),
         orientation_retry_button(failure, "retry_orientation"),
         orientation_processing_ui(processing_note),
-        shiny::actionButton("rate_orientation", "Rate this Orientation"),
+        if (store_scalar_string(feedback_token)) {
+          feedback_action_button(
+            "rate_orientation",
+            "Rate this Orientation",
+            feedback_token
+          )
+        },
         orientation_browse_button("Browse the full unread queue")
       )
     ),

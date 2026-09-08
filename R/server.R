@@ -2810,10 +2810,14 @@ rill_server <- function(config, store) {
       telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
         state <- orientation_state()
-        feedback_controller$set_orientation(state$orientation, state$candidates)
+        feedback_token <- feedback_controller$set_orientation(
+          state$orientation,
+          state$candidates
+        )
         return(orientation_ui(
           state$orientation,
           state$candidates,
+          feedback_token = feedback_token,
           preparing = orientation_preparing(),
           failure = orientation_display_failure(),
           processing_note = orientation_processing_note(

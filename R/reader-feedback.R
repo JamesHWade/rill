@@ -278,6 +278,20 @@ feedback_withdraw <- function(store, reader_id, target_id) {
   invisible(NULL)
 }
 
+feedback_action_button <- function(input_id, label, target) {
+  shiny::tags$button(
+    id = input_id,
+    type = "button",
+    class = "btn btn-default",
+    onclick = sprintf(
+      "Shiny.setInputValue(%s, %s, {priority: 'event'})",
+      jsonlite::toJSON(input_id, auto_unbox = TRUE),
+      jsonlite::toJSON(target, auto_unbox = TRUE)
+    ),
+    label
+  )
+}
+
 feedback_source_metadata <- function(candidate) {
   document <- candidate$document
   entry <- candidate$entry
@@ -435,6 +449,7 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   output <- session$output
   feedback_pending <- shiny::reactiveVal(NULL)
   feedback_visible_orientation <- NULL
+  feedback_visible_token <- NULL
   feedback_partials <- list()
   question_target <- function(run) {
     if (
@@ -471,7 +486,11 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
         !is.null(run) &&
           run$status %in% c("completed", "failed", "interrupted", "cancelled")
       ) {
-        shiny::actionButton("rate_response", "Rate this response")
+        feedback_action_button(
+          "rate_response",
+          "Rate this response",
+          run$run_id
+        )
       },
       shiny::actionLink(
         "choose_feedback_response",
@@ -481,9 +500,18 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
     )
   })
   shiny::observeEvent(input$rate_response, {
+    run <- active_run()
+    if (is.null(run) || !identical(input$rate_response, run$run_id)) {
+      feedback_pending(NULL)
+      shiny::showNotification(
+        "The response changed. Review the current response or choose an earlier attempt.",
+        type = "message"
+      )
+      return(invisible(NULL))
+    }
     feedback_return_focus <<- "rate_response"
     feedback_attempt(function() {
-      feedback_open(question_target(active_run()))
+      feedback_open(question_target(run))
     })
   })
   shiny::observeEvent(input$choose_feedback_response, {
@@ -535,6 +563,14 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   })
   shiny::observeEvent(input$rate_orientation, {
     shiny::req(feedback_visible_orientation)
+    if (!identical(input$rate_orientation, feedback_visible_token)) {
+      feedback_pending(NULL)
+      shiny::showNotification(
+        "Orientation changed. Review the current selection and try again.",
+        type = "message"
+      )
+      return(invisible(NULL))
+    }
     feedback_return_focus <<- "rate_orientation"
     feedback_attempt(function() {
       feedback_open(feedback_target(
@@ -685,7 +721,10 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
           feedback_visible_orientation <<- NULL
         }
       }
-      invisible(NULL)
+      feedback_visible_token <<- if (!is.null(feedback_visible_orientation)) {
+        rill_id("feedback-view", canonical_json(feedback_visible_orientation))
+      }
+      invisible(feedback_visible_token)
     }
   )
 }

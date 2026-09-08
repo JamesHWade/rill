@@ -74,3 +74,15 @@ Arrow Down behavior before measuring accessibility.
 With the final stable-source snapshot, the full suite passed 3,214 assertions
 with zero failures, warnings, or skips. All nine browser audits passed, including
 the expanded Orientation source preview and keyboard scrolling.
+
+The Orientation rating button carries a token for its rendered view. An unchanged
+view keeps the same token; a changed revision or displayed source changes it.
+The controller rejects stale clicks before opening a rating dialog. Once opened,
+the existing frozen snapshot remains rateable even if Orientation changes again.
+The browser audit also checks the visible rating action before opening its dialog.
+
+The current Ask Rill rating button similarly carries its run ID and rejects
+a stale click after a different attempt becomes current. The final full suite
+passed 3,225 assertions with zero failures, warnings, or skips. Fifteen browser
+audits passed across 320, 390, and 1440 pixels, including visible Orientation
+controls and a restored current response with Cancel focus restoration.

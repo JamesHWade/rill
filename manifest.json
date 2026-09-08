@@ -2854,13 +2854,13 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "c7f3ace0658bbab1486f38ef1c5c4e1a"
+      "checksum": "f30389d39dddf67584f77025e791f98a"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "d4cb1e4075e09cb00df9566740f08c2a"
+      "checksum": "3778bc3a2efe642a6de30edfd2789691"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2869,7 +2869,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "8512ca8c2f8cf4b66794f5712a99e6a3"
+      "checksum": "741387ff183f1aa598568dd66c401898"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"
