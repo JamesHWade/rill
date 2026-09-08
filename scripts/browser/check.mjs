@@ -124,6 +124,13 @@ try {
   await audit('dark-queue-reduced-motion', 390);
   await page.evaluate(() => window.rillOpenLibrary());
   await audit('dark-library-reduced-motion', 390);
+  await page.getByRole('button', {name: 'Manage feeds', exact: true}).click();
+  await page.getByRole('dialog').waitFor();
+  await audit('dark-manage-feeds', 390);
+  await page.getByRole('button', {name: 'Add Groups', exact: true}).focus();
+  await audit('dark-group-action-focused', 390);
+  await page.getByRole('button', {name: 'Done', exact: true}).click();
+  await page.getByRole('dialog').waitFor({state: 'hidden'});
   await page.setViewportSize({ width: 320, height: 225 });
   await page.evaluate(() => window.rillOpenQueue());
   await audit('400-percent-reflow-equivalent', 320);

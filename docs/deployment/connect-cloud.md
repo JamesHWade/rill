@@ -1,5 +1,8 @@
 # Run a real-use trial on Posit Connect Cloud
 
+For the two-Reader acceptance sequence and preview database isolation, use the
+[hosted proof runbook](hosted-proof.md).
+
 This deployment is an invitation-only product trial. It asks whether hosted
 Rill is useful for daily reading with real Feeds, Orientation, and Ask Rill. It
 does not replace the Render/two-Reader isolation proof in issue #24 or change
