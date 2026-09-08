@@ -1,3 +1,38 @@
+testthat::test_that("extracted date text does not prevent saving a reading copy", {
+  store <- local_orientation_backend_store("postgres", "reader")
+  entries <- store_list_entries(store, "reader")
+  dates <- c("2026-09-07 11:16:21 +0000 UTC", "Updated this week")
+  for (index in seq_along(dates)) {
+    entry <- as.list(entries[index, , drop = FALSE])
+    entry$entry_id <- entry$external_id <- paste0("publication-date-", index)
+    entry$url <- paste0("https://example.org/publication-date-", index)
+    store_upsert_entries(store, as.data.frame(entry))
+    testthat::local_mocked_bindings(fetch_defuddled_markdown = function(...) {
+      paste(
+        "---",
+        paste0("published: ", dates[[index]]),
+        "---",
+        "Article",
+        sep = "\n"
+      )
+    })
+    document <- document_from_defuddle(entry, list(defuddle_backend = "local"))
+    token <- claim_preparation(store, entry$entry_id)
+    testthat::expect_identical(
+      finish_preparation(store, entry$entry_id, token, document),
+      TRUE
+    )
+    testthat::expect_identical(
+      preparation_attempt(store, entry$entry_id)$status,
+      "succeeded"
+    )
+    testthat::expect_identical(
+      public_reading_document(store, entry$entry_id)$document_id,
+      document$document_id
+    )
+  }
+})
+
 testthat::test_that("PostgreSQL preparation claims deduplicate and reject stale results", {
   store <- local_orientation_backend_store("postgres", "reader")
   entry <- as.list(sample_rill_data()$entries[1, , drop = FALSE])
