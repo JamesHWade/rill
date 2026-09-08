@@ -294,24 +294,6 @@ rill_server <- function(config, store) {
       "cancelled",
       "interrupted"
     )
-    completed_response_grace_seconds <- 2
-
-    completed_response_may_arrive <- function(run) {
-      if (
-        !identical(run$status, "completed") ||
-          is.null(run$terminal_at)
-      ) {
-        return(FALSE)
-      }
-      terminal_at <- tryCatch(
-        as.POSIXct(run$terminal_at, tz = "UTC"),
-        error = \(error) as.POSIXct(NA, tz = "UTC")
-      )
-      length(terminal_at) == 1L &&
-        !is.na(terminal_at) &&
-        Sys.time() < terminal_at + completed_response_grace_seconds
-    }
-
     schedule_visible_agent_run_poll <- NULL
     schedule_visible_agent_run_poll <- function(run_id, delay = 0.05) {
       if (is.function(visible_agent_run_poll_cancel)) {

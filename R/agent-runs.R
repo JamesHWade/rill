@@ -1,3 +1,20 @@
+completed_response_may_arrive <- function(run) {
+  if (
+    !identical(run$status, "completed") ||
+      is.null(run$terminal_at)
+  ) {
+    return(FALSE)
+  }
+  terminal_at <- tryCatch(
+    as.POSIXct(run$terminal_at, tz = "UTC"),
+    error = \(error) as.POSIXct(NA, tz = "UTC")
+  )
+  length(terminal_at) == 1L &&
+    !is.na(terminal_at) &&
+    Sys.time() < terminal_at + 2
+}
+
+
 agent_run_pending_lease_seconds <- function() {
   30
 }

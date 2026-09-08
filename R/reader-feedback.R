@@ -23,6 +23,12 @@ feedback_reasons <- function() {
   )
 }
 
+feedback_question_ready <- function(run) {
+  !is.null(run) &&
+    run$status %in% c("completed", "failed", "interrupted", "cancelled") &&
+    !completed_response_may_arrive(run)
+}
+
 feedback_question_runs <- function(store, reader_id) {
   feedback_require_reader(store, reader_id)
   if (identical(store$mode, "postgres")) {
@@ -35,15 +41,18 @@ feedback_question_runs <- function(store, reader_id) {
       ),
       params = list(reader_id)
     )
-    return(lapply(seq_len(nrow(rows)), function(i) {
-      agent_run_from_row(rows[i, , drop = FALSE])
-    }))
+    return(Filter(
+      feedback_question_ready,
+      lapply(seq_len(nrow(rows)), function(i) {
+        agent_run_from_row(rows[i, , drop = FALSE])
+      })
+    ))
   }
   runs <- Filter(
     function(run) {
       identical(run$reader_id, reader_id) &&
         identical(run$kind, "question") &&
-        run$status %in% c("completed", "failed", "interrupted", "cancelled")
+        feedback_question_ready(run)
     },
     store$memory$agent_runs
   )
@@ -79,7 +88,7 @@ feedback_target <- function(store, reader_id, kind, source) {
     run <- source
     if (
       !identical(run$kind, "question") ||
-        !run$status %in% c("completed", "failed", "interrupted", "cancelled")
+        !feedback_question_ready(run)
     ) {
       cli::cli_abort(
         "Wait until this response finishes.",
@@ -481,11 +490,11 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   }
   output$reader_feedback_actions <- shiny::renderUI({
     run <- active_run()
+    if (!is.null(run) && completed_response_may_arrive(run)) {
+      shiny::invalidateLater(250, session)
+    }
     shiny::tagList(
-      if (
-        !is.null(run) &&
-          run$status %in% c("completed", "failed", "interrupted", "cancelled")
-      ) {
+      if (feedback_question_ready(run)) {
         feedback_action_button(
           "rate_response",
           "Rate this response",

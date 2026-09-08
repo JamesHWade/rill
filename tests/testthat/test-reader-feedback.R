@@ -241,7 +241,7 @@ testthat::test_that("earlier response choices remain Reader scoped and retain av
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, "reader")
     store_ensure_reader(store, "other")
-    now <- Sys.time()
+    now <- Sys.time() - 120
     first <- feedback_test_run(store, "reader", "first", now)
     second <- feedback_test_run(store, "reader", "second", now + 10)
     feedback_test_run(store, "other", "private-other", now + 20)
@@ -669,4 +669,73 @@ testthat::test_that("response rating clicks cannot move to a newer attempt", {
       )
     }
   )
+})
+
+testthat::test_that("completed response feedback waits for the chat arrival grace period", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    arriving <- feedback_test_run(store, "reader", "arriving", Sys.time() + 60)
+    testthat::expect_length(feedback_question_runs(store, "reader"), 0L)
+    arriving$response_text <- NULL
+    active <- shiny::reactiveVal(arriving)
+    shiny::testServer(
+      function(input, output, session) {
+        controller <- reader_feedback_server(store, "reader", active, session)
+      },
+      {
+        controller$remember_partial(arriving$run_id, "Unfinished text")
+        session$flushReact()
+        if (identical(backend, "memory")) {
+          testthat::expect_no_match(
+            output$reader_feedback_actions$html,
+            'id="rate_response"'
+          )
+        }
+        session$setInputs(rate_response = arriving$run_id)
+        testthat::expect_null(controller$pending())
+        session$setInputs(
+          feedback_response_id = arriving$run_id,
+          open_feedback_response = 1
+        )
+        testthat::expect_null(controller$pending())
+        arriving$response_text <- "Final answer"
+        active(arriving)
+        session$flushReact()
+        if (identical(backend, "memory")) {
+          testthat::expect_no_match(
+            output$reader_feedback_actions$html,
+            'id="rate_response"'
+          )
+        }
+        arriving$terminal_at <- Sys.time() - 60
+        active(arriving)
+        session$flushReact()
+        if (identical(backend, "memory")) {
+          testthat::expect_match(
+            output$reader_feedback_actions$html,
+            'id="rate_response"'
+          )
+        }
+        session$setInputs(rate_response = arriving$run_id)
+        testthat::expect_identical(
+          controller$pending()$snapshot$output$response,
+          "Final answer"
+        )
+        testthat::expect_identical(
+          controller$pending()$snapshot$output$response_state,
+          "complete"
+        )
+        arriving$response_text <- NULL
+        testthat::expect_identical(
+          feedback_target(
+            store,
+            "reader",
+            "question",
+            arriving
+          )$snapshot$output$response_state,
+          "unavailable"
+        )
+      }
+    )
+  }
 })

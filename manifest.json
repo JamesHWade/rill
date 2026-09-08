@@ -2788,7 +2788,7 @@
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "3e19969be1c87666a89f92232be43277"
+      "checksum": "dff168f14f5faa0a350b720f5070db5e"
     },
     "R/agent.R": {
       "checksum": "efa560e90a333c7e504156c825527f99"
@@ -2854,7 +2854,7 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "f30389d39dddf67584f77025e791f98a"
+      "checksum": "8b7b926d2e0641124ff81c7d9508647d"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
@@ -2869,7 +2869,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "741387ff183f1aa598568dd66c401898"
+      "checksum": "c2a17956a8cc3bd3be90af8895110f9f"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"
