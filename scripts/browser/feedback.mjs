@@ -42,6 +42,10 @@ try {
     await page.getByRole('button', {name: 'Save rating', exact: true}).click();
     await page.getByText('Choose Helpful or Not helpful before saving.', {exact: true}).waitFor();
     await page.getByRole('radio', {name: 'Helpful', exact: true}).check();
+    await page.getByText('Review the exact output being rated', {exact: true}).click();
+    await page.getByRole('dialog').getByText('Source Document', {exact: true}).first().waitFor();
+    await page.getByRole('region', {name: 'Output being rated', exact: true}).press('ArrowDown');
+    await page.waitForFunction(() => document.querySelector('[aria-label="Output being rated"]').scrollTop > 0);
     await page.getByText('Add reasons or a comment (optional)', {exact: true}).click();
     await page.getByRole('checkbox', {name: 'Clarity', exact: true}).check();
     await page.getByLabel('Optional comment (up to 2,000 characters)', {exact: true}).fill('The source boundary is clear.');

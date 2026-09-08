@@ -25,7 +25,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "6b56da2d13df3beef34e1073f8578d62af832807d73d6c50236fbdf549eedbd4",
+      "selectedDocumentId": "f4fabd0464f6b2342a4448b1db77660e8c8cc439496268049e6c89726b734258",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -41,7 +41,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "6b56da2d13df3beef34e1073f8578d62af832807d73d6c50236fbdf549eedbd4",
+      "selectedDocumentId": "f4fabd0464f6b2342a4448b1db77660e8c8cc439496268049e6c89726b734258",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },
@@ -73,7 +73,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "15ad46a887585a0f21ff213923449b6a4209efa25b535b5f0aac5a8a4ae55b2a",
+      "selectedDocumentId": "cd2157ab401bdb5500c01bd13dad5e88d71ced5cdad6438717eec3e67ab52574",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -89,7 +89,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "15ad46a887585a0f21ff213923449b6a4209efa25b535b5f0aac5a8a4ae55b2a",
+      "selectedDocumentId": "cd2157ab401bdb5500c01bd13dad5e88d71ced5cdad6438717eec3e67ab52574",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },
@@ -121,7 +121,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "75944a051da1e4d8c0ee2fea75a2943ab24e7e00bf83ce26f415cc2c69730394",
+      "selectedDocumentId": "3a7678d7d7949a3f54ede2405b89214a1b0fa7440ba61de9b6cf1f9ae9b58695",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -137,7 +137,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "75944a051da1e4d8c0ee2fea75a2943ab24e7e00bf83ce26f415cc2c69730394",
+      "selectedDocumentId": "3a7678d7d7949a3f54ede2405b89214a1b0fa7440ba61de9b6cf1f9ae9b58695",
       "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },

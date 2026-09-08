@@ -63,3 +63,14 @@ the existing readable modal-button colors now cover the entire dialog.
 After these corrections, the complete PostgreSQL-backed suite passed 3,196
 assertions with zero failures, warnings, or skips. All nine feedback browser
 audits passed again with settled dialogs.
+
+The final provenance correction freezes each card's displayed source identity,
+publication timestamp, original URL, and available acquisition metadata. Tests
+use reversed candidate order and a title change after opening the dialog to
+verify association and freezing in both backends. The expanded preview has a
+named, keyboard-focusable scroll region, and the browser audit exercises its
+Arrow Down behavior before measuring accessibility.
+
+With the final stable-source snapshot, the full suite passed 3,214 assertions
+with zero failures, warnings, or skips. All nine browser audits passed, including
+the expanded Orientation source preview and keyboard scrolling.

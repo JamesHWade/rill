@@ -63,3 +63,10 @@ Submitting a rating preserves the reviewed partial text in its private snapshot.
 After reconnecting, an unrated failed attempt may have no answer text available;
 its preview says so explicitly. Source excerpts in Orientation previews remain
 labeled separately from Rill's generated interpretation and rationale.
+
+Each rated Orientation card retains its source title, site, publication timestamp,
+Original Source URL, Document identity, and available acquisition metadata and
+hashes. These fields are frozen from that card's displayed candidate alongside
+its excerpt. The preview labels them explicitly and supports keyboard scrolling.
+It does not copy the unquoted Document body. Publication timestamps remain stable
+instead of changing a rating's identity as a relative age label advances.

@@ -471,3 +471,114 @@ testthat::test_that("failed streamed text is available for rating only in its se
     )
   }
 })
+
+
+testthat::test_that("Orientation ratings freeze each displayed source identity with its excerpt", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    source <- list(
+      reader_id = "reader",
+      revision_id = "revision",
+      agent_run_id = "missing",
+      question = "How do these sources differ?",
+      cards = list(
+        list(
+          document_id = "a",
+          interpretation = "Claim A",
+          evidence = "Excerpt A"
+        ),
+        list(
+          document_id = "b",
+          interpretation = "Claim B",
+          evidence = "Excerpt B"
+        )
+      )
+    )
+    candidates <- list(
+      list(
+        document = list(
+          document_id = "b",
+          source_url = "https://example.org/b"
+        ),
+        entry = list(
+          title = "Source B",
+          feed_title = "Site B",
+          published_at = "2000-01-02 12:00:00"
+        )
+      ),
+      list(
+        document = list(
+          document_id = "a",
+          title = "Source A",
+          site = "Site A",
+          canonical_url = "https://example.org/a",
+          markdown = "Unquoted private body",
+          acquisition_method = "web_extraction",
+          producer = "test-extractor",
+          captured_at = "2000-01-03 12:00:00",
+          content_hash = "hash-a"
+        ),
+        entry = list(published_at = "2000-01-01 12:00:00")
+      )
+    )
+    shiny::testServer(
+      function(input, output, session) {
+        controller <- reader_feedback_server(
+          store,
+          "reader",
+          shiny::reactiveVal(NULL),
+          session
+        )
+      },
+      {
+        controller$set_orientation(source, candidates)
+        session$setInputs(rate_orientation = 1)
+        frozen <- controller$pending()
+        candidates[[2]]$document$title <- "Changed title"
+        controller$set_orientation(source, candidates)
+        session$setInputs(feedback_rating = "helpful", feedback_save = 1)
+        saved <- store_list_reader_feedback(store, "reader")[[frozen$target_id]]
+        cards <- saved$snapshot$output$cards
+        testthat::expect_identical(
+          vapply(cards, function(card) card$source$title, character(1)),
+          c("Source A", "Source B")
+        )
+        testthat::expect_identical(
+          vapply(cards, function(card) card$source$site, character(1)),
+          c("Site A", "Site B")
+        )
+        testthat::expect_identical(
+          cards[[1]]$source$original_url,
+          "https://example.org/a"
+        )
+        testthat::expect_identical(
+          cards[[1]]$source$published_at,
+          "2000-01-01 12:00:00"
+        )
+        testthat::expect_identical(cards[[1]]$source$content_hash, "hash-a")
+        testthat::expect_null(cards[[1]]$source$markdown)
+        preview <- xml2::read_html(as.character(feedback_output_ui(
+          saved$snapshot$output
+        )))
+        testthat::expect_identical(
+          xml2::xml_find_chr(
+            preview,
+            "string((//dl)[1]/dd[preceding-sibling::dt[1]='Title'])"
+          ),
+          "Source A"
+        )
+        testthat::expect_identical(
+          xml2::xml_find_chr(
+            preview,
+            "string((//dl)[2]/dd[preceding-sibling::dt[1]='Title'])"
+          ),
+          "Source B"
+        )
+        testthat::expect_identical(
+          xml2::xml_text(xml2::xml_find_all(preview, ".//blockquote")),
+          c("Excerpt A", "Excerpt B")
+        )
+      }
+    )
+  }
+})

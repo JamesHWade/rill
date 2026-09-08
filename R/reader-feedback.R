@@ -278,6 +278,53 @@ feedback_withdraw <- function(store, reader_id, target_id) {
   invisible(NULL)
 }
 
+feedback_source_metadata <- function(candidate) {
+  document <- candidate$document
+  entry <- candidate$entry
+  list(
+    document_id = document$document_id,
+    title = document$title %||% entry$title,
+    site = document$site %||% entry$feed_title,
+    published_at = entry$published_at,
+    original_url = rill_document_original_source_url(document),
+    acquisition_method = document$acquisition_method,
+    producer = document$producer,
+    captured_at = document$captured_at,
+    limitations = rill_document_limitations(document),
+    content_hash = document$content_hash,
+    record_hash = document$record_hash
+  )
+}
+
+feedback_source_ui <- function(source) {
+  if (is.null(source)) {
+    return(NULL)
+  }
+  labels <- c(
+    title = "Title",
+    site = "Site",
+    published_at = "Published at",
+    original_url = "Original Source",
+    document_id = "Document",
+    acquisition_method = "Acquisition",
+    producer = "Prepared by",
+    captured_at = "Captured at",
+    limitations = "Limitations"
+  )
+  shiny::tags$div(
+    style = "overflow-wrap:anywhere",
+    shiny::tags$p(shiny::tags$strong("Source Document")),
+    shiny::tags$dl(lapply(names(labels), function(field) {
+      if (store_scalar_string(source[[field]])) {
+        shiny::tagList(
+          shiny::tags$dt(labels[[field]]),
+          shiny::tags$dd(source[[field]])
+        )
+      }
+    }))
+  )
+}
+
 feedback_output_ui <- function(output) {
   shiny::tagList(
     if (store_scalar_string(output$question)) {
@@ -307,6 +354,7 @@ feedback_output_ui <- function(output) {
     },
     lapply(output$cards, function(card) {
       shiny::tags$div(
+        feedback_source_ui(card$source),
         if (store_scalar_string(card$interpretation)) {
           shiny::tags$p(
             shiny::tags$strong("Rill interpretation: "),
@@ -339,6 +387,9 @@ feedback_dialog <- function(target, existing = NULL, return_focus = NULL) {
       shiny::tags$summary("Review the exact output being rated"),
       shiny::tags$div(
         style = "max-height:16rem;overflow:auto",
+        tabindex = "0",
+        role = "region",
+        `aria-label` = "Output being rated",
         feedback_output_ui(target$snapshot$output)
       )
     ),
@@ -621,6 +672,14 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
             card$document_id %in% visible_ids
           },
           feedback_visible_orientation$cards
+        )
+        feedback_visible_orientation$cards <<- lapply(
+          feedback_visible_orientation$cards,
+          function(card) {
+            candidate <- candidates[[match(card$document_id, visible_ids)]]
+            card$source <- feedback_source_metadata(candidate)
+            card
+          }
         )
         if (!length(feedback_visible_orientation$cards)) {
           feedback_visible_orientation <<- NULL
