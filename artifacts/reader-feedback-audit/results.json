@@ -25,7 +25,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "0ea69318543c3b58152cccf368cc54312780686cdfd2b09f7259a15199e8e67c",
+      "selectedDocumentId": "6b56da2d13df3beef34e1073f8578d62af832807d73d6c50236fbdf549eedbd4",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -37,13 +37,13 @@
     "ui": {
       "viewportWidth": 320,
       "horizontalOverflow": false,
-      "appBusy": "true",
+      "appBusy": "false",
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "0ea69318543c3b58152cccf368cc54312780686cdfd2b09f7259a15199e8e67c",
-      "focusedElement": "review_feedback",
-      "visibleDialogs": 0
+      "selectedDocumentId": "6b56da2d13df3beef34e1073f8578d62af832807d73d6c50236fbdf549eedbd4",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
     },
     "violations": []
   },
@@ -73,7 +73,7 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "d8f295568bbd38cf907ee4132ca606010f2969c76df93d050bf8dce2622ce13f",
+      "selectedDocumentId": "15ad46a887585a0f21ff213923449b6a4209efa25b535b5f0aac5a8a4ae55b2a",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -89,8 +89,8 @@
       "connectionState": "connected",
       "activeSurface": "reader",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "d8f295568bbd38cf907ee4132ca606010f2969c76df93d050bf8dce2622ce13f",
-      "focusedElement": "review_feedback",
+      "selectedDocumentId": "15ad46a887585a0f21ff213923449b6a4209efa25b535b5f0aac5a8a4ae55b2a",
+      "focusedElement": "shiny-modal",
       "visibleDialogs": 1
     },
     "violations": []
@@ -121,7 +121,7 @@
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "fbd6a49fdc47c97afebbb8b01a96e17c159d3d267e6dcf143503df3a1bd4cb0e",
+      "selectedDocumentId": "75944a051da1e4d8c0ee2fea75a2943ab24e7e00bf83ce26f415cc2c69730394",
       "focusedElement": "",
       "visibleDialogs": 1
     },
@@ -133,13 +133,13 @@
     "ui": {
       "viewportWidth": 1440,
       "horizontalOverflow": false,
-      "appBusy": "true",
+      "appBusy": "false",
       "connectionState": "connected",
       "activeSurface": "multi-pane",
       "selectedEntryId": "sample-entry-1",
-      "selectedDocumentId": "fbd6a49fdc47c97afebbb8b01a96e17c159d3d267e6dcf143503df3a1bd4cb0e",
-      "focusedElement": "review_feedback",
-      "visibleDialogs": 0
+      "selectedDocumentId": "75944a051da1e4d8c0ee2fea75a2943ab24e7e00bf83ce26f415cc2c69730394",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
     },
     "violations": []
   }

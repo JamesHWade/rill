@@ -21,3 +21,8 @@ withdrawal removes the feedback and its retained snapshot. There is no implicit
 cross-Reader aggregation, external export, automatic learning, or promotion to
 Reader Memory. Review uses explicit examples and available version information;
 missing feedback is unknown, not approval.
+
+Streamed text for up to 50 attempts may remain in a browser session's server-side
+feedback buffer after failure or interruption. This buffer disappears with the
+session and is persisted only if the Reader rates that output. It does not change
+terminal Agent Run cleanup or create a durable archive of unrated failed output.

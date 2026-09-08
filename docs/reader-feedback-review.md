@@ -55,3 +55,11 @@ limitations in the change's review evidence. Run package, isolation and UI check
 before release. After release, inspect actual production traces and new explicit
 ratings to see whether the change helped. Do not relabel historical ratings as
 ratings of a new output or claim an improvement from missing feedback.
+
+Partial text from failed or interrupted responses is available only when the
+current browser session received it. Rill keeps at most 50 such streamed-output
+buffers in that session and does not add them to the durable Agent Run archive.
+Submitting a rating preserves the reviewed partial text in its private snapshot.
+After reconnecting, an unrated failed attempt may have no answer text available;
+its preview says so explicitly. Source excerpts in Orientation previews remain
+labeled separately from Rill's generated interpretation and rationale.

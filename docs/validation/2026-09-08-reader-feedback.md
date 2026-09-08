@@ -46,3 +46,20 @@ The [weekly review workflow](../reader-feedback-review.md) defines private revie
 reason categories, consent for sharing, and comparison of proposed changes against
 rated examples. These checks do not constitute evidence that a model or prompt
 change improved outcomes.
+
+## Review corrections
+
+The preview omits missing answer blocks and labels Source evidence separately
+from generated interpretation. Empty current Orientation selections do not offer
+a rating action, and stale clicks cannot retain a hidden question or introduction.
+Real failed, cancelled, and interrupted run transitions now exercise session-only
+partial-text capture before terminal cleanup, including chunks inside the store's
+write-throttling interval. A new session reports unrated missing text honestly.
+
+The browser audit waits for a visible dialog and finished animations before
+measuring contrast. That exposed the download control's light-theme contrast;
+the existing readable modal-button colors now cover the entire dialog.
+
+After these corrections, the complete PostgreSQL-backed suite passed 3,196
+assertions with zero failures, warnings, or skips. All nine feedback browser
+audits passed again with settled dialogs.

@@ -176,8 +176,8 @@ testthat::test_that("failed attempt feedback distinguishes retained partial text
     0L
   )
   testthat::expect_identical(
-    xml2::xml_text(xml2::xml_find_all(preview, ".//p")),
-    "A claim"
+    xml2::xml_find_chr(preview, "normalize-space(.//p)"),
+    "Rill interpretation: A claim"
   )
   missing_preview <- xml2::read_html(as.character(feedback_output_ui(
     unavailable$snapshot$output
@@ -354,4 +354,120 @@ testthat::test_that("empty Orientation selections do not offer or create ratings
       )
     }
   )
+})
+
+
+testthat::test_that("feedback previews label source evidence separately from interpretation", {
+  preview <- xml2::read_html(as.character(feedback_output_ui(list(
+    introduction = "Generated overview",
+    cards = list(list(
+      interpretation = "Generated claim",
+      why_now = "Generated rationale",
+      evidence = "Source words"
+    ))
+  ))))
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(preview, ".//strong")),
+    c(
+      "Rill introduction: ",
+      "Rill interpretation: ",
+      "Why now (Rill): ",
+      "Source evidence"
+    )
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_all(preview, ".//blockquote")),
+    "Source words"
+  )
+})
+
+testthat::test_that("failed streamed text is available for rating only in its session until saved", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, config$actor_id)
+    shiny::testServer(rill_server(config, store), {
+      for (status in c("failed", "cancelled", "interrupted")) {
+        run <- store_start_agent_run(
+          store,
+          config$actor_id,
+          "question",
+          status,
+          pinned_inputs = list(question = "Why?"),
+          worker_id = session_id
+        )
+        run <- store_claim_agent_run(
+          store,
+          config$actor_id,
+          run$run_id,
+          session_id,
+          lease_expires_at = Sys.time() + 60
+        )
+        record_partial <- record_agent_run_partials(run, Sys.time() + 60)
+        record_partial("Initial text")
+        record_partial("The last text before failure")
+        if (identical(status, "cancelled")) {
+          store_request_agent_run_cancel(store, config$actor_id, run$run_id)
+        }
+        run <- if (identical(status, "interrupted")) {
+          store_interrupt_agent_run(
+            store,
+            config$actor_id,
+            run$run_id,
+            session_id,
+            "test_interrupt"
+          )
+        } else {
+          store_finish_agent_run(
+            store,
+            config$actor_id,
+            run$run_id,
+            session_id,
+            status
+          )
+        }
+        testthat::expect_null(run$partial_response)
+        active_agent_run(run)
+        session$setInputs(rate_response = status)
+        target <- feedback_controller$pending()
+        testthat::expect_identical(
+          target$snapshot$output$response_state,
+          "partial"
+        )
+        testthat::expect_identical(
+          target$snapshot$output$response,
+          "The last text before failure"
+        )
+        session$setInputs(
+          feedback_rating = "not_helpful",
+          feedback_save = status
+        )
+        saved <- store_list_reader_feedback(store, config$actor_id)[[
+          target$target_id
+        ]]
+        testthat::expect_identical(
+          saved$snapshot$output$response,
+          "The last text before failure"
+        )
+      }
+    })
+    latest <- feedback_question_runs(store, config$actor_id)[[1L]]
+    shiny::testServer(
+      function(input, output, session) {
+        controller <- reader_feedback_server(
+          store,
+          config$actor_id,
+          shiny::reactiveVal(latest),
+          session
+        )
+      },
+      {
+        session$setInputs(rate_response = 1)
+        testthat::expect_identical(
+          controller$pending()$snapshot$output$response_state,
+          "unavailable"
+        )
+      }
+    )
+  }
 })

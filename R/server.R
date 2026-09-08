@@ -940,6 +940,7 @@ rill_server <- function(config, store) {
     record_agent_run_partials <- function(run, deadline) {
       last_saved_at <- as.POSIXct(NA, tz = "UTC")
       function(partial) {
+        feedback_controller$remember_partial(run$run_id, partial)
         now <- Sys.time()
         if (
           nzchar(partial) &&

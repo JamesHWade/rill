@@ -281,7 +281,7 @@ feedback_withdraw <- function(store, reader_id, target_id) {
 feedback_output_ui <- function(output) {
   shiny::tagList(
     if (store_scalar_string(output$question)) {
-      shiny::tags$p(shiny::tags$strong(output$question))
+      shiny::tags$p(shiny::tags$strong("Question: "), output$question)
     },
     if (identical(output$response_state, "partial")) {
       shiny::tags$p(
@@ -294,7 +294,10 @@ feedback_output_ui <- function(output) {
       )
     },
     if (store_scalar_string(output$introduction)) {
-      shiny::tags$p(output$introduction)
+      shiny::tags$p(
+        shiny::tags$strong("Rill introduction: "),
+        output$introduction
+      )
     },
     if (store_scalar_string(output$response)) {
       shiny::tags$pre(
@@ -305,11 +308,19 @@ feedback_output_ui <- function(output) {
     lapply(output$cards, function(card) {
       shiny::tags$div(
         if (store_scalar_string(card$interpretation)) {
-          shiny::tags$p(card$interpretation)
+          shiny::tags$p(
+            shiny::tags$strong("Rill interpretation: "),
+            card$interpretation
+          )
         },
-        if (store_scalar_string(card$why_now)) shiny::tags$p(card$why_now),
+        if (store_scalar_string(card$why_now)) {
+          shiny::tags$p(shiny::tags$strong("Why now (Rill): "), card$why_now)
+        },
         if (store_scalar_string(card$evidence)) {
-          shiny::tags$blockquote(card$evidence)
+          shiny::tagList(
+            shiny::tags$p(shiny::tags$strong("Source evidence")),
+            shiny::tags$blockquote(card$evidence)
+          )
         }
       )
     }),
@@ -373,6 +384,17 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   output <- session$output
   feedback_pending <- shiny::reactiveVal(NULL)
   feedback_visible_orientation <- NULL
+  feedback_partials <- list()
+  question_target <- function(run) {
+    if (
+      !is.null(run) &&
+        !store_scalar_string(run$response_text) &&
+        !store_scalar_string(run$partial_response)
+    ) {
+      run$partial_response <- feedback_partials[[run$run_id]]
+    }
+    feedback_target(store, reader_id, "question", run)
+  }
   feedback_return_focus <- NULL
   feedback_open <- function(target) {
     existing <- store_list_reader_feedback(store, reader_id)[[target$target_id]]
@@ -410,12 +432,7 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   shiny::observeEvent(input$rate_response, {
     feedback_return_focus <<- "rate_response"
     feedback_attempt(function() {
-      feedback_open(feedback_target(
-        store,
-        reader_id,
-        "question",
-        active_run()
-      ))
+      feedback_open(question_target(active_run()))
     })
   })
   shiny::observeEvent(input$choose_feedback_response, {
@@ -462,7 +479,7 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   shiny::observeEvent(input$open_feedback_response, {
     feedback_attempt(function() {
       run <- store_get_agent_run(store, reader_id, input$feedback_response_id)
-      feedback_open(feedback_target(store, reader_id, "question", run))
+      feedback_open(question_target(run))
     })
   })
   shiny::observeEvent(input$rate_orientation, {
@@ -581,6 +598,14 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
   })
   list(
     pending = feedback_pending,
+    remember_partial = function(run_id, partial) {
+      feedback_partials[[run_id]] <<- NULL
+      if (store_scalar_string(partial)) {
+        feedback_partials[[run_id]] <<- partial
+        feedback_partials <<- utils::tail(feedback_partials, 50L)
+      }
+      invisible(NULL)
+    },
     set_orientation = function(orientation, candidates) {
       feedback_visible_orientation <<- orientation
       if (!is.null(feedback_visible_orientation)) {

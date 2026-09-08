@@ -18,6 +18,10 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     async function audit(state) {
+      await page.getByRole('dialog').waitFor();
+      await page.evaluate(async () => {
+        await Promise.all(document.getAnimations().filter(a => Number.isFinite(a.effect.getComputedTiming().iterations)).map(a => a.finished.catch(() => {})));
+      });
       await page.addScriptTag({path: require.resolve('axe-core/axe.min.js')});
       const result = await page.evaluate(async () => ({
         ui: window.rillUiAudit(),
