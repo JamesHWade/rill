@@ -1,0 +1,146 @@
+[
+  {
+    "width": 320,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "0ea69318543c3b58152cccf368cc54312780686cdfd2b09f7259a15199e8e67c",
+      "focusedElement": "",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "0ea69318543c3b58152cccf368cc54312780686cdfd2b09f7259a15199e8e67c",
+      "focusedElement": "review_feedback",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "d8f295568bbd38cf907ee4132ca606010f2969c76df93d050bf8dce2622ce13f",
+      "focusedElement": "",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "d8f295568bbd38cf907ee4132ca606010f2969c76df93d050bf8dce2622ce13f",
+      "focusedElement": "review_feedback",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "fbd6a49fdc47c97afebbb8b01a96e17c159d3d267e6dcf143503df3a1bd4cb0e",
+      "focusedElement": "",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "true",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "fbd6a49fdc47c97afebbb8b01a96e17c159d3d267e6dcf143503df3a1bd4cb0e",
+      "focusedElement": "review_feedback",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  }
+]

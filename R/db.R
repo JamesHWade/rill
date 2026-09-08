@@ -178,6 +178,7 @@ rill_store <- function(config) {
     )
     memory$feed_poll_locked <- FALSE
     memory$agent_runs <- list()
+    memory$reader_feedback <- list()
     memory$orientations <- list()
     memory$orientation_destination_settings <- list()
     memory$deferred_reader_questions <- list()

@@ -128,6 +128,12 @@ rill_server <- function(config, store) {
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
     active_agent_run <- shiny::reactiveVal(NULL)
+    feedback_controller <- reader_feedback_server(
+      store,
+      actor_id,
+      active_agent_run,
+      session
+    )
     draining_agent_run_id <- shiny::reactiveVal(NULL)
     pending_reader_question <- shiny::reactiveVal(NULL)
     agent_request_index <- shiny::reactiveVal(0L)
@@ -2803,6 +2809,7 @@ rill_server <- function(config, store) {
       telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
         state <- orientation_state()
+        feedback_controller$set_orientation(state$orientation, state$candidates)
         return(orientation_ui(
           state$orientation,
           state$candidates,

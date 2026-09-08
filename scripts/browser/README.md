@@ -30,6 +30,14 @@ The fixture-only `audit_error` and `audit_disconnect` inputs exercise native
 Shiny feedback and actual session loss. They are not registered by the product.
 No production accounts, feeds, or model services are used.
 
+Run `node feedback.mjs` from `scripts/browser` to verify Reader feedback at 320,
+390, and 1440 CSS pixels. Its `?feedback=fixture` mode seeds finished synthetic
+responses and one other Reader's private rating. The checks exercise optional
+ratings, revision, earlier responses, downloads, withdrawal, chained-dialog focus
+restoration, contrast, and overflow. The exported JSON must exclude the other
+Reader's record. Results and screenshots go to `artifacts/reader-feedback-audit/`.
+This local fixture does not replace hosted identity or screen-reader testing.
+
 To capture the 15 comparison states at phone and desktop widths:
 
 ```sh

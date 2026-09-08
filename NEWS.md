@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Rate Orientation and Ask Rill outputs privately, with optional reasons and comments; review, revise, or withdraw saved ratings and their exact output snapshots (#74).
+
 * Organize feeds into overlapping Groups, manage several feeds at once, and read feeds in any or all selected Groups. OPML preserves memberships and empty Groups when moving between Rill Libraries (#76).
 
 * Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder (#75).

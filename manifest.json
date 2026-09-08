@@ -2719,7 +2719,7 @@
       "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
     },
     "inst/app/www/app.js": {
-      "checksum": "b4fc8e82173e6d4b720662d4b91d610c"
+      "checksum": "d055e1f6fbaafebacb83394cae73f7f8"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2740,7 +2740,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "33945adc2056dfed6b0065b20d3bafdf"
+      "checksum": "d62998a2da1ef56203038c824b1d09f9"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2782,7 +2782,7 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "738962f5bbc4276fb1068c7bdc6572cd"
+      "checksum": "76acba6ca84601646f459c0cdbd7e657"
     },
     "R/access-requests.R": {
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
@@ -2806,7 +2806,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "b8f90720bbb6745c248148d9282aeacd"
+      "checksum": "9d7851e6d9072537541945c704d1907c"
     },
     "R/defuddle.R": {
       "checksum": "42383c4831739c9545a9965d9c47d923"
@@ -2854,19 +2854,25 @@
       "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
     },
     "R/server.R": {
-      "checksum": "5d48dedf13e0f1d0a5addc374fa94f65"
+      "checksum": "8d20ff0d7cbb8f85ef372f66c219c708"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "de134900d6de305f3377e6100a37d392"
+      "checksum": "9d766752550ebe310d492bd837455357"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
     },
     "inst/sql/013_feed_groups.sql": {
       "checksum": "34bbf3194f462446829880b0e71c10a7"
+    },
+    "R/reader-feedback.R": {
+      "checksum": "f846d15ca203d9109f95da05e594ef31"
+    },
+    "inst/sql/014_reader_feedback.sql": {
+      "checksum": "2905a9af9863e33d94dca74b56de379d"
     }
   },
   "users": null

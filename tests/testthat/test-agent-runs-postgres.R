@@ -179,6 +179,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   DBI::dbExecute(store$pool, "DROP TABLE reader_identity_events")
   DBI::dbExecute(store$pool, "DROP TABLE reader_admission_requests")
   DBI::dbExecute(store$pool, "DROP TABLE reader_external_identities")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_feedback")
   DBI::dbExecute(store$pool, "DROP TABLE readers CASCADE")
   DBI::dbExecute(
     store$pool,
@@ -243,7 +244,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "010_reader_documents",
       "011_feed_polling",
       "012_article_preparation",
-      "013_feed_groups"
+      "013_feed_groups",
+      "014_reader_feedback"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
