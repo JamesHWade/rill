@@ -48,6 +48,6 @@ One security finding was fixed: raw retained HTML could introduce Shiny action-l
 
 Three findings were fixed: focus now survives desktop/tablet breakpoints; Original Source is a safe clickable link from the returned Document; and the original-answer copy preserves leading newlines without HTML formatting whitespace. Browser regressions cover these paths, including a manually resized pane and returned-source identity.
 
-### Released-package compatibility
+### Development shinychat dependency
 
-CI exposed a local-development-only shinychat helper. The adapter now uses the documented `extra$display` list directly, supported by shinychat 0.4.0, with no development-version dependency. See the [official tool display interface](https://posit-dev.github.io/shinychat/r/articles/tool-ui.html). The focused R suite and source-card browser check were repeated against an isolated installation of shinychat 0.4.0.
+Rill pins shinychat 0.4.0.9000 at `dde163ea6b27099304a658f3649dd1fac98208bd` in DESCRIPTION and the Connect manifest. CI and container dependency installation honor DESCRIPTION Remotes. The source summary uses the public `extra$display` interface. Validation uses an isolated installation of this exact revision.
