@@ -395,7 +395,7 @@ reader_tool_result_display <- function(chunk) {
       shiny::tags$pre(orientation_json(document))
     )
   )
-  chunk@extra$display <- shinychat::tool_result_display(
+  chunk@extra$display <- list(
     title = "Source Document",
     html = details,
     show_request = TRUE
