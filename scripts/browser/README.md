@@ -59,3 +59,7 @@ Document display, pinned source identity, and exact JSON clipboard content.
 The feedback suite also checks long Markdown, unbroken text, original-answer
 copying, and doubled text size. Text enlargement is distinct from browser zoom;
 the automated checks do not certify a screen reader or browser zoom behavior.
+
+Run `RILL_LEGACY_MEDIA_QUERIES=true node pane-focus.mjs` to repeat the pane
+workflow using Rill's legacy MediaQueryList listeners. Third-party component
+media queries retain their normal browser APIs.

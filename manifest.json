@@ -2719,7 +2719,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "821ce1ca34fe37efe30ba913400ca7fa"
+      "checksum": "4b0a3c3b082676ca6cc9bc1e1d7c9b8a"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2791,7 +2791,7 @@
       "checksum": "dff168f14f5faa0a350b720f5070db5e"
     },
     "R/agent.R": {
-      "checksum": "342b224cc658eb0b4f99655002464457"
+      "checksum": "5dc5b510d626254c0ae3a6164868625c"
     },
     "R/app.R": {
       "checksum": "d92126e1dd4186d0be593c71948b8062"

@@ -363,10 +363,24 @@ reader_tool_result_display <- function(chunk) {
     return(chunk)
   }
   document <- chunk@value
+  display_text <- function(value, fallback = "Not recorded") {
+    if (store_scalar_string(value)) value else fallback
+  }
+  limitations <- document$limitations
+  if (is.character(limitations)) {
+    limitations <- limitations[
+      !is.na(limitations) & nzchar(trimws(limitations))
+    ]
+  } else {
+    limitations <- character()
+  }
   details <- shiny::tags$div(
     class = "rill-document-result",
-    shiny::tags$p(shiny::tags$strong(document$title %||% "Untitled source")),
-    shiny::tags$p(document$site),
+    shiny::tags$p(shiny::tags$strong(display_text(
+      document$title,
+      "Untitled source"
+    ))),
+    shiny::tags$p("Site: ", display_text(document$site)),
     if (
       store_scalar_string(document$source_url) &&
         grepl("^https?://", document$source_url, ignore.case = TRUE)
@@ -380,14 +394,14 @@ reader_tool_result_display <- function(chunk) {
     } else {
       shiny::tags$p("Original Source URL unavailable")
     },
-    shiny::tags$p("Captured: ", document$captured_at %||% "Not recorded"),
+    shiny::tags$p("Captured: ", display_text(document$captured_at)),
     shiny::tags$p(
       "Preparation: ",
-      document$acquisition_method %||% "Not recorded"
+      display_text(document$acquisition_method)
     ),
     shiny::tags$p(
       "Limitations: ",
-      paste(document$limitations, collapse = "; ")
+      display_text(paste(limitations, collapse = "; "))
     ),
     shiny::tags$details(
       shiny::tags$summary("Original tool result (JSON)"),

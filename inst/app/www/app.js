@@ -1772,9 +1772,6 @@
       status.textContent = " Text selected. Use your browser's Copy command.";
     }
   });
-  desktopReaderMode.addEventListener("change", function() {
-    if (!desktopReaderMode.matches && savedPaneLayout) focusPane("restore");
-  });
 
   function readerAgentElements() {
     const sidebar = document.getElementById("reader_agent_sidebar");
@@ -1933,6 +1930,7 @@
   }
 
   function handleResponsiveLayoutChange() {
+    if (!desktopReaderMode.matches && savedPaneLayout) focusPane("restore");
     window.setTimeout(syncResponsiveSidebarState, 0);
     syncReader();
     syncAskRillControls();

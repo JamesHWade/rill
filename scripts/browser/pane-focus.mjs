@@ -11,6 +11,24 @@ try {
     viewport: {width: 1680, height: 1000},
     reducedMotion: 'reduce',
   });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  if (process.env.RILL_LEGACY_MEDIA_QUERIES === 'true') {
+    await page.addInitScript(() => {
+      const matchMedia = window.matchMedia.bind(window);
+      window.rillLegacyMediaQueries = 0;
+      window.matchMedia = query => {
+        const media = matchMedia(query);
+        // Exercise Rill's fallback without changing third-party component APIs.
+        if (document.currentScript?.textContent.includes('const desktopReaderMode')) {
+          window.rillLegacyMediaQueries += 1;
+          media.addEventListener = undefined;
+          media.removeEventListener = undefined;
+        }
+        return media;
+      };
+    });
+  }
   const state = () => page.evaluate(() => [
     'navigation_sidebar', 'story_sidebar', 'reader_agent_sidebar',
   ].map(id => {
@@ -84,6 +102,10 @@ try {
   await page.setViewportSize({width: 320, height: 700});
   await page.waitForFunction(() => !document.querySelector('.transitioning'));
   assert.equal(await page.evaluate(() => window.rillUiAudit().horizontalOverflow), false);
+  assert.deepEqual(errors, []);
+  if (process.env.RILL_LEGACY_MEDIA_QUERIES === 'true') {
+    assert.ok(await page.evaluate(() => window.rillLegacyMediaQueries >= 4));
+  }
   console.log('Pane widths, breakpoint focus, draft, scalable text and narrow reflow passed');
 } finally {
   await browser.close();
