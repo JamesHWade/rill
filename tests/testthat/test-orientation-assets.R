@@ -342,7 +342,7 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   )
   testthat::expect_match(
     javascript,
-    "const coversMain = expanded && overlaidAgentMode.matches",
+    "const coversMain = expanded && (overlaidAgentMode.matches",
     fixed = TRUE
   )
   testthat::expect_match(

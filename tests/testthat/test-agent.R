@@ -272,3 +272,36 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
     )
   )
 })
+
+
+testthat::test_that("source display uses the returned Document and preserves original tool content", {
+  request <- ellmer::ContentToolRequest(
+    id = "tool",
+    name = "read_current_document",
+    arguments = list()
+  )
+  value <- list(
+    title = "Pinned source",
+    source_url = "https://example.com/source",
+    markdown = "Original text",
+    record_hash = "retained-hash"
+  )
+  original <- ellmer::ContentToolResult(value = value, request = request)
+  decorated <- reader_tool_result_display(original)
+  testthat::expect_identical(decorated@value, value)
+  testthat::expect_identical(decorated@request, request)
+  testthat::expect_identical(original@extra, list())
+  testthat::expect_match(
+    htmltools::renderTags(decorated@extra$display$html)$html,
+    "Pinned source",
+    fixed = TRUE
+  )
+  failed <- ellmer::ContentToolResult(
+    value = NULL,
+    error = "Unavailable",
+    request = request
+  )
+  testthat::expect_identical(reader_tool_result_display(failed), failed)
+  unrelated <- ellmer::ContentToolResult(value = value)
+  testthat::expect_identical(reader_tool_result_display(unrelated), unrelated)
+})

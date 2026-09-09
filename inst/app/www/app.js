@@ -1460,6 +1460,11 @@
       return;
     }
 
+    if (savedPaneLayout) {
+      focusPane("restore");
+      event.preventDefault();
+      return;
+    }
     const { layout } = readerAgentElements();
     if (!layout || layout.classList.contains("sidebar-collapsed")) return;
     setSidebarExpanded("reader_agent_sidebar", false);
@@ -1690,6 +1695,87 @@
     if (collapsed === expanded) toggle.click();
   }
 
+  let savedPaneLayout = null;
+  const focusSidebarIds = ["navigation_sidebar", "story_sidebar", "reader_agent_sidebar"];
+
+  function focusPane(mode, trigger) {
+    if (mode === "restore") {
+      if (!savedPaneLayout) return;
+      document.getElementById("rill-app").removeAttribute("data-pane-focus");
+      savedPaneLayout.states.forEach(({ id, expanded }) => setSidebarExpanded(id, expanded));
+      const previous = savedPaneLayout;
+      savedPaneLayout = null;
+      window.requestAnimationFrame(async function() {
+        await Promise.all(document.getAnimations()
+          .filter(animation => Number.isFinite(animation.effect.getComputedTiming().iterations))
+          .map(animation => animation.finished.catch(() => {})));
+        if (savedPaneLayout) return;
+        previous.scroll.forEach(({ element, top, left }) => {
+          if (document.contains(element)) element.scrollTo(left, top);
+        });
+        if (previous.trigger && document.contains(previous.trigger)) {
+          previous.trigger.focus({ preventScroll: true });
+        }
+      });
+    } else {
+      if (!savedPaneLayout) {
+        savedPaneLayout = {
+          trigger,
+          scroll: Array.from(document.querySelectorAll(
+            ".reader-scroll, .story-list, .feed-list, .shiny-chat-messages, .bslib-sidebar-layout > .sidebar"
+          )).map(element => ({ element, top: element.scrollTop, left: element.scrollLeft })),
+          states: focusSidebarIds.map(id => ({
+            id,
+            expanded: !document.getElementById(id).parentElement.classList.contains("sidebar-collapsed")
+          }))
+        };
+      }
+      document.getElementById("rill-app").dataset.paneFocus = mode;
+      setSidebarExpanded("navigation_sidebar", false);
+      setSidebarExpanded("story_sidebar", false);
+      setSidebarExpanded("reader_agent_sidebar", mode === "ask");
+      if (mode === "ask") focusAgentSidebar();
+      else focusReader();
+    }
+    document.querySelectorAll('[data-rill-pane-focus="restore"]').forEach(button => {
+      button.disabled = !savedPaneLayout;
+    });
+    document.querySelectorAll('[data-rill-pane-focus="reading"], [data-rill-pane-focus="ask"]').forEach(button => {
+      button.setAttribute("aria-pressed", String(button.dataset.rillPaneFocus === document.getElementById("rill-app").dataset.paneFocus));
+    });
+    syncAskRillControls();
+    window.setTimeout(function() {
+      focusSidebarIds.forEach(ensureSidebarSettled);
+    }, 400);
+  }
+
+  document.addEventListener("click", function(event) {
+    const button = event.target.closest("button[data-rill-pane-focus]");
+    if (button) focusPane(button.dataset.rillPaneFocus, button);
+  });
+  document.addEventListener("click", async function(event) {
+    const button = event.target.closest("button[data-rill-copy-text]");
+    if (!button) return;
+    const details = button.closest("details");
+    const original = details.querySelector("pre");
+    const status = details.querySelector(".rill-copy-status");
+    if (!original || !status) return;
+    try {
+      await navigator.clipboard.writeText(original.textContent);
+      status.textContent = " Copied.";
+    } catch (_error) {
+      const range = document.createRange();
+      range.selectNodeContents(original);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      status.textContent = " Text selected. Use your browser's Copy command.";
+    }
+  });
+  desktopReaderMode.addEventListener("change", function() {
+    if (!desktopReaderMode.matches && savedPaneLayout) focusPane("restore");
+  });
+
   function readerAgentElements() {
     const sidebar = document.getElementById("reader_agent_sidebar");
     const layout = sidebar && sidebar.parentElement;
@@ -1740,7 +1826,13 @@
   }
 
   function ensureAskRillSettled() {
-    const { layout, toggle } = readerAgentElements();
+    ensureSidebarSettled("reader_agent_sidebar");
+  }
+
+  function ensureSidebarSettled(id) {
+    const sidebar = document.getElementById(id);
+    const layout = sidebar && sidebar.parentElement;
+    const toggle = layout && layout.querySelector(":scope > .collapse-toggle");
     if (!layout || !toggle || !layout.classList.contains("transitioning")) {
       return;
     }
@@ -1758,6 +1850,9 @@
     const hasReader = Boolean(document.getElementById("reader-document"));
     const expanded =
       hasReader && !layout.classList.contains("sidebar-collapsed");
+    document.querySelectorAll('[data-rill-pane-focus="ask"]').forEach(button => {
+      button.disabled = !hasReader;
+    });
     const label = expanded ? "Close Ask Rill" : "Open Ask Rill";
     toggle.setAttribute("aria-label", label);
     toggle.setAttribute("title", label);
@@ -1766,7 +1861,7 @@
         trigger.setAttribute("aria-expanded", String(expanded));
       }
     );
-    const coversMain = expanded && overlaidAgentMode.matches;
+    const coversMain = expanded && (overlaidAgentMode.matches || document.getElementById("rill-app").dataset.paneFocus === "ask");
     const mainHadFocus = Boolean(
       coversMain &&
         main &&
@@ -1811,6 +1906,10 @@
   }
 
   window.rillOpenAskRill = function (trigger) {
+    if (savedPaneLayout) {
+      focusPane("ask", trigger);
+      return;
+    }
     agentReturnFocus = trigger || document.activeElement;
     agentFocusPending = true;
     setSidebarExpanded("reader_agent_sidebar", true);
@@ -1819,6 +1918,7 @@
   };
 
   function syncResponsiveSidebarState() {
+    if (savedPaneLayout) return;
     if (mediumReaderMode.matches) {
       setSidebarExpanded("navigation_sidebar", false);
       setSidebarExpanded("story_sidebar", true);
@@ -1858,6 +1958,11 @@
   });
 
   function syncStoryNavigation() {
+    document.querySelectorAll(".shiny-chat-messages").forEach(function (messages) {
+      messages.tabIndex = 0;
+      messages.setAttribute("role", "region");
+      messages.setAttribute("aria-label", "Ask Rill conversation");
+    });
     document.querySelectorAll("#reader-document pre").forEach(function (block) {
       block.tabIndex = 0;
     });

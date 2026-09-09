@@ -739,3 +739,151 @@ testthat::test_that("completed response feedback waits for the chat arrival grac
     )
   }
 })
+
+
+testthat::test_that("retained Markdown is readable without active markup or nested scrolling", {
+  response <- "## Answer\n\n**Evidence** and [unsafe](javascript:alert(1)).\n\n<script>alert(1)</script>\n\n![remote](https://example.com/image.png)"
+  html <- htmltools::renderTags(feedback_answer_ui(response))$html
+  parsed <- xml2::read_html(html)
+  testthat::expect_equal(
+    xml2::xml_text(xml2::xml_find_first(parsed, ".//h2")),
+    "Answer"
+  )
+  testthat::expect_equal(
+    xml2::xml_text(xml2::xml_find_first(parsed, ".//strong")),
+    "Evidence"
+  )
+  testthat::expect_length(
+    xml2::xml_find_all(
+      parsed,
+      ".//script | .//img | .//iframe | .//a[starts-with(@href, 'javascript:')]"
+    ),
+    0L
+  )
+  testthat::expect_equal(
+    xml2::xml_text(xml2::xml_find_first(parsed, ".//pre")),
+    response
+  )
+  target <- list(snapshot = list(output = list(response = response)))
+  dialog <- xml2::read_html(
+    htmltools::renderTags(feedback_dialog(
+      target,
+      existing = list(reasons = "clarity", comment = "Saved")
+    ))$html
+  )
+  testthat::expect_length(xml2::xml_find_all(dialog, ".//details[@open]"), 1L)
+  testthat::expect_length(
+    xml2::xml_find_all(dialog, ".//*[@style[contains(., 'max-height')]]"),
+    0L
+  )
+})
+
+testthat::test_that("retained HTML cannot create application controls", {
+  response <- paste0(
+    '<p id="reader-document" class="shiny-input-container">Evidence: ',
+    '<a id="feedback_withdraw" class="action-button" ',
+    'data-rill-pane-focus="ask" data-val="1" ',
+    'href="https://example.com/source" title="Original source">',
+    'Inspect source</a></p>',
+    '<input id="feedback_rating" class="shiny-input-binding" value="helpful">',
+    '<button data-rill-copy-text="">Injected control</button>',
+    '<ol start="3" class="action-button"><li>Third item</li></ol>'
+  )
+  parsed <- xml2::read_html(
+    htmltools::renderTags(
+      feedback_answer_ui(response)
+    )$html
+  )
+  answer <- xml2::xml_find_first(parsed, ".//div[@class='feedback-answer']")
+  testthat::expect_length(
+    xml2::xml_find_all(
+      answer,
+      ".//input | .//button | .//select | .//textarea | .//form"
+    ),
+    0L
+  )
+  testthat::expect_length(
+    xml2::xml_find_all(
+      answer,
+      ".//*/@*[name() != 'href' and name() != 'title' and name() != 'start']"
+    ),
+    0L
+  )
+  link <- xml2::xml_find_first(answer, ".//a")
+  testthat::expect_equal(xml2::xml_text(link), "Inspect source")
+  testthat::expect_equal(
+    xml2::xml_attr(link, "href"),
+    "https://example.com/source"
+  )
+  testthat::expect_equal(xml2::xml_attr(link, "title"), "Original source")
+  testthat::expect_equal(
+    xml2::xml_attr(xml2::xml_find_first(answer, ".//ol"), "start"),
+    "3"
+  )
+})
+
+testthat::test_that("original retained answers preserve leading newlines", {
+  response <- "\n\n# Exact original\n\n<em>Source text</em>\n"
+  parsed <- xml2::read_html(
+    htmltools::renderTags(
+      feedback_answer_ui(response)
+    )$html
+  )
+  original <- xml2::xml_find_first(parsed, ".//pre[@class='feedback-original']")
+  testthat::expect_equal(xml2::xml_text(original), response)
+  testthat::expect_equal(
+    xml2::xml_text(xml2::xml_find_first(original, "./code")),
+    response
+  )
+})
+
+testthat::test_that("saved rating labels keep the complete question and separate metadata", {
+  question <- strrep("A long question ", 30L)
+  record <- list(
+    snapshot = list(kind = "question", output = list(question = question)),
+    rating = "helpful",
+    created_at = "2026-09-08"
+  )
+  html <- htmltools::renderTags(feedback_saved_choices(list(record)))$html
+  parsed <- xml2::read_html(html)
+  testthat::expect_equal(
+    xml2::xml_text(xml2::xml_find_first(parsed, ".//strong")),
+    question
+  )
+  testthat::expect_match(
+    xml2::xml_text(xml2::xml_find_first(
+      parsed,
+      ".//*[@class='feedback-saved-meta']"
+    )),
+    "Ask Rill · Helpful · 2026-09-08",
+    fixed = TRUE
+  )
+})
+
+
+testthat::test_that("saved outputs sort deterministically without losing distinct targets", {
+  record <- list(
+    snapshot = list(
+      kind = "question",
+      output = list(question = "Same question")
+    ),
+    rating = "helpful",
+    created_at = as.POSIXct("2026-09-08", tz = "UTC")
+  )
+  records <- list(a = record, b = record)
+  sorted <- feedback_saved_records(records)
+  testthat::expect_named(sorted, c("b", "a"))
+  testthat::expect_identical(sorted[["a"]], record)
+  choices <- feedback_saved_choices(sorted)
+  testthat::expect_match(
+    as.character(choices[[1L]]),
+    "Saved output 1",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    as.character(choices[[2L]]),
+    "Saved output 2",
+    fixed = TRUE
+  )
+  testthat::expect_identical(feedback_saved_records(list()), list())
+})

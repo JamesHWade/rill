@@ -612,6 +612,42 @@ mark_unread_button <- function() {
   )
 }
 
+rill_copy_text_ui <- function(label) {
+  shiny::tagList(
+    shiny::tags$button(
+      type = "button",
+      class = "btn btn-sm btn-outline-secondary",
+      `data-rill-copy-text` = "",
+      label
+    ),
+    shiny::tags$span(class = "rill-copy-status", role = "status")
+  )
+}
+
+reader_focus_controls <- function() {
+  shiny::tags$div(
+    class = "reader-focus-controls",
+    `aria-label` = "Pane layout",
+    role = "group",
+    shiny::tags$button(
+      type = "button",
+      `data-rill-pane-focus` = "reading",
+      "Focus Reading"
+    ),
+    shiny::tags$button(
+      type = "button",
+      `data-rill-pane-focus` = "ask",
+      "Focus Ask Rill"
+    ),
+    shiny::tags$button(
+      type = "button",
+      `data-rill-pane-focus` = "restore",
+      disabled = NA,
+      "Restore layout"
+    )
+  )
+}
+
 reader_pane_ui <- function(config) {
   bslib::layout_sidebar(
     shiny::tags$div(
@@ -620,12 +656,14 @@ reader_pane_ui <- function(config) {
       class = "reader-scroll",
       tabindex = "-1",
       `aria-label` = "Reading surface",
+      reader_focus_controls(),
       shiny::uiOutput("reader_header", container = shiny::tags$div),
       shiny::uiOutput("reader_body", container = shiny::tags$div)
     ),
     sidebar = bslib::sidebar(
       shiny::tags$header(
         class = "reader-agent-header",
+        reader_focus_controls(),
         shiny::tags$div(
           class = "reader-agent-kicker",
           shiny::tags$p(class = "eyebrow", "Ask Rill"),

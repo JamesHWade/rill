@@ -146,7 +146,7 @@ testthat::test_that("reading typography keeps titles and separators compact", {
   )
   testthat::expect_match(
     styles,
-    "clamp(31px, 9vw, 40px)",
+    "clamp(1.9375rem, 9vw, 2.5rem)",
     fixed = TRUE
   )
   testthat::expect_match(styles, ":has(+ hr)", fixed = TRUE)

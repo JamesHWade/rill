@@ -1,0 +1,258 @@
+[
+  {
+    "width": 320,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "67c4dd092ff7b9ca5912dcfde0ccfeae3c6830cbcfe3b0b7f87403dcb3c77723",
+      "focusedElement": "Original answer text",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "67c4dd092ff7b9ca5912dcfde0ccfeae3c6830cbcfe3b0b7f87403dcb3c77723",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 320,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 320,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "70b819319d22cf9df92309c657e944fabf0d8a138969502cb1b4ba7c90f4694d",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "804c1836142060c722328d6dba125a7adb1b2020d9c46acfe43293f897ae73c6",
+      "focusedElement": "Original answer text",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "804c1836142060c722328d6dba125a7adb1b2020d9c46acfe43293f897ae73c6",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 390,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 390,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "reader",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "7900552eeeab05eeee30fb1b8412b9faf784c38211ad31b6e726b20b823d7082",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "orientation-ready",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+      "visibleDialogs": 0
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "orientation-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": null,
+      "selectedDocumentId": null,
+      "focusedElement": "feedback_comment",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "response-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "199d9b2cdc3ef20cacbad035f893c6d7c6228e90fa2cd7e0ac4ac0a36219ee1b",
+      "focusedElement": "Original answer text",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "response-rating-enlarged-text",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "199d9b2cdc3ef20cacbad035f893c6d7c6228e90fa2cd7e0ac4ac0a36219ee1b",
+      "focusedElement": "Original answer text",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "saved-ratings",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "199d9b2cdc3ef20cacbad035f893c6d7c6228e90fa2cd7e0ac4ac0a36219ee1b",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  },
+  {
+    "width": 1440,
+    "state": "current-response-rating",
+    "ui": {
+      "viewportWidth": 1440,
+      "horizontalOverflow": false,
+      "appBusy": "false",
+      "connectionState": "connected",
+      "activeSurface": "multi-pane",
+      "selectedEntryId": "sample-entry-1",
+      "selectedDocumentId": "15b05adecbd445fbe589eb6992482b4c5d3457993fe87393bd2c1e000052507b",
+      "focusedElement": "shiny-modal",
+      "visibleDialogs": 1
+    },
+    "violations": []
+  }
+]

@@ -7,7 +7,7 @@ import {chromium} from 'playwright';
 const require = createRequire(import.meta.url);
 const url = process.env.RILL_BROWSER_URL || 'http://127.0.0.1:3876';
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(url).hostname), 'Use a local fixture');
-const output = path.resolve('../../artifacts/reader-feedback-audit');
+const output = path.resolve(process.env.RILL_BROWSER_OUTPUT || '../../artifacts/ui-followups-feedback');
 await fs.mkdir(output, {recursive: true});
 const browser = await chromium.launch({channel: 'chrome', headless: true});
 const results = [];
@@ -44,10 +44,8 @@ try {
     await page.getByRole('button', {name: 'Save rating', exact: true}).click();
     await page.getByText('Choose Helpful or Not helpful before saving.', {exact: true}).waitFor();
     await page.getByRole('radio', {name: 'Helpful', exact: true}).check();
-    await page.getByText('Review the exact output being rated', {exact: true}).click();
     await page.getByRole('dialog').getByText('Source Document', {exact: true}).first().waitFor();
-    await page.getByRole('region', {name: 'Output being rated', exact: true}).press('ArrowDown');
-    await page.waitForFunction(() => document.querySelector('[aria-label="Output being rated"]').scrollTop > 0);
+    assert.equal(await page.getByRole('region', {name: 'Output being rated'}).evaluate(el => getComputedStyle(el).maxHeight), 'none');
     await page.getByText('Add reasons or a comment (optional)', {exact: true}).click();
     await page.getByRole('checkbox', {name: 'Clarity', exact: true}).check();
     await page.getByLabel('Optional comment (up to 2,000 characters)', {exact: true}).fill('The source boundary is clear.');
@@ -65,15 +63,36 @@ try {
     await page.getByRole('button', {name: 'Ask Rill', exact: true}).click();
     await page.getByRole('link', {name: 'Rate an earlier response', exact: true}).click();
     await page.getByRole('button', {name: 'Review this response', exact: true}).click();
-    await page.getByText('Review the exact output being rated', {exact: true}).click();
-    await page.getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();
+    await page.locator('.feedback-answer').getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();
     await page.getByRole('radio', {name: 'Helpful', exact: true}).check();
+    assert.equal(await page.locator('.feedback-answer .action-button').count(), 0);
+    assert.equal(await page.locator('.feedback-answer [id]').count(), 0);
+    await page.getByText('Original answer text', {exact: true}).click();
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.getByRole('button', {name: 'Copy original answer', exact: true}).click();
+    await page.getByRole('status').filter({hasText: 'Copied.'}).waitFor();
+    const originalAnswer = await page.locator('.feedback-original').textContent();
+    assert.ok(originalAnswer.startsWith('\n\n## Source boundary'));
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), originalAnswer);
+    await page.getByText('Original answer text', {exact: true}).click();
     await audit('response-rating');
+    if (width === 1440) {
+      await page.evaluate(() => document.documentElement.style.fontSize = '200%');
+      await audit('response-rating-enlarged-text');
+      await page.evaluate(() => document.documentElement.style.fontSize = '');
+    }
     await page.getByRole('button', {name: 'Save rating', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
     await page.waitForFunction(() => document.activeElement?.id === 'choose_feedback_response');
     await page.getByRole('button', {name: 'My saved ratings', exact: true}).click();
     await audit('saved-ratings');
+    await page.getByRole('radio', {name: /Orientation · Not helpful/}).check();
+    await page.getByRole('button', {name: 'Review rating', exact: true}).click();
+    await page.getByRole('button', {name: 'Cancel', exact: true}).click();
+    await page.getByRole('dialog').waitFor({state: 'hidden'});
+    await page.getByRole('button', {name: 'My saved ratings', exact: true}).click();
+    assert.equal(await page.getByRole('radio', {name: /Orientation · Not helpful/}).isChecked(), true);
+
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('link', {name: /Download my ratings/}).click()
@@ -84,15 +103,13 @@ try {
     assert.equal(records.find(r => r.snapshot.kind === 'orientation').rating, 'not_helpful');
     assert.equal(records.find(r => r.snapshot.kind === 'question').snapshot.provenance.model, 'fixture-model');
     assert.ok(!downloaded.includes('PRIVATE_OTHER_READER_OUTPUT'));
-    await page.getByRole('combobox', {name: 'Choose an output to review', exact: true}).click();
-    await page.locator('.selectize-dropdown-content .option').filter({hasText: 'Ask Rill'}).click();
+    await page.getByRole('radio', {name: /Explain the source boundary.*Ask Rill/}).check();
     await page.getByRole('button', {name: 'Review rating', exact: true}).click();
     await page.getByRole('button', {name: 'Cancel', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
     await page.waitForFunction(() => document.activeElement?.id === 'review_feedback');
     await page.getByRole('button', {name: 'My saved ratings', exact: true}).click();
-    await page.getByRole('combobox', {name: 'Choose an output to review', exact: true}).click();
-    await page.locator('.selectize-dropdown-content .option').filter({hasText: 'Ask Rill'}).click();
+    await page.getByRole('radio', {name: /Explain the source boundary.*Ask Rill/}).check();
     await page.getByRole('button', {name: 'Review rating', exact: true}).click();
     await page.getByRole('button', {name: 'Withdraw rating', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
@@ -108,8 +125,7 @@ try {
     await page.getByRole('button', {name: 'Ask Rill', exact: true}).click();
     await page.getByRole('button', {name: 'Rate this response', exact: true}).click();
     await page.getByRole('dialog').waitFor();
-    await page.getByText('Review the exact output being rated', {exact: true}).click();
-    await page.getByRole('dialog').getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();
+    await page.getByRole('dialog').locator('.feedback-answer').getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();
     await audit('current-response-rating');
     await page.getByRole('button', {name: 'Cancel', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});

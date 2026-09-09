@@ -107,7 +107,22 @@ app <- shiny::shinyApp(
           run$run_id,
           "fixture-worker",
           if (identical(reader_id, config$actor_id)) {
-            "Interpretation: keep source material separate from generated explanation."
+            paste(
+              "\n\n## Source boundary",
+              "Interpretation: keep source material separate from generated explanation.",
+              "**Source evidence** remains separate from this explanation.",
+              paste(
+                rep(
+                  "A retained paragraph for checking long answer review.",
+                  40L
+                ),
+                collapse = "\n\n"
+              ),
+              strrep("unbroken", 40L),
+              '<a id="feedback_withdraw" class="action-button" href="#">Inspect source</a>',
+
+              sep = "\n\n"
+            )
           } else {
             "PRIVATE_OTHER_READER_OUTPUT"
           }
@@ -117,7 +132,8 @@ app <- shiny::shinyApp(
           reader_id,
           run$run_id,
           "fixture-worker",
-          "completed"
+          "completed",
+          finished_at = Sys.time() - 3
         )
         if (!identical(reader_id, config$actor_id)) {
           feedback_save(
@@ -148,6 +164,31 @@ app <- shiny::shinyApp(
     shiny::observeEvent(input$audit_disconnect, session$close())
     session$onSessionEnded(function() rill_store_close(store))
     rill_server(config, store)(input, output, session)
+    if (identical(query$tools, "fixture")) {
+      shiny::observeEvent(input$audit_document_result, {
+        document <- sample_rill_data()$documents[[2L]]
+        request <- ellmer::ContentToolRequest(
+          id = "fixture-tool",
+          name = "read_current_document",
+          arguments = list()
+        )
+        result <- ellmer::ContentToolResult(
+          value = rill_document_tool(document)(),
+          request = request
+        )
+        stream <- coro::async_generator(function() {
+          coro::yield(request)
+          coro::yield(result)
+          coro::yield(
+            "Interpretation: this synthetic tool result stays attached to the source returned for this question."
+          )
+        })()
+        append_reader_chat(
+          track_reader_agent_stream(stream, function(text) invisible(NULL)),
+          session
+        )
+      })
+    }
     if (identical(query$agent, "fixture")) {
       agent_status <- shiny::reactiveVal(NULL)
       output$reader_agent_status <- shiny::renderUI({

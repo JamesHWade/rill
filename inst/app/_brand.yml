@@ -46,7 +46,7 @@ typography:
       display: swap
   base:
     family: Atkinson Hyperlegible
-    size: 15px
+    size: 1rem
     line-height: 1.5
   headings:
     family: Literata
