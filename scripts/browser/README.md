@@ -35,7 +35,7 @@ Run `node feedback.mjs` from `scripts/browser` to verify Reader feedback at 320,
 responses and one other Reader's private rating. The checks exercise optional
 ratings, revision, earlier responses, downloads, withdrawal, chained-dialog focus
 restoration, contrast, and overflow. The exported JSON must exclude the other
-Reader's record. Results and screenshots go to `artifacts/reader-feedback-audit/`.
+Reader's record. Results and screenshots go to `artifacts/ui-followups-feedback/` (or `RILL_BROWSER_OUTPUT`).
 This local fixture does not replace hosted identity or screen-reader testing.
 
 To capture the 15 comparison states at phone and desktop widths:
@@ -51,3 +51,15 @@ baseline revision and fixture adaptation. Each run writes screenshots and axe
 results to `artifacts/responsive-comparison/<label>/`. The fixture's delayed
 startup, access decisions, and agent output are synthetic; only the separate
 hosted observations in the report use a real account and model request.
+
+Run `node pane-focus.mjs` to check reversible pane focus, restoration of native
+sidebar widths and open states, Escape, unsent drafts, doubled root text size,
+and 320-pixel reflow. Run `node tool-results.mjs` to check the public shinychat
+Document display, pinned source identity, and exact JSON clipboard content.
+The feedback suite also checks long Markdown, unbroken text, original-answer
+copying, and doubled text size. Text enlargement is distinct from browser zoom;
+the automated checks do not certify a screen reader or browser zoom behavior.
+
+Run `RILL_LEGACY_MEDIA_QUERIES=true node pane-focus.mjs` to repeat the pane
+workflow using Rill's legacy MediaQueryList listeners. Third-party component
+media queries retain their normal browser APIs.

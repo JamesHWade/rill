@@ -272,3 +272,93 @@ testthat::test_that("a Deputy Agent is pinned to the selected Document", {
     )
   )
 })
+
+
+testthat::test_that("source display uses the returned Document and preserves original tool content", {
+  request <- ellmer::ContentToolRequest(
+    id = "tool",
+    name = "read_current_document",
+    arguments = list()
+  )
+  value <- list(
+    title = "Pinned source",
+    source_url = "https://example.com/source",
+    markdown = "Original text",
+    record_hash = "retained-hash"
+  )
+  original <- ellmer::ContentToolResult(value = value, request = request)
+  decorated <- reader_tool_result_display(original)
+  testthat::expect_identical(decorated@value, value)
+  testthat::expect_identical(decorated@request, request)
+  testthat::expect_identical(original@extra, list())
+  testthat::expect_match(
+    htmltools::renderTags(decorated@extra$display$html)$html,
+    "Pinned source",
+    fixed = TRUE
+  )
+  failed <- ellmer::ContentToolResult(
+    value = NULL,
+    error = "Unavailable",
+    request = request
+  )
+  testthat::expect_identical(reader_tool_result_display(failed), failed)
+  unrelated <- ellmer::ContentToolResult(value = value)
+  testthat::expect_identical(reader_tool_result_display(unrelated), unrelated)
+})
+
+
+testthat::test_that("source display makes missing metadata explicit without changing the result", {
+  request <- ellmer::ContentToolRequest(
+    id = "tool",
+    name = "read_current_document",
+    arguments = list()
+  )
+  for (missing in list(NULL, character(), "", "  ", NA_character_)) {
+    value <- list(
+      title = missing,
+      site = missing,
+      captured_at = missing,
+      acquisition_method = missing,
+      limitations = missing
+    )
+    result <- reader_tool_result_display(
+      ellmer::ContentToolResult(value = value, request = request)
+    )
+    html <- xml2::read_html(as.character(result@extra$display$html))
+    paragraphs <- xml2::xml_text(xml2::xml_find_all(
+      html,
+      "//div[@class='rill-document-result']/p"
+    ))
+    paragraphs <- trimws(gsub("[[:space:]]+", " ", paragraphs))
+    testthat::expect_identical(
+      paragraphs,
+      c(
+        "Untitled source",
+        "Site: Not recorded",
+        "Original Source URL unavailable",
+        "Captured: Not recorded",
+        "Preparation: Not recorded",
+        "Limitations: Not recorded"
+      )
+    )
+    testthat::expect_identical(result@value, value)
+  }
+  value <- list(site = "Example", limitations = c(NA, "", "Partial capture"))
+  result <- reader_tool_result_display(
+    ellmer::ContentToolResult(value = value, request = request)
+  )
+  html <- xml2::read_html(as.character(result@extra$display$html))
+  paragraphs <- xml2::xml_text(xml2::xml_find_all(
+    html,
+    "//div[@class='rill-document-result']/p"
+  ))
+  paragraphs <- trimws(gsub("[[:space:]]+", " ", paragraphs))
+  testthat::expect_contains(
+    paragraphs,
+    c(
+      "Site: Example",
+      "Limitations: Partial capture"
+    )
+  )
+  testthat::expect_identical(result@value, value)
+})

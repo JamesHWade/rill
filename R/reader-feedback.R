@@ -348,6 +348,133 @@ feedback_source_ui <- function(source) {
   )
 }
 
+feedback_answer_ui <- function(response) {
+  rendered <- sanitize_rendered_html(commonmark::markdown_html(
+    response,
+    extensions = c("table", "strikethrough", "autolink", "tagfilter")
+  ))
+  parsed <- xml2::read_html(paste0(
+    "<div id='feedback-answer'>",
+    rendered,
+    "</div>"
+  ))
+  root <- xml2::xml_find_first(parsed, "//*[@id='feedback-answer']")
+  xml2::xml_remove(xml2::xml_find_all(
+    root,
+    ".//img | .//iframe | .//video | .//audio"
+  ))
+  prose_tags <- c(
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "em",
+    "strong",
+    "code",
+    "pre",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "hr",
+    "br",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "del",
+    "span"
+  )
+  for (node in xml2::xml_find_all(root, ".//*")) {
+    tag <- xml2::xml_name(node)
+    if (!tag %in% prose_tags) {
+      xml2::xml_set_name(node, "span")
+    }
+    keep <- if (identical(tag, "a")) {
+      c("href", "title")
+    } else if (identical(tag, "ol")) {
+      "start"
+    } else {
+      character()
+    }
+    for (attribute in setdiff(names(xml2::xml_attrs(node)), keep)) {
+      xml2::xml_set_attr(node, attribute, NULL)
+    }
+  }
+  xml2::xml_set_attr(root, "id", NULL)
+  for (table in xml2::xml_find_all(root, ".//table")) {
+    xml2::xml_set_attr(table, "tabindex", "0")
+    xml2::xml_set_attr(table, "aria-label", "Retained answer table")
+  }
+  shiny::tagList(
+    shiny::tags$div(
+      class = "feedback-answer",
+      htmltools::HTML(as.character(root))
+    ),
+    shiny::tags$details(
+      shiny::tags$summary("Original answer text"),
+      rill_copy_text_ui("Copy original answer"),
+      shiny::tags$pre(
+        class = "feedback-original",
+        shiny::tags$code(response),
+        .noWS = "inside"
+      )
+    )
+  )
+}
+
+feedback_saved_records <- function(records) {
+  if (!length(records)) {
+    return(records)
+  }
+  dates <- vapply(
+    records,
+    function(record) as.character(record$created_at),
+    character(1)
+  )
+  records[order(dates, names(records), decreasing = TRUE)]
+}
+
+feedback_saved_choices <- function(records) {
+  questions <- vapply(
+    records,
+    function(record) {
+      record$snapshot$output$question %||% record$snapshot$kind
+    },
+    character(1)
+  )
+  repeated <- duplicated(questions) | duplicated(questions, fromLast = TRUE)
+  lapply(seq_along(records), function(index) {
+    record <- records[[index]]
+    output <- record$snapshot$output
+    kind <- if (identical(record$snapshot$kind, "orientation")) {
+      "Orientation"
+    } else {
+      "Ask Rill"
+    }
+    rating <- if (identical(record$rating, "helpful")) {
+      "Helpful"
+    } else {
+      "Not helpful"
+    }
+    shiny::tags$span(
+      class = "feedback-saved-choice",
+      shiny::tags$strong(output$question %||% kind),
+      shiny::tags$span(
+        class = "feedback-saved-meta",
+        paste(kind, rating, record$created_at, sep = " \u00b7 "),
+        if (repeated[[index]]) paste0(" \u00b7 Saved output ", index)
+      )
+    )
+  })
+}
+
 feedback_output_ui <- function(output) {
   shiny::tagList(
     if (store_scalar_string(output$question)) {
@@ -370,10 +497,7 @@ feedback_output_ui <- function(output) {
       )
     },
     if (store_scalar_string(output$response)) {
-      shiny::tags$pre(
-        style = "white-space:pre-wrap",
-        output$response
-      )
+      feedback_answer_ui(output$response)
     },
     lapply(output$cards, function(card) {
       shiny::tags$div(
@@ -402,19 +526,10 @@ feedback_output_ui <- function(output) {
 feedback_dialog <- function(target, existing = NULL, return_focus = NULL) {
   modal <- shiny::modalDialog(
     title = "Rate this Rill output",
+    size = "l",
     easyClose = TRUE,
     shiny::tags$p(
       "Your rating is private. Saving retains this output for review; it does not change Rill's behavior."
-    ),
-    shiny::tags$details(
-      shiny::tags$summary("Review the exact output being rated"),
-      shiny::tags$div(
-        style = "max-height:16rem;overflow:auto",
-        tabindex = "0",
-        role = "region",
-        `aria-label` = "Output being rated",
-        feedback_output_ui(target$snapshot$output)
-      )
     ),
     shiny::radioButtons(
       "feedback_rating",
@@ -423,12 +538,24 @@ feedback_dialog <- function(target, existing = NULL, return_focus = NULL) {
       selected = existing$rating %||% character()
     ),
     shiny::tags$details(
-      open = if (length(existing$reasons) || nzchar(existing$comment %||% "")) {
-        NA
-      } else {
-        NULL
-      },
-      shiny::tags$summary("Add reasons or a comment (optional)"),
+      open = NA,
+      shiny::tags$summary("Review the exact output being rated"),
+      shiny::tags$div(
+        class = "feedback-output",
+        tabindex = "0",
+        role = "region",
+        `aria-label` = "Output being rated",
+        feedback_output_ui(target$snapshot$output)
+      )
+    ),
+    shiny::tags$details(
+      shiny::tags$summary(
+        if (length(existing$reasons) || nzchar(existing$comment %||% "")) {
+          "Edit saved reasons or comment (optional)"
+        } else {
+          "Add reasons or a comment (optional)"
+        }
+      ),
       shiny::checkboxGroupInput(
         "feedback_reasons",
         "Optional reasons",
@@ -640,36 +767,24 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
     feedback_return_focus <<- "review_feedback"
     feedback_attempt(function() {
       records <- store_list_reader_feedback(store, reader_id)
-      labels <- vapply(
-        records,
-        function(record) {
-          paste(
-            if (identical(record$snapshot$kind, "orientation")) {
-              "Orientation"
-            } else {
-              "Ask Rill"
-            },
-            if (identical(record$rating, "helpful")) {
-              "Helpful"
-            } else {
-              "Not helpful"
-            },
-            record$created_at,
-            substr(record$snapshot$output$question %||% "", 1L, 80L),
-            sep = " \u00b7 "
-          )
-        },
-        character(1)
-      )
+      records <- feedback_saved_records(records)
+      selected <- shiny::isolate(input$saved_feedback_id)
+      if (!length(selected) || !selected %in% names(records)) {
+        selected <- names(records)[1L]
+      }
       shiny::showModal(shiny::modalDialog(
         title = "My saved ratings",
+        size = "l",
         easyClose = TRUE,
         shiny::downloadButton("download_feedback", "Download my ratings"),
         if (length(records)) {
-          shiny::selectInput(
+          shiny::radioButtons(
             "saved_feedback_id",
             "Choose an output to review",
-            stats::setNames(names(records), labels)
+            choiceNames = feedback_saved_choices(records),
+            choiceValues = names(records),
+            selected = selected,
+            width = "100%"
           )
         } else {
           shiny::tags$p("You have no saved ratings.")

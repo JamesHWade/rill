@@ -1,0 +1,741 @@
+{
+  "results": [
+    {
+      "state": "orientation",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": "sample-entry-2",
+        "selectedDocumentId": "759975f1f29a69dc85751679928303845eb731b79980df3fc24e89ee9e2da63a",
+        "focusedElement": "Posit Blog\n      \n        Read\n        2h\n      \n    \n    Shiny as a personal in",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Queue",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "library",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Library",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "The R Blog\n      \n        Read\n        15m\n      \n    \n    A calmer way to keep ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "library",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Library",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 430,
+      "ui": {
+        "viewportWidth": 430,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "The R Blog\n      \n        Read\n        15m\n      \n    \n    A calmer way to keep ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 430,
+      "ui": {
+        "viewportWidth": 430,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "library",
+      "width": 430,
+      "ui": {
+        "viewportWidth": 430,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Library",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 768,
+      "ui": {
+        "viewportWidth": 768,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 768,
+      "ui": {
+        "viewportWidth": 768,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "The R Blog\n      \n        Read\n        15m\n      \n    \n    A calmer way to keep ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 1024,
+      "ui": {
+        "viewportWidth": 1024,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 1024,
+      "ui": {
+        "viewportWidth": 1024,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "The R Blog\n      \n        Read\n        15m\n      \n    \n    A calmer way to keep ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "queue",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "reading",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "The R Blog\n      \n        Read\n        15m\n      \n    \n    A calmer way to keep ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "manage-feeds",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "empty",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Reading queue\n                      Starred\n                      \n             ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "ask-rill",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "dark-reading-reduced-motion",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Ask Rill",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "dark-queue-reduced-motion",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "dark-library-reduced-motion",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "dark-manage-feeds",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "dark-group-action-focused",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "library",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "add_feed_groups",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "400-percent-reflow-equivalent",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "e9a4de6c3d36796556cf2cae903ef6f26d194ee5731c4a8f65c0008e7f32282d",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "long-queue",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "A deliberately long publisher name for layout checks 1\n      15m\n    \n    A long",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "long-reading",
+      "width": 320,
+      "ui": {
+        "viewportWidth": 320,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "audit-entry-1",
+        "selectedDocumentId": "f001199bb481dadbb5a619076d50cdf25650374b1597b1a12797000390aa44be",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "native-error",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "audit-entry-1",
+        "selectedDocumentId": "f001199bb481dadbb5a619076d50cdf25650374b1597b1a12797000390aa44be",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "disconnected",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "offline",
+        "activeSurface": "reader",
+        "selectedEntryId": "audit-entry-1",
+        "selectedDocumentId": "f001199bb481dadbb5a619076d50cdf25650374b1597b1a12797000390aa44be",
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        You’re offline\n        Your p",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "recovered",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "loading",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-running",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "a32135ca60cd0220c3a81bfd0f40cf5cbcb54f93a835b16ac37a65cd6b4a3a92",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-completed",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "a32135ca60cd0220c3a81bfd0f40cf5cbcb54f93a835b16ac37a65cd6b4a3a92",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-interrupted",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "a32135ca60cd0220c3a81bfd0f40cf5cbcb54f93a835b16ac37a65cd6b4a3a92",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "access-pending",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "access-denied",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "loading",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Opening your Library\n        ",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-running",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "6d3a2fb62cbd61a2661ae920b82c77afbbc347a751e62ce9f8c3810b18fc45e9",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-completed",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "6d3a2fb62cbd61a2661ae920b82c77afbbc347a751e62ce9f8c3810b18fc45e9",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "agent-interrupted",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": "sample-entry-1",
+        "selectedDocumentId": "6d3a2fb62cbd61a2661ae920b82c77afbbc347a751e62ce9f8c3810b18fc45e9",
+        "focusedElement": "reader-agent-title",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "access-pending",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "access-denied",
+      "width": 1440,
+      "ui": {
+        "viewportWidth": 1440,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "multi-pane",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "shiny-modal",
+        "visibleDialogs": 1
+      },
+      "accessibility": []
+    },
+    {
+      "state": "slow-startup",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "connected",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Still opening Rill\n        Si",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "slow-startup-recovered",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "startup-interrupted",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "true",
+        "connectionState": "starting",
+        "activeSurface": "queue",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Still opening Rill\n        Si",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    },
+    {
+      "state": "startup-recovered",
+      "width": 390,
+      "ui": {
+        "viewportWidth": 390,
+        "horizontalOverflow": false,
+        "appBusy": "false",
+        "connectionState": "connected",
+        "activeSurface": "reader",
+        "selectedEntryId": null,
+        "selectedDocumentId": null,
+        "focusedElement": "Skip to primary content\n    \n      \n      \n        Library ready\n        Rill is",
+        "visibleDialogs": 0
+      },
+      "accessibility": []
+    }
+  ],
+  "errors": []
+}

@@ -1,5 +1,9 @@
 # rill 0.0.0.9000
 
+* Reading and Ask Rill use scalable text and offer reversible pane focus controls (#82, #83).
+* Document tool results show source details before inspectable original JSON (#84).
+* Rating review renders retained Markdown, keeps optional reasons collapsed, and presents saved ratings as readable choices (#85, #86).
+
 * Rate Orientation and Ask Rill outputs privately, with optional reasons and comments; review, revise, or withdraw saved ratings and their exact output snapshots (#74).
 
 * Reading copies remain saveable when an extractor supplies a relative or nonstandard publication date, and local extraction diagnostics distinguish source HTTP failures from extractor failures (#78).

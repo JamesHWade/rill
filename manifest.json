@@ -2202,8 +2202,9 @@
         "URL": "https://posit-dev.github.io/shinychat/r/,\nhttps://github.com/posit-dev/shinychat",
         "BugReports": "https://github.com/posit-dev/shinychat/issues",
         "Imports": "base64enc, bslib (>= 0.12.0), cli, coro, ellmer (>= 0.4.1),\nfastmap, htmltools, jsonlite, lifecycle, promises (>= 1.3.2),\nR6 (>= 2.5.0), rlang (>= 1.2.0), S7, shiny (>= 1.10.0)",
-        "Suggests": "chromote, covr, knitr, later, shinytest2, testthat (>=\n3.0.0), withr",
-        "Config/Needs/website": "tidyverse/tidytemplate, rmarkdown, weathR, gt,\nglue, bsicons",
+        "Suggests": "chromote, covr, knitr, later, rmarkdown, shinytest2, testthat\n(>= 3.0.0), withr",
+        "VignetteBuilder": "knitr, rmarkdown",
+        "Config/Needs/website": "tidyverse/tidytemplate, rmarkdown, weathR, gt,\nglue, bsicons, reactable, htmlwidgets",
         "Config/roxygen2/version": "8.1.0",
         "Config/testthat/edition": "3",
         "Encoding": "UTF-8",
@@ -2212,21 +2213,20 @@
         "RemoteHost": "api.github.com",
         "RemoteRepo": "shinychat",
         "RemoteUsername": "posit-dev",
-        "RemotePkgRef": "posit-dev/shinychat/pkg-r",
-        "RemoteRef": "HEAD",
-        "RemoteSha": "b14edbcf1e4d8df2dd290b3b21cdc164b60edfd6",
+        "RemotePkgRef": "posit-dev/shinychat/pkg-r@dde163ea6b27099304a658f3649dd1fac98208bd",
+        "RemoteRef": "dde163ea6b27099304a658f3649dd1fac98208bd",
+        "RemoteSha": "dde163ea6b27099304a658f3649dd1fac98208bd",
         "RemoteSubdir": "pkg-r",
         "GithubRepo": "shinychat",
         "GithubUsername": "posit-dev",
-        "GithubRef": "HEAD",
-        "GithubSHA1": "b14edbcf1e4d8df2dd290b3b21cdc164b60edfd6",
+        "GithubRef": "dde163ea6b27099304a658f3649dd1fac98208bd",
+        "GithubSHA1": "dde163ea6b27099304a658f3649dd1fac98208bd",
         "GithubSubdir": "pkg-r",
         "NeedsCompilation": "no",
-        "Packaged": "2026-09-02 02:09:15 UTC; james",
+        "Packaged": "2026-09-09 00:18:40 UTC; james",
         "Author": "Joe Cheng [aut],\n  Carson Sievert [aut],\n  Garrick Aden-Buie [aut, cre] (ORCID:\n    <https://orcid.org/0000-0002-7111-0077>),\n  Barret Schloerke [aut] (ORCID: <https://orcid.org/0000-0001-9986-114X>),\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
         "Maintainer": "Garrick Aden-Buie <garrick@adenbuie.com>",
-        "Depends": "R (>= 4.1.0)",
-        "Built": "R 4.6.1; ; 2026-09-02 02:09:16 UTC; unix"
+        "Built": "R 4.6.1; ; 2026-09-09 00:18:42 UTC; unix"
       }
     },
     "sourcetools": {
@@ -2713,13 +2713,13 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "f9f8362125af8210e8de55720c401aa3"
+      "checksum": "0011a56741fb4ac70a3b6aa359cad446"
     },
     "inst/app/_brand.yml": {
-      "checksum": "94cef150faa4c2c3399fb2d0b4dbe18a"
+      "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "d055e1f6fbaafebacb83394cae73f7f8"
+      "checksum": "4b0a3c3b082676ca6cc9bc1e1d7c9b8a"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2740,7 +2740,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "5f1874b5307631fe8186a212f97882d4"
+      "checksum": "2f16dcb0b4a348ac2438a0b68a1ed4bc"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2791,7 +2791,7 @@
       "checksum": "dff168f14f5faa0a350b720f5070db5e"
     },
     "R/agent.R": {
-      "checksum": "efa560e90a333c7e504156c825527f99"
+      "checksum": "5dc5b510d626254c0ae3a6164868625c"
     },
     "R/app.R": {
       "checksum": "d92126e1dd4186d0be593c71948b8062"
@@ -2860,7 +2860,7 @@
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "c3d95ead2ba5fe4b370f64d4764417a0"
+      "checksum": "d2242df5d1397e424166f43cd50a62e4"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2869,7 +2869,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "c2a17956a8cc3bd3be90af8895110f9f"
+      "checksum": "26b638799338fc8eedf755b63ece1ebd"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"

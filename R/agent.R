@@ -352,6 +352,71 @@ rill_agent_shiny_stream <- function(agent, prompt, run_context = list()) {
   stream_async(prompt, stream = "content", run_context = run_context)
 }
 
+reader_tool_result_display <- function(chunk) {
+  if (
+    !inherits(chunk, "ellmer::ContentToolResult") ||
+      is.null(chunk@request) ||
+      !identical(chunk@request@name, "read_current_document") ||
+      !is.null(chunk@error) ||
+      !is.list(chunk@value)
+  ) {
+    return(chunk)
+  }
+  document <- chunk@value
+  display_text <- function(value, fallback = "Not recorded") {
+    if (store_scalar_string(value)) value else fallback
+  }
+  limitations <- document$limitations
+  if (is.character(limitations)) {
+    limitations <- limitations[
+      !is.na(limitations) & nzchar(trimws(limitations))
+    ]
+  } else {
+    limitations <- character()
+  }
+  details <- shiny::tags$div(
+    class = "rill-document-result",
+    shiny::tags$p(shiny::tags$strong(display_text(
+      document$title,
+      "Untitled source"
+    ))),
+    shiny::tags$p("Site: ", display_text(document$site)),
+    if (
+      store_scalar_string(document$source_url) &&
+        grepl("^https?://", document$source_url, ignore.case = TRUE)
+    ) {
+      shiny::tags$p(shiny::tags$a(
+        href = document$source_url,
+        target = "_blank",
+        rel = "noopener noreferrer",
+        "Original Source"
+      ))
+    } else {
+      shiny::tags$p("Original Source URL unavailable")
+    },
+    shiny::tags$p("Captured: ", display_text(document$captured_at)),
+    shiny::tags$p(
+      "Preparation: ",
+      display_text(document$acquisition_method)
+    ),
+    shiny::tags$p(
+      "Limitations: ",
+      display_text(paste(limitations, collapse = "; "))
+    ),
+    shiny::tags$details(
+      shiny::tags$summary("Original tool result (JSON)"),
+      rill_copy_text_ui("Copy original JSON"),
+      shiny::tags$pre(orientation_json(document))
+    )
+  )
+  chunk@extra$display <- list(
+    title = "Source Document",
+    html = details,
+    show_request = TRUE
+  )
+  chunk
+}
+
 track_reader_agent_stream <- function(
   stream,
   on_partial,
@@ -388,7 +453,7 @@ track_reader_agent_stream <- function(
         on_partial(paste(parts, collapse = ""))
       }
 
-      coro::yield(chunk)
+      coro::yield(reader_tool_result_display(chunk))
     }
   })()
 }

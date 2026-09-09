@@ -160,7 +160,7 @@ body.bslib-page-fill {
   color: var(--ink);
   background: var(--paper);
   box-shadow: var(--shadow);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   text-decoration: none;
   transform: translateY(calc(-100% - 20px));
@@ -215,13 +215,13 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 }
 
 .rill-system-status-copy strong {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .rill-system-status-copy span {
   margin-top: 2px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
@@ -247,7 +247,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 4px;
   color: var(--green-deep);
   background: var(--paper);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -338,7 +338,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .brand strong {
   color: var(--green-deep);
   font-family: var(--reading-font);
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 500;
   letter-spacing: -0.025em;
   line-height: 1;
@@ -347,7 +347,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .brand small {
   margin-top: 4px;
   color: var(--sidebar-muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   letter-spacing: 0.015em;
 }
 
@@ -359,7 +359,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 4px;
   color: var(--sidebar-muted);
   background: var(--sidebar-wash-soft);
-  font-size: 10px;
+  font-size: 0.75rem;
   letter-spacing: 0.02em;
 }
 
@@ -384,7 +384,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 5px;
   color: var(--sidebar-copy);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .nav-choice {
@@ -421,7 +421,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   justify-content: space-between;
   margin: 4px 4px -7px;
   color: var(--green-deep);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
 }
 
@@ -521,7 +521,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 6px;
   color: var(--sidebar-copy);
   background: var(--sidebar-wash-soft);
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .orientation-destination-settings summary {
@@ -620,7 +620,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 6px;
   color: var(--sidebar-muted);
   background: var(--sidebar-wash-soft);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-decoration: none;
 }
 
@@ -637,7 +637,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 
 .add-feed {
   margin-top: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .add-feed summary {
@@ -660,7 +660,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--sidebar-border);
   color: var(--ink);
   background: var(--sidebar-input);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .add-feed .form-control::placeholder {
@@ -674,7 +674,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border: 1px solid var(--green);
   color: var(--on-primary);
   background: var(--green);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -698,7 +698,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--sidebar-border);
   color: var(--sidebar-muted);
   background: transparent;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .btn-unsubscribe-feed:hover,
@@ -756,14 +756,14 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .feed-tool-label {
   margin: 0 0 7px;
   color: var(--sidebar-muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
 .feed-tool-help {
   margin: 7px 1px 0;
   color: var(--sidebar-muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
@@ -811,7 +811,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 4px !important;
   color: var(--sidebar-muted);
   background: var(--sidebar-wash);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.5;
   text-align: center;
   text-decoration: none;
@@ -831,7 +831,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .sidebar-status {
   margin: -9px 4px 0;
   color: var(--sidebar-muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
@@ -886,7 +886,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .calendar-context {
   margin: 7px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 
@@ -939,7 +939,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .read-actions-help {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
@@ -948,7 +948,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--line);
   color: var(--ink);
   background: var(--paper);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-align: left;
 }
 
@@ -965,7 +965,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--line);
   color: var(--green-deep);
   background: var(--pill-background);
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .btn-prepare-today:hover,
@@ -988,7 +988,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--line);
   color: var(--muted);
   background-color: var(--pill-background);
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .story-sort select:focus {
@@ -999,7 +999,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .eyebrow {
   margin: 0 0 4px;
   color: var(--green);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.015em;
 }
@@ -1007,7 +1007,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .article-source {
   margin: 0 0 3px;
   color: var(--green);
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 400;
   letter-spacing: 0;
 }
@@ -1017,7 +1017,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   margin: 0;
   overflow: hidden;
   font-family: var(--reading-font);
-  font-size: 25px;
+  font-size: 1.5625rem;
   font-weight: 500;
   line-height: 1.1;
   -webkit-box-orient: vertical;
@@ -1034,7 +1034,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-radius: 50%;
   color: var(--muted);
   background: var(--pill-background);
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .story-list {
@@ -1058,14 +1058,14 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 
 .orientation-queue-status > strong {
   color: var(--green-deep);
-  font-size: 11px;
+  font-size: 0.75rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .orientation-queue-status .orientation-status {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .orientation-queue-status .orientation-destination {
@@ -1149,7 +1149,7 @@ div.story-list.shiny-html-output {
   gap: 10px;
   margin-bottom: 7px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: 0.02em;
 }
@@ -1178,7 +1178,7 @@ div.story-list.shiny-html-output {
 .story-card h3 {
   margin: 0 0 7px;
   font-family: var(--reading-font);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 500;
   line-height: 1.22;
 }
@@ -1188,7 +1188,7 @@ div.story-list.shiny-html-output {
   margin: 0;
   overflow: hidden;
   color: var(--story-copy);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.48;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1210,7 +1210,7 @@ div.story-list.shiny-html-output {
 .empty-eyebrow {
   margin: 0;
   color: var(--green);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1306,13 +1306,13 @@ div.story-list.shiny-html-output {
 
 .orientation-maintenance > span {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
 .orientation-evaluated {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.45;
 }
 
@@ -1338,7 +1338,7 @@ div.story-list.shiny-html-output {
   border-radius: 5px;
   color: var(--green-deep);
   background: transparent;
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1366,7 +1366,7 @@ div.story-list.shiny-html-output {
   margin: clamp(28px, 5vw, 48px) 0 0;
   color: var(--reader-copy);
   font-family: var(--reading-font);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.55;
 }
 
@@ -1393,7 +1393,7 @@ div.story-list.shiny-html-output {
   border-radius: 6px;
   color: var(--muted);
   background: color-mix(in srgb, var(--paper) 72%, var(--green-soft));
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 
@@ -1442,7 +1442,7 @@ div.story-list.shiny-html-output {
 .orientation-interpretation-label {
   margin: 0 0 5px;
   color: var(--amber);
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1471,13 +1471,13 @@ div.story-list.shiny-html-output {
   border-radius: 5px;
   color: var(--muted);
   background: var(--paper);
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .orientation-source strong {
   overflow: hidden;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1494,7 +1494,7 @@ div.story-list.shiny-html-output {
 .orientation-why {
   margin: 15px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.45;
 }
 
@@ -1505,7 +1505,7 @@ div.story-list.shiny-html-output {
 .orientation-evidence {
   margin-top: 11px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 
@@ -1530,7 +1530,7 @@ div.story-list.shiny-html-output {
   color: var(--quote-copy);
   background: color-mix(in srgb, var(--green-soft) 38%, transparent);
   font-family: var(--reading-font);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .orientation-evidence-metadata {
@@ -1557,7 +1557,7 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-evidence-metadata code {
-  font-size: 9px;
+  font-size: 0.75rem;
 }
 
 .orientation-step-actions {
@@ -1576,7 +1576,7 @@ div.story-list.shiny-html-output {
   gap: 9px;
   padding: 8px 12px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1622,7 +1622,7 @@ div.story-list.shiny-html-output {
   gap: 9px;
   margin: -6px 0 -6px 70px;
   color: var(--green);
-  font-size: 9px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1697,7 +1697,7 @@ div.story-list.shiny-html-output {
   border-radius: 4px;
   color: var(--reader-action);
   background: transparent;
-  font-size: 11px;
+  font-size: 0.75rem;
   text-decoration: none;
   transition:
     color 120ms ease,
@@ -1727,7 +1727,7 @@ div.story-list.shiny-html-output {
   align-self: center;
   margin-left: 5px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -1745,7 +1745,7 @@ div.story-list.shiny-html-output {
   background: var(--keycap-background);
   box-shadow: 0 1px 0 var(--keycap-shadow);
   font-family: var(--ui-font);
-  font-size: 9px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1766,7 +1766,7 @@ div.story-list.shiny-html-output {
 
 .article-source span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1788,7 +1788,7 @@ div.story-list.shiny-html-output {
   flex-wrap: wrap;
   gap: 6px 16px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .article-byline span + span::before {
@@ -1806,7 +1806,7 @@ div.story-list.shiny-html-output {
   padding-top: 11px;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 0.75rem;
   line-height: 1.3;
 }
 
@@ -1818,7 +1818,7 @@ div.story-list.shiny-html-output {
 
 .article-copy-status strong {
   color: var(--ink);
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1829,14 +1829,14 @@ div.story-list.shiny-html-output {
 }
 
 .article-copy-producer {
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .reader-document {
   padding: 34px 0 80px;
   color: var(--reader-copy);
   font-family: var(--reading-font);
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1.76;
 }
 
@@ -1883,7 +1883,7 @@ div.story-list.shiny-html-output {
   margin-top: 8px;
   color: var(--muted);
   font-family: var(--ui-font);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.45;
 }
 
@@ -1894,7 +1894,7 @@ div.story-list.shiny-html-output {
   overflow-x: auto;
   border-collapse: collapse;
   font-family: var(--ui-font);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
@@ -1918,7 +1918,7 @@ div.story-list.shiny-html-output {
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--code-background);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .reader-document code {
@@ -1945,7 +1945,7 @@ div.story-list.shiny-html-output {
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-family: var(--ui-font);
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .reading-provenance.accordion {
@@ -1966,7 +1966,7 @@ div.story-list.shiny-html-output {
 .reading-provenance .accordion-button {
   gap: 8px;
   color: var(--green-deep);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -2017,7 +2017,7 @@ div.story-list.shiny-html-output {
 }
 
 .reading-copy-metadata code {
-  font-size: 9px;
+  font-size: 0.75rem;
 }
 
 .bslib-sidebar-layout:has(> .reader-agent-sidebar) {
@@ -2037,7 +2037,7 @@ div.story-list.shiny-html-output {
   --shiny-chat-btn-send-bg: var(--green);
   --shiny-chat-btn-send-bg-hover: var(--green-deep);
   --shiny-chat-btn-send-color: var(--on-primary);
-  --shiny-chat-footer-font-size: 12px;
+  --shiny-chat-footer-font-size: 0.75rem;
   --shiny-chat-footer-color: var(--agent-muted);
   color: var(--ink);
   border-left-color: var(--line) !important;
@@ -2066,7 +2066,7 @@ div.story-list.shiny-html-output {
 
 .reader-agent-header .eyebrow {
   margin: 0;
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .reader-agent-badge {
@@ -2075,7 +2075,7 @@ div.story-list.shiny-html-output {
   border-radius: 999px;
   color: var(--green-deep);
   background: color-mix(in srgb, var(--green-soft) 75%, transparent);
-  font-size: 9px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -2085,7 +2085,7 @@ div.story-list.shiny-html-output {
   margin: 0;
   color: var(--ink);
   font-family: var(--reading-font);
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.2;
@@ -2109,7 +2109,7 @@ div.story-list.shiny-html-output {
 .reader-agent-context span,
 .reader-agent-context small {
   color: var(--agent-muted);
-  font-size: 10px;
+  font-size: 0.75rem;
 }
 
 .reader-agent-context strong {
@@ -2117,7 +2117,7 @@ div.story-list.shiny-html-output {
   overflow: hidden;
   color: var(--ink);
   font-family: var(--reading-font);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -2133,7 +2133,7 @@ div.story-list.shiny-html-output {
   padding: 10px 20px;
   border-bottom: 1px solid var(--line);
   color: var(--agent-muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .reader-agent-run-status {
@@ -2162,7 +2162,7 @@ div.story-list.shiny-html-output {
 .reader-agent-sidebar shiny-chat-container {
   min-height: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.55;
 }
 
@@ -2181,7 +2181,7 @@ div.story-list.shiny-html-output {
 .reader-agent-sidebar .shiny-chat-greeting {
   padding: 8px 0 8px 14px;
   border-left: 2px solid var(--green);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.55;
 }
 
@@ -2214,7 +2214,7 @@ div.story-list.shiny-html-output {
   color: var(--ink);
   background: var(--agent-input);
   box-shadow: var(--agent-composer-shadow);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 
@@ -2267,7 +2267,7 @@ div.story-list.shiny-html-output {
   color: var(--ink);
   background: var(--paper);
   box-shadow: 0 2px 8px rgba(36, 57, 54, 0.08);
-  font-size: 9px;
+  font-size: 0.75rem;
   font-weight: 700;
   opacity: 0;
   pointer-events: none;
@@ -2335,7 +2335,7 @@ div.story-list.shiny-html-output {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 7%, var(--paper));
   font-family: var(--ui-font);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   white-space: normal;
 }
@@ -2395,7 +2395,7 @@ div.story-list.shiny-html-output {
 .rill-input-feedback {
   margin: 5px 1px 0;
   color: var(--danger);
-  font-size: 11px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
@@ -2586,7 +2586,7 @@ div.story-list.shiny-html-output {
     border-radius: 7px;
     color: var(--green-deep);
     background: transparent;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 700;
   }
 
@@ -2612,7 +2612,7 @@ div.story-list.shiny-html-output {
     padding-bottom: 9px;
     color: var(--green-deep);
     font-family: var(--reading-font);
-    font-size: 19px;
+    font-size: 1.1875rem;
     line-height: 1;
   }
 
@@ -2638,7 +2638,7 @@ div.story-list.shiny-html-output {
     margin: 0;
     color: var(--green-deep);
     font-family: var(--reading-font);
-    font-size: 25px;
+    font-size: 1.5625rem;
     font-weight: 500;
   }
 
@@ -2720,7 +2720,7 @@ div.story-list.shiny-html-output {
   }
 
   .brand strong {
-    font-size: 23px;
+    font-size: 1.4375rem;
   }
 
   .mode-badge {
@@ -2759,7 +2759,7 @@ div.story-list.shiny-html-output {
     display: flex;
     align-items: center;
     padding: 8px 10px;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .feed-list {
@@ -2805,7 +2805,7 @@ div.story-list.shiny-html-output {
   }
 
   .pane-header h1 {
-    font-size: 24px;
+    font-size: 1.5rem;
   }
 
   .queue-controls {
@@ -2861,7 +2861,7 @@ div.story-list.shiny-html-output {
   }
 
   .orientation-canvas h1 {
-    font-size: 34px;
+    font-size: 2.125rem;
   }
 
   .orientation-disclosure {
@@ -2944,11 +2944,11 @@ div.story-list.shiny-html-output {
   .article-header h1 {
     margin-top: 10px;
     margin-bottom: 14px;
-    font-size: clamp(31px, 9vw, 40px);
+    font-size: clamp(1.9375rem, 9vw, 2.5rem);
   }
 
   .reader-document {
-    font-size: 17px;
+    font-size: 1.0625rem;
     line-height: 1.7;
   }
 
@@ -2988,7 +2988,7 @@ div.story-list.shiny-html-output {
   }
 
   .reader-agent-header h2 {
-    font-size: 19px;
+    font-size: 1.1875rem;
   }
 
   .reader-agent-sidebar .shiny-chat-user-message {
@@ -3139,4 +3139,75 @@ div.story-list.shiny-html-output {
 .reader-feedback-actions .btn:active {
   color: var(--on-primary);
   background-color: var(--green);
+}
+
+/* Retained answers and rating choices share the page's text scale. */
+.feedback-output, .feedback-answer, .feedback-saved-choice {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.feedback-answer { margin-block: 1rem; }
+.feedback-answer pre, .feedback-original {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-answer table { display: block; max-width: 100%; overflow-x: auto; }
+.feedback-saved-choice { display: block; padding: .5rem; }
+.feedback-saved-meta { display: block; font-size: .875rem; margin-top: .25rem; }
+#saved_feedback_id .radio { border-bottom: 1px solid var(--bs-border-color); }
+#saved_feedback_id label { display: flex; align-items: baseline; gap: .5rem; }
+
+.reader-agent-sidebar shiny-chat-container,
+.reader-agent-sidebar .shiny-chat-input .tiptap,
+.reader-agent-sidebar .shiny-chat-greeting { font-size: 1rem; }
+.rill-document-result { overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; }
+.rill-document-result pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; }
+.reader-focus-controls { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem; }
+.reader-focus-controls button {
+  font: inherit; font-size: .875rem; padding: .35rem .6rem;
+  color: var(--ink); background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color); border-radius: .3rem;
+}
+.reader-focus-controls button:disabled { opacity: .5; }
+@media (min-width: 768px) {
+  #rill-app[data-pane-focus="ask"] .bslib-sidebar-layout:has(> #reader_agent_sidebar) {
+    --_sidebar-width: 100% !important;
+    grid-template-columns: 0 minmax(0, 1fr) !important;
+  }
+  #rill-app[data-pane-focus="ask"] .bslib-sidebar-layout:has(> #reader_agent_sidebar) > .main {
+    visibility: hidden;
+    min-width: 0;
+    max-width: 0;
+  }
+  #rill-app[data-pane-focus="ask"] #reader_agent_sidebar {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: 2 !important;
+    grid-row: 1;
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
+@media (max-width: 767.98px) {
+  .reader-focus-controls { display: none; }
+}
+
+#rill-app[data-pane-focus] .bslib-sidebar-layout > .collapse-toggle {
+  visibility: hidden;
+  pointer-events: none;
+}
+#rill-app[data-pane-focus] .bslib-sidebar-layout > .bslib-sidebar-resize-handle {
+  display: none;
+}
+
+.reader-focus-controls button[aria-pressed="true"] {
+  color: var(--on-primary);
+  background: var(--green);
+}
+
+.reader-scroll > .reader-focus-controls {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--paper);
 }

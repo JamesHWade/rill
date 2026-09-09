@@ -172,6 +172,18 @@ testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
     paste0("JamesHWade/deputy@", manifest$packages$deputy$description$RemoteSha)
   )
 
+  testthat::expect_identical(
+    remotes[grepl("^posit-dev/shinychat/pkg-r@", remotes)],
+    paste0(
+      "posit-dev/shinychat/pkg-r@",
+      manifest$packages$shinychat$description$RemoteSha
+    )
+  )
+  testthat::expect_identical(
+    manifest$packages$shinychat$Source,
+    "github"
+  )
+
   testthat::expect_identical(manifest$platform, "4.6.0")
   testthat::expect_contains(
     names(manifest$packages),
