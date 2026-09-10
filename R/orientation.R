@@ -1,14 +1,27 @@
+orientation_candidate_limit <- function() {
+  36L
+}
+
+orientation_card_limit <- function() {
+  3L
+}
+
+orientation_theme_limit <- function() {
+  5L
+}
+
 new_rill_orientation <- function(
   reader_id,
   boundary,
   question,
-  introduction,
+  introduction = NULL,
   cards,
   agent_run_id,
   evaluated_at = Sys.time(),
   status = NULL,
   policy_version = "orientation-v1",
-  dismissals = list()
+  dismissals = list(),
+  themes = list()
 ) {
   orientation_id <- rill_id("orientation", reader_id)
   revision_id <- rill_id(
@@ -18,14 +31,6 @@ new_rill_orientation <- function(
     agent_run_id
   )
   cards <- lapply(cards, function(card) {
-    card$frame <- card$frame %||%
-      switch(
-        card$role,
-        anchor = "unresolved_question",
-        contrast = "counterpoint",
-        extension = "connection",
-        "connection"
-      )
     basis_hash <- orientation_card_basis(
       reader_id,
       card$entry_id,
@@ -35,6 +40,20 @@ new_rill_orientation <- function(
     card$card_id <- rill_id("orientation-card", orientation_id, basis_hash)
     card$rationale_hash <- orientation_card_rationale(card)
     card
+  })
+  themes <- lapply(themes, function(theme) {
+    theme$entry_ids <- as.character(unlist(
+      theme$entry_ids %||% list(),
+      use.names = FALSE
+    ))
+    theme$theme_id <- rill_id(
+      "orientation-theme",
+      orientation_id,
+      theme$name,
+      theme$note,
+      theme$entry_ids
+    )
+    theme
   })
   status <- status %||%
     if (length(cards)) {
@@ -59,6 +78,7 @@ new_rill_orientation <- function(
       introduction = introduction,
       status = status,
       cards = cards,
+      themes = themes,
       agent_run_id = agent_run_id,
       evaluated_at = as.POSIXct(evaluated_at, tz = "UTC"),
       updated_at = as.POSIXct(evaluated_at, tz = "UTC"),
@@ -82,7 +102,11 @@ orientation_card_rationale <- function(card) {
   )
 }
 
-prepare_orientation_documents <- function(store, reader_id, limit = 12L) {
+prepare_orientation_documents <- function(
+  store,
+  reader_id,
+  limit = orientation_candidate_limit()
+) {
   entries <- store_list_entries(
     store,
     reader_id,
@@ -124,7 +148,12 @@ prepare_orientation_documents <- function(store, reader_id, limit = 12L) {
   )
 }
 
-orientation_candidates <- function(store, reader_id, limit = 12L, dismissals) {
+orientation_candidates <- function(
+  store,
+  reader_id,
+  limit = orientation_candidate_limit(),
+  dismissals
+) {
   entries <- store_list_entries(
     store,
     reader_id,
@@ -162,7 +191,19 @@ orientation_candidates <- function(store, reader_id, limit = 12L, dismissals) {
     \(candidate) !is.null(candidate$document) && !isTRUE(candidate$dismissed),
     candidates
   )
-  utils::head(candidates, as.integer(limit))
+  structure(
+    rill_orientation_bounded_candidates(utils::head(
+      candidates,
+      as.integer(limit)
+    )),
+    unread_total = as.integer(sum(
+      store_list_feeds(store, reader_id)$unread_count
+    ))
+  )
+}
+
+orientation_unread_total <- function(candidates) {
+  as.integer(attr(candidates, "unread_total", exact = TRUE) %||% 0L)
 }
 
 orientation_boundary <- function(candidates) {
@@ -198,11 +239,18 @@ orientation_state_token <- function(state) {
     character(1),
     "basis_hash"
   )
+  themes <- vapply(
+    state$orientation$themes %||% list(),
+    \(theme) paste(theme$theme_id, length(theme$entry_ids)),
+    character(1)
+  )
   rill_id(
     "orientation-state",
     state$orientation$revision_id %||% "",
     state$boundary$hash,
-    paste(cards, collapse = "\u241f")
+    state$unread_total %||% 0L,
+    paste(cards, collapse = "\u241f"),
+    paste(themes, collapse = "\u241f")
   )
 }
 
@@ -238,6 +286,7 @@ store_orientation_poll_token <- function(store, reader_id, state = NULL) {
       "), unread_entries AS (",
       paste(
         "SELECT e.entry_id, e.feed_id, f.source_kind,",
+        "count(*) OVER () AS unread_total,",
         "row_number() OVER (ORDER BY",
         "COALESCE(e.published_at, e.inserted_at) DESC, e.entry_id) AS",
         "queue_position"
@@ -289,9 +338,13 @@ store_orientation_poll_token <- function(store, reader_id, state = NULL) {
         "WHERE dismissal ->> 'entry_id' = unread.entry_id",
         "AND dismissal ->> 'document_id' = d.document_id"
       ),
-      ") ORDER BY unread.queue_position LIMIT 12",
+      paste(
+        ") ORDER BY unread.queue_position LIMIT",
+        orientation_candidate_limit()
+      ),
       "), fingerprint AS (",
       "SELECT concat_ws('|',",
+      "COALESCE((SELECT max(unread_total)::text FROM unread_entries), '0'),",
       paste(
         "COALESCE((SELECT revision_id FROM orientation_record), ''),",
         "COALESCE((SELECT extract(epoch FROM updated_at)::text",
@@ -311,7 +364,11 @@ store_orientation_poll_token <- function(store, reader_id, state = NULL) {
   rows$poll_token[[1L]]
 }
 
-orientation_status <- function(store, reader_id, limit = 12L) {
+orientation_status <- function(
+  store,
+  reader_id,
+  limit = orientation_candidate_limit()
+) {
   orientation <- store_get_orientation(store, reader_id)
   candidates <- orientation_candidates(
     store,
@@ -320,11 +377,13 @@ orientation_status <- function(store, reader_id, limit = 12L) {
     dismissals = orientation$dismissals %||% list()
   )
   boundary <- orientation_boundary(candidates)
+  unread_total <- orientation_unread_total(candidates)
   if (is.null(orientation)) {
     return(list(
       orientation = NULL,
       candidates = candidates,
       boundary = boundary,
+      unread_total = unread_total,
       due = TRUE,
       invalid_document_ids = character()
     ))
@@ -371,31 +430,37 @@ orientation_status <- function(store, reader_id, limit = 12L) {
     }
     if (count) {
       orientation$question <- "What still deserves attention?"
-      orientation$introduction <- paste(
-        "These source-grounded selections remain current while Orientation",
-        "catches up with your reading."
-      )
-      orientation$cards <- Map(
-        function(card, index) {
-          if (index == 1L) {
-            card$role <- "anchor"
-            card$frame <- "connection"
-          }
-          card
-        },
-        orientation$cards,
-        seq_along(orientation$cards)
-      )
     }
   }
+  orientation$themes <- orientation_live_themes(
+    orientation$themes %||% list(),
+    candidates,
+    orientation$cards
+  )
 
   list(
     orientation = orientation,
     candidates = candidates,
     boundary = boundary,
+    unread_total = unread_total,
     due = !identical(orientation$boundary$hash, boundary$hash),
     invalid_document_ids = unname(card_document_ids[!valid])
   )
+}
+
+orientation_live_themes <- function(themes, candidates, cards) {
+  active_entry_ids <- vapply(
+    candidates,
+    \(candidate) as.character(candidate$entry$entry_id %||% ""),
+    character(1)
+  )
+  card_entry_ids <- vapply(cards, \(card) card$entry_id %||% "", character(1))
+  eligible <- setdiff(active_entry_ids, card_entry_ids)
+  themes <- lapply(themes, function(theme) {
+    theme$entry_ids <- intersect(as.character(theme$entry_ids), eligible)
+    theme
+  })
+  Filter(\(theme) length(theme$entry_ids) > 0L, themes)
 }
 
 orientation_processing_note <- function(
@@ -524,6 +589,7 @@ orientation_payload <- function(orientation) {
     introduction = orientation$introduction,
     status = orientation$status,
     cards = orientation$cards,
+    themes = orientation$themes %||% list(),
     policy_version = orientation$policy_version,
     dismissals = orientation$dismissals
   )
@@ -569,6 +635,16 @@ orientation_from_row <- function(row) {
     "entry_id"
   )
   cards <- orientation_records(payload$cards, "document_id")
+  themes <- lapply(
+    orientation_records(payload$themes, "theme_id"),
+    function(theme) {
+      theme$entry_ids <- as.character(unlist(
+        theme$entry_ids %||% list(),
+        use.names = FALSE
+      ))
+      theme
+    }
+  )
   dismissals <- orientation_records(payload$dismissals, "basis_hash")
 
   structure(
@@ -581,6 +657,7 @@ orientation_from_row <- function(row) {
       introduction = payload$introduction,
       status = payload$status,
       cards = cards,
+      themes = themes,
       agent_run_id = value("evaluation_run_id"),
       evaluated_at = value("evaluated_at"),
       updated_at = value("updated_at"),
@@ -716,7 +793,7 @@ store_select_orientation_card <- function(
   orientation <- orientation_status(
     store,
     reader_id,
-    limit = 12L
+    limit = orientation_candidate_limit()
   )$orientation
   cards <- Filter(
     function(card) {
@@ -746,8 +823,8 @@ store_select_orientation_card <- function(
     basis_hash = card$basis_hash,
     rationale_hash = card$rationale_hash,
     agent_run_id = orientation$agent_run_id,
-    role = card$role,
-    frame = card$frame,
+    role = card$role %||% NULL,
+    frame = card$frame %||% NULL,
     interpretation = card$interpretation,
     why_now = card$why_now,
     evidence = card$evidence,
@@ -871,7 +948,11 @@ store_dismiss_orientation_card <- function(
   }
 
   active_basis <- vapply(
-    orientation_candidates(store, reader_id, limit = 12L),
+    orientation_candidates(
+      store,
+      reader_id,
+      limit = orientation_candidate_limit()
+    ),
     `[[`,
     character(1),
     "basis_hash"
@@ -1007,7 +1088,7 @@ store_complete_orientation_run <- function(
     candidate_limit <- as.integer(
       owned_run$pinned_inputs$candidate_limit %||%
         orientation$boundary$candidate_count %||%
-        12L
+        orientation_candidate_limit()
     )
     current_boundary <- orientation_boundary(orientation_candidates(
       target_store,
@@ -1080,54 +1161,60 @@ orientation_string <- function(value, field) {
 
 validate_orientation_content <- function(orientation) {
   orientation_string(orientation$status, "status")
-  if (!is.list(orientation$cards) || length(orientation$cards) > 3L) {
+  if (
+    !is.list(orientation$cards) ||
+      length(orientation$cards) > orientation_card_limit()
+  ) {
     orientation_abort("Orientation must contain zero to three cards.")
   }
   if (length(orientation$cards)) {
     orientation_string(orientation$question, "question")
-    orientation_string(orientation$introduction, "introduction")
   }
 
   document_ids <- character()
-  roles <- character()
   for (card in orientation$cards) {
     if (!is.list(card)) {
       orientation_abort("Each Orientation card must be a list.")
-    }
-    role <- orientation_string(card$role, "card.role")
-    if (!role %in% c("anchor", "contrast", "extension")) {
-      orientation_abort(
-        paste(
-          "Orientation card roles must be {.val anchor}, {.val contrast},",
-          "or {.val extension}."
-        )
-      )
-    }
-    frame <- orientation_string(card$frame, "card.frame")
-    if (
-      !frame %in%
-        c("change", "connection", "counterpoint", "unresolved_question")
-    ) {
-      orientation_abort("An Orientation card has an unknown editorial frame.")
     }
     document_id <- orientation_string(card$document_id, "card.document_id")
     orientation_string(card$interpretation, "card.interpretation")
     orientation_string(card$why_now, "card.why_now")
     orientation_string(card$evidence, "card.evidence")
     document_ids <- c(document_ids, document_id)
-    roles <- c(roles, role)
   }
   if (anyDuplicated(document_ids)) {
     orientation_abort("Orientation cards must identify distinct Documents.")
   }
-  if (
-    length(roles) &&
-      (!identical(roles[[1L]], "anchor") ||
-        any(roles[-1L] == "anchor"))
-  ) {
-    orientation_abort("An Orientation reading path must begin with one anchor.")
-  }
   invisible(orientation)
+}
+
+validate_orientation_themes <- function(themes, eligible_entry_ids) {
+  themes <- themes %||% list()
+  if (!is.list(themes) || length(themes) > orientation_theme_limit()) {
+    orientation_abort("Orientation must contain zero to five themes.")
+  }
+  seen <- character()
+  for (theme in themes) {
+    if (!is.list(theme)) {
+      orientation_abort("Each Orientation theme must be a list.")
+    }
+    orientation_string(theme$name, "theme.name")
+    orientation_string(theme$note, "theme.note")
+    entry_ids <- as.character(unlist(theme$entry_ids, use.names = FALSE))
+    if (!length(entry_ids) || anyNA(entry_ids) || any(!nzchar(entry_ids))) {
+      orientation_abort("Each Orientation theme must list its unread entries.")
+    }
+    if (!all(entry_ids %in% eligible_entry_ids)) {
+      orientation_abort(
+        "An Orientation theme names an entry it may not cover."
+      )
+    }
+    if (anyDuplicated(entry_ids) || any(entry_ids %in% seen)) {
+      orientation_abort("Orientation themes must not share entries.")
+    }
+    seen <- c(seen, entry_ids)
+  }
+  invisible(themes)
 }
 
 validate_orientation <- function(store, orientation) {
@@ -1147,6 +1234,19 @@ validate_orientation <- function(store, orientation) {
   }
   orientation_string(orientation$boundary$hash, "boundary.hash")
   validate_orientation_content(orientation)
+  card_entry_ids <- vapply(orientation$cards, `[[`, character(1), "entry_id")
+  boundary_entry_ids <- vapply(
+    orientation$boundary$candidates %||% list(),
+    \(candidate) as.character(candidate$entry_id %||% ""),
+    character(1)
+  )
+  validate_orientation_themes(
+    orientation$themes,
+    setdiff(boundary_entry_ids, card_entry_ids)
+  )
+  for (theme in orientation$themes %||% list()) {
+    orientation_string(theme$theme_id, "theme.theme_id")
+  }
   for (card in orientation$cards) {
     document_id <- orientation_string(card$document_id, "card.document_id")
     entry_id <- orientation_string(card$entry_id, "card.entry_id")

@@ -530,7 +530,6 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
     reader_id = "reader-1",
     boundary = boundary,
     question = "What must stay separate?",
-    introduction = "Read these as one short path.",
     cards = cards,
     agent_run_id = "run-1",
     evaluated_at = as.POSIXct("2026-09-02 16:00:00", tz = "UTC")
@@ -548,7 +547,6 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
 
   testthat::expect_match(html, 'id="rill-orientation"', fixed = TRUE)
   testthat::expect_match(html, "What must stay separate?", fixed = TRUE)
-  testthat::expect_match(html, "Read these as one short path", fixed = TRUE)
   testthat::expect_match(html, "Interpretation 1", fixed = TRUE)
   testthat::expect_match(html, "Why now 1", fixed = TRUE)
   testthat::expect_match(
@@ -556,10 +554,7 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
     "Source evidence and provenance [01]",
     fixed = TRUE
   )
-  testthat::expect_match(html, "A guided path, not a source", fixed = TRUE)
   testthat::expect_match(html, "Rill interpretation", fixed = TRUE)
-  testthat::expect_match(html, "Path rationale", fixed = TRUE)
-  testthat::expect_match(html, "Source Document", fixed = TRUE)
   testthat::expect_match(html, "Rill keeps the source feed", fixed = TRUE)
   testthat::expect_match(
     html,
@@ -643,7 +638,6 @@ testthat::test_that("Orientation identifies material boundary changes", {
     reader_id = "reader-1",
     boundary = orientation_boundary(candidates[1:2]),
     question = "What changed?",
-    introduction = "Compare the current boundary.",
     cards = list(),
     agent_run_id = "run-1",
     evaluated_at = as.POSIXct("2026-09-02 16:00:00", tz = "UTC")
@@ -721,7 +715,6 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
       candidates = list()
     ),
     question = NULL,
-    introduction = NULL,
     status = "Nothing material has cleared the threshold.",
     cards = list(),
     agent_run_id = "run-1"
@@ -1053,4 +1046,78 @@ testthat::test_that("timeline descriptions expose source excerpts and image alt 
   entry$preview_image_alt <- NA_character_
   html <- htmltools::renderTags(story_card(entry, 1L))$html
   testthat::expect_no_match(html, "aria-describedby", fixed = TRUE)
+})
+
+testthat::test_that("Orientation folds the unpicked queue into themes", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 4L)
+  boundary <- orientation_boundary(candidates)
+  card <- list(
+    document_id = candidates[[1L]]$document$document_id,
+    entry_id = candidates[[1L]]$entry$entry_id,
+    interpretation = "Interpretation 1",
+    why_now = "Why now 1",
+    evidence = "Rill keeps the source feed. That separation matters."
+  )
+  entry_ids <- vapply(
+    candidates[2:3],
+    \(candidate) candidate$entry$entry_id,
+    character(1)
+  )
+  orientation <- new_rill_orientation(
+    reader_id = "reader-1",
+    boundary = boundary,
+    question = "What must stay separate?",
+    cards = list(card),
+    themes = list(
+      list(
+        name = "Shiny surfaces",
+        note = "Two Shiny pieces.",
+        entry_ids = entry_ids
+      )
+    ),
+    agent_run_id = "run-1"
+  )
+
+  rendered <- orientation_ui(orientation, candidates)
+  html <- htmltools::renderTags(rendered)$html
+  query <- htmltools::tagQuery(rendered)
+
+  testthat::expect_match(html, "Also in your unread", fixed = TRUE)
+  testthat::expect_match(html, "Shiny surfaces", fixed = TRUE)
+  testthat::expect_match(html, "Two Shiny pieces.", fixed = TRUE)
+  testthat::expect_match(html, "rillBrowseOrientationTheme", fixed = TRUE)
+  testthat::expect_match(html, orientation$themes[[1L]]$theme_id, fixed = TRUE)
+  testthat::expect_match(html, "6 unread in total", fixed = TRUE)
+  testthat::expect_match(html, "1 picked", fixed = TRUE)
+  testthat::expect_match(html, "2 in themes", fixed = TRUE)
+  testthat::expect_match(html, "2 outside the evaluated window", fixed = TRUE)
+  counts <- query$find(".orientation-theme-count")$selectedTags()
+  testthat::expect_length(counts, 1L)
+  testthat::expect_identical(counts[[1L]]$children[[1L]], 2L)
+  leads <- query$find(".orientation-evidence-lead")$selectedTags()
+  testthat::expect_identical(
+    leads[[1L]]$children[[1L]],
+    "Rill keeps the source feed."
+  )
+  testthat::expect_no_match(html, "orientation-connector", fixed = TRUE)
+  reads <- query$find(".orientation-read")$selectedTags()
+  testthat::expect_identical(
+    reads[[1L]]$children[[1L]],
+    candidates[[1L]]$document$title
+  )
+})
+
+testthat::test_that("long inline Source Evidence stays a verbatim substring", {
+  evidence <- paste0(
+    paste(rep("Exact source words", 20L), collapse = " "),
+    ". Next sentence."
+  )
+  lead <- orientation_evidence_lead(evidence)
+  testthat::expect_identical(lead, substr(evidence, 1L, 200L))
+  testthat::expect_match(evidence, lead, fixed = TRUE)
+  testthat::expect_identical(
+    orientation_evidence_lead("First sentence. Second sentence."),
+    "First sentence."
+  )
 })

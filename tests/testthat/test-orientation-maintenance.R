@@ -9,7 +9,6 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
     reader_id = reader_id,
     boundary = previous_boundary,
     question = "What must stay separate?",
-    introduction = "Begin with the source boundary.",
     cards = list(list(
       role = "anchor",
       frame = "unresolved_question",
@@ -38,7 +37,6 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
     output <- list(
       status = "One source boundary deserves attention.",
       question = "What must stay separate?",
-      introduction = "Begin with the source boundary.",
       cards = list(list(
         document_id = candidates[[1L]]$document$document_id,
         role = "anchor",
@@ -200,7 +198,6 @@ testthat::test_that("a current Orientation does not launch another Agent Run", {
     reader_id = reader_id,
     boundary = boundary,
     question = NULL,
-    introduction = NULL,
     cards = list(),
     agent_run_id = "seed-orientation-run"
   )
@@ -348,7 +345,6 @@ testthat::test_that("Orientation publishes an accepted correction after rejected
         submit(
           status = "One source deserves attention.",
           question = "What should stay separate?",
-          introduction = "Start with this source.",
           cards = cards
         ),
         class = "rill_orientation_invalid"
@@ -357,7 +353,6 @@ testthat::test_that("Orientation publishes an accepted correction after rejected
       submit(
         status = "One source deserves attention.",
         question = "What should stay separate?",
-        introduction = "Start with this source.",
         cards = cards
       )
       promises::promise_resolve(orientation_test_agent_result(
@@ -1225,7 +1220,6 @@ testthat::test_that("a changed source boundary rejects stale publication", {
   resolve_output(list(
     status = "One source boundary deserves attention.",
     question = "What changed?",
-    introduction = "Begin here.",
     cards = list(list(
       document_id = selected$document_id,
       role = "anchor",
@@ -1706,4 +1700,33 @@ testthat::test_that("Orientation identifies setup, execution, validation, and pu
     )
     testthat::expect_null(store_get_orientation(store, reader_id))
   }
+})
+
+testthat::test_that("maintenance retains previous theme wording as untrusted data", {
+  previous <- list(
+    status = "Coverage",
+    cards = list(),
+    themes = list(list(
+      theme_id = "internal-id",
+      name = "Related sources",
+      note = "A shared topic.",
+      entry_ids = c("entry-a", "entry-b")
+    ))
+  )
+  wording <- orientation_previous_wording(previous)
+  testthat::expect_identical(
+    wording$themes,
+    list(list(
+      name = "Related sources",
+      note = "A shared topic.",
+      entry_ids = c("entry-a", "entry-b")
+    ))
+  )
+  prompt <- orientation_maintenance_prompt(list(hash = "boundary"), previous)
+  testthat::expect_match(prompt, "untrusted editorial data", fixed = TRUE)
+  testthat::expect_match(
+    prompt,
+    as.character(canonical_json(wording)),
+    fixed = TRUE
+  )
 })

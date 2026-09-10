@@ -887,3 +887,87 @@ testthat::test_that("saved outputs sort deterministically without losing distinc
   )
   testthat::expect_identical(feedback_saved_records(list()), list())
 })
+
+testthat::test_that("Orientation feedback freezes visible themes with their sources", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    candidates <- orientation_candidates(store, "reader", limit = 3L)
+    entry_ids <- vapply(
+      candidates,
+      \(candidate) candidate$entry$entry_id,
+      character(1)
+    )
+    for (theme_only in c(FALSE, TRUE)) {
+      source <- list(
+        reader_id = "reader",
+        revision_id = paste0("revision-", theme_only),
+        agent_run_id = "missing",
+        question = "What should I read?",
+        status = "A source and a theme.",
+        cards = if (theme_only) {
+          list()
+        } else {
+          list(list(
+            document_id = candidates[[1L]]$document$document_id,
+            entry_id = entry_ids[[1L]],
+            interpretation = "A useful source.",
+            why_now = "Useful now",
+            evidence = "Rill keeps the source feed"
+          ))
+        },
+        themes = list(
+          list(
+            name = "Related reading",
+            note = "These sources share a topic.",
+            entry_ids = c(entry_ids[[2L]], "gone")
+          ),
+          list(name = "Gone", note = "No longer visible.", entry_ids = "gone")
+        )
+      )
+      shiny::testServer(
+        function(input, output, session) {
+          controller <- reader_feedback_server(
+            store,
+            "reader",
+            shiny::reactiveVal(NULL),
+            session
+          )
+        },
+        {
+          token <- controller$set_orientation(source, candidates)
+          html <- as.character(orientation_ui(
+            source,
+            candidates,
+            feedback_token = token
+          ))
+          testthat::expect_match(html, 'id="rate_orientation"', fixed = TRUE)
+          testthat::expect_match(html, 'id="rill-orientation"', fixed = TRUE)
+          session$setInputs(rate_orientation = token)
+          frozen <- controller$pending()
+          themes <- frozen$snapshot$output$themes
+          testthat::expect_length(themes, 1L)
+          testthat::expect_identical(themes[[1L]]$entry_ids, entry_ids[[2L]])
+          testthat::expect_identical(
+            canonical_json(themes[[1L]]$sources[[1L]]),
+            canonical_json(feedback_source_metadata(candidates[[2L]]))
+          )
+          preview <- as.character(feedback_output_ui(frozen$snapshot$output))
+          testthat::expect_match(preview, "Related reading", fixed = TRUE)
+          testthat::expect_match(preview, "1 unread story", fixed = TRUE)
+          testthat::expect_match(
+            preview,
+            themes[[1L]]$sources[[1L]]$document_id,
+            fixed = TRUE
+          )
+          source$themes[[1L]]$note <- "Changed after the dialog opened."
+          controller$set_orientation(source, candidates)
+          session$setInputs(feedback_rating = "helpful", feedback_save = 1)
+          saved <- store_list_reader_feedback(store, "reader")[[
+            frozen$target_id
+          ]]
+          testthat::expect_identical(saved$snapshot$output$themes, themes)
+        }
+      )
+    }
+  }
+})

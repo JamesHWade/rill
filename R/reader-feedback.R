@@ -82,7 +82,8 @@ feedback_target <- function(store, reader_id, kind, source) {
       question = source$question,
       introduction = source$introduction,
       status = source$status,
-      cards = source$cards
+      cards = source$cards,
+      themes = source$themes %||% list()
     )
   } else {
     run <- source
@@ -519,6 +520,21 @@ feedback_output_ui <- function(output) {
         }
       )
     }),
+    lapply(output$themes, function(theme) {
+      shiny::tags$div(
+        shiny::tags$p(shiny::tags$strong("Theme (Rill): "), theme$name),
+        shiny::tags$p(theme$note),
+        shiny::tags$p(paste(
+          length(theme$entry_ids),
+          if (length(theme$entry_ids) == 1L) {
+            "unread story"
+          } else {
+            "unread stories"
+          }
+        )),
+        lapply(theme$sources, feedback_source_ui)
+      )
+    }),
     if (store_scalar_string(output$status)) shiny::tags$p(output$status)
   )
 }
@@ -841,7 +857,33 @@ reader_feedback_server <- function(store, reader_id, active_run, session) {
             card
           }
         )
+        feedback_visible_orientation$introduction <<- NULL
         if (!length(feedback_visible_orientation$cards)) {
+          feedback_visible_orientation$question <<- NULL
+        }
+        feedback_visible_orientation$themes <<- orientation_live_themes(
+          orientation$themes %||% list(),
+          candidates,
+          feedback_visible_orientation$cards
+        )
+        entry_ids <- vapply(
+          candidates,
+          \(candidate) candidate$entry$entry_id %||% "",
+          character(1)
+        )
+        feedback_visible_orientation$themes <<- lapply(
+          feedback_visible_orientation$themes,
+          function(theme) {
+            theme$sources <- lapply(theme$entry_ids, function(entry_id) {
+              feedback_source_metadata(candidates[[match(entry_id, entry_ids)]])
+            })
+            theme
+          }
+        )
+        if (
+          !length(feedback_visible_orientation$cards) &&
+            !length(feedback_visible_orientation$themes)
+        ) {
           feedback_visible_orientation <<- NULL
         }
       }

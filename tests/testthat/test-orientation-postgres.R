@@ -82,7 +82,6 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     reader_id = "reader-1",
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Start with this source boundary.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -255,7 +254,6 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     reader_id = "reader-1",
     boundary = stale_boundary,
     question = NULL,
-    introduction = NULL,
     cards = list(),
     agent_run_id = stale_run$run_id
   )
@@ -504,4 +502,10 @@ testthat::test_that("PostgreSQL creates one fallback for a missing head", {
     unique(vapply(results, `[[`, character(1), "document_id")),
     rows$document_id[[1L]]
   )
+})
+
+testthat::test_that("PostgreSQL Orientation counts unread entries beyond the retrieval cap", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("postgres", reader_id)
+  expect_orientation_unread_total_contract(store, reader_id)
 })

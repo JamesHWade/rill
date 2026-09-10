@@ -291,7 +291,7 @@ testthat::test_that("Orientation opens and dismisses Documents with provenance",
   orientation <- store_get_orientation(store, config$actor_id)
 
   testthat::expect_s3_class(orientation, "rill_orientation")
-  testthat::expect_length(orientation$cards, 2L)
+  testthat::expect_length(orientation$cards, 3L)
   extracted <- FALSE
   testthat::local_mocked_bindings(
     get_or_extract_document = function(...) {
@@ -665,12 +665,12 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
       card$rationale_hash
     )
 
-    testthat::expect_length(initial$orientation$cards, 2L)
+    testthat::expect_length(initial$orientation$cards, 3L)
     session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     current <- orientation_state()
-    testthat::expect_length(current$orientation$cards, 1L)
+    testthat::expect_length(current$orientation$cards, 2L)
     testthat::expect_gt(refresh_tick(), initial_tick)
   })
 })
@@ -5114,7 +5114,6 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
         list(
           status = "One source deserves attention.",
           question = "What deserves a closer reading?",
-          introduction = "Start with this source.",
           cards = list(list(
             document_id = candidates[[1L]]$document$document_id,
             role = "anchor",
@@ -5515,6 +5514,38 @@ testthat::test_that("Captures retain separate navigation without Group controls"
   }))
 })
 
+testthat::test_that("Orientation themes open a scoped unread queue", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  orientation <- store_get_orientation(store, config$actor_id)
+  theme <- orientation$themes[[2L]]
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "unread")
+    session$flushReact()
+    session$setInputs(
+      browse_orientation_theme = list(theme_id = theme$theme_id, nonce = 1)
+    )
+    session$flushReact()
+
+    testthat::expect_identical(
+      selected_orientation_theme()$theme_id,
+      theme$theme_id
+    )
+    testthat::expect_setequal(
+      as.character(queue_entries()$entry_id),
+      theme$entry_ids
+    )
+    opened <- store$memory$events[nrow(store$memory$events), , drop = FALSE]
+    testthat::expect_identical(opened$event_type, "orientation_theme_opened")
+
+    session$setInputs(select_feed = list(id = store$memory$feeds$feed_id[[1L]]))
+    session$flushReact()
+    testthat::expect_null(selected_orientation_theme())
+  })
+})
+
 testthat::test_that("only valid queue transition tokens reach the rendered batch", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -5541,4 +5572,59 @@ testthat::test_that("only valid queue transition tokens reach the rendered batch
       fixed = TRUE
     )
   }))
+})
+
+testthat::test_that("new Group and folder scopes clear an Orientation theme", {
+  withr::local_envvar(DATABASE_URL = "")
+  for (navigation in c("group", "groups", "folder", "ungrouped")) {
+    config <- rill_config()
+    store <- rill_store(config)
+    ids <- store_list_feeds(store, config$actor_id)$feed_id
+    for (id in ids[1:2]) {
+      store_move_feed(store, config$actor_id, id, "Together")
+    }
+    group <- store_create_group(store, config$actor_id, "Review group")
+    store_update_group_memberships(store, config$actor_id, ids[1:2], group)
+    store_update_group_memberships(
+      store,
+      config$actor_id,
+      ids[[3L]],
+      character()
+    )
+    folder <- store_list_feeds(store, config$actor_id)$folder[
+      match(ids[[1L]], store_list_feeds(store, config$actor_id)$feed_id)
+    ]
+    theme <- store_get_orientation(store, config$actor_id)$themes[[2L]]
+    expected <- if (navigation == "ungrouped") ids[[3L]] else ids[1:2]
+    later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+      session$setInputs(
+        view = "unread",
+        select_group = NULL,
+        select_folder = NULL,
+        apply_reading_groups = NULL,
+        browse_orientation_theme = NULL
+      )
+      context <- current_context()
+      session$setInputs(
+        browse_orientation_theme = list(theme_id = theme$theme_id, nonce = 1)
+      )
+      testthat::expect_identical(
+        selected_orientation_theme()$theme_id,
+        theme$theme_id
+      )
+      testthat::expect_identical(identical(current_context(), context), FALSE)
+      switch(
+        navigation,
+        group = session$setInputs(select_group = list(id = group)),
+        groups = session$setInputs(
+          reading_groups = group,
+          apply_reading_groups = 1L
+        ),
+        folder = session$setInputs(select_folder = list(id = folder)),
+        ungrouped = session$setInputs(select_group = list(id = ""))
+      )
+      testthat::expect_null(selected_orientation_theme())
+      testthat::expect_setequal(queue_entries()$feed_id, expected)
+    }))
+  }
 })

@@ -142,9 +142,9 @@ testthat::test_that("Orientation submission is typed, ordered, and singular", {
       output,
       list(
         question = NULL,
-        introduction = NULL
+        themes = NULL
       )
-    )[c("status", "question", "introduction", "cards")]
+    )[c("status", "question", "cards", "themes")]
   )
   testthat::expect_error(
     submit_tool(status = output$status, cards = output$cards),
@@ -193,7 +193,6 @@ testthat::test_that("Source Evidence must be inside the inspected text boundary"
       list(
         status = "A source was selected.",
         question = "What matters?",
-        introduction = "Start here.",
         cards = list(list(
           document_id = document$document_id,
           role = "anchor",
@@ -286,7 +285,6 @@ testthat::test_that("structured output becomes a validated source-linked Orienta
   output <- list(
     status = "One source boundary deserves attention.",
     question = "What must remain separate?",
-    introduction = "Start with the clearest account.",
     cards = list(list(
       document_id = document$document_id,
       role = "anchor",
@@ -313,10 +311,6 @@ testthat::test_that("structured output becomes a validated source-linked Orienta
   testthat::expect_identical(
     orientation$cards[[1]]$document_id,
     document$document_id
-  )
-  testthat::expect_identical(
-    orientation$cards[[1]]$frame,
-    "unresolved_question"
   )
   register_orientation_test_run(store, "reader-1", "orientation-run-1")
   testthat::expect_identical(
@@ -346,7 +340,6 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
   output <- list(
     status = "One source deserves attention.",
     question = "What should stay separate?",
-    introduction = "Start with this source.",
     cards = list(list(
       document_id = source[[1L]]$document_id,
       role = "anchor",
@@ -356,7 +349,7 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
       evidence = "Rill keeps the source feed"
     ))
   )
-  for (field in c("status", "question", "introduction")) {
+  for (field in c("status", "question")) {
     invalid <- output
     invalid[field] <- list(NULL)
     testthat::expect_error(
@@ -364,7 +357,7 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
       class = "rill_orientation_invalid"
     )
   }
-  for (field in c("role", "frame", "interpretation", "why_now")) {
+  for (field in c("interpretation", "why_now")) {
     invalid <- output
     invalid$cards[[1L]][[field]] <- ""
     testthat::expect_error(
@@ -372,12 +365,6 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
       class = "rill_orientation_invalid"
     )
   }
-  invalid <- output
-  invalid$cards[[1L]]$role <- "contrast"
-  testthat::expect_error(
-    do.call(submit, invalid),
-    class = "rill_orientation_invalid"
-  )
   invalid <- output
   invalid$cards[[2L]] <- invalid$cards[[1L]]
   testthat::expect_error(
@@ -399,7 +386,6 @@ testthat::test_that("invalid Source Evidence can be corrected before submission 
   output <- list(
     status = "One source deserves attention.",
     question = "What should stay separate?",
-    introduction = "Start with this source.",
     cards = list(list(
       document_id = source[[1L]]$document_id,
       role = "anchor",
@@ -448,7 +434,6 @@ testthat::test_that("ellmer returns a rejected quotation to the model for correc
   output <- list(
     status = "One source deserves attention.",
     question = "What should stay separate?",
-    introduction = "Start with this source.",
     cards = list(list(
       document_id = candidates[[1L]]$document$document_id,
       role = "anchor",
@@ -521,14 +506,197 @@ testthat::test_that("ellmer returns a rejected quotation to the model for correc
     candidates = candidates,
     agent_run_id = "orientation-run-1"
   )
-  testthat::expect_identical(orientation$cards[[1L]]$role, "anchor")
-  testthat::expect_identical(
-    orientation$cards[[1L]]$frame,
-    "unresolved_question"
-  )
   register_orientation_test_run(store, "reader-1", "orientation-run-1")
   testthat::expect_identical(
     store_save_orientation(store, orientation)$cards[[1L]]$evidence,
     output$cards[[1L]]$evidence
   )
+})
+
+testthat::test_that("Orientation output themes are bounded to unpicked candidates", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 4L)
+  boundary <- orientation_boundary(candidates)
+  document <- candidates[[1]]$document
+  entry_ids <- vapply(
+    candidates,
+    \(candidate) candidate$entry$entry_id,
+    character(1)
+  )
+  output <- list(
+    status = "One source boundary deserves attention.",
+    question = "What must remain separate?",
+    cards = list(list(
+      document_id = document$document_id,
+      interpretation = "This Document establishes the source boundary.",
+      why_now = "Tests Rill's source-first model",
+      evidence = "Rill keeps the source feed"
+    )),
+    themes = list(
+      list(
+        name = "Shiny surfaces",
+        note = "Pieces about Shiny as an application surface.",
+        entry_ids = entry_ids[c(1L, 2L, 3L)]
+      ),
+      list(name = "Empty", note = "Nothing left.", entry_ids = entry_ids[[1L]])
+    )
+  )
+
+  orientation <- rill_orientation_from_output(
+    output,
+    reader_id = "reader-1",
+    boundary = boundary,
+    candidates = candidates,
+    agent_run_id = "orientation-run-1"
+  )
+
+  testthat::expect_length(orientation$themes, 1L)
+  testthat::expect_identical(
+    orientation$themes[[1L]]$entry_ids,
+    entry_ids[c(2L, 3L)]
+  )
+  testthat::expect_null(orientation$cards[[1L]]$role)
+
+  output$themes[[1L]]$entry_ids <- "not-a-candidate"
+  testthat::expect_error(
+    rill_orientation_from_output(
+      output,
+      reader_id = "reader-1",
+      boundary = boundary,
+      candidates = candidates,
+      agent_run_id = "orientation-run-1"
+    ),
+    class = "rill_orientation_invalid"
+  )
+})
+
+testthat::test_that("Orientation supplies full text to the newest candidates only", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidate <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]
+  candidates <- lapply(seq_len(36L), function(index) {
+    copy <- candidate
+    copy$entry$entry_id <- paste0("entry-", index)
+    copy$document$entry_id <- copy$entry$entry_id
+    copy$document$document_id <- paste0("document-", index)
+    copy$document$markdown <- strrep("source text ", 2000L)
+    copy
+  })
+
+  payload <- rill_orientation_source_payload(candidates)
+  tiers <- vapply(payload, `[[`, character(1), "text_tier")
+  sizes <- vapply(
+    payload,
+    \(item) nchar(item$markdown, type = "bytes"),
+    integer(1)
+  )
+
+  testthat::expect_identical(unique(tiers[1:12]), "full")
+  testthat::expect_identical(unique(tiers[13:36]), "opening")
+  testthat::expect_gt(min(sizes[1:12]), max(sizes[13:36]))
+  testthat::expect_lte(nchar(orientation_json(payload), type = "bytes"), 60000L)
+})
+
+testthat::test_that("large metadata reduces the evaluated window without losing provenance", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  original <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]
+  entries <- sample_rill_data()$entries[rep(1L, 36L), ]
+  entries$entry_id <- paste0("metadata-entry-", seq_len(nrow(entries)))
+  documents <- stats::setNames(
+    lapply(entries$entry_id, function(id) {
+      document <- original$document
+      document$entry_id <- id
+      document$document_id <- paste0("document-", id)
+      document$source_url <- paste0(
+        "https://example.com/",
+        strrep("path", 1000L)
+      )
+      for (field in c(
+        "title",
+        "author",
+        "site",
+        "producer",
+        "producer_version"
+      )) {
+        document[[field]] <- strrep("Metadata ", 500L)
+      }
+      document$markdown <- strrep("Captured source text. ", 1000L)
+      document
+    }),
+    entries$entry_id
+  )
+  testthat::local_mocked_bindings(
+    store_list_entries = function(...) entries,
+    store_list_documents = function(...) documents,
+    store_list_feeds = function(...) data.frame(unread_count = 36L)
+  )
+
+  candidates <- orientation_candidates(store, "reader-1")
+  payload <- rill_orientation_source_payload(candidates)
+  testthat::expect_gt(length(candidates), 0L)
+  testthat::expect_lt(length(candidates), 36L)
+  testthat::expect_identical(orientation_unread_total(candidates), 36L)
+  testthat::expect_length(payload, length(candidates))
+  testthat::expect_lte(rill_orientation_json_bytes(payload), 60000L)
+  testthat::expect_identical(
+    vapply(payload, `[[`, character(1), "entry_id"),
+    utils::head(entries$entry_id, length(candidates))
+  )
+  for (index in seq_along(payload)) {
+    testthat::expect_identical(
+      payload[[index]]$document_id,
+      candidates[[index]]$document$document_id
+    )
+    testthat::expect_identical(
+      payload[[index]]$content_hash,
+      original$document$content_hash
+    )
+    testthat::expect_identical(
+      names(payload[[index]]$provenance),
+      names(rill_agent_provenance_summary(original$document))
+    )
+    testthat::expect_match(
+      payload[[index]]$markdown,
+      "Captured source text.",
+      fixed = TRUE
+    )
+  }
+})
+
+testthat::test_that("compact submissions reject oversized wording and allow correction", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 2L)
+  output <- list(
+    status = "Two sources",
+    question = "What should I read?",
+    cards = list(list(
+      document_id = candidates[[1L]]$document$document_id,
+      interpretation = paste(rep("word", 30L), collapse = " "),
+      why_now = paste(rep("word", 12L), collapse = " "),
+      evidence = "Rill keeps the source feed"
+    )),
+    themes = list(list(
+      name = paste(rep("word", 6L), collapse = " "),
+      note = paste(rep("word", 30L), collapse = " "),
+      entry_ids = candidates[[2L]]$entry$entry_id
+    ))
+  )
+  for (field in c("interpretation", "why_now", "name", "note")) {
+    state <- rill_orientation_tool_state()
+    rill_orientation_source_tool(candidates, state)()
+    submit <- rill_orientation_submit_tool(state)
+    oversized <- output
+    component <- if (field %in% c("name", "note")) "themes" else "cards"
+    oversized[[component]][[1L]][[field]] <- paste(
+      oversized[[component]][[1L]][[field]],
+      "extra"
+    )
+    testthat::expect_error(
+      do.call(submit, oversized),
+      class = "rill_orientation_invalid"
+    )
+    testthat::expect_identical(state$submission_calls, 0L)
+    testthat::expect_null(state$output)
+    testthat::expect_identical(do.call(submit, output), "Orientation accepted.")
+    testthat::expect_identical(state$submission_attempts, 2L)
+  }
 })
