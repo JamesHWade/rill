@@ -105,6 +105,44 @@ rill_server <- function(
     selected_document_id <- shiny::reactiveVal(NULL)
     reading_copy <- shiny::reactiveVal(NULL)
     opening_telemetry <- reading_telemetry(config$telemetry_enabled)
+    queue_request_id <- shiny::reactiveVal(NULL)
+    queue_telemetry <- view_telemetry(
+      config$telemetry_enabled,
+      "queue.view",
+      "queue",
+      "visible_ms"
+    )
+    shiny::observeEvent(
+      input$queue_view_request,
+      {
+        request <- input$queue_view_request
+        if (
+          !is.list(request) ||
+            !store_scalar_string(request$id) ||
+            !grepl("^[a-f0-9]{32}$", request$id) ||
+            !isTRUE(
+              request$view %in%
+                c("today", "week", "month", "unread", "all", "saved", "starred")
+            )
+        ) {
+          return()
+        }
+        queue_request_id(request$id)
+        queue_telemetry$begin(request$id, request$view)
+      },
+      priority = 2000
+    )
+    shiny::observeEvent(input$queue_view_visible, {
+      request <- input$queue_view_visible
+      if (!is.list(request)) {
+        return()
+      }
+      queue_telemetry$complete(
+        request$id,
+        request$elapsed_ms,
+        request$dom_ready_ms
+      )
+    })
     preparation_tick <- shiny::reactiveVal(0L)
     today_preparation_pending <- shiny::reactiveVal(FALSE)
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
@@ -1584,6 +1622,7 @@ rill_server <- function(
     queue_entries <- shiny::reactive({
       refresh_tick()
       calendar <- calendar_window()
+      queue_telemetry$activate()
       telemetry_local_span("queue.entries")
       store_list_entries(
         store,
@@ -2787,26 +2826,62 @@ rill_server <- function(
       queue_filters_ui(input$view %||% "unread")
     })
 
+    queue_batch <- queue_batch_server(
+      current_context,
+      input,
+      \() match(selected_id(), entries()$entry_id, nomatch = 0L)
+    )
+    render_queue_cards <- queue_card_renderer()
     output$story_list <- shiny::renderUI({
-      telemetry_local_span("queue.render")
+      queue_telemetry$activate()
+      span <- telemetry_local_span("queue.render")
       rows <- entries()
-      if (!nrow(rows)) {
-        return(empty_story_list(
-          input$view %||% "unread",
-          selected_feed_title()
-        ))
-      }
-      shiny::tagList(lapply(seq_len(nrow(rows)), function(index) {
-        story_card(
-          as.list(rows[index, , drop = FALSE]),
-          index,
-          preview_src = preview_src(as.list(rows[index, , drop = FALSE])),
-          selected = identical(
-            selected_id(),
-            as.character(rows$entry_id[[index]])
-          )
+      total <- nrow(rows)
+      rows <- utils::head(rows, queue_batch())
+      rendered <- render_queue_cards(rows, selected_id(), preview_src)
+      telemetry_attributes(
+        span,
+        list(
+          "queue.view" = input$view %||% "unread",
+          "queue.rows" = nrow(rows),
+          "queue.available_rows" = total,
+          "queue.cards_built" = rendered$built
         )
-      }))
+      )
+      queue_telemetry$annotate(list(
+        "queue.view" = input$view %||% "unread",
+        "queue.rows" = nrow(rows),
+        "queue.available_rows" = total,
+        "queue.timezone" = calendar_window()$timezone,
+        "queue.since" = as.character(calendar_window()$window$since),
+        "queue.before" = as.character(calendar_window()$window$before)
+      ))
+      request_id <- queue_request_id()
+      session$onFlushed(\() queue_telemetry$flushed(request_id), once = TRUE)
+      shiny::tags$div(
+        class = "queue-batch",
+        `data-queue-view` = input$view %||% "unread",
+        `data-queue-request` = queue_request_id() %||% "",
+        `data-queue-context` = digest::digest(
+          current_context(),
+          algo = "xxhash64"
+        ),
+        if (!total) {
+          empty_story_list(
+            input$view %||% "unread",
+            selected_feed_title()
+          )
+        },
+        rendered$cards,
+        if (nrow(rows) < total) {
+          shiny::tags$button(
+            id = "queue_more",
+            type = "button",
+            class = "btn btn-outline-secondary queue-more",
+            sprintf("Show %d more stories", min(30L, total - nrow(rows)))
+          )
+        }
+      )
     })
 
     output$reader_header <- shiny::renderUI({
@@ -4209,6 +4284,7 @@ rill_server <- function(
 
     session$onSessionEnded(function() {
       opening_telemetry$finish("disconnected")
+      queue_telemetry$finish("disconnected")
       article_preparer$close()
       if (is.function(pending_reader_question_cancel)) {
         try(pending_reader_question_cancel(), silent = TRUE)

@@ -1,6 +1,8 @@
 # rill 0.0.0.9000
 
-* Orientation now shows up to three independent picks in a compact row layout with the question as the headline, the first sentence of each exact Source Evidence passage inline, and the title as the read action; the agent evaluates the 36 newest unread Documents and folds the unpicked ones into up to five themes that open a scoped unread queue, with a computed totals line covering the whole unread queue.
+* Orientation now shows up to three independent picks in a compact row layout with the question as the headline, the first sentence of each exact Source Evidence passage inline, and the title as the read action; the agent evaluates the 36 newest unread Documents and folds the unpicked ones into up to five themes that open a scoped unread queue, with a computed totals line covering the whole unread queue (#51).
+
+* A deliberate left swipe marks an unread story read on release, with Undo. Queue views show a smaller first batch and reuse unchanged cards, and choosing a queue makes its stories the main surface (#88).
 
 * Browse a source-first article timeline with source excerpts and optional images, visible Save and Mark read actions, and swipe-to-read with Undo (#88).
 

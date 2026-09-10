@@ -3220,3 +3220,34 @@ div.story-list.shiny-html-output {
 
 .story-sort { width: 8rem !important; max-width: 100%; }
 .story-sort .shiny-input-container { width: 100% !important; }
+
+/* An explicit queue choice makes its date and stories the main surface. */
+@media (min-width: 901px) {
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .reading-shell > .bslib-sidebar-layout {
+    grid-template-columns: minmax(0, 1fr) 0 !important;
+  }
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .reader-pane,
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .reading-shell > .bslib-sidebar-layout > .collapse-toggle,
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .reading-shell > .bslib-sidebar-layout > .bslib-sidebar-resize-handle {
+    display: none !important;
+  }
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .story-pane {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .orientation-return {
+    display: inline-flex;
+  }
+  .app-shell.queue-primary:not(.has-reader):not(.queue-opening) .story-list > .queue-batch {
+    width: min(760px, 100%);
+    margin-inline: auto;
+  }
+}
+.queue-more {
+  display: block;
+  margin: 20px auto 28px;
+}
+.story-list.queue-changing {
+  opacity: 0.55;
+  pointer-events: none;
+}

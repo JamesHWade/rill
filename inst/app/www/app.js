@@ -753,8 +753,7 @@
     const target = event.target;
     if (
       !(target instanceof Element) ||
-      !target.closest(".rill-skip-link") ||
-      !compactReaderMode.matches
+      !target.closest(".rill-skip-link")
     ) {
       return;
     }
@@ -762,6 +761,14 @@
     const shell = document.querySelector(".app-shell");
     if (!shell) return;
     event.preventDefault();
+    if (!compactReaderMode.matches) {
+      if (shell.matches(".queue-primary:not(.has-reader):not(.queue-opening)")) {
+        focusStory(null, { reveal: true });
+      } else {
+        document.getElementById("rill-primary-surface")?.focus();
+      }
+      return;
+    }
     const hasReader = Boolean(document.getElementById("reader-document"));
     const hasOrientation = Boolean(document.getElementById("rill-orientation"));
     const surface = normalizedCompactSurface(
@@ -962,6 +969,7 @@
     syncOrientationModalFocus();
     if (shell) {
       shell.classList.toggle("has-reader", hasReader);
+      if (hasReader) shell.classList.remove("queue-opening");
       shell.classList.toggle("has-orientation", hasOrientation);
       if (!hasOrientation && !hasReader) {
         shell.classList.remove("orientation-queue-visible");
@@ -1101,6 +1109,7 @@
   ) {
     if (!window.Shiny) return;
     const shell = document.getElementById("rill-app");
+    shell?.classList.add("queue-opening");
     pendingArticleTiming = shell && shell.dataset.operationalTelemetry === "true" &&
       window.crypto && typeof window.crypto.randomUUID === "function"
       ? { id: window.crypto.randomUUID().replaceAll("-", ""), started: performance.now() }
@@ -1224,6 +1233,7 @@
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
     pendingCompactQueue = false;
+    shell?.classList.remove("queue-primary");
     if (shell) shell.classList.remove("orientation-queue-visible");
     if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
@@ -1241,7 +1251,10 @@
   };
 
   window.rillOpenQueue = function () {
+    window.rillCancelQueueNavigation?.();
     const shell = document.querySelector(".app-shell");
+    shell?.classList.add("queue-primary");
+    shell?.classList.remove("queue-opening");
     if (shell && document.getElementById("rill-orientation")) {
       shell.classList.add("orientation-queue-visible");
     }
@@ -1250,6 +1263,7 @@
 
   window.rillReturnToReading = function () {
     const shell = document.querySelector(".app-shell");
+    shell?.classList.remove("queue-primary");
     if (shell) shell.classList.remove("orientation-queue-visible");
     showCompactSurface("reader");
   };
@@ -1351,7 +1365,11 @@
           : cards.length - 1
         : Math.max(0, Math.min(cards.length - 1, selectedIndex + direction));
 
-    if (nextIndex === selectedIndex) return false;
+    if (nextIndex === selectedIndex) {
+      return direction > 0 && Boolean(window.rillLoadNextStory?.(cards[selectedIndex]));
+    }
+
+    window.rillCancelQueueNavigation?.();
 
     cards[nextIndex].scrollIntoView({ block: "nearest" });
     cards[nextIndex].click();
@@ -1949,7 +1967,8 @@
     const previous = document.querySelector(".reader-previous");
     const next = document.querySelector(".reader-next");
     if (previous) previous.disabled = index <= 0;
-    if (next) next.disabled = index < 0 || index >= cards.length - 1;
+    if (next) next.disabled = index < 0 ||
+      (index >= cards.length - 1 && !document.querySelector("#queue_more"));
     document.querySelectorAll(".bslib-sidebar-layout > .sidebar").forEach(function (sidebar) {
       if (observedSidebars.has(sidebar)) return;
       observedSidebars.add(sidebar);

@@ -6,6 +6,141 @@
   let suppressClickUntil = 0;
   let registered = false;
   let undoAction = null;
+  let transition = null;
+  let transitionTimer = null;
+  let navigation = null;
+
+  function clearTransition() {
+    clearTimeout(transitionTimer);
+    transition = null;
+    const list = document.getElementById("story_list");
+    list?.setAttribute("aria-busy", "false");
+    list?.classList.remove("queue-changing");
+  }
+
+  function transitionId() {
+    const bytes = new Uint8Array(16);
+    try {
+      window.crypto.getRandomValues(bytes);
+    } catch {
+      // Correlation only: this token never grants access or authority.
+      bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+    }
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  window.rillCancelQueueNavigation = function () {
+    if (!navigation) return;
+    navigation.observer.disconnect();
+    clearTimeout(navigation.timer);
+    navigation = null;
+  };
+
+  window.rillLoadNextStory = function (card) {
+    const list = document.getElementById("story_list");
+    const batch = list?.querySelector(".queue-batch");
+    if (!batch?.querySelector("#queue_more") || !window.Shiny) return false;
+    if (navigation) return true;
+    const context = batch.dataset.queueContext;
+    const id = card.dataset.entryId;
+    const observer = new MutationObserver(() => {
+      const current = list.querySelector(".queue-batch");
+      const cards = Array.from(list.querySelectorAll(".story-card"));
+      const index = cards.findIndex(item => item.dataset.entryId === id);
+      if (current?.dataset.queueContext !== context || index < 0 ||
+          !cards[index].classList.contains("is-selected")) {
+        window.rillCancelQueueNavigation();
+        return;
+      }
+      if (!cards[index + 1]) return;
+      window.rillCancelQueueNavigation();
+      cards[index + 1].scrollIntoView({block: "nearest"});
+      cards[index + 1].click();
+    });
+    navigation = {observer, timer: setTimeout(window.rillCancelQueueNavigation, 15000)};
+    observer.observe(list, {childList: true, subtree: true});
+    window.Shiny.setInputValue("queue_more", Math.random(), {priority: "event"});
+    return true;
+  };
+
+  function beginTransition(view) {
+    if (!window.Shiny) return;
+    clearTransition();
+    window.rillCancelQueueNavigation();
+    const id = transitionId();
+    transition = {id, view, started: performance.now()};
+    transitionTimer = setTimeout(clearTransition, 15000);
+    const list = document.getElementById("story_list");
+    list?.setAttribute("aria-busy", "true");
+    list?.classList.add("queue-changing");
+    window.Shiny.setInputValue("queue_view_request", {id, view}, {priority: "event"});
+  }
+
+  function acknowledgeTransition() {
+    const batch = document.querySelector("#story_list .queue-batch");
+    if (!transition || batch?.dataset.queueRequest !== transition.id ||
+        batch.dataset.queueView !== transition.view) return;
+    const completed = transition;
+    const domReady = performance.now() - completed.started;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (transition !== completed) return;
+      clearTransition();
+      const elapsed = performance.now() - completed.started;
+      window.dispatchEvent(new CustomEvent("rill:queue-visible", {
+        detail: {view: completed.view, elapsed_ms: elapsed, dom_ready_ms: domReady}
+      }));
+      if (document.querySelector(".app-shell")?.dataset.operationalTelemetry === "true") {
+        window.Shiny.setInputValue("queue_view_visible", {
+          id: completed.id, elapsed_ms: elapsed, dom_ready_ms: domReady
+        }, {priority: "event"});
+      }
+    }));
+  }
+
+  function reconcileQueue(event) {
+    if (event.name !== "story_list" || !event.value?.html || event.value.deps?.length) return;
+    const list = document.getElementById("story_list");
+    const current = list?.querySelector(":scope > .queue-batch");
+    const template = document.createElement("template");
+    template.innerHTML = event.value.html;
+    const next = template.content.querySelector(".queue-batch");
+    if (!current || !next || current.dataset.queueContext !== next.dataset.queueContext) return;
+    event.preventDefault();
+    const position = capturePosition();
+    const active = document.activeElement;
+    const focusRow = active?.closest(".story-row");
+    const focusId = focusRow?.dataset.entryId;
+    const focusMore = active?.id === "queue_more";
+    const oldCount = current.querySelectorAll(".story-row").length;
+    const focusClass = active?.classList.contains("story-save") ? ".story-save" :
+      active?.classList.contains("story-read") ? ".story-read" : ".story-card";
+    const existing = new Map(Array.from(current.querySelectorAll(":scope > .story-row"))
+      .map(row => [row.dataset.entryId, row]));
+    const children = Array.from(next.children, incoming => {
+      const previous = existing.get(incoming.dataset.entryId);
+      if (previous && previous.dataset.queueVersion === incoming.dataset.queueVersion) {
+        previous.dataset.queueIndex = incoming.dataset.queueIndex;
+        return previous;
+      }
+      return incoming;
+    });
+    // Move only changed or reordered nodes, preserving focus and decoded images.
+    children.forEach((child, index) => {
+      if (current.children[index] !== child) current.insertBefore(child, current.children[index] || null);
+    });
+    while (current.children.length > children.length) current.lastElementChild.remove();
+    Object.assign(current.dataset, next.dataset);
+    restorePosition(position);
+    if (focusId && !active?.isConnected) rowFor(focusId)?.querySelector(focusClass)?.focus({preventScroll: true});
+    if (focusMore && !active?.isConnected) {
+      const target = current.querySelector("#queue_more") ||
+        current.querySelectorAll(".story-card")[oldCount] ||
+        current.querySelector(".story-card");
+      target?.focus({preventScroll: true});
+    }
+    list.classList.remove("recalculating");
+    acknowledgeTransition();
+  }
 
   function queueRows() {
     return Array.from(document.querySelectorAll("#story_list .story-row"));
@@ -153,6 +288,14 @@
       event.stopImmediatePropagation();
       return;
     }
+    if (event.target.closest(".story-card, .queue-filter, [data-queue-nav]")) {
+      window.rillCancelQueueNavigation();
+    }
+    if (event.target.matches('input[name="view"]')) window.rillOpenQueue();
+    if (event.target.closest("#queue_more")) {
+      window.Shiny?.setInputValue("queue_more", Math.random(), {priority: "event"});
+      return;
+    }
     const button = event.target.closest("button[data-queue-action]");
     if (button) {
       event.preventDefault();
@@ -196,7 +339,7 @@
     }
     const row = event.target.closest(".story-row");
     if (!row || event.pointerType === "mouse" || !event.isPrimary ||
-        row.classList.contains("is-pending") || document.querySelector(".modal.show") ||
+        row.classList.contains("is-pending") || row.classList.contains("is-read") || document.querySelector(".modal.show") ||
         window.getSelection()?.toString() ||
         event.target.closest("a, input, textarea, select, [contenteditable], .story-actions, .story-swipe-tray") ||
         event.clientX < 24 || event.clientX > window.innerWidth - 24) return;
@@ -205,7 +348,7 @@
       row, id: event.pointerId, x: event.clientX, y: event.clientY,
       start: parseFloat(row.style.getPropertyValue("--swipe-distance")) || 0,
       distance: 0, horizontal: false,
-      threshold: Math.min(180, row.getBoundingClientRect().width * 0.46),
+      threshold: Math.min(72, Math.max(48, row.getBoundingClientRect().width * 0.2)),
     };
   });
 
@@ -239,7 +382,7 @@
     if (-finished.distance >= finished.threshold) {
       submit(finished.row.querySelector(".story-swipe-button"));
     } else {
-      reveal(finished.row, finished.distance < -48 ? -96 : 0);
+      reveal(finished.row);
     }
   });
 
@@ -258,14 +401,23 @@
     if (event.target.matches?.(".story-preview-image")) event.target.hidden = true;
   }, true);
   document.addEventListener("change", event => {
-    if (event.target.matches('input[name="view"]')) syncNavigation();
+    if (event.target.matches('input[name="view"]')) {
+      beginTransition(event.target.value);
+      window.rillOpenQueue();
+      syncNavigation();
+    }
   });
   document.addEventListener("DOMContentLoaded", () => {
     initialize();
+    const list = document.getElementById("story_list");
+    if (list) new MutationObserver(acknowledgeTransition).observe(list, {childList: true, subtree: true});
     if (window.jQuery) {
       window.jQuery(document).on("shiny:connected.rillQueue", initialize);
+      window.jQuery(document).on("shiny:value.rillQueue", reconcileQueue);
       window.jQuery(document).on("shiny:disconnected.rillQueue", () => {
         cancelGesture();
+        clearTransition();
+        window.rillCancelQueueNavigation();
         if (pending.size) {
           pending.forEach(request => busyRow(rowFor(request.entryId), false));
           pending.clear();
