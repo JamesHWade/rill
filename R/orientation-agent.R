@@ -56,9 +56,8 @@ rill_orientation_document_text <- function(markdown, max_bytes = 12000L) {
   paste0(substr(markdown, 1L, low), suffix)
 }
 
-rill_orientation_source_payload <- function(candidates) {
-  candidates <- Filter(\(candidate) !is.null(candidate$document), candidates)
-  supplied <- lapply(
+rill_orientation_source_metadata <- function(candidates) {
+  lapply(
     candidates,
     function(candidate) {
       document <- candidate$document
@@ -93,6 +92,29 @@ rill_orientation_source_payload <- function(candidates) {
       )
     }
   )
+}
+
+rill_orientation_bounded_candidates <- function(candidates) {
+  metadata <- rill_orientation_source_metadata(candidates)
+  count <- length(candidates)
+  while (count > 0L) {
+    overhead <- rill_orientation_json_bytes(utils::head(metadata, count))
+    if (overhead + count * 600L <= 60000L) {
+      break
+    }
+    count <- count - 1L
+  }
+  if (length(candidates) && !count) {
+    orientation_abort(
+      "An Orientation Document exceeds the source metadata budget."
+    )
+  }
+  utils::head(candidates, count)
+}
+
+rill_orientation_source_payload <- function(candidates) {
+  candidates <- Filter(\(candidate) !is.null(candidate$document), candidates)
+  supplied <- rill_orientation_source_metadata(candidates)
   if (length(supplied)) {
     budgets <- rill_orientation_text_budgets(
       length(supplied),

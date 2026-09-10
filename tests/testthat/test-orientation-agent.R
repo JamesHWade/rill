@@ -595,3 +595,69 @@ testthat::test_that("Orientation supplies full text to the newest candidates onl
   testthat::expect_gt(min(sizes[1:12]), max(sizes[13:36]))
   testthat::expect_lte(nchar(orientation_json(payload), type = "bytes"), 60000L)
 })
+
+testthat::test_that("large metadata reduces the evaluated window without losing provenance", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  original <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]
+  entries <- sample_rill_data()$entries[rep(1L, 36L), ]
+  entries$entry_id <- paste0("metadata-entry-", seq_len(nrow(entries)))
+  documents <- stats::setNames(
+    lapply(entries$entry_id, function(id) {
+      document <- original$document
+      document$entry_id <- id
+      document$document_id <- paste0("document-", id)
+      document$source_url <- paste0(
+        "https://example.com/",
+        strrep("path", 1000L)
+      )
+      for (field in c(
+        "title",
+        "author",
+        "site",
+        "producer",
+        "producer_version"
+      )) {
+        document[[field]] <- strrep("Metadata ", 500L)
+      }
+      document$markdown <- strrep("Captured source text. ", 1000L)
+      document
+    }),
+    entries$entry_id
+  )
+  testthat::local_mocked_bindings(
+    store_list_entries = function(...) entries,
+    store_list_documents = function(...) documents,
+    store_list_feeds = function(...) data.frame(unread_count = 36L)
+  )
+
+  candidates <- orientation_candidates(store, "reader-1")
+  payload <- rill_orientation_source_payload(candidates)
+  testthat::expect_gt(length(candidates), 0L)
+  testthat::expect_lt(length(candidates), 36L)
+  testthat::expect_identical(orientation_unread_total(candidates), 36L)
+  testthat::expect_length(payload, length(candidates))
+  testthat::expect_lte(rill_orientation_json_bytes(payload), 60000L)
+  testthat::expect_identical(
+    vapply(payload, `[[`, character(1), "entry_id"),
+    utils::head(entries$entry_id, length(candidates))
+  )
+  for (index in seq_along(payload)) {
+    testthat::expect_identical(
+      payload[[index]]$document_id,
+      candidates[[index]]$document$document_id
+    )
+    testthat::expect_identical(
+      payload[[index]]$content_hash,
+      original$document$content_hash
+    )
+    testthat::expect_identical(
+      names(payload[[index]]$provenance),
+      names(rill_agent_provenance_summary(original$document))
+    )
+    testthat::expect_match(
+      payload[[index]]$markdown,
+      "Captured source text.",
+      fixed = TRUE
+    )
+  }
+})

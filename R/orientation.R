@@ -192,7 +192,10 @@ orientation_candidates <- function(
     candidates
   )
   structure(
-    utils::head(candidates, as.integer(limit)),
+    rill_orientation_bounded_candidates(utils::head(
+      candidates,
+      as.integer(limit)
+    )),
     unread_total = as.integer(sum(
       store_list_feeds(store, reader_id)$unread_count
     ))
@@ -245,6 +248,7 @@ orientation_state_token <- function(state) {
     "orientation-state",
     state$orientation$revision_id %||% "",
     state$boundary$hash,
+    state$unread_total %||% 0L,
     paste(cards, collapse = "\u241f"),
     paste(themes, collapse = "\u241f")
   )
@@ -282,6 +286,7 @@ store_orientation_poll_token <- function(store, reader_id, state = NULL) {
       "), unread_entries AS (",
       paste(
         "SELECT e.entry_id, e.feed_id, f.source_kind,",
+        "count(*) OVER () AS unread_total,",
         "row_number() OVER (ORDER BY",
         "COALESCE(e.published_at, e.inserted_at) DESC, e.entry_id) AS",
         "queue_position"
@@ -339,6 +344,7 @@ store_orientation_poll_token <- function(store, reader_id, state = NULL) {
       ),
       "), fingerprint AS (",
       "SELECT concat_ws('|',",
+      "COALESCE((SELECT max(unread_total)::text FROM unread_entries), '0'),",
       paste(
         "COALESCE((SELECT revision_id FROM orientation_record), ''),",
         "COALESCE((SELECT extract(epoch FROM updated_at)::text",

@@ -2842,7 +2842,7 @@
       "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
-      "checksum": "7fc0bed816a57a9a8e572c97b6ba478c"
+      "checksum": "8a5c8f101090438fb25c1b8ec59500a5"
     },
     "R/orientation-diagnostics.R": {
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
@@ -2854,7 +2854,7 @@
       "checksum": "e3bd0444fb4fe3f4eb20ba65bbbd2f7d"
     },
     "R/orientation.R": {
-      "checksum": "6818024a4f1c911af4e638cd5710cf62"
+      "checksum": "f97115a78afa213301c2e403ec1257bc"
     },
     "R/polling.R": {
       "checksum": "97a3417444f755c2f4f50a69c359c770"
