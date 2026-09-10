@@ -165,3 +165,21 @@ testthat::test_that("Undo survives completed-result cache eviction", {
     }
   )
 })
+
+testthat::test_that("PostgreSQL Undo receipts preserve exact subsecond timestamps", {
+  store <- local_orientation_backend_store("postgres", "precise-reader")
+  for (fraction in c("000001", "123456", "999999")) {
+    timestamp <- paste0("2026-09-10 12:34:56.", fraction, " UTC")
+    testthat::local_mocked_bindings(queue_read_timestamp = function() timestamp)
+    receipt <- store_queue_mark_read(store, "precise-reader", "sample-entry-2")
+    stored <- DBI::dbGetQuery(
+      store$pool,
+      "SELECT read_at::text AS read_at FROM entry_state WHERE reader_id = 'precise-reader' AND entry_id = 'sample-entry-2'"
+    )$read_at[[1L]]
+    testthat::expect_identical(receipt$read_at, stored)
+    testthat::expect_identical(
+      store_queue_undo_read(store, "precise-reader", receipt),
+      TRUE
+    )
+  }
+})

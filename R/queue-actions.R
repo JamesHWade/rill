@@ -37,8 +37,12 @@ queue_memory_state_index <- function(store, reader_id, entry_id) {
   index[[1L]]
 }
 
+queue_read_timestamp <- function() {
+  format(Sys.time(), "%Y-%m-%d %H:%M:%OS6 UTC", tz = "UTC")
+}
+
 store_queue_mark_read <- function(store, reader_id, entry_id) {
-  marked_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%OS6 UTC", tz = "UTC")
+  marked_at <- queue_read_timestamp()
   if (identical(store$mode, "postgres")) {
     result <- DBI::dbGetQuery(
       store$pool,
@@ -52,7 +56,8 @@ store_queue_mark_read <- function(store, reader_id, entry_id) {
         "ON CONFLICT (reader_id, entry_id) DO UPDATE SET",
         "read_at = EXCLUDED.read_at, read_reason = EXCLUDED.read_reason",
         "WHERE entry_state.read_at IS NULL",
-        "RETURNING read_at, last_opened_at)",
+        "RETURNING read_at::text AS read_at,",
+        "last_opened_at::text AS last_opened_at)",
         "SELECT EXISTS (SELECT 1 FROM authorized) AS authorized,",
         "EXISTS (SELECT 1 FROM changed) AS changed,",
         "(SELECT read_at FROM changed) AS read_at,",
