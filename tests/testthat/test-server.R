@@ -5514,3 +5514,31 @@ testthat::test_that("Captures retain separate navigation without Group controls"
     )
   }))
 })
+
+testthat::test_that("only valid queue transition tokens reach the rendered batch", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "today", queue_view_request = "invalid")
+    testthat::expect_null(queue_request_id())
+    testthat::expect_match(
+      output$story_list$html,
+      'data-queue-request=""',
+      fixed = TRUE
+    )
+    session$setInputs(
+      queue_view_request = list(id = "private text", view = "today")
+    )
+    testthat::expect_null(queue_request_id())
+    session$setInputs(
+      queue_view_request = list(id = strrep("a", 32), view = "today")
+    )
+    testthat::expect_identical(queue_request_id(), strrep("a", 32))
+    testthat::expect_match(
+      output$story_list$html,
+      strrep("a", 32),
+      fixed = TRUE
+    )
+  }))
+})

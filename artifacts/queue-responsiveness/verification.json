@@ -1,0 +1,30 @@
+{
+  "timings": [
+    {
+      "view": "today",
+      "elapsed_ms": 170.2000002861023,
+      "dom_ready_ms": 144.59999990463257
+    },
+    {
+      "view": "all",
+      "elapsed_ms": 93.19999980926514,
+      "dom_ready_ms": 80.09999990463257
+    },
+    {
+      "view": "today",
+      "elapsed_ms": 111.69999980926514,
+      "dom_ready_ms": 94.40000009536743
+    },
+    {
+      "view": "unread",
+      "elapsed_ms": 96.2000002861023,
+      "dom_ready_ms": 71.2000002861023
+    },
+    {
+      "view": "all",
+      "elapsed_ms": 79.40000009536743,
+      "dom_ready_ms": 67.09999990463257
+    }
+  ],
+  "errors": []
+}

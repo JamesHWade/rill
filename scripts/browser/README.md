@@ -71,3 +71,15 @@ text. Its `?timeline=fixture` mode supplies fictional article text and image
 URLs. The fixture serves a generated landscape and an unavailable-image response
 through the same session proxy used by the Queue; the generated landscape is test material, never a production
 article image. Results are written to `artifacts/article-timeline/`.
+
+`node queue-responsiveness.mjs` exercises the 150-story fixture: initial batching,
+load more, view switches, unchanged DOM rows, read/Undo, the desktop skip link,
+and opening a story from the expanded Queue. It writes browser-observed
+click-to-visible timings to `artifacts/queue-responsiveness/verification.json`.
+Run against the local fixture server, never production.
+
+From the repository root, `Rscript scripts/browser/benchmark-queue.R .` measures
+cold and cached card rendering. Pass a baseline checkout path instead of `.` to
+compare with the earlier full-list renderer. These local measurements do not
+predict hosted performance. Set `RILL_BROWSER_OUTPUT` when running `timeline.mjs`
+to keep a particular run's screenshots and accessibility results together.
