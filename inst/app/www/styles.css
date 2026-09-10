@@ -3200,3 +3200,4 @@ div.story-list.shiny-html-output {
 }
 
 .story-sort { width: 8rem !important; max-width: 100%; }
+.story-sort .shiny-input-container { width: 100% !important; }

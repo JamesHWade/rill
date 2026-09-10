@@ -84,6 +84,7 @@ await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
 await page.screenshot({path:path.join(output,'390-dark.png')});
 await page.evaluate(()=>document.documentElement.style.setProperty('font-size','200%','important'));
 await page.waitForTimeout(200);
+await page.evaluate(()=>document.getElementById('story_list').scrollTop=0);
 assert.ok(await page.evaluate(()=>parseFloat(getComputedStyle(document.documentElement).fontSize))>=28);
 await page.screenshot({path:path.join(output,'390-large-text.png')});
 const darkViolations=await page.evaluate(async()=>(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations);
