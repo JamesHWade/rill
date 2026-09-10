@@ -88,3 +88,7 @@ to keep a particular run's screenshots and accessibility results together.
 after changing direction, keyboard focus through the final batch, missing or
 throwing browser crypto, null focus, and recovery from a missing transition
 acknowledgement. The timeout check intentionally takes 15 seconds.
+
+`node orientation-review.mjs` checks the compact Orientation at desktop and phone
+widths, exact Source Evidence leads, unread totals, and theme-to-Group navigation.
+It also runs axe and records screenshots in `artifacts/orientation-review/`.

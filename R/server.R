@@ -270,6 +270,7 @@ rill_server <- function(
         group_ids = selected_group_ids(),
         group_match = selected_group_match(),
         ungrouped = selected_ungrouped(),
+        theme_entry_ids = selected_orientation_theme()$entry_ids,
         sort = input$story_sort %||% "newest",
         calendar = if (view %in% c("today", "week", "month")) {
           calendar_window()$window
@@ -3091,6 +3092,7 @@ rill_server <- function(
           id == "" || id %in% feed_groups()$group_id
         )
         clear_selection()
+        selected_orientation_theme(NULL)
         selected_feed(NULL)
         selected_folder(NULL)
         selected_group_ids(if (nzchar(id)) id else character())
@@ -3112,6 +3114,7 @@ rill_server <- function(
         }
         shiny::req(all(ids %in% feed_groups()$group_id))
         clear_selection()
+        selected_orientation_theme(NULL)
         selected_feed(NULL)
         selected_folder(NULL)
         selected_group_ids(ids)
@@ -3134,6 +3137,7 @@ rill_server <- function(
           folder %in% feeds()$folder
         )
         clear_selection()
+        selected_orientation_theme(NULL)
         selected_feed(NULL)
         selected_folder(folder)
         record_event("folder_filter", surface = "sidebar")

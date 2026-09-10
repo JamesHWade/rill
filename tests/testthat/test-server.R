@@ -5573,3 +5573,58 @@ testthat::test_that("only valid queue transition tokens reach the rendered batch
     )
   }))
 })
+
+testthat::test_that("new Group and folder scopes clear an Orientation theme", {
+  withr::local_envvar(DATABASE_URL = "")
+  for (navigation in c("group", "groups", "folder", "ungrouped")) {
+    config <- rill_config()
+    store <- rill_store(config)
+    ids <- store_list_feeds(store, config$actor_id)$feed_id
+    for (id in ids[1:2]) {
+      store_move_feed(store, config$actor_id, id, "Together")
+    }
+    group <- store_create_group(store, config$actor_id, "Review group")
+    store_update_group_memberships(store, config$actor_id, ids[1:2], group)
+    store_update_group_memberships(
+      store,
+      config$actor_id,
+      ids[[3L]],
+      character()
+    )
+    folder <- store_list_feeds(store, config$actor_id)$folder[
+      match(ids[[1L]], store_list_feeds(store, config$actor_id)$feed_id)
+    ]
+    theme <- store_get_orientation(store, config$actor_id)$themes[[2L]]
+    expected <- if (navigation == "ungrouped") ids[[3L]] else ids[1:2]
+    later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+      session$setInputs(
+        view = "unread",
+        select_group = NULL,
+        select_folder = NULL,
+        apply_reading_groups = NULL,
+        browse_orientation_theme = NULL
+      )
+      context <- current_context()
+      session$setInputs(
+        browse_orientation_theme = list(theme_id = theme$theme_id, nonce = 1)
+      )
+      testthat::expect_identical(
+        selected_orientation_theme()$theme_id,
+        theme$theme_id
+      )
+      testthat::expect_identical(identical(current_context(), context), FALSE)
+      switch(
+        navigation,
+        group = session$setInputs(select_group = list(id = group)),
+        groups = session$setInputs(
+          reading_groups = group,
+          apply_reading_groups = 1L
+        ),
+        folder = session$setInputs(select_folder = list(id = folder)),
+        ungrouped = session$setInputs(select_group = list(id = ""))
+      )
+      testthat::expect_null(selected_orientation_theme())
+      testthat::expect_setequal(queue_entries()$feed_id, expected)
+    }))
+  }
+})

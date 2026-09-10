@@ -1107,3 +1107,17 @@ testthat::test_that("Orientation folds the unpicked queue into themes", {
     candidates[[1L]]$document$title
   )
 })
+
+testthat::test_that("long inline Source Evidence stays a verbatim substring", {
+  evidence <- paste0(
+    paste(rep("Exact source words", 20L), collapse = " "),
+    ". Next sentence."
+  )
+  lead <- orientation_evidence_lead(evidence)
+  testthat::expect_identical(lead, substr(evidence, 1L, 200L))
+  testthat::expect_match(evidence, lead, fixed = TRUE)
+  testthat::expect_identical(
+    orientation_evidence_lead("First sentence. Second sentence."),
+    "First sentence."
+  )
+})

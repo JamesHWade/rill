@@ -1438,7 +1438,7 @@ div.story-list.shiny-html-output {
 
 .orientation-why {
   margin: 6px 0 0;
-  color: var(--amber);
+  color: var(--warning);
   font-size: 11.5px;
   font-weight: 700;
   line-height: 1.4;
@@ -3134,12 +3134,16 @@ div.story-list.shiny-html-output {
   min-height: 2.75rem;
 }
 
+.orientation-meta .btn,
 .reader-feedback-actions .btn {
   color: var(--ink);
   background-color: var(--agent-background);
   border-color: var(--green);
 }
 
+.orientation-meta .btn:hover,
+.orientation-meta .btn:focus-visible,
+.orientation-meta .btn:active,
 .reader-feedback-actions .btn:hover,
 .reader-feedback-actions .btn:focus-visible,
 .reader-feedback-actions .btn:active {

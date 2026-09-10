@@ -1268,7 +1268,7 @@ orientation_evidence_lead <- function(evidence) {
   parts <- strsplit(evidence, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
   lead <- trimws(parts[[1L]] %||% evidence)
   if (nchar(lead) > 220L) {
-    lead <- paste0(substr(lead, 1L, 200L), "\u2026")
+    lead <- substr(lead, 1L, 200L)
   }
   lead
 }

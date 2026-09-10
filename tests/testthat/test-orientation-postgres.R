@@ -503,3 +503,9 @@ testthat::test_that("PostgreSQL creates one fallback for a missing head", {
     rows$document_id[[1L]]
   )
 })
+
+testthat::test_that("PostgreSQL Orientation counts unread entries beyond the retrieval cap", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("postgres", reader_id)
+  expect_orientation_unread_total_contract(store, reader_id)
+})

@@ -193,7 +193,9 @@ orientation_candidates <- function(
   )
   structure(
     utils::head(candidates, as.integer(limit)),
-    unread_total = nrow(entries)
+    unread_total = as.integer(sum(
+      store_list_feeds(store, reader_id)$unread_count
+    ))
   )
 }
 

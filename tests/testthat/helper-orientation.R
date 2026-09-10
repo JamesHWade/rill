@@ -754,3 +754,27 @@ expect_orientation_backend_contract <- function(store, reader_id) {
     visible_orientation$policy_version
   )
 }
+
+expect_orientation_unread_total_contract <- function(store, reader_id) {
+  entries <- sample_rill_data()$entries[rep(1L, 501L), ]
+  entries$entry_id <- paste0("count-entry-", seq_len(nrow(entries)))
+  entries$external_id <- entries$entry_id
+  entries$url <- paste0("https://example.com/", entries$entry_id)
+  store_upsert_entries(store, entries)
+  testthat::expect_equal(
+    nrow(store_list_entries(store, reader_id, limit = 500L)),
+    500L
+  )
+  testthat::expect_identical(
+    orientation_unread_total(orientation_candidates(store, reader_id)),
+    507L
+  )
+  store_mark_opened(store, reader_id, entries$entry_id[[1L]])
+  store_ensure_reader(store, "other-reader")
+  store_subscribe_feed(store, "other-reader", entries$feed_id[[1L]])
+  store_mark_opened(store, "other-reader", entries$entry_id[[2L]])
+  testthat::expect_identical(
+    orientation_unread_total(orientation_candidates(store, reader_id)),
+    506L
+  )
+}

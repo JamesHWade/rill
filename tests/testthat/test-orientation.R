@@ -976,3 +976,9 @@ testthat::test_that("Orientation theme counts follow live reading state", {
   )
   testthat::expect_identical(changed$unread_total, 4L)
 })
+
+testthat::test_that("Orientation counts all unread entries beyond the retrieval cap", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
+  expect_orientation_unread_total_contract(store, reader_id)
+})
