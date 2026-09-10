@@ -388,3 +388,31 @@ testthat::test_that("failure logs omit absent optional attributes", {
   testthat::expect_match(logs, "rill_orientation_invalid", fixed = TRUE)
   testthat::expect_no_match(logs, "OpenTelemetry error|Private source text")
 })
+
+testthat::test_that("queue transitions correlate server work and validated visibility", {
+  testthat::skip_if_not_installed("otelsdk")
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop({
+      queue <- view_telemetry(TRUE, "queue.view", "queue", "visible_ms")
+      id <- strrep("c", 32)
+      queue$begin(id, "today")
+      queue$flushed(id)
+      local({
+        queue$activate()
+        telemetry_local_span("queue.render")
+      })
+      queue$complete(strrep("d", 32), 10)
+      queue$complete(id, -1)
+      queue$complete(id, 180, 160)
+      queue$complete(id, 190)
+    }),
+    what = "traces"
+  )
+  testthat::expect_length(record$traces, 2L)
+  view <- record$traces$queue.view
+  testthat::expect_identical(view$attributes$queue.surface, "today")
+  testthat::expect_identical(view$attributes$queue.outcome, "visible")
+  testthat::expect_equal(view$attributes$queue.visible_ms, 180)
+  testthat::expect_equal(view$attributes$queue.paint_delay_ms, 20)
+  testthat::expect_identical(record$traces$queue.render$parent, view$span_id)
+})

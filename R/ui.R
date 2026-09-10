@@ -1905,7 +1905,7 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
       `data-queue-action` = action,
       `data-entry-id` = entry_id,
       ...,
-      bsicons::bs_icon(icon),
+      queue_icon(icon),
       shiny::tags$span(label)
     )
   }
@@ -1915,6 +1915,7 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
       collapse = " "
     ),
     `data-entry-id` = entry_id,
+    `data-queue-index` = as.integer(index),
     `aria-label` = title,
     shiny::tags$div(
       class = "story-swipe-tray",
@@ -1950,7 +1951,7 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
             class = "story-status-icon",
             role = "img",
             `aria-label` = "Unread",
-            bsicons::bs_icon("circle-fill")
+            queue_icon("circle-fill")
           )
         }
       ),
@@ -1969,9 +1970,8 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
           NULL
         },
         onclick = sprintf(
-          "rillSelectEntry(%s, %d)",
-          jsonlite::toJSON(entry_id, auto_unbox = TRUE),
-          as.integer(index)
+          "rillSelectEntry(%s, Number(this.closest('.story-row').dataset.queueIndex))",
+          jsonlite::toJSON(entry_id, auto_unbox = TRUE)
         ),
         shiny::tags$h3(title),
         if (store_scalar_string(entry$summary)) {
@@ -2014,7 +2014,7 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
         if (isTRUE(entry$starred)) {
           shiny::tags$span(
             class = "story-starred",
-            bsicons::bs_icon("star-fill", title = "Starred")
+            queue_icon("star-fill", title = "Starred")
           )
         }
       )
