@@ -83,3 +83,8 @@ cold and cached card rendering. Pass a baseline checkout path instead of `.` to
 compare with the earlier full-list renderer. These local measurements do not
 predict hosted performance. Set `RILL_BROWSER_OUTPUT` when running `timeline.mjs`
 to keep a particular run's screenshots and accessibility results together.
+
+`node queue-review.mjs` checks reader navigation across batches, cancellation
+after changing direction, keyboard focus through the final batch, missing or
+throwing browser crypto, null focus, and recovery from a missing transition
+acknowledgement. The timeout check intentionally takes 15 seconds.

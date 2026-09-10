@@ -32,3 +32,7 @@ These measurements are local, not production results. Hosted performance remains
 ![Today as the primary queue](1440-queue-primary.png)
 
 Implementation checkout: `/private/tmp/rill-queue-responsiveness-20260910`, branch `codex/queue-responsiveness-20260910`, based on `694ef613ec3c274b7cc355d45de521e0b0161bbf`.
+
+## PR review regression checks
+
+`node scripts/browser/queue-review.mjs` verifies actual Next/Previous buttons, keyboard navigation, and native Chromium phone swipes across batch boundaries. Pending navigation is cancelled when the reader changes direction; Next is disabled only at the end of the full queue. Keyboard focus remains on Show more until the final batch, then moves to the first newly loaded story. The same suite checks a null active element, missing and throwing crypto APIs, and a missing server acknowledgement: the queue becomes usable again after 15 seconds. The checks use synthetic local data and report no browser errors.

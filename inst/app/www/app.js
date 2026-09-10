@@ -1242,6 +1242,7 @@
   };
 
   window.rillOpenQueue = function () {
+    window.rillCancelQueueNavigation?.();
     const shell = document.querySelector(".app-shell");
     shell?.classList.add("queue-primary");
     shell?.classList.remove("queue-opening");
@@ -1355,7 +1356,11 @@
           : cards.length - 1
         : Math.max(0, Math.min(cards.length - 1, selectedIndex + direction));
 
-    if (nextIndex === selectedIndex) return false;
+    if (nextIndex === selectedIndex) {
+      return direction > 0 && Boolean(window.rillLoadNextStory?.(cards[selectedIndex]));
+    }
+
+    window.rillCancelQueueNavigation?.();
 
     cards[nextIndex].scrollIntoView({ block: "nearest" });
     cards[nextIndex].click();
@@ -1953,7 +1958,8 @@
     const previous = document.querySelector(".reader-previous");
     const next = document.querySelector(".reader-next");
     if (previous) previous.disabled = index <= 0;
-    if (next) next.disabled = index < 0 || index >= cards.length - 1;
+    if (next) next.disabled = index < 0 ||
+      (index >= cards.length - 1 && !document.querySelector("#queue_more"));
     document.querySelectorAll(".bslib-sidebar-layout > .sidebar").forEach(function (sidebar) {
       if (observedSidebars.has(sidebar)) return;
       observedSidebars.add(sidebar);
