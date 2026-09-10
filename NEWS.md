@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Orientation now shows up to three independent picks in a compact row layout with the question as the headline, the first sentence of each exact Source Evidence passage inline, and the title as the read action; the agent evaluates the 36 newest unread Documents and folds the unpicked ones into up to five themes that open a scoped unread queue, with a computed totals line covering the whole unread queue.
+
 * Browse a source-first article timeline with source excerpts and optional images, visible Save and Mark read actions, and swipe-to-read with Undo (#88).
 
 * Reading and Ask Rill use scalable text and offer reversible pane focus controls (#82, #83).

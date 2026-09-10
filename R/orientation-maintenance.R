@@ -216,7 +216,7 @@ maintain_orientation_async <- function(
   model = "openai",
   base_url = "",
   destination_check = NULL,
-  candidate_limit = 12L,
+  candidate_limit = orientation_candidate_limit(),
   policy_version = "orientation-v1",
   retry_id = NULL,
   agent_factory = rill_orientation_agent,

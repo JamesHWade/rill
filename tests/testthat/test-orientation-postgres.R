@@ -82,7 +82,6 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     reader_id = "reader-1",
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Start with this source boundary.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -255,7 +254,6 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
     reader_id = "reader-1",
     boundary = stale_boundary,
     question = NULL,
-    introduction = NULL,
     cards = list(),
     agent_run_id = stale_run$run_id
   )

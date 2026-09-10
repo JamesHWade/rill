@@ -1212,6 +1212,15 @@
     );
   };
 
+  window.rillBrowseOrientationTheme = function (themeId) {
+    if (!window.Shiny || !themeId) return;
+    window.Shiny.setInputValue(
+      "browse_orientation_theme",
+      { theme_id: themeId, nonce: Math.random() },
+      { priority: "event" }
+    );
+  };
+
   window.rillShowOrientation = function () {
     const shell = document.querySelector(".app-shell");
     pendingCompactQueue = false;

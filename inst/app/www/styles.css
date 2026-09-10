@@ -1263,61 +1263,49 @@ div.story-list.shiny-html-output {
 
 .orientation-canvas {
   min-height: 100%;
-  padding: clamp(36px, 6vw, 72px) clamp(28px, 6vw, 68px) 96px;
+  padding: clamp(28px, 4vw, 44px) clamp(24px, 5vw, 56px) 72px;
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--river-mist) 22%, transparent),
+      color-mix(in srgb, var(--duck-egg) 22%, transparent),
       transparent 42%
     ),
     var(--paper);
 }
 
 .orientation-header {
-  display: grid;
-  max-width: 800px;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.36fr);
-  gap: clamp(24px, 5vw, 64px);
-  align-items: end;
-  padding-bottom: clamp(28px, 5vw, 50px);
-  border-bottom: 1px solid var(--line);
+  max-width: 760px;
 }
 
 .orientation-canvas h1 {
-  max-width: 620px;
-  margin: 9px 0 16px;
+  max-width: 26ch;
+  margin: 6px 0 0;
   font-family: var(--reading-font);
-  font-size: clamp(30px, 4vw, 48px);
+  font-size: clamp(24px, 2.6vw, 32px);
   font-weight: 500;
-  letter-spacing: -0.025em;
-  line-height: 1.04;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  text-wrap: balance;
 }
 
-.orientation-question {
-  max-width: 600px;
+.orientation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.orientation-meta > * {
   margin: 0;
-  color: var(--green-deep);
-  font-family: var(--reading-font);
-  font-size: clamp(17px, 2vw, 23px);
-  line-height: 1.35;
-}
-
-.orientation-maintenance {
-  display: grid;
-  gap: 7px;
-  padding-top: 13px;
-  border-top: 2px solid var(--green);
-}
-
-.orientation-maintenance > span {
-  color: var(--ink);
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
 .orientation-evaluated {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -1327,28 +1315,33 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-evaluated p {
-  max-width: 260px;
+  max-width: 320px;
   margin: 5px 0 0;
+}
+
+.orientation-destination {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .orientation-browse,
 .orientation-return {
-  display: none;
+  display: inline-flex;
   width: fit-content;
-  min-height: 34px;
+  min-height: 30px;
   align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
+  gap: 6px;
+  padding: 5px 9px;
   border: 1px solid var(--line);
   border-radius: 5px;
   color: var(--green-deep);
   background: transparent;
-  font-size: 0.75rem;
+  font-size: 10px;
   font-weight: 700;
 }
 
-.orientation-browse {
-  margin-top: 6px;
+.orientation-return {
+  display: none;
 }
 
 .orientation-browse:hover,
@@ -1365,152 +1358,113 @@ div.story-list.shiny-html-output {
   height: 13px;
 }
 
-.orientation-introduction,
 .orientation-status {
   max-width: 660px;
-  margin: clamp(28px, 5vw, 48px) 0 0;
+  margin: clamp(20px, 4vw, 36px) 0 0;
   color: var(--reader-copy);
   font-family: var(--reading-font);
-  font-size: 1rem;
+  font-size: 16px;
   line-height: 1.55;
 }
 
-.orientation-status pre,
-.orientation-status > p {
-  margin: 0;
-  max-width: 100%;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.orientation-status details {
-  margin-top: 8px;
-}
-
-.orientation-disclosure {
-  display: flex;
-  max-width: 660px;
-  gap: 12px;
-  align-items: flex-start;
+.orientation-picks {
+  max-width: 760px;
   margin-top: 18px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--paper) 72%, var(--green-soft));
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
-.orientation-disclosure > .bi {
-  flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
-  margin-top: 1px;
-  color: var(--green);
-}
-
-.orientation-disclosure strong {
-  color: var(--ink);
-}
-
-.orientation-disclosure p {
-  margin: 2px 0 0;
-}
-
-.orientation-path {
-  max-width: 800px;
-  margin-top: 26px;
+  border-top: 1px solid var(--line);
 }
 
 .orientation-step {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: clamp(16px, 3vw, 28px);
-  padding: clamp(22px, 4vw, 34px) 0;
-  border-top: 1px solid var(--line);
-}
-
-.orientation-step-number {
-  padding-top: 2px;
-  color: var(--green);
-  font: 700 11px/1 var(--ui-font);
-  letter-spacing: 0.08em;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .orientation-step-body {
   min-width: 0;
 }
 
-.orientation-card-kind,
-.orientation-source-label,
-.orientation-interpretation-label {
-  margin: 0 0 5px;
-  color: var(--amber);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.orientation-source-label {
-  margin-top: 15px;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.orientation-interpretation-label {
-  margin-top: 17px;
-  color: var(--green);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .orientation-source {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: baseline;
-  margin-bottom: 13px;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 2px;
   color: var(--muted);
-  background: var(--paper);
-  font-size: 0.75rem;
+  font-size: 11px;
 }
 
-.orientation-source strong {
-  overflow: hidden;
+.orientation-read {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
   color: var(--ink);
-  font-size: 0.75rem;
+  background: transparent;
+  font-family: var(--reading-font);
+  font-size: clamp(16px, 1.6vw, 18px);
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  text-align: left;
+  text-wrap: balance;
+  cursor: pointer;
+}
+
+.orientation-read:hover,
+.orientation-read:focus-visible {
+  color: var(--green-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .orientation-interpretation {
-  margin: 0;
+  max-width: 62ch;
+  margin: 4px 0 0;
   color: var(--reader-copy);
-  font-family: var(--reading-font);
-  font-size: clamp(17px, 2vw, 21px);
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.orientation-interpretation-label {
+  margin-right: 6px;
+  color: var(--green);
+  font-family: var(--ui-font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .orientation-why {
-  margin: 15px 0 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.45;
+  margin: 6px 0 0;
+  color: var(--amber);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .orientation-why strong {
   color: var(--muted);
 }
 
+.orientation-evidence-lead {
+  max-width: 58ch;
+  margin: 8px 0 0;
+  padding: 5px 10px;
+  border-left: 2px solid var(--quote-border);
+  color: var(--quote-copy);
+  background: color-mix(in srgb, var(--green-soft) 38%, transparent);
+  font-family: var(--reading-font);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.45;
+}
+
 .orientation-evidence {
-  margin-top: 11px;
+  margin-top: 5px;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 10.5px;
   line-height: 1.5;
 }
 
@@ -1524,24 +1478,24 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-evidence[open] summary {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .orientation-evidence blockquote {
   max-width: 620px;
   margin: 0;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-left: 2px solid var(--quote-border);
   color: var(--quote-copy);
   background: color-mix(in srgb, var(--green-soft) 38%, transparent);
   font-family: var(--reading-font);
-  font-size: 0.8125rem;
+  font-size: 13px;
 }
 
 .orientation-evidence-metadata {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 5px 12px;
+  gap: 4px 12px;
   max-width: 620px;
   margin: 8px 0 0;
 }
@@ -1562,51 +1516,22 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-evidence-metadata code {
-  font-size: 0.75rem;
+  font-size: 9px;
 }
 
-.orientation-step-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-top: 19px;
-}
-
-.orientation-read,
 .orientation-dismiss {
   display: inline-flex;
-  min-height: 36px;
   align-items: center;
-  gap: 9px;
-  padding: 8px 12px;
-  border-radius: 5px;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.orientation-read {
-  border: 1px solid var(--green);
-  color: var(--on-primary);
-  background: var(--green-deep);
-}
-
-.orientation-read:hover,
-.orientation-read:focus-visible {
-  border-color: var(--green-deep);
-  color: var(--on-primary);
-  background: var(--green);
-}
-
-.orientation-read .bi {
-  width: 13px;
-  height: 13px;
-}
-
-.orientation-dismiss {
+  gap: 6px;
+  margin-top: 16px;
+  padding: 4px 8px;
   border: 1px solid transparent;
+  border-radius: 4px;
   color: var(--muted);
   background: transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .orientation-dismiss:hover,
@@ -1617,36 +1542,137 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-dismiss .bi {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
 }
 
-.orientation-connector {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: -6px 0 -6px 70px;
-  color: var(--green);
-  font-size: 0.75rem;
+.orientation-themes {
+  max-width: 760px;
+  margin-top: 22px;
+}
+
+.orientation-themes h2 {
+  margin: 0 0 3px;
+  color: var(--muted);
+  font-family: var(--ui-font);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.orientation-connector .bi {
-  width: 11px;
-  height: 11px;
+.orientation-themes-note {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.orientation-theme {
+  display: grid;
+  grid-template-columns: 2.5ch minmax(0, 1fr);
+  gap: 1px 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px dashed var(--line);
+}
+
+.orientation-theme-count {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.orientation-theme-name {
+  width: fit-content;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.orientation-theme-name:hover,
+.orientation-theme-name:focus-visible {
+  color: var(--green-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.orientation-theme-note {
+  grid-column: 2;
+  max-width: 66ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.orientation-theme-sources {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.orientation-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  max-width: 760px;
+  margin: 14px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.orientation-totals-link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--green-deep);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
 .orientation-quiet {
   display: grid;
   align-content: center;
-  padding-top: clamp(56px, 15vh, 150px);
-  padding-bottom: clamp(56px, 15vh, 150px);
+  padding-top: clamp(40px, 10vh, 100px);
+  padding-bottom: clamp(40px, 10vh, 100px);
 }
 
 .orientation-quiet > * {
   width: min(560px, 100%);
+}
+
+.orientation-quiet .orientation-themes,
+.orientation-quiet .orientation-totals {
+  width: min(760px, 100%);
+}
+
+.orientation-status pre,
+.orientation-status > p {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.orientation-status details {
+  margin-top: 8px;
+}
+.orientation-quiet .orientation-browse {
+  display: inline-flex;
 }
 
 .orientation-quiet h1 {
@@ -1659,10 +1685,6 @@ div.story-list.shiny-html-output {
 
 .orientation-quiet .orientation-evaluated {
   margin-top: 12px;
-}
-
-.orientation-quiet .orientation-browse {
-  display: inline-flex;
 }
 
 .orientation-return::before {
@@ -2869,10 +2891,6 @@ div.story-list.shiny-html-output {
     font-size: 2.125rem;
   }
 
-  .orientation-disclosure {
-    padding: 12px;
-  }
-
   .orientation-source {
     grid-template-columns: 1fr auto;
   }
@@ -2884,12 +2902,13 @@ div.story-list.shiny-html-output {
   }
 
   .orientation-step {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
   }
 
-  .orientation-connector {
-    margin-left: 40px;
+  .orientation-dismiss {
+    width: fit-content;
+    margin-top: 2px;
   }
 
   .orientation-read,

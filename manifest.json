@@ -2734,7 +2734,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "79ad0de798fbbb647bd9085a7e31d6b1"
+      "checksum": "2061df8e674e8cc6806deb4832828000"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2755,7 +2755,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "ae6c548dbb91b4ed38bcb0208ab30acc"
+      "checksum": "0d3f13968e0873e515360173301a731d"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2842,7 +2842,7 @@
       "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
-      "checksum": "647c60eea65e4e809de3e7ce3b8d7a5c"
+      "checksum": "7fc0bed816a57a9a8e572c97b6ba478c"
     },
     "R/orientation-diagnostics.R": {
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
@@ -2851,10 +2851,10 @@
       "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
     },
     "R/orientation-maintenance.R": {
-      "checksum": "68f989663fb359abd78cd210618c424e"
+      "checksum": "e3bd0444fb4fe3f4eb20ba65bbbd2f7d"
     },
     "R/orientation.R": {
-      "checksum": "dd248a86f238dfe16126d29a8379cc60"
+      "checksum": "4442993d0c5719a9cdadf0ca18506dfb"
     },
     "R/polling.R": {
       "checksum": "97a3417444f755c2f4f50a69c359c770"
@@ -2866,16 +2866,16 @@
       "checksum": "931b381347f39d9a5534f464a6dc8849"
     },
     "R/sample_data.R": {
-      "checksum": "5339cbf4894daa8a4523a4012856469e"
+      "checksum": "485e4e9572826ea422dc2fab162a1d62"
     },
     "R/server.R": {
-      "checksum": "5e2160c31882861400c07dcf2c57722d"
+      "checksum": "653e967ad7c7a044fc38b9715b44a13e"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "11027d912efe0389a01485f9a872a36b"
+      "checksum": "5e77f199e4fd0fc06cb95e78df78268a"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

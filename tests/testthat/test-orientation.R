@@ -42,7 +42,6 @@ testthat::test_that("the memory store keeps one current Orientation per Reader",
       candidate_count = 1L
     ),
     question = "What deserves attention?",
-    introduction = "Start with the clearest source boundary.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -75,7 +74,6 @@ testthat::test_that("an Orientation is bound to its Reader's producing run", {
       candidate_count = 1L
     ),
     question = "What deserves attention?",
-    introduction = "Start here.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -117,7 +115,6 @@ testthat::test_that("Orientation JSON preserves one-card record collections", {
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Start here.",
     cards = list(list(
       role = "anchor",
       document_id = candidate$document$document_id,
@@ -314,7 +311,6 @@ testthat::test_that("dismissed bases do not consume the candidate bound", {
     reader_id = reader_id,
     boundary = orientation_boundary(candidates),
     question = "What deserves attention?",
-    introduction = "Begin here.",
     cards = list(list(
       role = "anchor",
       document_id = first$document$document_id,
@@ -365,7 +361,6 @@ testthat::test_that("invalid Orientation cards disappear without discarding vali
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Read these together.",
     cards = cards,
     agent_run_id = "run-1"
   )
@@ -392,14 +387,6 @@ testthat::test_that("invalid Orientation cards disappear without discarding vali
   testthat::expect_identical(
     changed$orientation$question,
     "What still deserves attention?"
-  )
-  testthat::expect_identical(
-    changed$orientation$cards[[1L]]$role,
-    "anchor"
-  )
-  testthat::expect_identical(
-    changed$orientation$cards[[1L]]$frame,
-    "connection"
   )
 })
 
@@ -439,7 +426,6 @@ testthat::test_that("Orientation cards require exact evidence from their Documen
       candidate_count = 1L
     ),
     question = "What deserves attention?",
-    introduction = "Start here.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -464,7 +450,6 @@ testthat::test_that("Orientation keeps stable Reader identity across evaluations
     reader_id = "reader-1",
     boundary = list(hash = "boundary-1"),
     question = "First question",
-    introduction = "First introduction",
     cards = list(),
     agent_run_id = "run-1"
   )
@@ -472,7 +457,6 @@ testthat::test_that("Orientation keeps stable Reader identity across evaluations
     reader_id = "reader-1",
     boundary = list(hash = "boundary-2"),
     question = "Second question",
-    introduction = "Second introduction",
     cards = list(),
     agent_run_id = "run-2"
   )
@@ -543,7 +527,6 @@ testthat::test_that("dismissing an Orientation card suppresses its unchanged bas
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Read these together.",
     cards = cards,
     agent_run_id = "run-1"
   )
@@ -591,7 +574,6 @@ testthat::test_that("dismissal is pinned to the visible Orientation revision", {
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserved attention?",
-    introduction = "Begin here.",
     cards = list(card),
     agent_run_id = "run-earlier"
   )
@@ -600,7 +582,6 @@ testthat::test_that("dismissal is pinned to the visible Orientation revision", {
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention now?",
-    introduction = "Begin with the current rationale.",
     cards = list(card),
     agent_run_id = "run-current"
   )
@@ -641,7 +622,6 @@ testthat::test_that("a newly read card cannot be dismissed from stale UI", {
     reader_id = reader_id,
     boundary = orientation_boundary(list(candidate)),
     question = "What deserves attention?",
-    introduction = "Begin here.",
     cards = list(list(
       role = "anchor",
       document_id = candidate$document$document_id,
@@ -680,7 +660,6 @@ testthat::test_that("a dismissal and its Reading History event are atomic", {
     reader_id = reader_id,
     boundary = orientation_boundary(list(candidate)),
     question = "What deserves attention?",
-    introduction = "Begin here.",
     cards = list(list(
       role = "anchor",
       document_id = candidate$document$document_id,
@@ -755,7 +734,6 @@ testthat::test_that("publishing Orientation completes its owned Agent Run", {
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Start here.",
     cards = list(list(
       role = "anchor",
       document_id = document$document_id,
@@ -811,7 +789,6 @@ testthat::test_that("a worker cannot publish another worker's Orientation", {
     reader_id = reader_id,
     boundary = boundary,
     question = "What deserves attention?",
-    introduction = "Start here.",
     cards = list(),
     agent_run_id = run$run_id
   )
@@ -858,7 +835,6 @@ testthat::test_that("publication rechecks its boundary at the store seam", {
     reader_id = reader_id,
     boundary = boundary,
     question = NULL,
-    introduction = NULL,
     cards = list(),
     agent_run_id = run$run_id
   )
@@ -888,4 +864,115 @@ testthat::test_that("Orientation field errors retain their native message and cl
     "Orientation card.role must be a non-empty string.",
     fixed = TRUE
   )
+})
+
+testthat::test_that("Orientation themes stay inside the evaluated boundary", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
+  candidates <- orientation_candidates(store, reader_id, limit = 4L)
+  boundary <- orientation_boundary(candidates)
+  card <- list(
+    document_id = candidates[[1L]]$document$document_id,
+    entry_id = candidates[[1L]]$entry$entry_id,
+    interpretation = "Interpretation 1",
+    why_now = "Why now 1",
+    evidence = "Rill keeps the source feed"
+  )
+  entry_ids <- vapply(
+    candidates[2:3],
+    \(candidate) candidate$entry$entry_id,
+    character(1)
+  )
+  build <- function(themes) {
+    new_rill_orientation(
+      reader_id = reader_id,
+      boundary = boundary,
+      question = "What deserves attention?",
+      cards = list(card),
+      themes = themes,
+      agent_run_id = "run-1"
+    )
+  }
+  register_orientation_test_run(store, reader_id, "run-1")
+
+  valid <- build(list(
+    list(name = "Shiny", note = "Two Shiny pieces.", entry_ids = entry_ids)
+  ))
+  testthat::expect_identical(
+    store_save_orientation(store, valid)$themes[[1L]]$entry_ids,
+    entry_ids
+  )
+  testthat::expect_match(valid$themes[[1L]]$theme_id, "^[0-9a-f]{64}$")
+
+  testthat::expect_error(
+    store_save_orientation(
+      store,
+      build(list(
+        list(name = "Outside", note = "Note.", entry_ids = "missing-entry")
+      ))
+    ),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_error(
+    store_save_orientation(
+      store,
+      build(list(
+        list(name = "Repeat", note = "Note.", entry_ids = card$entry_id)
+      ))
+    ),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_error(
+    store_save_orientation(
+      store,
+      build(list(
+        list(name = "One", note = "Note.", entry_ids = entry_ids[[1L]]),
+        list(name = "Two", note = "Note.", entry_ids = entry_ids[[1L]])
+      ))
+    ),
+    class = "rill_orientation_invalid"
+  )
+})
+
+testthat::test_that("Orientation theme counts follow live reading state", {
+  reader_id <- "reader-1"
+  store <- local_orientation_backend_store("memory", reader_id)
+  candidates <- orientation_candidates(store, reader_id, limit = 4L)
+  entry_ids <- vapply(
+    candidates[2:3],
+    \(candidate) candidate$entry$entry_id,
+    character(1)
+  )
+  orientation <- new_rill_orientation(
+    reader_id = reader_id,
+    boundary = orientation_boundary(candidates),
+    question = NULL,
+    cards = list(),
+    themes = list(
+      list(name = "Shiny", note = "Two Shiny pieces.", entry_ids = entry_ids),
+      list(
+        name = "Releases",
+        note = "Release notes.",
+        entry_ids = candidates[[4L]]$entry$entry_id
+      )
+    ),
+    agent_run_id = "run-1"
+  )
+  register_orientation_test_run(store, reader_id, "run-1")
+  store_save_orientation(store, orientation)
+
+  current <- orientation_status(store, reader_id, limit = 4L)
+  testthat::expect_length(current$orientation$themes, 2L)
+  testthat::expect_identical(current$unread_total, 6L)
+
+  store_mark_opened(store, reader_id, entry_ids[[1L]])
+  store_mark_opened(store, reader_id, candidates[[4L]]$entry$entry_id)
+  changed <- orientation_status(store, reader_id, limit = 4L)
+
+  testthat::expect_length(changed$orientation$themes, 1L)
+  testthat::expect_identical(
+    changed$orientation$themes[[1L]]$entry_ids,
+    entry_ids[[2L]]
+  )
+  testthat::expect_identical(changed$unread_total, 4L)
 })

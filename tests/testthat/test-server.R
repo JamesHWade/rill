@@ -291,7 +291,7 @@ testthat::test_that("Orientation opens and dismisses Documents with provenance",
   orientation <- store_get_orientation(store, config$actor_id)
 
   testthat::expect_s3_class(orientation, "rill_orientation")
-  testthat::expect_length(orientation$cards, 2L)
+  testthat::expect_length(orientation$cards, 3L)
   extracted <- FALSE
   testthat::local_mocked_bindings(
     get_or_extract_document = function(...) {
@@ -665,12 +665,12 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
       card$rationale_hash
     )
 
-    testthat::expect_length(initial$orientation$cards, 2L)
+    testthat::expect_length(initial$orientation$cards, 3L)
     session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
     current <- orientation_state()
-    testthat::expect_length(current$orientation$cards, 1L)
+    testthat::expect_length(current$orientation$cards, 2L)
     testthat::expect_gt(refresh_tick(), initial_tick)
   })
 })
@@ -5114,7 +5114,6 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
         list(
           status = "One source deserves attention.",
           question = "What deserves a closer reading?",
-          introduction = "Start with this source.",
           cards = list(list(
             document_id = candidates[[1L]]$document$document_id,
             role = "anchor",
@@ -5513,4 +5512,36 @@ testthat::test_that("Captures retain separate navigation without Group controls"
       fixed = TRUE
     )
   }))
+})
+
+testthat::test_that("Orientation themes open a scoped unread queue", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  orientation <- store_get_orientation(store, config$actor_id)
+  theme <- orientation$themes[[2L]]
+
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "unread")
+    session$flushReact()
+    session$setInputs(
+      browse_orientation_theme = list(theme_id = theme$theme_id, nonce = 1)
+    )
+    session$flushReact()
+
+    testthat::expect_identical(
+      selected_orientation_theme()$theme_id,
+      theme$theme_id
+    )
+    testthat::expect_setequal(
+      as.character(queue_entries()$entry_id),
+      theme$entry_ids
+    )
+    opened <- store$memory$events[nrow(store$memory$events), , drop = FALSE]
+    testthat::expect_identical(opened$event_type, "orientation_theme_opened")
+
+    session$setInputs(select_feed = list(id = store$memory$feeds$feed_id[[1L]]))
+    session$flushReact()
+    testthat::expect_null(selected_orientation_theme())
+  })
 })

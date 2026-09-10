@@ -110,6 +110,7 @@ rill_server <- function(
     selected_orientation_provenance <- shiny::reactiveVal(NULL)
     selected_position <- shiny::reactiveVal(NA_integer_)
     selected_feed <- shiny::reactiveVal(NULL)
+    selected_orientation_theme <- shiny::reactiveVal(NULL)
     selected_folder <- shiny::reactiveVal(NULL)
     selected_group_ids <- shiny::reactiveVal(character())
     selected_ungrouped <- shiny::reactiveVal(FALSE)
@@ -1597,7 +1598,8 @@ rill_server <- function(
         sort = input$story_sort %||% "newest",
         now = calendar$now,
         timezone = calendar$timezone,
-        include_content = FALSE
+        include_content = FALSE,
+        entry_ids = selected_orientation_theme()$entry_ids
       )
     })
 
@@ -2688,6 +2690,10 @@ rill_server <- function(
       if (!is.null(feed_title)) {
         label <- paste(label, "\u00b7", feed_title)
       }
+      theme <- selected_orientation_theme()
+      if (!is.null(theme)) {
+        label <- paste(label, "\u00b7", theme$name)
+      }
       shiny::tags$h1(label)
     })
 
@@ -2965,6 +2971,8 @@ rill_server <- function(
         ) {
           browse_queue_pending(FALSE)
           acknowledge_orientation_queue()
+        } else {
+          selected_orientation_theme(NULL)
         }
       },
       ignoreInit = TRUE,
@@ -2988,6 +2996,7 @@ rill_server <- function(
         selected_group_ids(character())
         selected_ungrouped(FALSE)
         selected_feed(input$select_feed$id %||% NULL)
+        selected_orientation_theme(NULL)
         record_event(
           "feed_filter",
           surface = "sidebar",
@@ -3057,20 +3066,59 @@ rill_server <- function(
       ignoreInit = TRUE
     )
 
+    browse_orientation_queue <- function(theme = NULL) {
+      clear_selection()
+      selected_feed(NULL)
+      selected_folder(NULL)
+      selected_group_ids(character())
+      selected_ungrouped(FALSE)
+      selected_orientation_theme(theme)
+      browse_queue_pending(!identical(input$view %||% "unread", "unread"))
+      shiny::updateRadioButtons(session, "view", selected = "unread")
+      bump_refresh()
+      if (!isTRUE(browse_queue_pending())) {
+        acknowledge_orientation_queue()
+      }
+    }
+
     shiny::observeEvent(
       input$browse_orientation_queue,
       {
-        clear_selection()
-        selected_feed(NULL)
-        selected_folder(NULL)
-        selected_group_ids(character())
-        selected_ungrouped(FALSE)
-        browse_queue_pending(!identical(input$view %||% "unread", "unread"))
-        shiny::updateRadioButtons(session, "view", selected = "unread")
-        bump_refresh()
-        if (!isTRUE(browse_queue_pending())) {
-          acknowledge_orientation_queue()
+        browse_orientation_queue()
+      },
+      ignoreInit = TRUE,
+      priority = 100
+    )
+
+    shiny::observeEvent(
+      input$browse_orientation_theme,
+      {
+        theme_id <- input$browse_orientation_theme$theme_id %||% NULL
+        state <- shiny::isolate(orientation_state())
+        themes <- Filter(
+          \(theme) identical(theme$theme_id, theme_id),
+          state$orientation$themes %||% list()
+        )
+        if (is.null(theme_id) || length(themes) != 1L) {
+          shiny::showNotification(
+            "That Orientation theme is no longer current.",
+            type = "warning"
+          )
+          bump_refresh()
+          return()
         }
+        theme <- themes[[1L]]
+        browse_orientation_queue(theme)
+        record_event(
+          "orientation_theme_opened",
+          surface = "orientation",
+          payload = list(
+            theme_id = theme$theme_id,
+            orientation_id = state$orientation$orientation_id,
+            revision_id = state$orientation$revision_id,
+            entry_count = length(theme$entry_ids)
+          )
+        )
       },
       ignoreInit = TRUE,
       priority = 100

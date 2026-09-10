@@ -1035,8 +1035,12 @@ orientation_ui <- function(
   preparing = FALSE,
   processing_note = NULL,
   failure = NULL,
-  feedback_token = NULL
+  feedback_token = NULL,
+  unread_total = NULL
 ) {
+  unread_total <- as.integer(
+    unread_total %||% orientation_unread_total(candidates)
+  )
   if (is.null(orientation)) {
     return(shiny::tags$section(
       class = "orientation-canvas orientation-quiet",
@@ -1045,7 +1049,7 @@ orientation_ui <- function(
       shiny::tags$h1("Choose something worth reading"),
       orientation_failure_ui(
         if (preparing) {
-          "Evaluating the current unread Documents\u2026"
+          "Evaluating the current unread Documents…"
         } else {
           failure %||%
             "Orientation will appear after Rill evaluates your unread Documents."
@@ -1068,6 +1072,11 @@ orientation_ui <- function(
     if (!length(matches)) NULL else list(card = card, candidate = matches[[1L]])
   })
   cards <- Filter(Negate(is.null), cards)
+  themes <- orientation_live_themes(
+    orientation$themes %||% list(),
+    candidates,
+    lapply(cards, `[[`, "card")
+  )
 
   if (!length(cards)) {
     return(shiny::tags$section(
@@ -1089,7 +1098,14 @@ orientation_ui <- function(
       orientation_failure_ui(failure),
       orientation_retry_button(failure, "retry_orientation"),
       orientation_processing_ui(processing_note),
-      orientation_browse_button("Browse unread stories")
+      orientation_browse_button("Browse unread stories"),
+      orientation_themes_ui(themes, candidates),
+      orientation_totals_ui(
+        unread_total,
+        picked = 0L,
+        themes = themes,
+        evaluated = length(candidates)
+      )
     ))
   }
 
@@ -1105,23 +1121,16 @@ orientation_ui <- function(
     ),
     shiny::tags$header(
       class = "orientation-header",
-      shiny::tags$div(
-        shiny::tags$p(
-          class = "eyebrow",
-          "Orientation \u00b7 Rill-guided reading"
-        ),
-        shiny::tags$h1(
-          id = "orientation-title",
-          "One question is worth carrying into this reading"
-        ),
-        shiny::tags$p(
-          class = "orientation-question",
-          orientation$question
-        )
+      shiny::tags$p(
+        class = "eyebrow",
+        "Orientation · Rill-guided reading"
+      ),
+      shiny::tags$h1(
+        id = "orientation-title",
+        orientation$question
       ),
       shiny::tags$div(
-        class = "orientation-maintenance",
-        shiny::tags$span("Maintained from current unread Documents"),
+        class = "orientation-meta",
         orientation_evaluated_basis(
           orientation,
           orientation_boundary(candidates),
@@ -1140,56 +1149,128 @@ orientation_ui <- function(
         orientation_browse_button("Browse the full unread queue")
       )
     ),
-    shiny::tags$p(
-      class = "orientation-introduction",
-      orientation$introduction
-    ),
-    shiny::tags$aside(
-      class = "orientation-disclosure",
-      `aria-label` = "How Orientation uses sources",
-      bsicons::bs_icon("signpost-split"),
-      shiny::tags$div(
-        shiny::tags$strong("A guided path, not a source"),
-        shiny::tags$p(
-          paste(
-            "Rill generates the question, path, and interpretation.",
-            "Source Documents and quoted evidence remain separate and",
-            "inspectable."
-          )
-        )
-      )
-    ),
     shiny::tags$div(
-      class = "orientation-path",
+      class = "orientation-picks",
       lapply(seq_along(cards), function(index) {
         pair <- cards[[index]]
-        shiny::tagList(
-          if (index > 1L) {
-            shiny::tags$div(
-              class = "orientation-connector",
-              shiny::tags$span(orientation_connector_label(pair$card)),
-              bsicons::bs_icon("arrow-down")
-            )
-          },
-          orientation_card_ui(
-            pair$card,
-            pair$candidate,
-            index,
-            orientation
-          )
+        orientation_card_ui(
+          pair$card,
+          pair$candidate,
+          index,
+          orientation
         )
       })
+    ),
+    orientation_themes_ui(themes, candidates),
+    orientation_totals_ui(
+      unread_total,
+      picked = length(cards),
+      themes = themes,
+      evaluated = length(candidates)
     )
   )
 }
 
-orientation_connector_label <- function(card) {
-  switch(
-    card$role,
-    contrast = "Then test the counterpoint",
-    extension = "Then make the connection",
-    "Then continue the reading path"
+orientation_themes_ui <- function(themes, candidates) {
+  if (!length(themes)) {
+    return(NULL)
+  }
+  feed_titles <- stats::setNames(
+    vapply(
+      candidates,
+      \(candidate) {
+        as.character(
+          candidate$document$site %||% candidate$entry$feed_title %||% ""
+        )
+      },
+      character(1)
+    ),
+    vapply(
+      candidates,
+      \(candidate) as.character(candidate$entry$entry_id),
+      character(1)
+    )
   )
+
+  shiny::tags$section(
+    class = "orientation-themes",
+    `aria-labelledby` = "orientation-themes-title",
+    shiny::tags$h2(id = "orientation-themes-title", "Also in your unread"),
+    shiny::tags$p(
+      class = "orientation-themes-note",
+      "Rill groups the rest by title and opening. Theme names and notes are",
+      "Interpretation, not Source Evidence. Counts are exact."
+    ),
+    lapply(themes, function(theme) {
+      count <- length(theme$entry_ids)
+      sources <- unique(feed_titles[theme$entry_ids])
+      sources <- sources[!is.na(sources) & nzchar(sources)]
+      shiny::tags$article(
+        class = "orientation-theme",
+        `data-theme-id` = theme$theme_id,
+        shiny::tags$span(class = "orientation-theme-count", count),
+        shiny::tags$button(
+          type = "button",
+          class = "orientation-theme-name",
+          onclick = sprintf(
+            "rillBrowseOrientationTheme(%s)",
+            jsonlite::toJSON(theme$theme_id, auto_unbox = TRUE)
+          ),
+          `aria-label` = paste0(
+            theme$name,
+            " (",
+            count,
+            if (count == 1L) " unread story)" else " unread stories)"
+          ),
+          theme$name
+        ),
+        shiny::tags$p(class = "orientation-theme-note", theme$note),
+        if (length(sources)) {
+          shiny::tags$span(
+            class = "orientation-theme-sources",
+            paste(utils::head(sources, 3L), collapse = " · ")
+          )
+        }
+      )
+    })
+  )
+}
+
+orientation_totals_ui <- function(unread_total, picked, themes, evaluated) {
+  unread_total <- as.integer(unread_total %||% 0L)
+  if (!unread_total) {
+    return(NULL)
+  }
+  themed <- sum(vapply(themes, \(theme) length(theme$entry_ids), integer(1)))
+  outside <- max(0L, unread_total - as.integer(evaluated))
+  parts <- c(
+    paste(
+      unread_total,
+      if (unread_total == 1L) "unread" else "unread in total"
+    ),
+    paste(picked, "picked"),
+    paste(themed, "in themes"),
+    if (outside) paste(outside, "outside the evaluated window")
+  )
+  shiny::tags$p(
+    class = "orientation-totals",
+    paste(parts, collapse = " · "),
+    shiny::tags$button(
+      type = "button",
+      class = "orientation-totals-link",
+      onclick = "rillBrowseQueue()",
+      "Everything unread"
+    )
+  )
+}
+
+orientation_evidence_lead <- function(evidence) {
+  parts <- strsplit(evidence, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
+  lead <- trimws(parts[[1L]] %||% evidence)
+  if (nchar(lead) > 220L) {
+    lead <- paste0(substr(lead, 1L, 200L), "…")
+  }
+  lead
 }
 
 orientation_processing_ui <- function(processing_note) {
@@ -1380,6 +1461,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
   entry <- candidate$entry
   original_source_url <- rill_document_original_source_url(document)
   number <- sprintf("%02d", index)
+  title <- document$title %||% entry$title
   select <- sprintf(
     "rillSelectEntry(%s, %d, 'orientation', %s)",
     jsonlite::toJSON(document$entry_id, auto_unbox = TRUE),
@@ -1402,46 +1484,42 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
     jsonlite::toJSON(orientation$revision_id, auto_unbox = TRUE),
     jsonlite::toJSON(card$rationale_hash, auto_unbox = TRUE)
   )
-  frame <- switch(
-    card$frame,
-    change = "Notice the change",
-    connection = "Make the connection",
-    counterpoint = "Test the counterpoint",
-    unresolved_question = "Follow the question",
-    "Read with a question"
-  )
+  lead <- orientation_evidence_lead(card$evidence)
 
   shiny::tags$article(
     class = "orientation-step",
     `data-card-id` = card$card_id,
     `data-revision-id` = orientation$revision_id,
     `data-rationale-hash` = card$rationale_hash,
-    shiny::tags$div(class = "orientation-step-number", number),
     shiny::tags$div(
       class = "orientation-step-body",
       shiny::tags$p(
-        class = "orientation-card-kind",
-        paste("Reading step", number, "\u00b7", frame)
-      ),
-      shiny::tags$p(class = "orientation-source-label", "Source Document"),
-      shiny::tags$div(
         class = "orientation-source",
         shiny::tags$span(document$site %||% entry$feed_title),
-        shiny::tags$strong(document$title %||% entry$title),
         shiny::tags$span(format_story_time(entry$published_at))
       ),
-      shiny::tags$p(
-        class = "orientation-interpretation-label",
-        "Rill interpretation"
+      shiny::tags$button(
+        type = "button",
+        class = "orientation-read",
+        onclick = select,
+        title
       ),
       shiny::tags$p(
         class = "orientation-interpretation",
+        shiny::tags$span(
+          class = "orientation-interpretation-label",
+          "Rill interpretation"
+        ),
         card$interpretation
       ),
       shiny::tags$p(
         class = "orientation-why",
-        shiny::tags$strong("Path rationale \u00b7 "),
+        shiny::tags$strong("Why now · "),
         card$why_now
+      ),
+      shiny::tags$blockquote(
+        class = "orientation-evidence-lead",
+        lead
       ),
       shiny::tags$details(
         class = "orientation-evidence",
@@ -1468,7 +1546,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
               gsub("_", " ", document$acquisition_method, fixed = TRUE),
               "by",
               document$producer,
-              "\u00b7 captured",
+              "· captured",
               format(
                 as.POSIXct(document$captured_at, tz = "UTC"),
                 "%Y-%m-%d %H:%M UTC",
@@ -1479,29 +1557,15 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
           shiny::tags$dt("Limitations"),
           shiny::tags$dd(rill_document_limitations(document))
         )
-      ),
-      shiny::tags$div(
-        class = "orientation-step-actions",
-        shiny::tags$button(
-          type = "button",
-          class = "orientation-read",
-          onclick = select,
-          if (identical(card$role, "anchor")) {
-            "Read the anchor source"
-          } else {
-            "Read this source"
-          },
-          bsicons::bs_icon("arrow-right")
-        ),
-        shiny::tags$button(
-          type = "button",
-          class = "orientation-dismiss",
-          onclick = dismiss,
-          `aria-label` = paste("Not for me:", document$title %||% entry$title),
-          bsicons::bs_icon("x-lg"),
-          "Not for me"
-        )
       )
+    ),
+    shiny::tags$button(
+      type = "button",
+      class = "orientation-dismiss",
+      onclick = dismiss,
+      `aria-label` = paste("Not for me:", title),
+      bsicons::bs_icon("x-lg"),
+      "Not for me"
     )
   )
 }

@@ -108,38 +108,66 @@ sample_rill_data <- function() {
 sample_rill_orientation <- function(store, reader_id) {
   candidates <- orientation_candidates(store, reader_id, limit = 6L)
   boundary <- orientation_boundary(candidates)
-  selected <- candidates[c(1L, 5L)]
+  selected <- candidates[c(1L, 5L, 6L)]
   cards <- Map(
-    function(candidate, role, frame, interpretation, why_now) {
+    function(candidate, interpretation, why_now, evidence) {
       list(
-        role = role,
-        frame = frame,
         document_id = candidate$document$document_id,
         entry_id = candidate$entry$entry_id,
         interpretation = interpretation,
         why_now = why_now,
-        evidence = paste(
-          "Rill keeps the source feed, a cleaned reading copy, and your",
-          "interactions as separate records."
-        )
+        evidence = evidence
       )
     },
     selected,
-    c("anchor", "contrast"),
-    c("unresolved_question", "counterpoint"),
     c(
       paste(
         "The source boundary is the foundation: captured material remains",
         "distinct from Rill's interpretation of it."
       ),
       paste(
-        "Durable application state makes that boundary useful across days,",
-        "but persistence should not collapse provenance into behavior."
+        "Durable state makes that boundary useful across days, but",
+        "persistence should not collapse provenance into behavior."
+      ),
+      paste(
+        "The interaction ledger is the concrete form of reading state the",
+        "other two pieces argue about."
       )
     ),
     c(
-      "It states the product constraint that every agent action must preserve.",
-      "It tests that constraint against the practical need for durable state."
+      "States the constraint every agent action must preserve",
+      "Tests the constraint against the need for durable state",
+      "Third leg of the same design question, from practice"
+    ),
+    c(
+      paste(
+        "Rill keeps the source feed, a cleaned reading copy, and your",
+        "interactions as separate records."
+      ),
+      "Neon provides durable Postgres while Connect Cloud runs the application.",
+      "The interaction ledger is designed to support later personal analysis."
+    )
+  )
+  themes <- list(
+    list(
+      name = "Shiny as an application surface",
+      note = paste(
+        "One piece on running Shiny as a durable personal tool rather",
+        "than a dashboard."
+      ),
+      entry_ids = candidates[[2L]]$entry$entry_id
+    ),
+    list(
+      name = "Digests and releases",
+      note = paste(
+        "A weekly roundup and routine release notes; nothing that changes",
+        "the question above."
+      ),
+      entry_ids = vapply(
+        candidates[c(3L, 4L)],
+        \(candidate) candidate$entry$entry_id,
+        character(1)
+      )
     )
   )
 
@@ -147,17 +175,14 @@ sample_rill_orientation <- function(store, reader_id) {
     reader_id = reader_id,
     boundary = boundary,
     question = "What must stay separate as Rill becomes agent-native?",
-    introduction = paste(
-      "Start with the boundary Rill protects, then test it against the case",
-      "for durable state."
-    ),
     cards = cards,
+    themes = themes,
     agent_run_id = rill_id(
       "sample-orientation-run",
       reader_id,
       boundary$hash
     ),
-    status = "Two source-grounded selections are ready."
+    status = "Three source-grounded selections are ready."
   )
 }
 
