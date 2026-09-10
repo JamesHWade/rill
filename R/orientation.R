@@ -451,10 +451,10 @@ orientation_status <- function(
 orientation_live_themes <- function(themes, candidates, cards) {
   active_entry_ids <- vapply(
     candidates,
-    \(candidate) as.character(candidate$entry$entry_id),
+    \(candidate) as.character(candidate$entry$entry_id %||% ""),
     character(1)
   )
-  card_entry_ids <- vapply(cards, `[[`, character(1), "entry_id")
+  card_entry_ids <- vapply(cards, \(card) card$entry_id %||% "", character(1))
   eligible <- setdiff(active_entry_ids, card_entry_ids)
   themes <- lapply(themes, function(theme) {
     theme$entry_ids <- intersect(as.character(theme$entry_ids), eligible)

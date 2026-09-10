@@ -73,6 +73,11 @@ app <- shiny::shinyApp(
       return(invisible(NULL))
     }
     store <- rill_store(config)
+    if (identical(query$orientation, "themes-only")) {
+      orientation <- store_get_orientation(store, config$actor_id)
+      orientation$cards <- list()
+      store$memory$orientations[[config$actor_id]] <- orientation
+    }
     if (identical(query$feedback, "fixture")) {
       for (reader_id in c(config$actor_id, "feedback-other-reader")) {
         store_ensure_reader(store, reader_id)

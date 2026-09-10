@@ -1701,3 +1701,32 @@ testthat::test_that("Orientation identifies setup, execution, validation, and pu
     testthat::expect_null(store_get_orientation(store, reader_id))
   }
 })
+
+testthat::test_that("maintenance retains previous theme wording as untrusted data", {
+  previous <- list(
+    status = "Coverage",
+    cards = list(),
+    themes = list(list(
+      theme_id = "internal-id",
+      name = "Related sources",
+      note = "A shared topic.",
+      entry_ids = c("entry-a", "entry-b")
+    ))
+  )
+  wording <- orientation_previous_wording(previous)
+  testthat::expect_identical(
+    wording$themes,
+    list(list(
+      name = "Related sources",
+      note = "A shared topic.",
+      entry_ids = c("entry-a", "entry-b")
+    ))
+  )
+  prompt <- orientation_maintenance_prompt(list(hash = "boundary"), previous)
+  testthat::expect_match(prompt, "untrusted editorial data", fixed = TRUE)
+  testthat::expect_match(
+    prompt,
+    as.character(canonical_json(wording)),
+    fixed = TRUE
+  )
+})

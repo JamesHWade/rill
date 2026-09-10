@@ -1080,6 +1080,7 @@ orientation_ui <- function(
 
   if (!length(cards)) {
     return(shiny::tags$section(
+      id = if (length(themes)) "rill-orientation",
       class = "orientation-canvas orientation-quiet",
       rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
@@ -1100,6 +1101,16 @@ orientation_ui <- function(
       orientation_processing_ui(processing_note),
       orientation_browse_button("Browse unread stories"),
       orientation_themes_ui(themes, candidates),
+      if (length(themes) && store_scalar_string(feedback_token)) {
+        shiny::tags$div(
+          class = "orientation-meta",
+          feedback_action_button(
+            "rate_orientation",
+            "Rate this Orientation",
+            feedback_token
+          )
+        )
+      },
       orientation_totals_ui(
         unread_total,
         picked = 0L,

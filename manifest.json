@@ -2842,7 +2842,7 @@
       "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
-      "checksum": "8a5c8f101090438fb25c1b8ec59500a5"
+      "checksum": "b85b2dab3480b0d0cec5c8954a46c6c2"
     },
     "R/orientation-diagnostics.R": {
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
@@ -2851,10 +2851,10 @@
       "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
     },
     "R/orientation-maintenance.R": {
-      "checksum": "e3bd0444fb4fe3f4eb20ba65bbbd2f7d"
+      "checksum": "75517954e90b77ff59c6dd22c66aa80b"
     },
     "R/orientation.R": {
-      "checksum": "f97115a78afa213301c2e403ec1257bc"
+      "checksum": "c35fe545dedd9ba3b012d34d08e7235c"
     },
     "R/polling.R": {
       "checksum": "97a3417444f755c2f4f50a69c359c770"
@@ -2875,7 +2875,7 @@
       "checksum": "3a72af9e0073404f3fb8a64e8bbc074c"
     },
     "R/ui.R": {
-      "checksum": "d59dca0c27f27226647778cb6a8665c5"
+      "checksum": "f9a6cef65fd2e609241b08e422860028"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2884,7 +2884,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "26b638799338fc8eedf755b63ece1ebd"
+      "checksum": "053b0d9fc2498e1b8a711688c906cdf2"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"

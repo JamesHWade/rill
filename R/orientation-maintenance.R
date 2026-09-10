@@ -69,6 +69,9 @@ orientation_previous_wording <- function(orientation) {
         "why_now",
         "evidence"
       )]
+    }),
+    themes = lapply(orientation$themes %||% list(), function(theme) {
+      theme[c("name", "note", "entry_ids")]
     })
   )
 }

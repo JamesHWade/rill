@@ -661,3 +661,42 @@ testthat::test_that("large metadata reduces the evaluated window without losing 
     )
   }
 })
+
+testthat::test_that("compact submissions reject oversized wording and allow correction", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 2L)
+  output <- list(
+    status = "Two sources",
+    question = "What should I read?",
+    cards = list(list(
+      document_id = candidates[[1L]]$document$document_id,
+      interpretation = paste(rep("word", 30L), collapse = " "),
+      why_now = paste(rep("word", 12L), collapse = " "),
+      evidence = "Rill keeps the source feed"
+    )),
+    themes = list(list(
+      name = paste(rep("word", 6L), collapse = " "),
+      note = paste(rep("word", 30L), collapse = " "),
+      entry_ids = candidates[[2L]]$entry$entry_id
+    ))
+  )
+  for (field in c("interpretation", "why_now", "name", "note")) {
+    state <- rill_orientation_tool_state()
+    rill_orientation_source_tool(candidates, state)()
+    submit <- rill_orientation_submit_tool(state)
+    oversized <- output
+    component <- if (field %in% c("name", "note")) "themes" else "cards"
+    oversized[[component]][[1L]][[field]] <- paste(
+      oversized[[component]][[1L]][[field]],
+      "extra"
+    )
+    testthat::expect_error(
+      do.call(submit, oversized),
+      class = "rill_orientation_invalid"
+    )
+    testthat::expect_identical(state$submission_calls, 0L)
+    testthat::expect_null(state$output)
+    testthat::expect_identical(do.call(submit, output), "Orientation accepted.")
+    testthat::expect_identical(state$submission_attempts, 2L)
+  }
+})

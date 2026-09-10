@@ -271,7 +271,8 @@ rill_orientation_system_prompt <- function() {
     "text_tier opening only show their opening, so quote only from that",
     "opening. Model knowledge is not Source Evidence.",
     "Then sort the remaining non-dismissed candidates into at most five",
-    "themes, each with a short name, a one-sentence note, and the exact",
+    "themes, each with a name of at most six words, a one-sentence note",
+    "of at most thirty words, and the exact",
     "entry_id values it covers. Themes are Interpretation over titles and",
     "openings. Leave an entry out of every theme when it fits none, and",
     "never place an entry in more than one theme or in a theme and a card.",
@@ -344,7 +345,7 @@ rill_orientation_output_type <- function() {
         "An exact document_id returned by read_orientation_candidates."
       ),
       interpretation = ellmer::type_string(
-        "One concise sentence explicitly presented as Interpretation."
+        "One sentence of at most thirty words presented as Interpretation."
       ),
       why_now = ellmer::type_string(
         "A tag of at most twelve words giving the reason to read it now."
@@ -357,7 +358,7 @@ rill_orientation_output_type <- function() {
       ellmer::type_object(
         name = ellmer::type_string("A short theme name of at most six words."),
         note = ellmer::type_string(
-          "One sentence on what unites these entries, as Interpretation."
+          "One sentence of at most thirty words on what unites these entries."
         ),
         entry_ids = ellmer::type_array(
           ellmer::type_string(
@@ -461,7 +462,21 @@ rill_orientation_output_cards <- function(output, inspected_payload) {
   })
   output$cards <- cards
   validate_orientation_content(output)
+  for (card in cards) {
+    orientation_compact_text(card$interpretation, "card.interpretation", 30L)
+    orientation_compact_text(card$why_now, "card.why_now", 12L)
+  }
   cards
+}
+
+orientation_compact_text <- function(text, field, max_words) {
+  words <- strsplit(trimws(text), "[[:space:]]+", perl = TRUE)[[1L]]
+  if (length(words) > max_words) {
+    orientation_abort(
+      "Orientation {.field {field}} must contain at most {max_words} words."
+    )
+  }
+  invisible(text)
 }
 
 rill_orientation_output_themes <- function(output, inspected_payload, cards) {
@@ -496,6 +511,10 @@ rill_orientation_output_themes <- function(output, inspected_payload, cards) {
   })
   themes <- Filter(\(theme) length(theme$entry_ids) > 0L, themes)
   validate_orientation_themes(themes, setdiff(eligible, card_entry_ids))
+  for (theme in themes) {
+    orientation_compact_text(theme$name, "theme.name", 6L)
+    orientation_compact_text(theme$note, "theme.note", 30L)
+  }
   themes
 }
 
