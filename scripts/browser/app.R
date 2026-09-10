@@ -154,6 +154,21 @@ app <- shiny::shinyApp(
     ) {
       store <- stress_store(store)
     }
+    if (identical(query$timeline, "fixture")) {
+      store$memory$entries$preview_image_url[[
+        1L
+      ]] <- "https://example.org/timeline-river.png"
+      store$memory$entries$preview_image_alt[[
+        1L
+      ]] <- "River through a wooded valley"
+      store$memory$entries$preview_image_url[[
+        3L
+      ]] <- "https://example.org/missing-image.png"
+      store$memory$entries$title[[1L]] <- "Small rivers, large consequences"
+      store$memory$entries$summary[[
+        1L
+      ]] <- "What changes when we follow a river from its headwaters? A field notebook about water, woodland, and the places they connect."
+    }
     shiny::observeEvent(input$audit_error, {
       shiny::showNotification(
         "The test request failed. Please try again.",
@@ -163,7 +178,30 @@ app <- shiny::shinyApp(
     })
     shiny::observeEvent(input$audit_disconnect, session$close())
     session$onSessionEnded(function() rill_store_close(store))
-    rill_server(config, store)(input, output, session)
+    preview_fetch <- if (identical(query$timeline, "fixture")) {
+      function(url, session) {
+        image <- if (identical(url, "https://example.org/timeline-river.png")) {
+          list(
+            content = readBin(
+              "scripts/browser/fixtures/timeline-river.png",
+              "raw",
+              n = 4 * 1024^2
+            ),
+            type = "image/png"
+          )
+        } else {
+          NULL
+        }
+        promises::promise_resolve(image)
+      }
+    } else {
+      queue_preview_fetch_async
+    }
+    rill_server(config, store, preview_fetch = preview_fetch)(
+      input,
+      output,
+      session
+    )
     if (identical(query$tools, "fixture")) {
       shiny::observeEvent(input$audit_document_result, {
         document <- sample_rill_data()$documents[[2L]]

@@ -1351,30 +1351,6 @@
 
   window.rillMoveStory = moveStory;
 
-  window.rillToggleStoryActions = function (button, expanded) {
-    const row = button.closest(".story-row");
-    const actions = row && row.querySelector(".story-actions");
-    if (!actions) return;
-    const open = expanded === undefined ? actions.hidden : expanded;
-    actions.hidden = !open;
-    button.setAttribute("aria-expanded", String(open));
-  };
-
-  let pendingQueueSaveFocus = null;
-  window.rillSaveQueueEntry = function (button, id) {
-    pendingQueueSaveFocus = { button, id };
-    window.Shiny.setInputValue("queue_save", id, { priority: "event" });
-  };
-  document.addEventListener("keydown", function (event) {
-    const actions = event.target.closest && event.target.closest(".story-actions");
-    if (event.key !== "Escape" || !actions || document.querySelector(".modal.show")) return;
-    const toggle = actions.parentElement.querySelector(".story-actions-toggle");
-    window.rillToggleStoryActions(toggle, false);
-    toggle.focus();
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, true);
-
   let swipe = null;
   document.addEventListener("touchstart", function (event) {
     swipe = null;
@@ -1382,14 +1358,13 @@
         document.querySelector(".modal.show") ||
         window.getSelection().toString()) return;
     const target = event.target;
-    const row = target.closest(".story-row");
     const article = target.closest("#reader-document");
-    if (!row && !article) return;
+    if (!article) return;
     if (target.closest("a, input, textarea, select, [contenteditable], .story-actions, .story-actions-toggle") ||
         (article && target.closest("button, pre, table"))) return;
     const touch = event.touches[0];
     if (touch.clientX < 24 || touch.clientX > window.innerWidth - 24) return;
-    swipe = { x: touch.clientX, y: touch.clientY, row, article,
+    swipe = { x: touch.clientX, y: touch.clientY, article,
       started: performance.now() };
   }, { passive: true });
   document.addEventListener("touchmove", function (event) {
@@ -1409,11 +1384,7 @@
     const dy = touch.clientY - gesture.y;
     if (Math.abs(dx) < 72 || Math.abs(dy) > 24 ||
         Math.abs(dx) < Math.abs(dy) * 3) return;
-    if (gesture.row && gesture.row.isConnected) {
-      window.rillToggleStoryActions(
-        gesture.row.querySelector(".story-actions-toggle"), dx < 0
-      );
-    } else if (gesture.article && gesture.article.isConnected) {
+    if (gesture.article && gesture.article.isConnected) {
       moveStory(dx < 0 ? 1 : -1);
     }
     if (event.cancelable) event.preventDefault();
@@ -1964,21 +1935,6 @@
     document.querySelectorAll("#reader-document pre").forEach(function (block) {
       block.tabIndex = 0;
     });
-    if (pendingQueueSaveFocus && !pendingQueueSaveFocus.button.isConnected) {
-      const card = document.querySelector(`.story-card[data-entry-id="${CSS.escape(pendingQueueSaveFocus.id)}"]`);
-      const row = card && card.closest(".story-row");
-      const toggle = row ? row.querySelector(".story-actions-toggle") : document.querySelector(".story-actions-toggle");
-      if (toggle && focusWasLost() &&
-          (!compactReaderMode.matches || compactSurface === "queue")) {
-        if (row) {
-          window.rillToggleStoryActions(toggle, true);
-          row.querySelector(".story-actions button:last-child").focus();
-        } else {
-          toggle.focus();
-        }
-      }
-      pendingQueueSaveFocus = null;
-    }
     const cards = Array.from(document.querySelectorAll(".story-card"));
     const index = cards.findIndex(card => card.classList.contains("is-selected"));
     const previous = document.querySelector(".reader-previous");

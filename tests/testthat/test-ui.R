@@ -945,13 +945,13 @@ testthat::test_that("queue actions have a named button and explicit state", {
   html <- htmltools::renderTags(story_card(entry, 1L))$html
   testthat::expect_match(
     html,
-    'aria-label="Actions for A calmer way',
+    'aria-label="Open A calmer way',
     fixed = TRUE
   )
-  testthat::expect_match(html, 'aria-expanded="false"', fixed = TRUE)
-  testthat::expect_match(html, 'class="story-actions" hidden', fixed = TRUE)
+  testthat::expect_match(html, 'data-queue-action="mark_read"', fixed = TRUE)
+  testthat::expect_no_match(html, 'class="story-actions" hidden', fixed = TRUE)
   testthat::expect_match(html, 'aria-pressed="true"', fixed = TRUE)
-  testthat::expect_match(html, '>Saved</button>', fixed = TRUE)
+  testthat::expect_match(html, '>Saved</span>', fixed = TRUE)
 })
 
 testthat::test_that("agent states announce progress and expose recovery", {
@@ -999,4 +999,58 @@ testthat::test_that("ungrouped feed choices are searchable and Captures cannot b
     2,
   ])))$html
   testthat::expect_no_match(single, "Save Groups", fixed = TRUE)
+})
+
+testthat::test_that("timeline images only use session proxy paths", {
+  entry <- as.list(sample_rill_data()$entries[1L, ])
+  entry$read_at <- NA_character_
+  entry$preview_image_url <- "https://images.example/photo.png"
+  direct <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = entry$preview_image_url
+  ))$html
+  testthat::expect_no_match(direct, "<img", fixed = TRUE)
+  proxied <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = "session/test/dataobj/queue-preview?entry_id=one"
+  ))$html
+  testthat::expect_match(proxied, 'src="session/', fixed = TRUE)
+  testthat::expect_no_match(proxied, "https://images.example", fixed = TRUE)
+})
+
+testthat::test_that("timeline descriptions expose source excerpts and image alt text", {
+  entry <- as.list(sample_rill_data()$entries[1L, ])
+  entry$read_at <- NA_character_
+  entry$summary <- "A publisher's source excerpt."
+  entry$preview_image_alt <- "A wooded valley."
+  html <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = "session/test/image"
+  ))$html
+  document <- xml2::read_html(html)
+  card <- xml2::xml_find_first(
+    document,
+    "//button[contains(@class, 'story-card')]"
+  )
+  ids <- strsplit(xml2::xml_attr(card, "aria-describedby"), " ", fixed = TRUE)[[
+    1L
+  ]]
+  testthat::expect_length(ids, 2L)
+  summary <- xml2::xml_find_first(
+    document,
+    paste0("//*[@id='", ids[[1L]], "']")
+  )
+  image <- xml2::xml_find_first(document, paste0("//*[@id='", ids[[2L]], "']"))
+  testthat::expect_identical(xml2::xml_text(summary), entry$summary)
+  testthat::expect_identical(
+    xml2::xml_attr(image, "alt"),
+    entry$preview_image_alt
+  )
+  entry$summary <- NA_character_
+  entry$preview_image_alt <- NA_character_
+  html <- htmltools::renderTags(story_card(entry, 1L))$html
+  testthat::expect_no_match(html, "aria-describedby", fixed = TRUE)
 })

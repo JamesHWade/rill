@@ -146,6 +146,8 @@ empty_entries <- function() {
     author = character(),
     summary = character(),
     feed_content = character(),
+    preview_image_url = character(),
+    preview_image_alt = character(),
     published_at = character(),
     inserted_at = character(),
     content_hash = character(),
@@ -263,6 +265,7 @@ parse_feed_document <- function(
       title <- "Untitled"
     }
     published_at <- parse_feed_date(published_raw)
+    preview <- entry_preview_image(content, url, item)
 
     data.frame(
       entry_id = rill_id("entry", feed_id, external_id),
@@ -274,6 +277,8 @@ parse_feed_document <- function(
       author = author,
       summary = plain_summary(content),
       feed_content = content,
+      preview_image_url = preview$url,
+      preview_image_alt = preview$alt,
       published_at = published_at,
       inserted_at = utc_now(),
       content_hash = rill_id("content", content %||% "", title),

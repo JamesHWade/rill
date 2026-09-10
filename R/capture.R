@@ -166,6 +166,8 @@ capture_entry <- function(capture, feed, reader_id, received_at) {
     author = capture$author,
     summary = plain_summary(capture$markdown),
     feed_content = NA_character_,
+    preview_image_url = NA_character_,
+    preview_image_alt = NA_character_,
     published_at = capture$published_at,
     inserted_at = received_at,
     content_hash = rill_id("captured-entry", capture$markdown),

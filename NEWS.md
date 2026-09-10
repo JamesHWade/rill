@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Browse a source-first article timeline with source excerpts and optional images, visible Save and Mark read actions, and swipe-to-read with Undo (#88).
+
 * Reading and Ask Rill use scalable text and offer reversible pane focus controls (#82, #83).
 * Document tool results show source details before inspectable original JSON (#84).
 * Rating review renders retained Markdown, keeps optional reasons collapsed, and presents saved ratings as readable choices (#85, #86).
