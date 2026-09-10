@@ -68,6 +68,6 @@ Run `RILL_BROWSER_URL=http://127.0.0.1:3876 node timeline.mjs` to verify the
 article timeline at 320, 390, 430, 768, and 1440 CSS pixels, source-image display,
 keyboard actions, touch reveal/commit, Undo, vertical scrolling, and doubled
 text. Its `?timeline=fixture` mode supplies fictional article text and image
-URLs. Chrome intercepts those URLs with a generated landscape fixture and a
-404 response; the generated landscape is test material, never a production
+URLs. The fixture serves a generated landscape and an unavailable-image response
+through the same session proxy used by the Queue; the generated landscape is test material, never a production
 article image. Results are written to `artifacts/article-timeline/`.

@@ -26,12 +26,21 @@ const results=[];
 for (const width of [320,390,430,768,1440]) {
  await page.setViewportSize({width,height:900});
  await page.waitForTimeout(200);
+ await page.evaluate(async()=>Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect.getComputedTiming().iterations)).map(a=>a.finished.catch(()=>{}))));
  const result=await page.evaluate(async()=>({ui:window.rillUiAudit(),violations:(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations}));
  results.push({width,...result});
  await page.screenshot({path:path.join(output,`${width}-timeline.png`)});
  assert.equal(result.ui.horizontalOverflow,false);
 }
 await page.setViewportSize({width:390,height:844});
+await page.evaluate(()=>window.rillOpenQueue());
+await page.waitForTimeout(200);
+await page.evaluate(async()=>Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect.getComputedTiming().iterations)).map(a=>a.finished.catch(()=>{}))));
+await page.locator('.story-card').first().focus();
+assert.ok(await page.locator('.story-card').first().evaluate(e=>parseFloat(getComputedStyle(e).outlineOffset))<0);
+await page.screenshot({path:path.join(output,'390-keyboard-focus.png')});
+const previewSources=await page.locator('.story-preview-image').evaluateAll(images=>images.map(image=>image.src));
+assert.ok(previewSources.every(src=>new URL(src).origin===new URL(url).origin&&new URL(src).pathname.includes('/dataobj/queue-preview')));
 const broken=page.locator('.story-row[data-entry-id="sample-entry-3"] img');
 await broken.evaluate(e=>e.loading='eager');
 await page.waitForFunction(()=>document.querySelector('.story-row[data-entry-id="sample-entry-3"] img').hidden);
