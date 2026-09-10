@@ -55,7 +55,18 @@ queue_card_renderer <- function() {
 
 queue_batch_server <- function(context, input) {
   size <- shiny::reactiveVal(30L)
-  shiny::observeEvent(context(), size(30L), priority = 100)
+  previous_context <- NULL
+  shiny::observeEvent(
+    context(),
+    {
+      current <- context()
+      if (!identical(current, previous_context)) {
+        previous_context <<- current
+        size(30L)
+      }
+    },
+    priority = 100
+  )
   shiny::observeEvent(input$queue_more, size(size() + 30L), ignoreInit = TRUE)
   size
 }

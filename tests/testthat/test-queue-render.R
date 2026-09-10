@@ -75,3 +75,32 @@ testthat::test_that("removing a story reindexes cached cards without rebuilding 
     fixed = TRUE
   )
 })
+
+
+testthat::test_that("calendar polls preserve expanded batches until context changes", {
+  shiny::testServer(
+    function(input, output, session) {
+      context <- shiny::reactive({
+        input$tick
+        list(view = input$view, since = input$since)
+      })
+      batch <- queue_batch_server(context, input)
+    },
+    {
+      session$setInputs(view = "today", since = "2026-09-10", tick = 1L)
+      session$setInputs(queue_more = 1L)
+      session$setInputs(queue_more = 2L)
+      testthat::expect_identical(batch(), 90L)
+      session$setInputs(tick = 2L)
+      testthat::expect_identical(batch(), 90L)
+      session$setInputs(tick = 3L)
+      testthat::expect_identical(batch(), 90L)
+      session$setInputs(since = "2026-09-11", tick = 4L)
+      testthat::expect_identical(batch(), 30L)
+      session$setInputs(queue_more = 3L)
+      testthat::expect_identical(batch(), 60L)
+      session$setInputs(view = "week")
+      testthat::expect_identical(batch(), 30L)
+    }
+  )
+})
