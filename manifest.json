@@ -2701,7 +2701,7 @@
       "checksum": "2075563a3dc66349e16b9bc8cd491968"
     },
     "R/queue-actions.R": {
-      "checksum": "5a6f9b4d44a8861f449845e475be0e7c"
+      "checksum": "da5ad64d49f0b092734b7b6b9b7deed6"
     },
     "inst/app/www/queue.js": {
       "checksum": "e181b11f91a184bde16d435366bd1d67"
@@ -2752,7 +2752,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "72896a939cba52ecde4200505b05d1d4"
+      "checksum": "0b313af92e5929e5bd6d9645f8b66da1"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2818,7 +2818,7 @@
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "59869ed61969801e33aa8b33d7572b72"
+      "checksum": "774b02c3744941ede23a737878ded331"
     },
     "R/defuddle.R": {
       "checksum": "9505dbe74bc45c843d29fe2ef3302b84"
@@ -2872,7 +2872,7 @@
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "b3c3e6f2673d05a3a93cd5f7dc0cd973"
+      "checksum": "00f040573cabfd6daec1cc8e30229757"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

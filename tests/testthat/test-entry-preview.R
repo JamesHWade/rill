@@ -37,3 +37,40 @@ testthat::test_that("feed media images take precedence over content images", {
     "https://example.org/media.jpg"
   )
 })
+
+testthat::test_that("preview metadata persists without loading feed content into queues", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "preview-reader")
+    entries <- sample_rill_data()$entries[1L, ]
+    entries$preview_image_url <- "https://example.org/landscape.jpg"
+    entries$preview_image_alt <- "Woodland"
+    store_upsert_entries(store, entries)
+    queue <- store_list_entries(
+      store,
+      "preview-reader",
+      view = "all",
+      include_content = FALSE
+    )
+    entry <- queue[queue$entry_id == entries$entry_id, ]
+    testthat::expect_identical(
+      entry$preview_image_url,
+      entries$preview_image_url
+    )
+    testthat::expect_identical(entry$preview_image_alt, "Woodland")
+    testthat::expect_null(entry$feed_content)
+  }
+})
+
+testthat::test_that("legacy entry updates preserve field identities", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "legacy-reader"))
+  entry <- sample_rill_data()$entries[1L, ]
+  entry$preview_image_url <- NULL
+  entry$preview_image_alt <- NULL
+  entry$title <- "Updated headline"
+  store_upsert_entries(store, entry)
+  actual <- store$memory$entries[1L, ]
+  testthat::expect_identical(actual$title, entry$title)
+  testthat::expect_identical(actual$published_at, entry$published_at)
+  testthat::expect_identical(actual$content_hash, entry$content_hash)
+  testthat::expect_identical(actual$preview_image_url, NA_character_)
+})

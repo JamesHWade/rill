@@ -30,8 +30,11 @@ testthat::test_that("queue actions and conditional undo agree across stores", {
       store_queue_undo_read(store, "queue-reader", receipt),
       FALSE
     )
+    same_second <- "2026-09-09 12:00:00 UTC"
+    store_mark_opened(store, "queue-reader", id, opened_at = same_second)
+    store_mark_unread(store, "queue-reader", id)
     receipt <- store_queue_mark_read(store, "queue-reader", id)
-    store_mark_opened(store, "queue-reader", id)
+    store_mark_opened(store, "queue-reader", id, opened_at = same_second)
     testthat::expect_identical(
       store_queue_undo_read(store, "queue-reader", receipt),
       FALSE
@@ -76,6 +79,48 @@ testthat::test_that("queue requests replay without changing later reader decisio
         store_get_entry(store, "queue-reader", "sample-entry-2")$read_at
       ))
       session$setInputs(queue_action = request)
+      testthat::expect_all_true(is.na(
+        store_get_entry(store, "queue-reader", "sample-entry-2")$read_at
+      ))
+    }
+  )
+})
+
+testthat::test_that("transient undo failures retain the receipt for retry", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "queue-reader"))
+  undo <- store_queue_undo_read
+  attempts <- 0L
+  testthat::local_mocked_bindings(store_queue_undo_read = function(...) {
+    attempts <<- attempts + 1L
+    if (attempts == 1L) {
+      stop("Temporary storage failure")
+    }
+    undo(...)
+  })
+  shiny::testServer(
+    function(input, output, session) {
+      reader_queue_server(
+        store,
+        "queue-reader",
+        function() NULL,
+        function(...) NULL,
+        session
+      )
+    },
+    {
+      session$flushReact()
+      session$setInputs(
+        queue_action = list(
+          id = "retry-undo",
+          entry_id = "sample-entry-2",
+          action = "mark_read"
+        )
+      )
+      session$setInputs(queue_undo = list(id = "retry-undo", nonce = 1))
+      testthat::expect_all_true(
+        !is.na(store_get_entry(store, "queue-reader", "sample-entry-2")$read_at)
+      )
+      session$setInputs(queue_undo = list(id = "retry-undo", nonce = 2))
       testthat::expect_all_true(is.na(
         store_get_entry(store, "queue-reader", "sample-entry-2")$read_at
       ))

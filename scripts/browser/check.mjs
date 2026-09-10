@@ -138,7 +138,7 @@ try {
   await page.locator('.story-card').first().click();
   await page.waitForSelector('#reader-document');
   await page.getByRole('button', {name: 'Queue', exact: true}).click();
-  await page.getByRole('button', {name: 'Library', exact: true}).click();
+  await page.locator('.compact-library-trigger').click();
   await page.getByRole('button', {name: 'Manage feeds', exact: true}).click();
   await page.getByRole('dialog').waitFor();
   await page.getByRole('button', {name: 'Done', exact: true}).click();

@@ -1877,7 +1877,7 @@ story_card <- function(entry, index, selected = FALSE) {
   author <- if (store_scalar_string(entry$author)) entry$author else NULL
   byline <- paste(
     c(author, format_story_time(entry$published_at)),
-    collapse = " · "
+    collapse = " \u00b7 "
   )
   image <- entry_preview_url(entry$preview_image_url)
   read_action <- if (is_read) "mark_unread" else "mark_read"

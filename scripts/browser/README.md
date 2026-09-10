@@ -63,3 +63,11 @@ the automated checks do not certify a screen reader or browser zoom behavior.
 Run `RILL_LEGACY_MEDIA_QUERIES=true node pane-focus.mjs` to repeat the pane
 workflow using Rill's legacy MediaQueryList listeners. Third-party component
 media queries retain their normal browser APIs.
+
+Run `RILL_BROWSER_URL=http://127.0.0.1:3876 node timeline.mjs` to verify the
+article timeline at 320, 390, 430, 768, and 1440 CSS pixels, source-image display,
+keyboard actions, touch reveal/commit, Undo, vertical scrolling, and doubled
+text. Its `?timeline=fixture` mode supplies fictional article text and image
+URLs. Chrome intercepts those URLs with a generated landscape fixture and a
+404 response; the generated landscape is test material, never a production
+article image. Results are written to `artifacts/article-timeline/`.

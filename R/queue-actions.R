@@ -288,8 +288,19 @@ reader_queue_server <- function(
       }
       undone <- tryCatch(
         store_queue_undo_read(store, reader_id, receipt),
-        error = \(error) FALSE
+        error = \(error) NULL
       )
+      if (is.null(undone)) {
+        reply(list(
+          id = request$id,
+          entry_id = receipt$entry_id,
+          action = "undo",
+          ok = FALSE,
+          undo = request$id,
+          message = "Couldn't undo this action. Please try again."
+        ))
+        return()
+      }
       receipts[[request$id]] <<- NULL
       completed[[request$id]]$undo <<- NULL
       if (undone) {

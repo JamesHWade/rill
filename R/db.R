@@ -2235,6 +2235,7 @@ store_mark_opened <- function(
         "read_at = COALESCE(entry_state.read_at, EXCLUDED.read_at),",
         paste(
           "read_reason = CASE WHEN entry_state.read_at IS NULL",
+          "OR entry_state.read_reason = 'manual_queue'",
           "THEN EXCLUDED.read_reason ELSE entry_state.read_reason END,"
         ),
         "last_opened_at = EXCLUDED.last_opened_at",
@@ -2275,6 +2276,9 @@ store_mark_opened <- function(
         is.na(store$memory$state$read_at[[index]])
     ) {
       store$memory$state$read_at[[index]] <- now
+      store$memory$state$read_reason[[index]] <- "opened"
+    }
+    if (identical(store$memory$state$read_reason[[index]], "manual_queue")) {
       store$memory$state$read_reason[[index]] <- "opened"
     }
     store$memory$state$last_opened_at[[index]] <- now
@@ -2927,7 +2931,9 @@ store_upsert_entries <- function(store, entries) {
     )
     if (length(existing)) {
       entry$inserted_at <- store$memory$entries$inserted_at[[existing[[1]]]]
-      store$memory$entries[existing[[1]], ] <- entry
+      store$memory$entries[existing[[1]], ] <- entry[names(
+        store$memory$entries
+      )]
     } else {
       store$memory$entries <- rbind(store$memory$entries, entry)
       added <- added + 1L
