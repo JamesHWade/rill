@@ -78,6 +78,27 @@ try {
   console.log('Reconciliation tolerates a null active element.');
 
   await allStories();
+  await page.getByRole('radio', {name: 'Unread', exact: true}).check();
+  await page.waitForFunction(() => document.querySelector('.queue-batch')?.dataset.queueView === 'unread' &&
+    !document.querySelector('#story_list').classList.contains('queue-changing'));
+  await page.locator('.story-read').first().click();
+  await page.getByText('Marked read', {exact: true}).waitFor();
+  const boundaryId = await page.locator('.story-card').nth(29).getAttribute('data-entry-id');
+  await page.locator('.story-card').nth(29).click();
+  await selected(29);
+  await page.locator('#queue-undo').click();
+  await page.getByText('Marked unread', {exact: true}).waitFor();
+  await count(31);
+  await selected(30);
+  assert.equal(await page.locator('.story-card.is-selected').getAttribute('data-entry-id'), boundaryId);
+  assert.equal(await page.locator('.reader-previous').isEnabled(), true);
+  assert.equal(await page.locator('.reader-next').isEnabled(), true);
+  await page.locator('.reader-next').click();
+  await count(61);
+  await selected(31);
+  console.log('Undo before a boundary selection preserves the reader and both navigation buttons.');
+
+  await allStories();
   await page.setViewportSize({width: 390, height: 844});
   await page.locator('.story-card').nth(29).click();
   await selected(29);

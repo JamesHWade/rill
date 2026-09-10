@@ -1,6 +1,6 @@
 # rill 0.0.0.9000
 
-* A deliberate left swipe marks an unread story read on release, with Undo. Queue views show a smaller first batch and reuse unchanged cards, and choosing a queue makes its stories the main surface.
+* A deliberate left swipe marks an unread story read on release, with Undo. Queue views show a smaller first batch and reuse unchanged cards, and choosing a queue makes its stories the main surface (#88).
 
 * Browse a source-first article timeline with source excerpts and optional images, visible Save and Mark read actions, and swipe-to-read with Undo (#88).
 

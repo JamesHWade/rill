@@ -36,3 +36,5 @@ Implementation checkout: `/private/tmp/rill-queue-responsiveness-20260910`, bran
 ## PR review regression checks
 
 `node scripts/browser/queue-review.mjs` verifies actual Next/Previous buttons, keyboard navigation, and native Chromium phone swipes across batch boundaries. Pending navigation is cancelled when the reader changes direction; Next is disabled only at the end of the full queue. Keyboard focus remains on Show more until the final batch, then moves to the first newly loaded story. The same suite checks a null active element, missing and throwing crypto APIs, and a missing server acknowledgement: the queue becomes usable again after 15 seconds. The checks use synthetic local data and report no browser errors.
+
+The review follow-up also verifies that Undo can reinstate a story ahead of a selection at position 30 without removing the selected card or disabling reader navigation. The rendered batch grows to include the selection, and the next load-more action adds 30 beyond that visible boundary.

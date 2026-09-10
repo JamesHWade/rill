@@ -2820,7 +2820,11 @@ rill_server <- function(
       queue_filters_ui(input$view %||% "unread")
     })
 
-    queue_batch <- queue_batch_server(current_context, input)
+    queue_batch <- queue_batch_server(
+      current_context,
+      input,
+      \() match(selected_id(), entries()$entry_id, nomatch = 0L)
+    )
     render_queue_cards <- queue_card_renderer()
     output$story_list <- shiny::renderUI({
       queue_telemetry$activate()

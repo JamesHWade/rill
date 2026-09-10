@@ -104,3 +104,28 @@ testthat::test_that("calendar polls preserve expanded batches until context chan
     }
   )
 })
+
+
+testthat::test_that("queue batches include a selection moved beyond the boundary", {
+  shiny::testServer(
+    function(input, output, session) {
+      batch <- queue_batch_server(
+        \() input$context,
+        input,
+        \() input$selected_index
+      )
+    },
+    {
+      session$setInputs(context = "all", selected_index = 30L)
+      testthat::expect_identical(batch(), 30L)
+      session$setInputs(selected_index = 31L)
+      testthat::expect_identical(batch(), 31L)
+      session$setInputs(queue_more = 1L)
+      testthat::expect_identical(batch(), 61L)
+      session$setInputs(selected_index = 0L)
+      testthat::expect_identical(batch(), 61L)
+      session$setInputs(context = "today")
+      testthat::expect_identical(batch(), 30L)
+    }
+  )
+})

@@ -53,7 +53,7 @@ queue_card_renderer <- function() {
   }
 }
 
-queue_batch_server <- function(context, input) {
+queue_batch_server <- function(context, input, selected_index = \() 0L) {
   size <- shiny::reactiveVal(30L)
   previous_context <- NULL
   shiny::observeEvent(
@@ -67,6 +67,11 @@ queue_batch_server <- function(context, input) {
     },
     priority = 100
   )
-  shiny::observeEvent(input$queue_more, size(size() + 30L), ignoreInit = TRUE)
-  size
+  visible_size <- shiny::reactive(max(size(), selected_index()))
+  shiny::observeEvent(
+    input$queue_more,
+    size(visible_size() + 30L),
+    ignoreInit = TRUE
+  )
+  visible_size
 }
