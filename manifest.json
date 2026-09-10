@@ -2697,6 +2697,18 @@
     }
   },
   "files": {
+    "R/entry-preview.R": {
+      "checksum": "2075563a3dc66349e16b9bc8cd491968"
+    },
+    "R/queue-actions.R": {
+      "checksum": "5a6f9b4d44a8861f449845e475be0e7c"
+    },
+    "inst/app/www/queue.js": {
+      "checksum": "e181b11f91a184bde16d435366bd1d67"
+    },
+    "inst/sql/015_entry_previews.sql": {
+      "checksum": "3f80dc51d967299855400561a88ebbd6"
+    },
     "inst/defuddle/defuddle.cjs": {
       "checksum": "0a947373a43e3d7ed875aac55695f795"
     },
@@ -2719,7 +2731,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "4b0a3c3b082676ca6cc9bc1e1d7c9b8a"
+      "checksum": "79ad0de798fbbb647bd9085a7e31d6b1"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2740,7 +2752,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "2f16dcb0b4a348ac2438a0b68a1ed4bc"
+      "checksum": "72896a939cba52ecde4200505b05d1d4"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2800,13 +2812,13 @@
       "checksum": "d78f4a4b8f35fb1146350744332e0cae"
     },
     "R/capture.R": {
-      "checksum": "1cc009061fd1f576d5575e5af21daea0"
+      "checksum": "abcb82a29dd76278aefe85555c4f369a"
     },
     "R/config.R": {
       "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
     },
     "R/db.R": {
-      "checksum": "9d7851e6d9072537541945c704d1907c"
+      "checksum": "59869ed61969801e33aa8b33d7572b72"
     },
     "R/defuddle.R": {
       "checksum": "9505dbe74bc45c843d29fe2ef3302b84"
@@ -2818,7 +2830,7 @@
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
     },
     "R/feeds.R": {
-      "checksum": "9d4cb1a7a3f00b1772ad2d7dd6abbc5a"
+      "checksum": "777ff77b7c0e782845c773132d6347b9"
     },
     "R/identity.R": {
       "checksum": "cb1fedd9d9854824c7492804f109d314"
@@ -2851,16 +2863,16 @@
       "checksum": "931b381347f39d9a5534f464a6dc8849"
     },
     "R/sample_data.R": {
-      "checksum": "3ed948f4ae4411dfd054efdd786adeaa"
+      "checksum": "5339cbf4894daa8a4523a4012856469e"
     },
     "R/server.R": {
-      "checksum": "8b7b926d2e0641124ff81c7d9508647d"
+      "checksum": "dd60f668c87cdbe3c9d3b04d477aa17a"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "d2242df5d1397e424166f43cd50a62e4"
+      "checksum": "b3c3e6f2673d05a3a93cd5f7dc0cd973"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

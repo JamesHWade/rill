@@ -2869,6 +2869,7 @@ store_move_feed <- function(store, reader_id, feed_id, folder) {
 }
 
 store_upsert_entries <- function(store, entries) {
+  entries <- entry_preview_columns(entries)
   if (!nrow(entries)) {
     return(invisible(0L))
   }
@@ -2883,12 +2884,14 @@ store_upsert_entries <- function(store, entries) {
           paste(
             "INSERT INTO entries",
             "(entry_id, feed_id, external_id, url, canonical_url, title, author,",
-            "summary, feed_content, published_at, content_hash)",
-            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            "summary, feed_content, preview_image_url, preview_image_alt, published_at, content_hash)",
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
             "ON CONFLICT (feed_id, external_id) DO UPDATE SET",
             "url = EXCLUDED.url, canonical_url = EXCLUDED.canonical_url,",
             "title = EXCLUDED.title, author = EXCLUDED.author,",
             "summary = EXCLUDED.summary, feed_content = EXCLUDED.feed_content,",
+            "preview_image_url = EXCLUDED.preview_image_url,",
+            "preview_image_alt = EXCLUDED.preview_image_alt,",
             "published_at = EXCLUDED.published_at, content_hash = EXCLUDED.content_hash",
             "RETURNING (xmax = 0) AS inserted"
           ),
@@ -2902,6 +2905,8 @@ store_upsert_entries <- function(store, entries) {
             "author",
             "summary",
             "feed_content",
+            "preview_image_url",
+            "preview_image_alt",
             "published_at",
             "content_hash"
           )]))

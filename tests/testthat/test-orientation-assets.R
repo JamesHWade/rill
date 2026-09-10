@@ -301,11 +301,14 @@ testthat::test_that("compact surfaces retain reader state across navigation", {
   )
   testthat::expect_match(styles, "@media (max-width: 767.98px)", fixed = TRUE)
   testthat::expect_match(styles, "min-height: 44px", fixed = TRUE)
-  compact_styles <- strsplit(
-    styles,
-    "@media (max-width: 767.98px)",
-    fixed = TRUE
-  )[[1]][[2]]
+  compact_styles <- paste(
+    strsplit(
+      styles,
+      "@media (max-width: 767.98px)",
+      fixed = TRUE
+    )[[1]][-1L],
+    collapse = "\n"
+  )
   footer_styles <- strsplit(
     strsplit(compact_styles, ".sidebar-footer {", fixed = TRUE)[[1]][[2]],
     "}",

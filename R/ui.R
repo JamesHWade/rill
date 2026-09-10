@@ -29,10 +29,12 @@ rill_ui <- function(config) {
       ),
       shiny::tags$title("Rill \u2014 personal reader"),
       shiny::includeScript(rill_package_file("app", "www", "app.js")),
+      shiny::includeScript(rill_package_file("app", "www", "queue.js")),
       shiny::includeCSS(rill_package_file("app", "www", "styles.css"))
     ),
     rill_skip_link_ui(),
     rill_system_status_ui(),
+    queue_notice_ui(),
     bslib::as_fill_carrier(
       shiny::tags$main(
         id = "rill-app",
@@ -43,6 +45,7 @@ rill_ui <- function(config) {
         ))),
         `aria-busy` = "true",
         compact_app_bar_ui(config),
+        compact_queue_navigation_ui(),
         bslib::layout_sidebar(
           bslib::layout_sidebar(
             reader_pane_ui(config),
@@ -506,6 +509,11 @@ story_sidebar_ui <- function() {
           gap = "8px"
         )
       )$addClass("queue-controls")$allTags()
+    ),
+    shiny::uiOutput(
+      "queue_filters",
+      container = shiny::tags$div,
+      class = "queue-filters"
     ),
     shiny::uiOutput(
       "orientation_queue_status",
@@ -1858,80 +1866,201 @@ format_story_time <- function(value) {
 story_card <- function(entry, index, selected = FALSE) {
   entry_id <- as.character(entry$entry_id)
   is_read <- !is.na(entry$read_at) && nzchar(as.character(entry$read_at))
-  onclick <- sprintf(
-    "rillSelectEntry(%s, %d)",
-    jsonlite::toJSON(entry_id, auto_unbox = TRUE),
-    as.integer(index)
+  saved <- isTRUE(entry$saved)
+  title <- if (store_scalar_string(entry$title)) entry$title else "Untitled"
+  source <- if (store_scalar_string(entry$feed_title)) {
+    entry$feed_title
+  } else {
+    "Source"
+  }
+  initials <- toupper(substr(source, 1L, 2L))
+  author <- if (store_scalar_string(entry$author)) entry$author else NULL
+  byline <- paste(
+    c(author, format_story_time(entry$published_at)),
+    collapse = " · "
   )
-  classes <- c(
-    "story-card",
-    if (is_read) "is-read",
-    if (isTRUE(entry$starred)) "is-starred",
-    if (selected) "is-selected"
-  )
-
-  card <- shiny::tags$button(
-    type = "button",
-    class = paste(classes, collapse = " "),
-    `data-entry-id` = entry_id,
-    `aria-current` = if (selected) "true" else NULL,
-    onclick = onclick,
-    shiny::tags$span(
-      class = "story-status-icon",
-      `aria-hidden` = "true",
-      bsicons::bs_icon("circle-fill")
-    ),
-    shiny::tags$div(
-      class = "story-kicker",
-      shiny::tags$span(class = "feed-name", entry$feed_title),
-      shiny::tags$span(
-        class = "story-time",
-        if (is_read && selected) {
-          shiny::tags$span(class = "story-state", "Read")
-        } else {
-          NULL
-        },
-        if (isTRUE(entry$starred)) {
-          shiny::tags$span(class = "star-glyph", "\u2605")
-        } else {
-          NULL
-        },
-        format_story_time(entry$published_at)
-      )
-    ),
-    shiny::tags$h3(entry$title),
-    shiny::tags$p(entry$summary %||% "")
-  )
-  shiny::tags$div(
-    class = "story-row",
-    card,
+  image <- entry_preview_url(entry$preview_image_url)
+  read_action <- if (is_read) "mark_unread" else "mark_read"
+  read_label <- if (is_read) "Mark unread" else "Mark read"
+  action_button <- function(action, label, icon, class, ...) {
     shiny::tags$button(
       type = "button",
-      class = "story-actions-toggle",
-      `aria-label` = paste("Actions for", entry$title),
-      `aria-expanded` = "false",
-      onclick = "rillToggleStoryActions(this)",
-      bsicons::bs_icon("three-dots")
+      class = class,
+      `data-queue-action` = action,
+      `data-entry-id` = entry_id,
+      ...,
+      bsicons::bs_icon(icon),
+      shiny::tags$span(label)
+    )
+  }
+  shiny::tags$article(
+    class = paste(
+      c("story-row", if (is_read) "is-read", if (selected) "is-selected"),
+      collapse = " "
+    ),
+    `data-entry-id` = entry_id,
+    `aria-label` = title,
+    shiny::tags$div(
+      class = "story-swipe-tray",
+      `aria-hidden` = "true",
+      inert = NA,
+      action_button(
+        read_action,
+        read_label,
+        if (is_read) "circle" else "check2-circle",
+        "story-swipe-button",
+        tabindex = "-1"
+      ),
+      shiny::tags$span(class = "story-swipe-release", "Release")
     ),
     shiny::tags$div(
-      class = "story-actions",
-      hidden = NA,
-      shiny::tags$button(
-        type = "button",
-        class = "reader-action",
-        onclick = onclick,
-        "Read"
+      class = "story-front",
+      shiny::tags$div(
+        class = "story-source",
+        shiny::tags$span(
+          class = "story-source-avatar",
+          `aria-hidden` = "true",
+          initials
+        ),
+        shiny::tags$div(
+          class = "story-source-copy",
+          shiny::tags$span(class = "feed-name", source),
+          shiny::tags$span(class = "story-byline", byline)
+        ),
+        if (is_read) {
+          shiny::tags$span(class = "story-state", "Read")
+        } else {
+          shiny::tags$span(
+            class = "story-status-icon",
+            role = "img",
+            `aria-label` = "Unread",
+            bsicons::bs_icon("circle-fill")
+          )
+        }
       ),
       shiny::tags$button(
         type = "button",
-        class = "reader-action",
-        `aria-pressed` = if (isTRUE(entry$saved)) "true" else "false",
-        onclick = sprintf(
-          "rillSaveQueueEntry(this, %s)",
-          jsonlite::toJSON(entry_id, auto_unbox = TRUE)
+        class = paste(
+          c("story-card", if (is_read) "is-read", if (selected) "is-selected"),
+          collapse = " "
         ),
-        if (isTRUE(entry$saved)) "Saved" else "Save"
+        `data-entry-id` = entry_id,
+        `aria-current` = if (selected) "true" else NULL,
+        `aria-label` = paste("Open", title),
+        onclick = sprintf(
+          "rillSelectEntry(%s, %d)",
+          jsonlite::toJSON(entry_id, auto_unbox = TRUE),
+          as.integer(index)
+        ),
+        shiny::tags$h3(title),
+        if (store_scalar_string(entry$summary)) {
+          shiny::tags$p(entry$summary)
+        },
+        if (!is.na(image)) {
+          shiny::tags$img(
+            class = "story-preview-image",
+            src = image,
+            alt = if (store_scalar_string(entry$preview_image_alt)) {
+              entry$preview_image_alt
+            } else {
+              ""
+            },
+            loading = "lazy",
+            decoding = "async",
+            referrerpolicy = "no-referrer",
+            draggable = "false"
+          )
+        }
+      ),
+      shiny::tags$div(
+        class = "story-actions",
+        role = "group",
+        `aria-label` = paste("Actions for", title),
+        action_button(
+          if (saved) "unsave" else "save",
+          if (saved) "Saved" else "Save",
+          if (saved) "bookmark-fill" else "bookmark",
+          "story-action story-save",
+          `aria-pressed` = if (saved) "true" else "false"
+        ),
+        action_button(
+          read_action,
+          read_label,
+          if (is_read) "circle" else "check2-circle",
+          "story-action story-read"
+        ),
+        if (isTRUE(entry$starred)) {
+          shiny::tags$span(
+            class = "story-starred",
+            bsicons::bs_icon("star-fill", title = "Starred")
+          )
+        }
       )
+    )
+  )
+}
+
+queue_filters_ui <- function(view) {
+  shiny::tags$nav(
+    `aria-label` = "Queue filter",
+    lapply(c(unread = "Unread", all = "All", saved = "Saved"), function(label) {
+      value <- switch(label, Unread = "unread", All = "all", Saved = "saved")
+      shiny::tags$button(
+        type = "button",
+        class = "queue-filter",
+        `aria-pressed` = if (identical(view, value)) "true" else "false",
+        onclick = sprintf("rillQueueView('%s')", value),
+        label
+      )
+    })
+  )
+}
+
+compact_queue_navigation_ui <- function() {
+  shiny::tags$nav(
+    class = "compact-queue-navigation",
+    `aria-label` = "Reader navigation",
+    shiny::tags$button(
+      type = "button",
+      onclick = "rillQueueView('unread')",
+      `data-queue-nav` = "queue",
+      bsicons::bs_icon("collection"),
+      shiny::tags$span("Queue")
+    ),
+    shiny::tags$button(
+      type = "button",
+      onclick = "rillOpenLibrary()",
+      `data-queue-nav` = "library",
+      bsicons::bs_icon("book"),
+      shiny::tags$span("Library")
+    ),
+    shiny::tags$button(
+      type = "button",
+      onclick = "rillQueueView('saved')",
+      `data-queue-nav` = "saved",
+      bsicons::bs_icon("bookmark"),
+      shiny::tags$span("Saved")
+    )
+  )
+}
+
+queue_notice_ui <- function() {
+  shiny::tags$aside(
+    id = "queue-notice",
+    class = "queue-notice",
+    hidden = NA,
+    `aria-label` = "Queue action",
+    shiny::tags$span(
+      id = "queue-notice-message",
+      role = "status",
+      `aria-live` = "polite"
+    ),
+    shiny::tags$button(type = "button", id = "queue-undo", hidden = NA, "Undo"),
+    shiny::tags$button(
+      type = "button",
+      id = "queue-notice-dismiss",
+      `aria-label` = "Dismiss message",
+      bsicons::bs_icon("x-lg")
     )
   )
 }

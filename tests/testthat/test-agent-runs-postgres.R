@@ -245,7 +245,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "011_feed_polling",
       "012_article_preparation",
       "013_feed_groups",
-      "014_reader_feedback"
+      "014_reader_feedback",
+      "015_entry_previews"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")

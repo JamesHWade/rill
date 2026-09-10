@@ -2767,6 +2767,10 @@ rill_server <- function(config, store) {
       read_actions_ui(selected_feed_title())
     })
 
+    output$queue_filters <- shiny::renderUI({
+      queue_filters_ui(input$view %||% "unread")
+    })
+
     output$story_list <- shiny::renderUI({
       telemetry_local_span("queue.render")
       rows <- entries()
@@ -3531,21 +3535,7 @@ rill_server <- function(config, store) {
       ignoreInit = TRUE
     )
 
-    shiny::observeEvent(
-      input$queue_save,
-      {
-        entry_id <- input$queue_save
-        shiny::req(is.character(entry_id), length(entry_id) == 1L)
-        entry <- store_get_entry(store, actor_id, entry_id)
-        shiny::req(!is.null(entry))
-        value <- store_toggle_state(store, actor_id, entry_id, "saved")
-        record_event("save_changed", entry_id, payload = list(value = value))
-        status_kind("success")
-        status_text(if (value) "Story saved" else "Story removed from saved")
-        bump_refresh()
-      },
-      ignoreInit = TRUE
-    )
+    reader_queue_server(store, actor_id, bump_refresh, record_event, session)
 
     shiny::observeEvent(
       input$toggle_save,

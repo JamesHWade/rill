@@ -1,0 +1,84 @@
+testthat::test_that("queue actions and conditional undo agree across stores", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "queue-reader")
+    id <- "sample-entry-2"
+    receipt <- store_queue_mark_read(store, "queue-reader", id)
+    entry <- store_get_entry(store, "queue-reader", id)
+    testthat::expect_identical(entry$read_reason, "manual_queue")
+    testthat::expect_all_true(is.na(entry$last_opened_at))
+    testthat::expect_null(store_queue_mark_read(store, "queue-reader", id))
+    testthat::expect_identical(
+      store_queue_set_saved(store, "queue-reader", id, TRUE),
+      TRUE
+    )
+    testthat::expect_identical(
+      store_queue_set_saved(store, "queue-reader", id, TRUE),
+      FALSE
+    )
+    testthat::expect_identical(
+      store_queue_undo_read(store, "queue-reader", receipt),
+      TRUE
+    )
+    testthat::expect_all_true(is.na(
+      store_get_entry(store, "queue-reader", id)$read_at
+    ))
+    testthat::expect_identical(
+      store_get_entry(store, "queue-reader", id)$saved,
+      TRUE
+    )
+    testthat::expect_identical(
+      store_queue_undo_read(store, "queue-reader", receipt),
+      FALSE
+    )
+    receipt <- store_queue_mark_read(store, "queue-reader", id)
+    store_mark_opened(store, "queue-reader", id)
+    testthat::expect_identical(
+      store_queue_undo_read(store, "queue-reader", receipt),
+      FALSE
+    )
+    testthat::expect_error(
+      store_queue_mark_read(store, "other-reader", id),
+      class = "rill_entry_forbidden"
+    )
+    testthat::expect_error(
+      store_queue_set_saved(store, "other-reader", id, TRUE),
+      class = "rill_entry_forbidden"
+    )
+    testthat::expect_error(
+      store_queue_undo_read(store, "other-reader", receipt),
+      class = "rill_entry_forbidden"
+    )
+  }
+})
+
+testthat::test_that("queue requests replay without changing later reader decisions", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "queue-reader"))
+  shiny::testServer(
+    function(input, output, session) {
+      reader_queue_server(
+        store,
+        "queue-reader",
+        function() NULL,
+        function(...) NULL,
+        session
+      )
+    },
+    {
+      session$flushReact()
+      request <- list(
+        id = "read-1",
+        entry_id = "sample-entry-2",
+        action = "mark_read"
+      )
+      session$setInputs(queue_action = request)
+      session$setInputs(queue_undo = list(id = "read-1"))
+      testthat::expect_all_true(is.na(
+        store_get_entry(store, "queue-reader", "sample-entry-2")$read_at
+      ))
+      session$setInputs(queue_action = request)
+      testthat::expect_all_true(is.na(
+        store_get_entry(store, "queue-reader", "sample-entry-2")$read_at
+      ))
+    }
+  )
+})

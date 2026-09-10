@@ -60,6 +60,8 @@ sample_rill_data <- function() {
       "The interaction ledger is designed to support later personal analysis."
     ),
     feed_content = NA_character_,
+    preview_image_url = NA_character_,
+    preview_image_alt = NA_character_,
     published_at = format(
       Sys.time() - c(900, 7200, 18000, 86400, 172800, 259200),
       tz = "UTC",

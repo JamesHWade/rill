@@ -945,13 +945,13 @@ testthat::test_that("queue actions have a named button and explicit state", {
   html <- htmltools::renderTags(story_card(entry, 1L))$html
   testthat::expect_match(
     html,
-    'aria-label="Actions for A calmer way',
+    'aria-label="Open A calmer way',
     fixed = TRUE
   )
-  testthat::expect_match(html, 'aria-expanded="false"', fixed = TRUE)
-  testthat::expect_match(html, 'class="story-actions" hidden', fixed = TRUE)
+  testthat::expect_match(html, 'data-queue-action="mark_read"', fixed = TRUE)
+  testthat::expect_no_match(html, 'class="story-actions" hidden', fixed = TRUE)
   testthat::expect_match(html, 'aria-pressed="true"', fixed = TRUE)
-  testthat::expect_match(html, '>Saved</button>', fixed = TRUE)
+  testthat::expect_match(html, '>Saved</span>', fixed = TRUE)
 })
 
 testthat::test_that("agent states announce progress and expose recovery", {

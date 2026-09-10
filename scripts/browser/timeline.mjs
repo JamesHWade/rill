@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { chromium } from 'playwright';
+const require = createRequire(import.meta.url);
+const output = path.resolve('../../artifacts/article-timeline');
+await fs.mkdir(output, {recursive:true});
+const browser = await chromium.launch({channel:'chrome',headless:true});
+const context = await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
+await context.route('https://example.org/timeline-river.png', route => route.fulfill({path:path.resolve('fixtures/timeline-river.png'),contentType:'image/png'}));
+await context.route('https://example.org/missing-image.png', route => route.fulfill({status:404,body:''}));
+const page = await context.newPage();
+const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+try {
+await page.goto('http://127.0.0.1:3890/?timeline=fixture');
+await page.waitForFunction(()=>window.rillUiAudit?.().appBusy==='false');
+await page.evaluate(()=>window.rillOpenQueue());
+await page.locator('.story-card').first().waitFor();
+await page.waitForTimeout(500);
+const results=[];
+for (const width of [320,390,430,768,1440]) {
+ await page.setViewportSize({width,height:900});
+ await page.waitForTimeout(200);
+ await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
+ const result=await page.evaluate(async()=>({ui:window.rillUiAudit(),violations:(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations}));
+ results.push({width,...result});
+ await page.screenshot({path:path.join(output,`${width}-timeline.png`)});
+ assert.equal(result.ui.horizontalOverflow,false);
+}
+await page.setViewportSize({width:390,height:844});
+await page.locator('.story-save').first().focus();
+await page.keyboard.press('Enter');
+await page.locator('.story-save[aria-pressed="true"]').first().waitFor();
+await page.waitForTimeout(500);
+assert.equal(await page.evaluate(()=>document.activeElement.textContent.trim()),'Saved');
+await page.locator('#queue-notice-dismiss').click();
+await page.locator('.story-read').first().click();
+await page.getByText('Marked read',{exact:true}).waitFor();
+assert.equal(await page.locator('#reader-document').count(),0);
+await page.locator('#queue-undo').click();
+await page.getByText('Marked unread',{exact:true}).waitFor();
+await page.locator('#queue-notice-dismiss').click();
+await page.locator('.story-card').first().evaluate(e=>e.blur());
+await page.screenshot({path:path.join(output,'390-final.png')});
+await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
+await page.screenshot({path:path.join(output,'390-dark.png')});
+await page.evaluate(()=>document.documentElement.style.fontSize='200%');
+await page.screenshot({path:path.join(output,'390-large-text.png')});
+assert.equal(await page.evaluate(()=>window.rillUiAudit().horizontalOverflow),false);
+assert.equal(results.flatMap(r=>r.violations).length,0);
+await fs.writeFile(path.join(output,'results.json'),JSON.stringify({results,errors},null,2));
+assert.equal(errors.length,0);
+} finally {await browser.close();}

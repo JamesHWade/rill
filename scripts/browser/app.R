@@ -154,6 +154,21 @@ app <- shiny::shinyApp(
     ) {
       store <- stress_store(store)
     }
+    if (identical(query$timeline, "fixture")) {
+      store$memory$entries$preview_image_url[[
+        1L
+      ]] <- "https://example.org/timeline-river.png"
+      store$memory$entries$preview_image_alt[[
+        1L
+      ]] <- "River through a wooded valley"
+      store$memory$entries$preview_image_url[[
+        3L
+      ]] <- "https://example.org/missing-image.png"
+      store$memory$entries$title[[1L]] <- "Small rivers, large consequences"
+      store$memory$entries$summary[[
+        1L
+      ]] <- "What changes when we follow a river from its headwaters? A field notebook about water, woodland, and the places they connect."
+    }
     shiny::observeEvent(input$audit_error, {
       shiny::showNotification(
         "The test request failed. Please try again.",
