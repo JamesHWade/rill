@@ -1049,7 +1049,7 @@ orientation_ui <- function(
       shiny::tags$h1("Choose something worth reading"),
       orientation_failure_ui(
         if (preparing) {
-          "Evaluating the current unread Documents…"
+          "Evaluating the current unread Documents\u2026"
         } else {
           failure %||%
             "Orientation will appear after Rill evaluates your unread Documents."
@@ -1123,7 +1123,7 @@ orientation_ui <- function(
       class = "orientation-header",
       shiny::tags$p(
         class = "eyebrow",
-        "Orientation · Rill-guided reading"
+        "Orientation \u00b7 Rill-guided reading"
       ),
       shiny::tags$h1(
         id = "orientation-title",
@@ -1228,7 +1228,7 @@ orientation_themes_ui <- function(themes, candidates) {
         if (length(sources)) {
           shiny::tags$span(
             class = "orientation-theme-sources",
-            paste(utils::head(sources, 3L), collapse = " · ")
+            paste(utils::head(sources, 3L), collapse = " \u00b7 ")
           )
         }
       )
@@ -1254,7 +1254,7 @@ orientation_totals_ui <- function(unread_total, picked, themes, evaluated) {
   )
   shiny::tags$p(
     class = "orientation-totals",
-    paste(parts, collapse = " · "),
+    paste(parts, collapse = " \u00b7 "),
     shiny::tags$button(
       type = "button",
       class = "orientation-totals-link",
@@ -1268,7 +1268,7 @@ orientation_evidence_lead <- function(evidence) {
   parts <- strsplit(evidence, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
   lead <- trimws(parts[[1L]] %||% evidence)
   if (nchar(lead) > 220L) {
-    lead <- paste0(substr(lead, 1L, 200L), "…")
+    lead <- paste0(substr(lead, 1L, 200L), "\u2026")
   }
   lead
 }
@@ -1514,7 +1514,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
       ),
       shiny::tags$p(
         class = "orientation-why",
-        shiny::tags$strong("Why now · "),
+        shiny::tags$strong("Why now \u00b7 "),
         card$why_now
       ),
       shiny::tags$blockquote(
@@ -1546,7 +1546,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
               gsub("_", " ", document$acquisition_method, fixed = TRUE),
               "by",
               document$producer,
-              "· captured",
+              "\u00b7 captured",
               format(
                 as.POSIXct(document$captured_at, tz = "UTC"),
                 "%Y-%m-%d %H:%M UTC",
