@@ -178,7 +178,30 @@ app <- shiny::shinyApp(
     })
     shiny::observeEvent(input$audit_disconnect, session$close())
     session$onSessionEnded(function() rill_store_close(store))
-    rill_server(config, store)(input, output, session)
+    preview_fetch <- if (identical(query$timeline, "fixture")) {
+      function(url, session) {
+        image <- if (identical(url, "https://example.org/timeline-river.png")) {
+          list(
+            content = readBin(
+              "scripts/browser/fixtures/timeline-river.png",
+              "raw",
+              n = 4 * 1024^2
+            ),
+            type = "image/png"
+          )
+        } else {
+          NULL
+        }
+        promises::promise_resolve(image)
+      }
+    } else {
+      queue_preview_fetch_async
+    }
+    rill_server(config, store, preview_fetch = preview_fetch)(
+      input,
+      output,
+      session
+    )
     if (identical(query$tools, "fixture")) {
       shiny::observeEvent(input$audit_document_result, {
         document <- sample_rill_data()$documents[[2L]]

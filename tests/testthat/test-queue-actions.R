@@ -127,3 +127,41 @@ testthat::test_that("transient undo failures retain the receipt for retry", {
     }
   )
 })
+
+testthat::test_that("Undo survives completed-result cache eviction", {
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "queue-reader"))
+  shiny::testServer(
+    function(input, output, session) {
+      reader_queue_server(
+        store,
+        "queue-reader",
+        function() NULL,
+        function(...) NULL,
+        session
+      )
+    },
+    {
+      session$flushReact()
+      session$setInputs(
+        queue_action = list(
+          id = "old-read",
+          entry_id = "sample-entry-2",
+          action = "mark_read"
+        )
+      )
+      for (index in seq_len(51L)) {
+        session$setInputs(
+          queue_action = list(
+            id = paste0("save-", index),
+            entry_id = "sample-entry-2",
+            action = "save"
+          )
+        )
+      }
+      session$setInputs(queue_undo = list(id = "old-read"))
+      entry <- store_get_entry(store, "queue-reader", "sample-entry-2")
+      testthat::expect_all_true(is.na(entry$read_at))
+      testthat::expect_identical(entry$saved, TRUE)
+    }
+  )
+})

@@ -1000,3 +1000,22 @@ testthat::test_that("ungrouped feed choices are searchable and Captures cannot b
   ])))$html
   testthat::expect_no_match(single, "Save Groups", fixed = TRUE)
 })
+
+testthat::test_that("timeline images only use session proxy paths", {
+  entry <- as.list(sample_rill_data()$entries[1L, ])
+  entry$read_at <- NA_character_
+  entry$preview_image_url <- "https://images.example/photo.png"
+  direct <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = entry$preview_image_url
+  ))$html
+  testthat::expect_no_match(direct, "<img", fixed = TRUE)
+  proxied <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = "session/test/dataobj/queue-preview?entry_id=one"
+  ))$html
+  testthat::expect_match(proxied, 'src="session/', fixed = TRUE)
+  testthat::expect_no_match(proxied, "https://images.example", fixed = TRUE)
+})

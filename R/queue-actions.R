@@ -302,7 +302,9 @@ reader_queue_server <- function(
         return()
       }
       receipts[[request$id]] <<- NULL
-      completed[[request$id]]$undo <<- NULL
+      if (!is.null(completed[[request$id]])) {
+        completed[[request$id]]$undo <<- NULL
+      }
       if (undone) {
         record_event(
           "read_state_changed",

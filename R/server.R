@@ -78,12 +78,22 @@ rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
   invisible(runtime)
 }
 
-rill_server <- function(config, store) {
+rill_server <- function(
+  config,
+  store,
+  preview_fetch = queue_preview_fetch_async
+) {
   force(config)
   force(store)
 
   function(input, output, session, reader_id = config$actor_id) {
     actor_id <- reader_id
+    preview_src <- queue_preview_server(
+      store,
+      actor_id,
+      session,
+      fetch = preview_fetch
+    )
     session_id <- rill_id(
       "session",
       actor_id,
@@ -2784,6 +2794,7 @@ rill_server <- function(config, store) {
         story_card(
           as.list(rows[index, , drop = FALSE]),
           index,
+          preview_src = preview_src(as.list(rows[index, , drop = FALSE])),
           selected = identical(
             selected_id(),
             as.character(rows$entry_id[[index]])

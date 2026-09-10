@@ -8,9 +8,8 @@ const output = path.resolve('../../artifacts/article-timeline');
 await fs.mkdir(output, {recursive:true});
 const browser = await chromium.launch({channel:'chrome',headless:true});
 const context = await browser.newContext({viewport:{width:390,height:844},hasTouch:true});
-await context.route('https://example.org/timeline-river.png', route => route.fulfill({path:path.resolve('fixtures/timeline-river.png'),contentType:'image/png'}));
-await context.route('https://example.org/missing-image.png', route => route.fulfill({status:404,body:''}));
 const page = await context.newPage();
+const externalPreviews=[]; page.on('request', request=>{if(request.url().startsWith('https://example.org/')) externalPreviews.push(request.url());});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 try {
 const url=process.env.RILL_BROWSER_URL || 'http://127.0.0.1:3890';
@@ -19,22 +18,23 @@ await page.goto(`${url}/?timeline=fixture`);
 await page.waitForFunction(()=>window.rillUiAudit?.().appBusy==='false');
 await page.evaluate(()=>window.rillOpenQueue());
 await page.locator('.story-card').first().waitFor();
+await page.waitForFunction(()=>{const image=document.querySelector('.story-row[data-entry-id="sample-entry-1"] img');return image?.complete&&image.naturalWidth>0&&!image.hidden;});
 await page.waitForTimeout(500);
 await page.locator('.story-card').first().evaluate(e=>e.blur());
+await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
 const results=[];
 for (const width of [320,390,430,768,1440]) {
  await page.setViewportSize({width,height:900});
  await page.waitForTimeout(200);
- await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});
  const result=await page.evaluate(async()=>({ui:window.rillUiAudit(),violations:(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations}));
  results.push({width,...result});
  await page.screenshot({path:path.join(output,`${width}-timeline.png`)});
  assert.equal(result.ui.horizontalOverflow,false);
 }
 await page.setViewportSize({width:390,height:844});
-const broken=page.locator('img[src="https://example.org/missing-image.png"]');
+const broken=page.locator('.story-row[data-entry-id="sample-entry-3"] img');
 await broken.evaluate(e=>e.loading='eager');
-await page.waitForFunction(()=>document.querySelector('img[src="https://example.org/missing-image.png"]').hidden);
+await page.waitForFunction(()=>document.querySelector('.story-row[data-entry-id="sample-entry-3"] img').hidden);
 await page.evaluate(()=>document.getElementById('story_list').scrollTop=0);
 await page.locator('.story-save').first().focus();
 await page.keyboard.press('Enter');
@@ -93,4 +93,5 @@ assert.equal(await page.evaluate(()=>window.rillUiAudit().horizontalOverflow),fa
 assert.equal(results.flatMap(r=>r.violations).length,0);
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify({results,errors},null,2));
 assert.equal(errors.length,0);
+assert.equal(externalPreviews.length,0);
 } finally {await browser.close();}

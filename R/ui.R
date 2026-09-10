@@ -1863,7 +1863,7 @@ format_story_time <- function(value) {
   format(parsed, "%b %e")
 }
 
-story_card <- function(entry, index, selected = FALSE) {
+story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
   entry_id <- as.character(entry$entry_id)
   is_read <- !is.na(entry$read_at) && nzchar(as.character(entry$read_at))
   saved <- isTRUE(entry$saved)
@@ -1879,7 +1879,13 @@ story_card <- function(entry, index, selected = FALSE) {
     c(author, format_story_time(entry$published_at)),
     collapse = " \u00b7 "
   )
-  image <- entry_preview_url(entry$preview_image_url)
+  image <- if (
+    store_scalar_string(preview_src) && startsWith(preview_src, "session/")
+  ) {
+    preview_src
+  } else {
+    NA_character_
+  }
   read_action <- if (is_read) "mark_unread" else "mark_read"
   read_label <- if (is_read) "Mark unread" else "Mark read"
   action_button <- function(action, label, icon, class, ...) {

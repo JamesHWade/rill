@@ -2697,11 +2697,14 @@
     }
   },
   "files": {
+    "R/queue-preview.R": {
+      "checksum": "b88820d576e88ba1f164a08246588a37"
+    },
     "R/entry-preview.R": {
       "checksum": "2075563a3dc66349e16b9bc8cd491968"
     },
     "R/queue-actions.R": {
-      "checksum": "da5ad64d49f0b092734b7b6b9b7deed6"
+      "checksum": "ff356567dbf6f7926c02789f51a15768"
     },
     "inst/app/www/queue.js": {
       "checksum": "e181b11f91a184bde16d435366bd1d67"
@@ -2725,7 +2728,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "0011a56741fb4ac70a3b6aa359cad446"
+      "checksum": "cb4be14602b0245b30c7d4745ddb44a6"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
@@ -2752,7 +2755,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "87690f7f5a03075741c291379e16a7b5"
+      "checksum": "ae6c548dbb91b4ed38bcb0208ab30acc"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2866,13 +2869,13 @@
       "checksum": "5339cbf4894daa8a4523a4012856469e"
     },
     "R/server.R": {
-      "checksum": "dd60f668c87cdbe3c9d3b04d477aa17a"
+      "checksum": "5e2160c31882861400c07dcf2c57722d"
     },
     "R/telemetry.R": {
       "checksum": "32403d0504b0c365034a40515b79d977"
     },
     "R/ui.R": {
-      "checksum": "00f040573cabfd6daec1cc8e30229757"
+      "checksum": "0b55c7890333210702b90b3ff774574d"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
