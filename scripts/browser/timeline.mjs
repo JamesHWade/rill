@@ -39,6 +39,13 @@ await page.evaluate(async()=>Promise.all(document.getAnimations().filter(a=>Numb
 await page.locator('.story-card').first().focus();
 assert.ok(await page.locator('.story-card').first().evaluate(e=>parseFloat(getComputedStyle(e).outlineOffset))<0);
 await page.screenshot({path:path.join(output,'390-keyboard-focus.png')});
+const accessibilitySession=await context.newCDPSession(page);
+const tree=await accessibilitySession.send('Accessibility.getFullAXTree');
+const firstCard=tree.nodes.find(node=>node.role?.value==='button'&&node.name?.value==='Open Small rivers, large consequences');
+assert.ok(firstCard, 'The first card exposes its accessible action name');
+assert.ok(firstCard.description?.value.includes('What changes when we follow a river from its headwaters?'));
+assert.ok(firstCard.description?.value.includes('River through a wooded valley'));
+await fs.writeFile(path.join(output,'accessible-card.json'),JSON.stringify({name:firstCard.name.value,description:firstCard.description.value},null,2));
 const previewSources=await page.locator('.story-preview-image').evaluateAll(images=>images.map(image=>image.src));
 assert.ok(previewSources.every(src=>new URL(src).origin===new URL(url).origin&&new URL(src).pathname.includes('/dataobj/queue-preview')));
 const broken=page.locator('.story-row[data-entry-id="sample-entry-3"] img');

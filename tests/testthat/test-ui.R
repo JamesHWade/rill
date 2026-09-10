@@ -1019,3 +1019,38 @@ testthat::test_that("timeline images only use session proxy paths", {
   testthat::expect_match(proxied, 'src="session/', fixed = TRUE)
   testthat::expect_no_match(proxied, "https://images.example", fixed = TRUE)
 })
+
+testthat::test_that("timeline descriptions expose source excerpts and image alt text", {
+  entry <- as.list(sample_rill_data()$entries[1L, ])
+  entry$read_at <- NA_character_
+  entry$summary <- "A publisher's source excerpt."
+  entry$preview_image_alt <- "A wooded valley."
+  html <- htmltools::renderTags(story_card(
+    entry,
+    1L,
+    preview_src = "session/test/image"
+  ))$html
+  document <- xml2::read_html(html)
+  card <- xml2::xml_find_first(
+    document,
+    "//button[contains(@class, 'story-card')]"
+  )
+  ids <- strsplit(xml2::xml_attr(card, "aria-describedby"), " ", fixed = TRUE)[[
+    1L
+  ]]
+  testthat::expect_length(ids, 2L)
+  summary <- xml2::xml_find_first(
+    document,
+    paste0("//*[@id='", ids[[1L]], "']")
+  )
+  image <- xml2::xml_find_first(document, paste0("//*[@id='", ids[[2L]], "']"))
+  testthat::expect_identical(xml2::xml_text(summary), entry$summary)
+  testthat::expect_identical(
+    xml2::xml_attr(image, "alt"),
+    entry$preview_image_alt
+  )
+  entry$summary <- NA_character_
+  entry$preview_image_alt <- NA_character_
+  html <- htmltools::renderTags(story_card(entry, 1L))$html
+  testthat::expect_no_match(html, "aria-describedby", fixed = TRUE)
+})

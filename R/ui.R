@@ -1886,6 +1886,16 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
   } else {
     NA_character_
   }
+  description_id <- paste0(
+    "story-description-",
+    digest::digest(entry_id, algo = "xxhash64")
+  )
+  summary_id <- paste0(description_id, "-summary")
+  image_id <- paste0(description_id, "-image")
+  descriptions <- c(
+    if (store_scalar_string(entry$summary)) summary_id,
+    if (!is.na(image) && store_scalar_string(entry$preview_image_alt)) image_id
+  )
   read_action <- if (is_read) "mark_unread" else "mark_read"
   read_label <- if (is_read) "Mark unread" else "Mark read"
   action_button <- function(action, label, icon, class, ...) {
@@ -1953,6 +1963,11 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
         `data-entry-id` = entry_id,
         `aria-current` = if (selected) "true" else NULL,
         `aria-label` = paste("Open", title),
+        `aria-describedby` = if (length(descriptions)) {
+          paste(descriptions, collapse = " ")
+        } else {
+          NULL
+        },
         onclick = sprintf(
           "rillSelectEntry(%s, %d)",
           jsonlite::toJSON(entry_id, auto_unbox = TRUE),
@@ -1960,11 +1975,12 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
         ),
         shiny::tags$h3(title),
         if (store_scalar_string(entry$summary)) {
-          shiny::tags$p(entry$summary)
+          shiny::tags$p(id = summary_id, entry$summary)
         },
         if (!is.na(image)) {
           shiny::tags$img(
             class = "story-preview-image",
+            id = image_id,
             src = image,
             alt = if (store_scalar_string(entry$preview_image_alt)) {
               entry$preview_image_alt
