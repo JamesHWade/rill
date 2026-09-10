@@ -32,6 +32,10 @@ for (const width of [320,390,430,768,1440]) {
  assert.equal(result.ui.horizontalOverflow,false);
 }
 await page.setViewportSize({width:390,height:844});
+const broken=page.locator('img[src="https://example.org/missing-image.png"]');
+await broken.evaluate(e=>e.loading='eager');
+await page.waitForFunction(()=>document.querySelector('img[src="https://example.org/missing-image.png"]').hidden);
+await page.evaluate(()=>document.getElementById('story_list').scrollTop=0);
 await page.locator('.story-save').first().focus();
 await page.keyboard.press('Enter');
 await page.locator('.story-save[aria-pressed="true"]').first().waitFor();
@@ -78,8 +82,12 @@ assert.equal(await page.locator('.story-swipe-tray').first().getAttribute('aria-
 await page.evaluate(()=>document.getElementById('story_list').scrollTop=0);
 await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});
 await page.screenshot({path:path.join(output,'390-dark.png')});
-await page.evaluate(()=>document.documentElement.style.fontSize='200%');
+await page.evaluate(()=>document.documentElement.style.setProperty('font-size','200%','important'));
+await page.waitForTimeout(200);
+assert.ok(await page.evaluate(()=>parseFloat(getComputedStyle(document.documentElement).fontSize))>=28);
 await page.screenshot({path:path.join(output,'390-large-text.png')});
+const darkViolations=await page.evaluate(async()=>(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations);
+results.push({state:'dark-large-text',violations:darkViolations});
 assert.equal(await page.evaluate(()=>window.rillUiAudit().horizontalOverflow),false);
 assert.equal(results.flatMap(r=>r.violations).length,0);
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify({results,errors},null,2));

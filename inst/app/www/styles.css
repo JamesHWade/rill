@@ -1189,14 +1189,14 @@ div.story-list.shiny-html-output {
   }
   .compact-queue-navigation button {
     display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 52px; gap: 4px; padding: 5px; border: 0; border-radius: 6px;
+    min-height: 3.25rem; gap: 4px; padding: 5px; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); font-size: 0.75rem;
   }
-  .compact-queue-navigation .bi { width: 1.25rem; height: 1.25rem; }
+  .compact-queue-navigation .bi { flex-shrink: 0; width: 1.25em; height: 1.25em !important; }
   .compact-queue-navigation [aria-current="page"] { color: var(--green-deep); background: var(--green-soft); }
   .app-shell:not([data-compact-surface="queue"]) .compact-queue-navigation { display: none; }
-  .app-shell .story-pane > .sidebar-content { padding-bottom: calc(62px + env(safe-area-inset-bottom)) !important; }
-  .queue-notice { inset: auto 12px calc(74px + env(safe-area-inset-bottom)); max-width: calc(100% - 24px); }
+  .app-shell .story-pane > .sidebar-content { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)) !important; }
+  .queue-notice { inset: auto 12px calc(5rem + env(safe-area-inset-bottom)); max-width: calc(100% - 24px); }
 }
 
 .empty-list {
@@ -3198,3 +3198,5 @@ div.story-list.shiny-html-output {
   z-index: 2;
   background: var(--paper);
 }
+
+.story-sort { width: 8rem !important; max-width: 100%; }
