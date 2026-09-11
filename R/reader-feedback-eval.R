@@ -291,38 +291,38 @@ feedback_eval_validate <- function(feedback) {
     invalid("{.arg feedback} must be a list of Reader Feedback records.")
   }
   feedback <- lapply(feedback, function(record) {
-    if (!is.list(record) || !is.list(record$snapshot)) {
+    if (!is.list(record) || !is.list(record[["snapshot"]])) {
       invalid("Each feedback record must contain its retained snapshot.")
     }
-    snapshot <- record$snapshot
+    snapshot <- record[["snapshot"]]
     if (
-      !store_scalar_string(record$target_id) ||
-        !store_scalar_string(snapshot$reader_id) ||
-        !store_scalar_string(snapshot$source_id) ||
+      !store_scalar_string(record[["target_id"]]) ||
+        !store_scalar_string(snapshot[["reader_id"]]) ||
+        !store_scalar_string(snapshot[["source_id"]]) ||
         !store_scalar_string(snapshot[["run_id"]]) ||
-        !store_scalar_string(snapshot$kind) ||
-        !snapshot$kind %in% c("orientation", "question") ||
-        !is.list(snapshot$output) ||
-        !is.list(snapshot$provenance) ||
-        !store_scalar_string(record$rating) ||
-        !record$rating %in% c("helpful", "not_helpful")
+        !store_scalar_string(snapshot[["kind"]]) ||
+        !snapshot[["kind"]] %in% c("orientation", "question") ||
+        !is.list(snapshot[["output"]]) ||
+        !is.list(snapshot[["provenance"]]) ||
+        !store_scalar_string(record[["rating"]]) ||
+        !record[["rating"]] %in% c("helpful", "not_helpful")
     ) {
       invalid(
         "Each record needs an output identity, snapshot, and explicit rating."
       )
     }
-    if (!feedback_eval_valid_output(snapshot$output, snapshot$kind)) {
+    if (!feedback_eval_valid_output(snapshot[["output"]], snapshot[["kind"]])) {
       invalid("The retained output does not match its feedback kind.")
     }
     if (
       !identical(
-        record$target_id,
+        record[["target_id"]],
         rill_id("feedback", canonical_json(snapshot))
       )
     ) {
       invalid("A feedback target does not match its retained output snapshot.")
     }
-    reasons <- record$reasons
+    reasons <- record[["reasons"]]
     if (
       is.list(reasons) && all(vapply(reasons, store_scalar_string, logical(1)))
     ) {
@@ -335,18 +335,18 @@ feedback_eval_validate <- function(feedback) {
       !is.character(reasons) ||
         anyNA(reasons) ||
         !all(reasons %in% unname(feedback_reasons())) ||
-        !is.character(record$comment) ||
-        length(record$comment) != 1L ||
-        is.na(record$comment) ||
-        nchar(record$comment) > 2000L ||
-        !store_scalar_string(record$created_at) ||
-        !store_scalar_string(record$updated_at)
+        !is.character(record[["comment"]]) ||
+        length(record[["comment"]]) != 1L ||
+        is.na(record[["comment"]]) ||
+        nchar(record[["comment"]]) > 2000L ||
+        !store_scalar_string(record[["created_at"]]) ||
+        !store_scalar_string(record[["updated_at"]])
     ) {
       invalid(
         "Feedback reasons, comment, and timestamps must match saved records."
       )
     }
-    record$reasons <- unique(reasons)
+    record[["reasons"]] <- unique(reasons)
     record
   })
   ids <- vapply(feedback, `[[`, character(1), "target_id")
@@ -358,7 +358,7 @@ feedback_eval_validate <- function(feedback) {
   readers <- vapply(
     feedback,
     function(record) {
-      record$snapshot$reader_id
+      record[["snapshot"]][["reader_id"]]
     },
     character(1)
   )

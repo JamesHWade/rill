@@ -104,6 +104,43 @@ testthat::test_that("imported feedback requires its retained run identity", {
   }
 })
 
+testthat::test_that("imported records require exact field names", {
+  for (field in c(
+    "reader_id",
+    "source_id",
+    "run_id",
+    "kind",
+    "output",
+    "provenance"
+  )) {
+    record <- feedback_eval_record()
+    names(record$snapshot)[names(record$snapshot) == field] <- paste0(
+      field,
+      "_other"
+    )
+    record$target_id <- rill_id("feedback", canonical_json(record$snapshot))
+    testthat::expect_error(
+      reader_feedback_samples(list(record)),
+      class = "rill_feedback_invalid"
+    )
+  }
+  for (field in c(
+    "target_id",
+    "snapshot",
+    "rating",
+    "comment",
+    "created_at",
+    "updated_at"
+  )) {
+    record <- feedback_eval_record()
+    names(record)[names(record) == field] <- paste0(field, "_other")
+    testthat::expect_error(
+      reader_feedback_samples(list(record)),
+      class = "rill_feedback_invalid"
+    )
+  }
+})
+
 testthat::test_that("recomputed identities cannot legitimize malformed retained outputs", {
   for (kind in c("orientation", "question")) {
     record <- feedback_eval_record(kind = kind)
