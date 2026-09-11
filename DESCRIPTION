@@ -43,7 +43,8 @@ Suggests:
     pkgload,
     processx,
     rlang,
-    testthat (>= 3.3.0)
+    testthat (>= 3.3.0),
+    vitals (>= 0.3.0)
 Remotes:
     JamesHWade/deputy@4a8ee639df8c5e5e32567cb706b722f14732c923,
     posit-dev/shinychat/pkg-r@dde163ea6b27099304a658f3649dd1fac98208bd

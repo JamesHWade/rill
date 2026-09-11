@@ -2697,6 +2697,12 @@
     }
   },
   "files": {
+    "inst/examples/reader-feedback.json": {
+      "checksum": "ca19ef41659cba68e6beba8b8877f1b2"
+    },
+    "R/reader-feedback-eval.R": {
+      "checksum": "bbb5a93946b2882726d83c178c818212"
+    },
     "R/queue-preview.R": {
       "checksum": "b88820d576e88ba1f164a08246588a37"
     },
@@ -2728,7 +2734,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "cb4be14602b0245b30c7d4745ddb44a6"
+      "checksum": "3efd3d8409374fb13a68f9d9b2b114ba"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
@@ -2797,7 +2803,7 @@
       "checksum": "ea9f2fb64a073a932e9ae152ea0f1041"
     },
     "NAMESPACE": {
-      "checksum": "76acba6ca84601646f459c0cdbd7e657"
+      "checksum": "0be004006cb214c26363917f5d2e2a24"
     },
     "R/access-requests.R": {
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"

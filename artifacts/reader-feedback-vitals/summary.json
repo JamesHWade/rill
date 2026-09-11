@@ -1,0 +1,73 @@
+{
+  "description": "Synthetic Reader Feedback for demonstrating the vitals workflow. No real Reader data, provider calls, or measured model improvement.",
+  "baseline": {
+    "helpful_rate": 0.5,
+    "rated_outputs": 4,
+    "helpful_outputs": 2
+  },
+  "calibration": {
+    "agreement": 0.666666666666667,
+    "judgment_coverage": 0.75,
+    "rated_outputs": 4,
+    "judged_outputs": 3
+  },
+  "by_configuration": [
+    {
+      "configuration": "orientation / fixture-model / fixture-v1",
+      "rated": 2,
+      "helpful": 1,
+      "helpful_rate": 0.5
+    },
+    {
+      "configuration": "question / fixture-model / fixture-v1",
+      "rated": 2,
+      "helpful": 1,
+      "helpful_rate": 0.5
+    }
+  ],
+  "by_reason": [
+    {
+      "reason": "clarity",
+      "rated": 1,
+      "helpful": 1
+    },
+    {
+      "reason": "execution",
+      "rated": 1,
+      "helpful": 0
+    },
+    {
+      "reason": "source_faithfulness",
+      "rated": 2,
+      "helpful": 1
+    },
+    {
+      "reason": "usefulness",
+      "rated": 1,
+      "helpful": 1
+    }
+  ],
+  "comparison": [
+    {
+      "case_id": "small-pilot",
+      "baseline_target_id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "candidate_target_id": "1d44de86da7ac13d00aa64e81f29a10b439e4a3d36ec57a8da91758e2ce61ca1",
+      "original_rating": "not_helpful",
+      "new_rating": "helpful",
+      "input_status": "synthetic fixed source; no agent replay performed"
+    }
+  ],
+  "disagreements": [
+    {
+      "id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "human_rating": "not_helpful",
+      "comment": "The pilot is small; the interpretation overstates the evidence.",
+      "scorer_explanation": "Synthetic independent judgment."
+    }
+  ],
+  "logs": {
+    "baseline": "logs/2026-09-11T16-17-13-04-00_reader-feedback-helpfulness-5d1e084f92503c97-retained-output-d440a70cbd89cb826f5535.json",
+    "candidate": "logs/2026-09-11T16-17-13-04-00_reader-feedback-helpfulness-1bbb62c143f3e755-retained-output-d440a70cbd89cb826f5535.json",
+    "calibration": "logs/2026-09-11T16-17-13-04-00_reader-feedback-calibration-7311a56b0b44b95f-retained-output-d440a70cbd89cb826f5535.json"
+  }
+}
