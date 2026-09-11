@@ -15,14 +15,17 @@ Verified on September 11, 2026 with R 4.6.1, vitals 0.3.0, and ellmer
 - Changed outputs, mixed Readers, ambiguous duplicate targets, and mismatched
   independent judgments are rejected. Repeated epochs cannot multiply a human
   observation.
+- Imported records require a run ID and valid output fields for their kind,
+  even when their target fingerprint has been recomputed. Theme-only
+  Orientations and missing answer text remain supported.
 - Full metadata survives vitals logging. Distinct feedback snapshots receive
   distinct log names, including when saved within the same second.
 
 ## Verification results
 
-- Focused evaluation tests: 76 passing assertions, no warnings or skips.
-- Evaluation, application API, and deployment tests together: 121 passing
-  assertions, no warnings or skips.
+- Focused evaluation tests: 127 passing assertions, no warnings or skips.
+- Evaluation, Reader Feedback, application API, and deployment tests together:
+  381 passing assertions with PostgreSQL enabled, no warnings or skips.
 - R CMD check: zero errors, zero warnings, zero notes. Its installed-package
   tests ran with an isolated PostgreSQL database enabled.
 - Air formatting and whitespace checks passed. Jarl passed on all changed R

@@ -299,6 +299,7 @@ feedback_eval_validate <- function(feedback) {
       !store_scalar_string(record$target_id) ||
         !store_scalar_string(snapshot$reader_id) ||
         !store_scalar_string(snapshot$source_id) ||
+        !store_scalar_string(snapshot[["run_id"]]) ||
         !store_scalar_string(snapshot$kind) ||
         !snapshot$kind %in% c("orientation", "question") ||
         !is.list(snapshot$output) ||
@@ -309,6 +310,9 @@ feedback_eval_validate <- function(feedback) {
       invalid(
         "Each record needs an output identity, snapshot, and explicit rating."
       )
+    }
+    if (!feedback_eval_valid_output(snapshot$output, snapshot$kind)) {
+      invalid("The retained output does not match its feedback kind.")
     }
     if (
       !identical(
@@ -362,6 +366,82 @@ feedback_eval_validate <- function(feedback) {
     invalid("Evaluate one Reader's private feedback at a time.")
   }
   unname(feedback[order(ids)])
+}
+
+feedback_eval_valid_output <- function(output, kind) {
+  object <- function(value) {
+    is.list(value) &&
+      !is.data.frame(value) &&
+      length(names(value)) == length(value) &&
+      !anyNA(names(value)) &&
+      all(nzchar(names(value))) &&
+      !anyDuplicated(names(value))
+  }
+  text <- function(value) {
+    is.null(value) ||
+      (is.character(value) && length(value) == 1L && !is.na(value))
+  }
+  required_text <- function(value, fields) {
+    all(vapply(
+      fields,
+      function(field) {
+        store_scalar_string(value[[field]])
+      },
+      logical(1)
+    ))
+  }
+  records <- function(value, valid) {
+    is.list(value) &&
+      !is.data.frame(value) &&
+      is.null(names(value)) &&
+      all(vapply(value, valid, logical(1)))
+  }
+  source <- function(value) {
+    is.null(value) || (object(value) && all(vapply(value, text, logical(1))))
+  }
+  if (!object(output) || !store_scalar_string(output[["status"]])) {
+    return(FALSE)
+  }
+  if (identical(kind, "question")) {
+    return(
+      required_text(output, c("question", "response_state")) &&
+        output[["status"]] %in%
+          c("completed", "failed", "interrupted", "cancelled") &&
+        output[["response_state"]] %in%
+          c("complete", "partial", "unavailable") &&
+        if (identical(output[["response_state"]], "unavailable")) {
+          is.null(output[["response"]])
+        } else {
+          store_scalar_string(output[["response"]])
+        }
+    )
+  }
+  card <- function(value) {
+    object(value) &&
+      required_text(
+        value,
+        c("document_id", "interpretation", "why_now", "evidence")
+      ) &&
+      source(value[["source"]])
+  }
+  theme <- function(value) {
+    if (!object(value) || !required_text(value, c("name", "note"))) {
+      return(FALSE)
+    }
+    ids <- value[["entry_ids"]]
+    (is.character(ids) || (is.list(ids) && is.null(names(ids)))) &&
+      length(ids) > 0L &&
+      all(vapply(ids, store_scalar_string, logical(1))) &&
+      (is.null(value[["sources"]]) || records(value[["sources"]], source))
+  }
+  records(output[["cards"]], card) &&
+    (is.null(output[["themes"]]) || records(output[["themes"]], theme)) &&
+    text(output[["introduction"]]) &&
+    if (length(output[["cards"]])) {
+      store_scalar_string(output[["question"]])
+    } else {
+      text(output[["question"]])
+    }
 }
 
 feedback_eval_judgments <- function(judgments, samples) {

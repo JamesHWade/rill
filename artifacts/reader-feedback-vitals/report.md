@@ -42,10 +42,10 @@ log shows it alongside the human comment and judge explanation.
 
 ## Inspect the outputs
 
-Run in R:
+Run in R from the repository root:
 
 ```r
-vitals::vitals_view("/private/tmp/rill-reader-feedback-vitals/artifacts/reader-feedback-vitals/logs")
+vitals::vitals_view("artifacts/reader-feedback-vitals/logs")
 ```
 
 Logs retain the exact outputs, provenance, human feedback, and labels identifying

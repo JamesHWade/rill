@@ -89,6 +89,149 @@ testthat::test_that("invalid, mixed, duplicated, and reassigned feedback is reje
   )
 })
 
+testthat::test_that("imported feedback requires its retained run identity", {
+  for (kind in c("orientation", "question")) {
+    for (run_id in list(NULL, "", NA_character_, c("one", "two"), 1)) {
+      record <- feedback_eval_record(kind = kind)
+      record$snapshot$run_identity <- "A similar key cannot replace run_id"
+      record$snapshot$run_id <- run_id
+      record$target_id <- rill_id("feedback", canonical_json(record$snapshot))
+      testthat::expect_error(
+        reader_feedback_samples(list(record)),
+        class = "rill_feedback_invalid"
+      )
+    }
+  }
+})
+
+testthat::test_that("recomputed identities cannot legitimize malformed retained outputs", {
+  for (kind in c("orientation", "question")) {
+    record <- feedback_eval_record(kind = kind)
+    output <- record$snapshot$output
+    patch_output <- function(patch) {
+      value <- output
+      value[names(patch)] <- patch
+      value
+    }
+    invalid <- list(
+      list(),
+      data.frame(status = "completed"),
+      feedback_eval_record(
+        kind = if (kind == "question") "orientation" else "question"
+      )$snapshot$output,
+      patch_output(list(question = list("Nested question"))),
+      patch_output(list(status = NA_character_)),
+      patch_output(list(status = c("one", "two")))
+    )
+    renamed <- output
+    names(renamed)[names(renamed) == "status"] <- "statuses"
+    invalid[[length(invalid) + 1L]] <- renamed
+    if (kind == "orientation") {
+      for (cards in list(NULL, "not cards", list("not a card"), list(list()))) {
+        invalid[[length(invalid) + 1L]] <- patch_output(list(cards = cards))
+      }
+      for (field in c("document_id", "interpretation", "why_now", "evidence")) {
+        broken <- output
+        broken$cards[[1]][[field]] <- NULL
+        invalid[[length(invalid) + 1L]] <- broken
+      }
+      for (themes in list(
+        "not themes",
+        list(list()),
+        list(list(
+          name = "Theme",
+          note = "Note",
+          entry_ids = list(list("entry"))
+        ))
+      )) {
+        invalid[[length(invalid) + 1L]] <- patch_output(list(themes = themes))
+      }
+      broken <- output
+      broken$cards[[1]]$source <- list(title = c("one", "two"))
+      invalid[[length(invalid) + 1L]] <- broken
+      broken <- output
+      broken$themes[[1]]$sources <- list("not a source")
+      invalid[[length(invalid) + 1L]] <- broken
+      invalid[[length(invalid) + 1L]] <- patch_output(list(introduction = 1))
+    } else {
+      for (patch in list(
+        list(question = NULL),
+        list(status = "running"),
+        list(response_state = "unknown"),
+        list(response_state = NULL),
+        list(response = list("Nested answer")),
+        list(response = NULL),
+        list(response = ""),
+        list(response_state = "unavailable", response = "Contradictory text")
+      )) {
+        invalid[[length(invalid) + 1L]] <- patch_output(patch)
+      }
+    }
+    for (value in invalid) {
+      record$snapshot$output <- value
+      record$target_id <- rill_id("feedback", canonical_json(record$snapshot))
+      testthat::expect_error(
+        reader_feedback_samples(list(record)),
+        class = "rill_feedback_invalid"
+      )
+    }
+  }
+})
+
+testthat::test_that("saved output shapes retain optional historical fields and response states", {
+  store <- local_orientation_backend_store("memory", "reader")
+  for (state in c("complete", "partial", "unavailable")) {
+    run <- list(
+      reader_id = "reader",
+      kind = "question",
+      run_id = state,
+      status = if (state == "complete") "completed" else "failed",
+      pinned_inputs = list(question = "What are the limitations?")
+    )
+    if (state == "complete") {
+      run$response_text <- "A complete answer."
+    }
+    if (state == "partial") {
+      run$partial_response <- "An unfinished answer."
+    }
+    target <- feedback_target(store, "reader", "question", run)
+    feedback_save(store, "reader", target, "not_helpful")
+  }
+  samples <- reader_feedback_samples(store_list_reader_feedback(
+    store,
+    "reader"
+  ))
+  testthat::expect_setequal(
+    samples$response_state,
+    c("complete", "partial", "unavailable")
+  )
+
+  source <- feedback_eval_record()$snapshot$output
+  source$reader_id <- "reader"
+  source$revision_id <- "theme-only"
+  source$agent_run_id <- "missing-run"
+  source$cards <- list()
+  source$question <- NULL
+  target <- feedback_target(store, "reader", "orientation", source)
+  record <- feedback_save(store, "reader", target, "helpful")
+  samples <- reader_feedback_samples(list(record))
+  testthat::expect_identical(samples$run_id, "missing-run")
+  testthat::expect_identical(samples$model, NA_character_)
+  testthat::expect_identical(
+    samples$retained_output,
+    feedback_eval_json(target$snapshot$output)
+  )
+
+  record <- feedback_eval_record()
+  record$snapshot$output$themes <- NULL
+  record$snapshot$output$cards[[1]]$source <- NULL
+  record$target_id <- rill_id("feedback", canonical_json(record$snapshot))
+  testthat::expect_identical(
+    reader_feedback_samples(list(record))$id,
+    record$target_id
+  )
+})
+
 testthat::test_that("current saved ratings produce offline human evaluations", {
   testthat::skip_if_not_installed("vitals", "0.3.0")
   store <- local_orientation_backend_store("memory", "reader")

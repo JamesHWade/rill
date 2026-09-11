@@ -5,6 +5,11 @@ and `evaluate_reader_feedback()` for a scored vitals Task. The adapter accepts
 one Reader's current records from `list_reader_feedback(reader_id)` or their
 download. It does not generate outputs, contact a model, or write logs.
 
+Imports must retain the run ID and the output fields for their kind, including
+the response state for Ask Rill. Missing historical model or source metadata can
+remain missing. Theme-only Orientations and terminal attempts without retained
+answer text are supported.
+
 ## Review current ratings
 
 ```r

@@ -158,7 +158,7 @@ report <- c(
   "",
   "## Inspect the outputs",
   "",
-  "Run in R:",
+  if (length(arguments)) "Run in R from the repository root:" else "Run in R:",
   "",
   "```r",
   paste0("vitals::vitals_view(", deparse(log_dir), ")"),
