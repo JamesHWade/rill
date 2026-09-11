@@ -1,8 +1,8 @@
 # Reader responsiveness and gestures
 
-The changes are locally verified against deployed baseline `6beb5be`. They have
-not yet been pushed or deployed, so the local improvements below are not claims
-about current hosted performance.
+This report records the September 10 local validation against deployed baseline
+`6beb5be`, before the branch was pushed. The local improvements below are not
+claims about current hosted performance.
 
 ## Production diagnosis
 
@@ -79,7 +79,10 @@ present. These small samples demonstrate a local improvement, not a hosted
 latency distribution. Raw samples are retained in
 `artifacts/reader-swipes/{baseline,improved}-final-latency.json`.
 
-## Verification
+## September 10 local verification
+
+These results belong to the initial responsiveness and gesture changes committed
+as `405b98a`, before the Orientation entry changes and PR review fixes.
 
 - Full source suite with PostgreSQL: 3,679 assertions passed, no warnings or
   skips.
@@ -109,6 +112,22 @@ story. A new native-touch regression reproduced that selection request. Swipe
 release now requires the gesture's available state and an enabled Next button;
 the regression checks that the recovered answer stays selected and a right swipe
 still returns to the queue.
+
+The September 11 review also updated the original responsive browser suite to
+use native Chromium touch input for article navigation and to check queue
+feedback during a drag and cancellation. Its expanded feed-picker check exposed
+a missing `aria-controls` reference, which now points to Selectize's existing
+listbox. All 47 states pass with no axe WCAG A/AA violations, horizontal overflow,
+or browser errors. Results are in `artifacts/pr92-review-responsive/results.json`.
+
+## September 11 CI verification
+
+At `5753681`, all eight GitHub checks passed. The PostgreSQL job in
+[run 34603387178](https://github.com/JamesHWade/rill/actions/runs/34603387178)
+passed 3,685 assertions with no failures or skips and one ellmer 0.5.0
+tool-result conversion deprecation warning in the existing quotation-correction
+test. These CI results are a separate run from the September 10 local checks
+above and the local Orientation-entry checks in the companion report.
 
 ## Hosted verification still required
 

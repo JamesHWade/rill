@@ -15,6 +15,55 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.setDefaultTimeout(15000);
+    let holdDestinations = false;
+    let replies = [];
+    await page.routeWebSocket('**/*', socket => {
+      const server = socket.connectToServer();
+      server.onMessage(message => {
+        let packet;
+        try { packet = JSON.parse(message.toString()); } catch { socket.send(message); return; }
+        const reply = packet.custom?.['rill-reader-destination'];
+        if (!holdDestinations || !reply) { socket.send(message); return; }
+        replies.push({reply, release(ok) {
+          reply.ok = ok;
+          socket.send(JSON.stringify(packet));
+        }});
+      });
+    });
+    async function repeatedDestination(inputName, button) {
+      replies = [];
+      holdDestinations = true;
+      await page.evaluate(inputName => {
+        const original = window.Shiny.setInputValue;
+        window.destinationRequests = [];
+        window.Shiny.setInputValue = function (name, value, options) {
+          if (name === inputName) window.destinationRequests.push({name, value, options});
+          else return original.call(this, name, value, options);
+        };
+        window.releaseDestinationRequest = index => {
+          window.Shiny.setInputValue = original;
+          const request = window.destinationRequests[index];
+          original.call(window.Shiny, request.name, request.value, request.options);
+        };
+      }, inputName);
+      await button.click();
+      await button.click();
+      const requests = await page.evaluate(() => window.destinationRequests);
+      assert.equal(requests.length, 2);
+      assert.equal(typeof requests[0].value.request_id, 'string');
+      assert.notEqual(requests[0].value.request_id, requests[1].value.request_id);
+      for (let index = 0; index < 2; index++) {
+        await page.evaluate(index => window.releaseDestinationRequest(index), index);
+        const deadline = Date.now() + 15000;
+        while (replies.length <= index && Date.now() < deadline) {
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        assert.equal(replies.length, index + 1);
+        assert.equal(replies[index].reply.request_id, requests[index].value.request_id);
+        replies[index].release(index === 1);
+      }
+      holdDestinations = false;
+    }
     async function audit() {
       await page.addScriptTag({path: new URL('./node_modules/axe-core/axe.min.js', import.meta.url).pathname});
       const result = await page.evaluate(() => axe.run(document, {runOnly: ['wcag2a', 'wcag2aa', 'wcag21aa']}));
@@ -76,9 +125,24 @@ try {
     await page.reload();
     await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
     assert.equal(await page.locator('#reader-document').count(), 0, 'Reload keeps the old answer opt-in');
+    await page.locator('.orientation-browse').click();
+    await page.locator('.story-card').first().click();
+    await page.locator('#reader-document').waitFor();
+    await page.evaluate(() => window.rillOpenQueue());
+    await repeatedDestination('show_orientation', queueOrientation);
+    await page.waitForFunction(() => {
+      const orientation = document.getElementById('rill-orientation');
+      return orientation?.getClientRects().length && !document.querySelector('.app-shell').classList.contains('queue-primary');
+    });
+    await page.evaluate(() => window.rillOpenLibrary());
+    await repeatedDestination('reopen_last_answer', page.getByRole('button', {name: 'Reopen last answer', exact: true}));
+    await page.getByRole('button', {name: 'Close Ask Rill', exact: true}).waitFor();
+    assert.equal(await page.locator('.reader-pane').isVisible(), true,
+      'An old failure does not suppress the newer answer transition');
     await audit();
     assert.deepEqual(errors, []);
-    results.push({width, noAutomaticArticle: true, queueAndArticleOrientation: true, lastAnswerAvailable: true, violations: 0, errors});
+    results.push({width, noAutomaticArticle: true, queueAndArticleOrientation: true, lastAnswerAvailable: true,
+      repeatedDestinationReplies: true, violations: 0, errors});
     await page.close();
   }
   await fs.writeFile(new URL('results.json', output), JSON.stringify(results, null, 2) + '\n');

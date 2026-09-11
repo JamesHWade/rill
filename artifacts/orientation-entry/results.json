@@ -4,6 +4,7 @@
     "noAutomaticArticle": true,
     "queueAndArticleOrientation": true,
     "lastAnswerAvailable": true,
+    "repeatedDestinationReplies": true,
     "violations": 0,
     "errors": []
   },
@@ -12,6 +13,7 @@
     "noAutomaticArticle": true,
     "queueAndArticleOrientation": true,
     "lastAnswerAvailable": true,
+    "repeatedDestinationReplies": true,
     "violations": 0,
     "errors": []
   }

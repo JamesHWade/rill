@@ -22,7 +22,7 @@ fixture port; the check rejects non-loopback hosts.
 Results and screenshots go to `artifacts/responsive-audit/`. The suite checks
 viewport transitions, real Chromium touch input, gesture exclusions, keyboard
 actions, accessible names and contrast, native dialogs and errors, long code
-blocks, dark mode, reduced motion, and connection recovery. Its 320 by 225
+blocks, the expanded feed picker, dark mode, reduced motion, and connection recovery. Its 320 by 225
 viewport represents the available CSS space at 400% zoom on a 1280 by 900
 window; it does not certify browser zoom behavior or accessibility conformance.
 
@@ -101,7 +101,8 @@ disconnected actions. The expiry checks deliberately wait eight seconds.
 
 `node orientation-entry.mjs` checks fresh visits with a completed answer,
 Orientation buttons in the queue and article toolbar, explicit answer recovery,
-and reloading at phone and desktop widths. Screenshots and accessibility results
+reloading, and stale replies after repeated destination requests at phone and
+desktop widths. Screenshots and accessibility results
 are retained in `artifacts/orientation-entry/`.
 
 From the repository root, `Rscript scripts/browser/benchmark-reader.R .` profiles

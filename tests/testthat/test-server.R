@@ -2,11 +2,19 @@ testthat::test_that("Orientation can open from an article without changing the q
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
+  destinations <- list()
   shiny::testServer(rill_server(config, store), {
+    session$sendCustomMessage <- function(type, message) {
+      if (identical(type, "rill-reader-destination")) {
+        destinations[[length(destinations) + 1L]] <<- message
+      }
+    }
     session$setInputs(view = "all")
     session$setInputs(select_entry = list(id = "sample-entry-2"))
     testthat::expect_identical(selected_id(), "sample-entry-2")
-    session$setInputs(show_orientation = list(nonce = 1))
+    session$setInputs(show_orientation = list(request_id = 1))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+    session$setInputs(show_orientation = list(request_id = "orientation-1"))
     testthat::expect_null(selected_id())
     testthat::expect_null(selected_document_id())
     testthat::expect_identical(input$view, "all")
@@ -17,11 +25,29 @@ testthat::test_that("Orientation can open from an article without changing the q
     )
     testthat::expect_null(output$reader_body)
     store$memory$orientations[[config$actor_id]] <- NULL
-    session$setInputs(show_orientation = list(nonce = 2))
+    session$setInputs(show_orientation = list(request_id = "orientation-2"))
     testthat::expect_match(
       output$reader_header$html,
       'id="rill-orientation"',
       fixed = TRUE
+    )
+    draining_agent_run_id("busy")
+    session$setInputs(show_orientation = list(request_id = "blocked"))
+    testthat::expect_identical(
+      destinations,
+      list(
+        list(
+          destination = "orientation",
+          request_id = "orientation-1",
+          ok = TRUE
+        ),
+        list(
+          destination = "orientation",
+          request_id = "orientation-2",
+          ok = TRUE
+        ),
+        list(destination = "orientation", request_id = "blocked", ok = FALSE)
+      )
     )
   })
 })
@@ -1837,7 +1863,13 @@ testthat::test_that("a replacement session keeps a completed answer available wi
     testthat::expect_identical(active_agent_run()$run_id, run$run_id)
     testthat::expect_identical(active_agent_run()$status, "completed")
     testthat::expect_null(selected_id())
-    session$setInputs(reopen_last_answer = list(nonce = 1))
+    destinations <- list()
+    session$sendCustomMessage <- function(type, message) {
+      if (identical(type, "rill-reader-destination")) {
+        destinations[[length(destinations) + 1L]] <<- message
+      }
+    }
+    session$setInputs(reopen_last_answer = list(request_id = "answer-1"))
     testthat::expect_identical(selected_id(), document$entry_id)
     testthat::expect_identical(
       selected_document()$document_id,
@@ -1850,6 +1882,19 @@ testthat::test_that("a replacement session keeps a completed answer available wi
     testthat::expect_identical(
       appended,
       "Answer completed before reconnection."
+    )
+    draining_agent_run_id("busy")
+    session$setInputs(reopen_last_answer = list(request_id = "blocked"))
+    draining_agent_run_id(NULL)
+    restored_question(list(run_id = "missing"))
+    session$setInputs(reopen_last_answer = list(request_id = "missing"))
+    testthat::expect_identical(
+      destinations,
+      list(
+        list(destination = "last_answer", request_id = "answer-1", ok = TRUE),
+        list(destination = "last_answer", request_id = "blocked", ok = FALSE),
+        list(destination = "last_answer", request_id = "missing", ok = FALSE)
+      )
     )
   })
 })

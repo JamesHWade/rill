@@ -3508,6 +3508,11 @@ rill_server <- function(
     shiny::observeEvent(
       input$show_orientation,
       {
+        request <- input$show_orientation
+        if (!is.list(request) || !store_scalar_string(request$request_id)) {
+          return()
+        }
+        request_id <- request$request_id
         opened <- clear_selection(clear_retained = FALSE)
         if (isTRUE(opened)) {
           orientation_requested(TRUE)
@@ -3523,7 +3528,11 @@ rill_server <- function(
           function() {
             session$sendCustomMessage(
               "rill-reader-destination",
-              list(destination = "orientation", ok = isTRUE(opened))
+              list(
+                destination = "orientation",
+                request_id = request_id,
+                ok = isTRUE(opened)
+              )
             )
           },
           once = TRUE
@@ -3548,8 +3557,21 @@ rill_server <- function(
     shiny::observeEvent(
       input$reopen_last_answer,
       {
+        request <- input$reopen_last_answer
+        if (!is.list(request) || !store_scalar_string(request$request_id)) {
+          return()
+        }
+        request_id <- request$request_id
         saved <- restored_question()
         if (is.null(saved)) {
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
+          )
           return()
         }
         if (reader_response_in_flight()) {
@@ -3560,7 +3582,11 @@ rill_server <- function(
           )
           session$sendCustomMessage(
             "rill-reader-destination",
-            list(destination = "last_answer", ok = FALSE)
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
           )
           return()
         }
@@ -3581,7 +3607,11 @@ rill_server <- function(
           )
           session$sendCustomMessage(
             "rill-reader-destination",
-            list(destination = "last_answer", ok = FALSE)
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
           )
           return()
         }
@@ -3602,7 +3632,11 @@ rill_server <- function(
           function() {
             session$sendCustomMessage(
               "rill-reader-destination",
-              list(destination = "last_answer", ok = TRUE)
+              list(
+                destination = "last_answer",
+                request_id = request_id,
+                ok = TRUE
+              )
             )
           },
           once = TRUE

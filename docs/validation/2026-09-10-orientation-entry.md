@@ -1,7 +1,7 @@
 # Orientation entry and fresh visits
 
-These changes extend the local reader responsiveness work. They have not been
-pushed or deployed.
+This report records September 10 local validation of the Orientation entry
+changes committed as `5753681`, before the branch was pushed.
 
 ## Reproduction and cause
 
@@ -50,12 +50,20 @@ after its Feed is unsubscribed. The existing answer-rating browser regression
 passes at 320, 390, and 1440 pixels using the explicit reopening action, including
 saved ratings, export, current-response rating, and enlarged answer text.
 
-The complete source run passed 3,692 assertions; its only failure was outdated
-manifest checksums. After refreshing them, the ten-assertion deployment test
-passed. The installed-package `R CMD check --no-manual` finished with zero errors,
+The September 10 local source run passed 3,692 assertions; its only failure was
+outdated manifest checksums. After refreshing them, the ten-assertion deployment
+test passed. The installed-package `R CMD check --no-manual` finished with zero errors,
 warnings, or notes. Changed-file Jarl checks, Air formatting, and pkgdown checks
 also pass. The responsive timeline regression passes through 320–1440 pixels,
 dark mode, and doubled text without accessibility violations or overflow.
+
+Later PR review added per-request IDs to Orientation and saved-answer
+acknowledgements. Repeated requests to the same destination can no longer consume
+one another's replies. The browser regression holds replies and delivers an old
+failure before the newer success for each destination at phone and desktop
+widths; server tests check the echoed ID on success and rejection paths.
+The September 11 server and deployment test run passed 702 assertions with no
+warnings or skips.
 
 These checks establish local behavior. Production verification requires
 publishing this revision and repeating the flow in the authenticated Reader.
