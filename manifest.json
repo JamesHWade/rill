@@ -2704,10 +2704,10 @@
       "checksum": "2075563a3dc66349e16b9bc8cd491968"
     },
     "R/queue-actions.R": {
-      "checksum": "6134b8be5d5574f856ffeaa13c3f0c15"
+      "checksum": "c61ef6ca3db518fb115af70b62f78f84"
     },
     "inst/app/www/queue.js": {
-      "checksum": "7114a369211a724faa49c500c1cc1f2e"
+      "checksum": "d02fcd686943031ca61d2418b0eaa35f"
     },
     "inst/sql/015_entry_previews.sql": {
       "checksum": "3f80dc51d967299855400561a88ebbd6"
@@ -2734,7 +2734,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "42f865df4869f60cf0c27ae7621a1aaa"
+      "checksum": "3f1adbec0bb2ba735fe9013e1895f99f"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2755,7 +2755,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "552959d462ccd14067c553d202da496c"
+      "checksum": "1cf3fe1a5d467ee3df835030c7ce3198"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2812,7 +2812,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "d78f4a4b8f35fb1146350744332e0cae"
+      "checksum": "8e38dce7aa6ffd121c776efd8e69b81b"
     },
     "R/capture.R": {
       "checksum": "abcb82a29dd76278aefe85555c4f369a"
@@ -2869,13 +2869,13 @@
       "checksum": "485e4e9572826ea422dc2fab162a1d62"
     },
     "R/server.R": {
-      "checksum": "63c8ec5949b304a17df3157a81ecfed6"
+      "checksum": "68e80e6fbe47cfd067664064eed83e4e"
     },
     "R/telemetry.R": {
-      "checksum": "3a72af9e0073404f3fb8a64e8bbc074c"
+      "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "f9a6cef65fd2e609241b08e422860028"
+      "checksum": "f1c7a3055dd00a541e87ac62ecc84db7"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2890,7 +2890,7 @@
       "checksum": "2905a9af9863e33d94dca74b56de379d"
     },
     "R/queue-render.R": {
-      "checksum": "7dbede458dc19691f6a0dd2babbe3fb0"
+      "checksum": "f729d02a98a725e26b9cf099cc61a537"
     }
   },
   "users": null

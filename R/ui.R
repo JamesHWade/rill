@@ -1917,15 +1917,19 @@ feed_refresh_summary <- function(result) {
   )
 }
 
-format_story_time <- function(value) {
-  parsed <- tryCatch(
+parse_story_time <- function(value) {
+  tryCatch(
     suppressWarnings(as.POSIXct(value, tz = "UTC")),
     error = function(error) as.POSIXct(NA)
   )
+}
+
+format_story_time <- function(value, now = Sys.time()) {
+  parsed <- parse_story_time(value)
   if (length(parsed) == 0L || is.na(parsed)) {
     return("")
   }
-  seconds <- as.numeric(difftime(Sys.time(), parsed, units = "secs"))
+  seconds <- as.numeric(difftime(now, parsed, units = "secs"))
   if (seconds < 3600) {
     return(paste0(max(1L, floor(seconds / 60)), "m"))
   }
@@ -1938,7 +1942,13 @@ format_story_time <- function(value) {
   format(parsed, "%b %e")
 }
 
-story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
+story_card <- function(
+  entry,
+  index,
+  selected = FALSE,
+  preview_src = NULL,
+  time_label = format_story_time(entry$published_at)
+) {
   entry_id <- as.character(entry$entry_id)
   is_read <- !is.na(entry$read_at) && nzchar(as.character(entry$read_at))
   saved <- isTRUE(entry$saved)
@@ -1951,7 +1961,7 @@ story_card <- function(entry, index, selected = FALSE, preview_src = NULL) {
   initials <- toupper(substr(source, 1L, 2L))
   author <- if (store_scalar_string(entry$author)) entry$author else NULL
   byline <- paste(
-    c(author, format_story_time(entry$published_at)),
+    c(author, time_label),
     collapse = " \u00b7 "
   )
   image <- if (

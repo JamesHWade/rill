@@ -2,6 +2,7 @@
   "use strict";
 
   const pending = new Map();
+  const rowAnimations = new WeakMap();
   let gesture = null;
   let suppressClickUntil = 0;
   let registered = false;
@@ -9,6 +10,31 @@
   let transition = null;
   let transitionTimer = null;
   let navigation = null;
+  let noticeTimer = null;
+  let noticeRemaining = 0;
+  let noticeStarted = 0;
+
+  function dismissNotice() {
+    clearTimeout(noticeTimer);
+    noticeRemaining = 0;
+    document.getElementById("queue-notice").hidden = true;
+    undoAction = null;
+  }
+
+  function pauseNotice() {
+    clearTimeout(noticeTimer);
+    if (noticeStarted) noticeRemaining = Math.max(0, noticeRemaining - (performance.now() - noticeStarted));
+    noticeStarted = 0;
+  }
+
+  function resumeNotice() {
+    const box = document.getElementById("queue-notice");
+    const hovered = window.matchMedia("(hover: hover)").matches && box?.matches(":hover");
+    if (!box || box.hidden || document.hidden || hovered || box.contains(document.activeElement) || !noticeRemaining) return;
+    clearTimeout(noticeTimer);
+    noticeStarted = performance.now();
+    noticeTimer = setTimeout(dismissNotice, noticeRemaining);
+  }
 
   function clearTransition() {
     clearTimeout(transitionTimer);
@@ -116,6 +142,8 @@
       active?.classList.contains("story-read") ? ".story-read" : ".story-card";
     const existing = new Map(Array.from(current.querySelectorAll(":scope > .story-row"))
       .map(row => [row.dataset.entryId, row]));
+    const rowTops = new Map(Array.from(existing, ([id, row]) =>
+      [id, row.getBoundingClientRect().top]));
     const children = Array.from(next.children, incoming => {
       const previous = existing.get(incoming.dataset.entryId);
       if (previous && previous.dataset.queueVersion === incoming.dataset.queueVersion) {
@@ -131,6 +159,17 @@
     while (current.children.length > children.length) current.lastElementChild.remove();
     Object.assign(current.dataset, next.dataset);
     restorePosition(position);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      current.querySelectorAll(":scope > .story-row").forEach(row => {
+        const before = rowTops.get(row.dataset.entryId);
+        const delta = before - row.getBoundingClientRect().top;
+        if (!Number.isFinite(delta) || Math.abs(delta) < 1 || !row.animate) return;
+        rowAnimations.get(row)?.cancel();
+        rowAnimations.set(row, row.animate([
+          {transform: `translateY(${delta}px)`}, {transform: "translateY(0)"}
+        ], {duration: 200, easing: "cubic-bezier(.2,.8,.2,1)"}));
+      });
+    }
     if (focusId && !active?.isConnected) rowFor(focusId)?.querySelector(focusClass)?.focus({preventScroll: true});
     if (focusMore && !active?.isConnected) {
       const target = current.querySelector("#queue_more") ||
@@ -199,6 +238,10 @@
     document.getElementById("queue-notice-message").textContent = message;
     document.getElementById("queue-undo").hidden = !undo;
     undoAction = undo ? {id: undo, entryId} : null;
+    clearTimeout(noticeTimer);
+    noticeStarted = 0;
+    noticeRemaining = error ? 0 : 8000;
+    resumeNotice();
   }
 
   function connected() {
@@ -208,11 +251,12 @@
   function busyRow(row, busy) {
     if (!row) return;
     row.classList.toggle("is-pending", busy);
+    if (!busy) row.classList.remove("is-swipe-committed");
     row.setAttribute("aria-busy", String(busy));
     row.querySelectorAll("button").forEach(button => { button.disabled = busy; });
   }
 
-  function submit(button) {
+  function submit(button, swiped = false) {
     const id = button.dataset.entryId;
     if (Array.from(pending.values()).some(item => item.entryId === id)) return;
     const row = rowFor(id);
@@ -221,17 +265,24 @@
       notice("Reconnect to Rill before changing this story.", null, null, true);
       return;
     }
-    const requestId = window.crypto?.randomUUID?.() || `queue-${Date.now()}-${Math.random()}`;
+    const requestId = transitionId();
     const request = {
       entryId: id,
+      telemetryId: transitionId(),
+      started: performance.now(),
       position: capturePosition(id),
       focus: row?.contains(document.activeElement),
       focusClass: button.classList.contains("story-save") ? ".story-save" : ".story-read",
     };
     pending.set(requestId, request);
     busyRow(row, true);
+    if (swiped) {
+      row.classList.add("is-swipe-committed");
+      reveal(row, -row.getBoundingClientRect().width, true);
+    }
     window.Shiny.setInputValue("queue_action", {
       id: requestId, entry_id: id, action: button.dataset.queueAction,
+      telemetry_id: request.telemetryId,
     }, {priority: "event"});
   }
 
@@ -239,7 +290,7 @@
     const request = pending.get(result.id);
     pending.delete(result.id);
     window.requestAnimationFrame(() => {
-      const row = rowFor(result.entry_id || request?.entryId);
+      const row = rowFor(request?.entryId || result.entry_id);
       busyRow(row, false);
       reveal(row);
       if (request) restorePosition(request.position);
@@ -253,6 +304,20 @@
         target?.focus({preventScroll: true});
       }
       notice(result.message, result.undo, result.entry_id, !result.ok);
+      if (request) {
+        const domReady = performance.now() - request.started;
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+          const elapsed = performance.now() - request.started;
+          window.dispatchEvent(new CustomEvent("rill:queue-action-visible", {
+            detail: {action: result.action, ok: result.ok, elapsed_ms: elapsed, dom_ready_ms: domReady}
+          }));
+          if (result.telemetry_id === request.telemetryId) {
+            window.Shiny?.setInputValue("queue_action_visible", {
+              id: request.telemetryId, elapsed_ms: elapsed, dom_ready_ms: domReady
+            }, {priority: "event"});
+          }
+        }));
+      }
     });
   }
 
@@ -309,11 +374,14 @@
       pending.set(undoAction.id, {
         entryId: undoAction.entryId, position: capturePosition(undoAction.entryId),
         focus: true, focusClass: ".story-card",
+        telemetryId: transitionId(), started: performance.now(),
       });
-      window.Shiny.setInputValue("queue_undo", {id: undoAction.id, nonce: Math.random()}, {priority: "event"});
+      pauseNotice();
+      window.Shiny.setInputValue("queue_undo", {
+        id: undoAction.id, nonce: Math.random(), telemetry_id: pending.get(undoAction.id).telemetryId
+      }, {priority: "event"});
     } else if (event.target.closest("#queue-notice-dismiss")) {
-      document.getElementById("queue-notice").hidden = true;
-      undoAction = null;
+      dismissNotice();
     } else {
       closeSwipes();
     }
@@ -348,6 +416,7 @@
       row, id: event.pointerId, x: event.clientX, y: event.clientY,
       start: parseFloat(row.style.getPropertyValue("--swipe-distance")) || 0,
       distance: 0, horizontal: false,
+      width: row.getBoundingClientRect().width,
       threshold: Math.min(72, Math.max(48, row.getBoundingClientRect().width * 0.2)),
     };
   });
@@ -367,7 +436,7 @@
       gesture.row.classList.add("is-swiping");
       gesture.row.setPointerCapture(event.pointerId);
     }
-    gesture.distance = Math.min(0, Math.max(-gesture.threshold - 36, gesture.start + dx));
+    gesture.distance = Math.min(0, Math.max(-gesture.width * 0.9, gesture.start + dx));
     reveal(gesture.row, gesture.distance, -gesture.distance >= gesture.threshold);
     if (event.cancelable) event.preventDefault();
   }, {passive: false});
@@ -380,7 +449,7 @@
     if (!finished.horizontal) return;
     suppressClickUntil = performance.now() + 350;
     if (-finished.distance >= finished.threshold) {
-      submit(finished.row.querySelector(".story-swipe-button"));
+      submit(finished.row.querySelector(".story-swipe-button"), true);
     } else {
       reveal(finished.row);
     }
@@ -394,6 +463,9 @@
   }
 
   document.addEventListener("pointercancel", cancelGesture);
+  document.addEventListener("lostpointercapture", event => {
+    if (gesture?.id === event.pointerId && event.target === gesture.row) cancelGesture();
+  });
   document.addEventListener("touchstart", event => {
     if (event.touches.length > 1) cancelGesture();
   }, {passive: true});
@@ -409,6 +481,17 @@
   });
   document.addEventListener("DOMContentLoaded", () => {
     initialize();
+    const box = document.getElementById("queue-notice");
+    box?.addEventListener("mouseenter", () => {
+      if (window.matchMedia("(hover: hover)").matches) pauseNotice();
+    });
+    box?.addEventListener("mouseleave", resumeNotice);
+    box?.addEventListener("focusin", pauseNotice);
+    box?.addEventListener("focusout", () => setTimeout(resumeNotice, 0));
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) pauseNotice();
+      else resumeNotice();
+    });
     const list = document.getElementById("story_list");
     if (list) new MutationObserver(acknowledgeTransition).observe(list, {childList: true, subtree: true});
     if (window.jQuery) {
@@ -419,7 +502,11 @@
         clearTransition();
         window.rillCancelQueueNavigation();
         if (pending.size) {
-          pending.forEach(request => busyRow(rowFor(request.entryId), false));
+          pending.forEach(request => {
+            const row = rowFor(request.entryId);
+            busyRow(row, false);
+            reveal(row);
+          });
           pending.clear();
           notice("Connection lost. Check the story's status after reconnecting.", null, null, true);
         }

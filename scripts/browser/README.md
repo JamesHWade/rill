@@ -92,3 +92,16 @@ acknowledgement. The timeout check intentionally takes 15 seconds.
 `node orientation-review.mjs` checks the compact Orientation at desktop and phone
 widths, exact Source Evidence leads, unread totals, and theme-to-Group navigation.
 It also runs axe and records screenshots in `artifacts/orientation-review/`.
+
+`node reader-swipes.mjs` checks finger tracking, short and cancelled gestures,
+article next/back swipes, native code scrolling, a late article response after
+returning to the queue, notice expiry with keyboard focus, and failed or
+disconnected actions. The expiry checks deliberately wait eight seconds.
+
+From the repository root, `Rscript scripts/browser/benchmark-reader.R .` profiles
+server handling of article opens and mark-read requests. Pass another checkout
+path to profile a baseline. `node scripts/browser/benchmark-reader.mjs` measures
+click-to-visible browser timings on the same synthetic fixture. Set
+`RILL_BENCHMARK_NEXT=true` to use the Next button and `RILL_BENCHMARK_LABEL` to
+retain each comparison in `artifacts/reader-swipes/`. These are local timings;
+use the operational traces to evaluate a deployed version.

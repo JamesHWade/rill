@@ -1,3 +1,98 @@
+testthat::test_that("reading actions flush before refreshing library navigation", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  local_span <- telemetry_local_span
+  lookups <- 0L
+  document_ui <- reader_document_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(telemetry_local_span = function(name, ...) {
+    if (identical(name, "navigation.render")) {
+      lookups <<- lookups + 1L
+    }
+    local_span(name, ...)
+  })
+  testthat::local_mocked_bindings(reader_document_ui = function(...) {
+    renders <<- renders + 1L
+    document_ui(...)
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    initial <- lookups
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(lookups, initial)
+    testthat::expect_identical(selected_entry()$read_reason, "opened")
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+    for (index in seq_len(3L)) {
+      later::run_now(0.3)
+      session$flushReact()
+    }
+    initial <- lookups
+    session$setInputs(
+      queue_action = list(
+        id = "responsive-read",
+        entry_id = "sample-entry-3",
+        action = "mark_read"
+      )
+    )
+    testthat::expect_identical(lookups, initial)
+    testthat::expect_identical(
+      queue_entries()$read_reason[queue_entries()$entry_id == "sample-entry-3"],
+      "manual_queue"
+    )
+    testthat::expect_identical(renders, 1L)
+    for (index in seq_len(3L)) {
+      later::run_now(0.3)
+      session$flushReact()
+    }
+    testthat::expect_gt(lookups, initial)
+    testthat::expect_equal(
+      sum(feeds()$unread_count),
+      sum(is.na(
+        store_list_entries(store, config$actor_id, view = "all")$read_at
+      ))
+    )
+  }))
+})
+
+testthat::test_that("background acquisition is queued after the reading copy is flushed", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  factory <- article_preparation_controller
+  flushed <- FALSE
+  queued_after_flush <- NULL
+  testthat::local_mocked_bindings(start_article_preparation = function(...) {
+    NULL
+  })
+  testthat::local_mocked_bindings(article_preparation_controller = function(
+    ...
+  ) {
+    controller <- factory(...)
+    request <- controller$request
+    controller$request <- function(...) {
+      queued_after_flush <<- flushed
+      request(...)
+    }
+    controller
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    session$onFlushed(
+      function() {
+        flushed <<- TRUE
+      },
+      once = TRUE
+    )
+    entry_id <- store$memory$entries$entry_id[[1L]]
+    session$setInputs(select_entry = list(id = entry_id))
+    testthat::expect_identical(queued_after_flush, TRUE)
+    testthat::expect_identical(article_preparer$state$queue, entry_id)
+    testthat::expect_match(output$reader_body$html, entry_id, fixed = TRUE)
+  }))
+})
+
 testthat::test_that("Today uses the browser day on a UTC host", {
   withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
   config <- rill_config()

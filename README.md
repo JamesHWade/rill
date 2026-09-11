@@ -344,6 +344,12 @@ acknowledgement is marked `unconfirmed`, `superseded`, or `disconnected`, rather
 than reported as a successful timing. This is a text visibility proxy, not an
 image-load or browser paint measurement.
 
+`queue.action` traces measure mark-read, save, and Undo feedback with
+`queue_action.visible_ms`, `queue_action.dom_ready_ms`, and
+`queue_action.server_flush_ms`. The `queue.action.persist` child span isolates
+the storage write. `queue_action.surface` names the action and `queue_action.ok`
+records its outcome; the trace carries no story content or Reader identifiers.
+
 Child spans separate selection, database lookups and writes, copy generation,
 and rendering. Background preparation retains trace context across the queue
 and worker process, with `queue.wait_ms`, `worker.bootstrap_ms`, and an

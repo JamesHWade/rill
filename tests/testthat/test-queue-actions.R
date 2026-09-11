@@ -1,3 +1,82 @@
+testthat::test_that("queue actions acknowledge refreshed state and measure visibility", {
+  testthat::skip_if_not_installed("otelsdk")
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "queue-reader"))
+  messages <- list()
+  flushed <- FALSE
+  id <- strrep("a", 32L)
+  record <- otelsdk::with_otel_record(
+    later::with_temp_loop(shiny::testServer(
+      function(input, output, session) {
+        session$sendCustomMessage <- function(type, message) {
+          if (type == "rill-queue-action-result") {
+            messages[[length(messages) + 1L]] <<- list(
+              message = message,
+              flushed = flushed
+            )
+          }
+        }
+        reader_queue_server(
+          store,
+          "queue-reader",
+          function(entry_id) NULL,
+          function(...) NULL,
+          session,
+          telemetry_enabled = TRUE
+        )
+      },
+      {
+        session$flushReact()
+        session$onFlushed(
+          function() {
+            flushed <<- TRUE
+          },
+          once = TRUE
+        )
+        session$setInputs(
+          queue_action = list(
+            id = "read-1",
+            telemetry_id = id,
+            entry_id = "sample-entry-2",
+            action = "mark_read"
+          )
+        )
+        testthat::expect_identical(messages[[1L]]$flushed, TRUE)
+        testthat::expect_identical(messages[[1L]]$message$telemetry_id, id)
+        testthat::expect_identical(messages[[1L]]$message$ok, TRUE)
+        session$setInputs(queue_action_visible = list(id = id, elapsed_ms = -1))
+        session$setInputs(
+          queue_action_visible = list(
+            id = id,
+            elapsed_ms = 120,
+            dom_ready_ms = 90
+          )
+        )
+      }
+    )),
+    what = "traces"
+  )
+  action <- record$traces$queue.action
+  testthat::expect_identical(
+    action$attributes$queue_action.surface,
+    "mark_read"
+  )
+  testthat::expect_identical(action$attributes$queue_action.outcome, "visible")
+  testthat::expect_equal(action$attributes$queue_action.visible_ms, 120)
+  testthat::expect_equal(action$attributes$queue_action.paint_delay_ms, 30)
+  testthat::expect_gte(action$attributes$queue_action.server_flush_ms, 0)
+  testthat::expect_identical(
+    record$traces$queue.action.persist$parent,
+    action$span_id
+  )
+  testthat::expect_no_match(
+    paste(
+      c(names(action$attributes), unlist(action$attributes)),
+      collapse = "\n"
+    ),
+    "sample-entry|queue-reader"
+  )
+})
+
 testthat::test_that("queue actions and conditional undo agree across stores", {
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, "queue-reader")
@@ -61,7 +140,7 @@ testthat::test_that("queue requests replay without changing later reader decisio
       reader_queue_server(
         store,
         "queue-reader",
-        function() NULL,
+        function(entry_id) NULL,
         function(...) NULL,
         session
       )
@@ -102,7 +181,7 @@ testthat::test_that("transient undo failures retain the receipt for retry", {
       reader_queue_server(
         store,
         "queue-reader",
-        function() NULL,
+        function(entry_id) NULL,
         function(...) NULL,
         session
       )
@@ -135,7 +214,7 @@ testthat::test_that("Undo survives completed-result cache eviction", {
       reader_queue_server(
         store,
         "queue-reader",
-        function() NULL,
+        function(entry_id) NULL,
         function(...) NULL,
         session
       )

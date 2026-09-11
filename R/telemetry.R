@@ -141,7 +141,12 @@ view_telemetry <- function(enabled, name, prefix, elapsed_attribute) {
   }
   state <- new.env(parent = emptyenv())
   state$id <- state$span <- NULL
+  state$cancel <- NULL
   finish <- function(outcome, elapsed_ms = NULL) {
+    if (is.function(state$cancel)) {
+      state$cancel()
+    }
+    state$cancel <- NULL
     telemetry_end(
       state$span,
       if (identical(outcome, "visible")) "ok" else "unset",
@@ -177,7 +182,7 @@ view_telemetry <- function(enabled, name, prefix, elapsed_attribute) {
         parent = NA
       )
       if (!is.null(state$span)) {
-        shiny::withReactiveDomain(
+        state$cancel <- shiny::withReactiveDomain(
           NULL,
           later::later(
             function() {
@@ -216,7 +221,7 @@ view_telemetry <- function(enabled, name, prefix, elapsed_attribute) {
           elapsed_ms < 0 ||
           elapsed_ms > 120000
       ) {
-        return(invisible(NULL))
+        return(invisible(FALSE))
       }
       if (
         is.numeric(dom_ready_ms) &&
@@ -234,6 +239,7 @@ view_telemetry <- function(enabled, name, prefix, elapsed_attribute) {
         )
       }
       finish("visible", elapsed_ms)
+      invisible(TRUE)
     },
     activate = function(env = parent.frame()) {
       telemetry_activate(state$span, env)

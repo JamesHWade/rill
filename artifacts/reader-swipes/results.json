@@ -1,0 +1,14 @@
+{
+  "queueTracking": {
+    "transform": "matrix(1, 0, 0, 1, -180, 0)",
+    "transition": "none",
+    "rowClass": "story-row is-swiping is-swipe-armed",
+    "x": -180
+  },
+  "readerTracking": {
+    "transform": "matrix(1, 0, 0, 1, -52, 0)",
+    "x": -52,
+    "distance": "-52px"
+  },
+  "errors": []
+}
