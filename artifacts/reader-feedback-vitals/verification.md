@@ -56,4 +56,3 @@ original authorized source and execution inputs; source identities alone do not
 establish replay availability.
 
 The temporary PostgreSQL server was stopped after validation.
-

@@ -175,4 +175,3 @@ example <- jsonlite::fromJSON(
 )
 rill::evaluate_reader_feedback(example$baseline)$metrics
 ```
-
