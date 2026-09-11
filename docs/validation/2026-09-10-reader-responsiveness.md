@@ -100,6 +100,16 @@ latency distribution. Raw samples are retained in
 Reproduction commands are documented in `scripts/browser/README.md`. Screenshots
 and browser results are in `artifacts/reader-swipes/`.
 
+## PR review regression
+
+The September 11 PR review identified an unavailable-navigation edge case:
+reopening an answer from an unsubscribed Feed leaves no selected queue card.
+Although a left drag showed **End of queue**, release selected the first queue
+story. A new native-touch regression reproduced that selection request. Swipe
+release now requires the gesture's available state and an enabled Next button;
+the regression checks that the recovered answer stays selected and a right swipe
+still returns to the queue.
+
 ## Hosted verification still required
 
 After publication, verify the deployed SHA and repeat article opening, Next,

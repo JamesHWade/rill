@@ -91,7 +91,7 @@ app <- shiny::shinyApp(
             model = "fixture-model",
             policy_version = "fixture-policy",
             document_id = if (
-              identical(query$resume, "1") &&
+              isTRUE(query$resume %in% c("1", "unsubscribed")) &&
                 identical(reader_id, config$actor_id)
             ) {
               names(store$memory$documents)[[1L]]
@@ -148,6 +148,11 @@ app <- shiny::shinyApp(
             "helpful"
           )
         }
+      }
+      if (identical(query$resume, "unsubscribed")) {
+        document <- store$memory$documents[[1L]]
+        entry <- store_get_entry(store, config$actor_id, document$entry_id)
+        store_unsubscribe_feed(store, config$actor_id, entry$feed_id)
       }
     }
     if (

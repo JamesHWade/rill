@@ -26,20 +26,29 @@ const frame = () => page.evaluate(() => new Promise(resolve => requestAnimationF
 async function drag(selector, dx, release = true, dy = 0) {
   const element = page.locator(selector).first();
   await element.evaluate(el => el.scrollIntoView({block: 'center', behavior: 'instant'}));
-  await element.evaluate(el => new Promise((resolve, reject) => {
+  await page.evaluate(selector => new Promise((resolve, reject) => {
     const deadline = performance.now() + 3000;
-    let previous = '', stable = 0;
+    let previous = '', previousElement = null, stable = 0;
     function check() {
-      const box = el.getBoundingClientRect();
+      const el = document.querySelector(selector);
+      const box = el?.getBoundingClientRect();
+      if (!box || !box.width || !box.height) {
+        stable = 0;
+        if (performance.now() > deadline) reject(new Error('Touch target disappeared'));
+        else requestAnimationFrame(check);
+        return;
+      }
       const current = `${box.x},${box.y},${box.width},${box.height}`;
-      stable = current === previous ? stable + 1 : 0;
+      stable = el === previousElement && current === previous &&
+        !document.documentElement.classList.contains('shiny-busy') ? stable + 1 : 0;
       previous = current;
-      if (stable >= 4) resolve();
+      previousElement = el;
+      if (stable >= 18) resolve();
       else if (performance.now() > deadline) reject(new Error('Touch target kept moving'));
       else requestAnimationFrame(check);
     }
     requestAnimationFrame(check);
-  }));
+  }), selector);
   const box = await element.boundingBox();
   const x = dx < 0 ? Math.min(310, box.x + box.width - 25) : Math.max(70, box.x + 25);
   const y = Math.max(1, Math.min(page.viewportSize().height - 1, box.y + Math.min(30, box.height / 2)));
@@ -134,6 +143,40 @@ try {
   assert.equal(await page.locator('.reader-pane').isVisible(), false);
   console.log('Article swipes advance, return, cancel, and preserve vertical and code scrolling.');
 
+  await page.goto(`${url}?feedback=fixture&resume=unsubscribed`);
+  await page.locator('.compact-library-trigger').click();
+  await page.getByRole('button', {name: 'Reopen last answer', exact: true}).click();
+  await page.locator('#reader-document').waitFor();
+  await page.getByRole('button', {name: 'Close Ask Rill', exact: true}).click();
+  await page.waitForFunction(() => {
+    const layout = document.getElementById('reader_agent_sidebar').parentElement;
+    return layout.classList.contains('sidebar-collapsed') && !layout.classList.contains('transitioning');
+  });
+  const recoveredArticle = await page.locator('#reader-document').getAttribute('data-entry-id');
+  assert.equal(await page.locator('.reader-next').isDisabled(), true);
+  assert.equal(await page.locator('.story-card.is-selected').count(), 0);
+  assert.ok(await page.locator('.story-card').count() > 0);
+  await page.evaluate(() => {
+    window.unavailableSelectionAttempts = [];
+    const original = window.Shiny.setInputValue;
+    window.Shiny.setInputValue = function (name, value, ...args) {
+      if (name === 'select_entry') window.unavailableSelectionAttempts.push(value);
+      return original.call(this, name, value, ...args);
+    };
+  });
+  await drag('#reader-document p', -130, false);
+  assert.equal(await page.locator('.reader-scroll').getAttribute('data-swipe-label'), 'End of queue');
+  assert.equal(await page.locator('.is-reader-swipe-armed').count(), 0);
+  await touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+  await frame();
+  assert.deepEqual(await page.evaluate(() => window.unavailableSelectionAttempts), [],
+    'An unavailable Next swipe does not request another story');
+  assert.equal(await page.locator('#reader-document').getAttribute('data-entry-id'), recoveredArticle);
+  await drag('#reader-document p', 130);
+  assert.equal(await page.locator('.story-pane').isVisible(), true,
+    'A recovered answer outside the queue can still swipe back to the queue');
+  console.log('Unavailable Next swipes retain the recovered answer; right swipes still return to the queue.');
+
   await page.goto(`${url}?stress=1`);
   for (let cycle = 0; cycle < 8; cycle++) {
     const card = page.locator('.story-card').first();
@@ -191,8 +234,10 @@ try {
   assert.equal(await page.locator('.story-row').first().evaluate(el => el.style.getPropertyValue('--swipe-distance')), '0px');
   console.log('Rejected and disconnected actions restore the row and retain recovery feedback.');
   assert.deepEqual(errors, []);
-  await fs.writeFile(new URL('results.json', output), JSON.stringify({queueTracking: tracking, readerTracking, errors}, null, 2) + '\n');
+  await fs.writeFile(new URL('results.json', output), JSON.stringify({queueTracking: tracking, readerTracking,
+    unavailableNextRetainsAnswer: true, errors}, null, 2) + '\n');
 } catch (error) {
+  await page.screenshot({path: new URL('failure.png', output).pathname});
   console.log(await page.evaluate(() => ({events: window.swipeDebug,
     surface: document.querySelector('.app-shell')?.dataset.compactSurface,
     selected: document.querySelector('#reader-document')?.dataset.entryId,

@@ -95,7 +95,8 @@ It also runs axe and records screenshots in `artifacts/orientation-review/`.
 
 `node reader-swipes.mjs` checks finger tracking, short and cancelled gestures,
 article next/back swipes, native code scrolling, a late article response after
-returning to the queue, notice expiry with keyboard focus, and failed or
+returning to the queue, a disabled Next swipe from a recovered answer outside
+the queue, notice expiry with keyboard focus, and failed or
 disconnected actions. The expiry checks deliberately wait eight seconds.
 
 `node orientation-entry.mjs` checks fresh visits with a completed answer,

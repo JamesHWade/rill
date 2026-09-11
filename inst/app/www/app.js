@@ -1413,7 +1413,7 @@
         event.clientX < 24 || event.clientX > window.innerWidth - 24) return;
     readerSwipe = {
       id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0,
-      horizontal: false, article, surface: article.closest(".reader-scroll"),
+      horizontal: false, available: false, article, surface: article.closest(".reader-scroll"),
       threshold: Math.min(80, Math.max(56, window.innerWidth * 0.18))
     };
   });
@@ -1439,6 +1439,7 @@
     readerSwipe.dx = dx;
     const next = dx < 0;
     const available = !next || document.querySelector(".reader-next")?.disabled === false;
+    readerSwipe.available = available;
     readerSwipe.surface.dataset.swipeDirection = next ? "next" : "queue";
     readerSwipe.surface.dataset.swipeLabel = available ? (next ? "Next article" : "Back to queue") : "End of queue";
     readerSwipe.surface.classList.toggle("is-reader-swipe-armed",
@@ -1451,7 +1452,9 @@
   document.addEventListener("pointerup", function (event) {
     if (!readerSwipe || event.pointerId !== readerSwipe.id) return;
     const finished = readerSwipe;
-    const commit = finished.horizontal && Math.abs(finished.dx) >= finished.threshold &&
+    const commit = finished.horizontal && finished.available &&
+      (finished.dx > 0 || document.querySelector(".reader-next")?.disabled === false) &&
+      Math.abs(finished.dx) >= finished.threshold &&
       finished.article.isConnected && finished.article.getClientRects().length &&
       !window.getSelection()?.toString();
     resetReaderSwipe();
