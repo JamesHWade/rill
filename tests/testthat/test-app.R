@@ -3,11 +3,13 @@ testthat::test_that("the package exposes a focused application API", {
     getNamespaceExports("rill"),
     c(
       "approve_reader_admission",
+      "evaluate_reader_feedback",
       "list_reader_admissions",
       "list_reader_feedback",
       "poll_feeds",
       "prepare_today",
       "read_opml",
+      "reader_feedback_samples",
       "rill_app",
       "write_opml"
     )

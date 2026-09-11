@@ -1,5 +1,9 @@
 # Review Reader Feedback
 
+Use the [vitals evaluation guide](reader-feedback-vitals.md) to turn current
+Reader ratings into offline evaluation Tasks, inspect recurring problems, and
+calibrate independent judgments against the exact rated outputs.
+
 Review explicit ratings weekly during the private trial and before changing the
 model, prompts, tools, or interaction design. The owning Reader opens **My saved
 ratings** in Ask Rill to inspect, revise, withdraw, or download their examples.

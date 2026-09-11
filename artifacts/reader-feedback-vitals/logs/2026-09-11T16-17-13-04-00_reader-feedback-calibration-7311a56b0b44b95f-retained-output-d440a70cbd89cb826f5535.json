@@ -1,0 +1,1050 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "tf8n9S7b3HTEPKbslzkgye",
+    "created": "2026-09-11T16:17:13-04:00",
+    "task": "reader-feedback-calibration-7311a56b0b44b95f/retained-output/d440a70cbd89cb826f5535",
+    "task_id": "reader-feedback-calibration-7311a56b0b44b95f/retained-output/d440a70cbd89cb826f5535",
+    "task_version": 0,
+    "task_file": "",
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "samples": 4,
+      "sample_ids": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "shuffled": false
+    },
+    "model": "solver (retained-output)",
+    "model_args": {},
+    "config": {},
+    "revision": {
+      "type": "git",
+      "origin": "https://github.com/UKGovernmentBEIS/inspect_ai.git",
+      "commit": "9140d8a2"
+    },
+    "packages": {
+      "inspect_ai": "0.3.63"
+    },
+    "scorers": [
+      {
+        "name": "scorer",
+        "options": {},
+        "metrics": [
+          {
+            "name": "mean",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      }
+    ]
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "system_message",
+        "params": {
+          "template": "Offline display of a retained Rill output for human evaluation. No model was called. This is not the original Agent Run transcript."
+        }
+      },
+      {
+        "solver": "solver (retained-output)",
+        "params": {
+          "1": "self$get_samples()$input"
+        }
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 4,
+    "completed_samples": 4,
+    "scores": [
+      {
+        "name": "scorer",
+        "scorer": "scorer",
+        "params": {},
+        "metrics": {
+          "agreement": {
+            "name": "agreement",
+            "value": 0.6667,
+            "params": {
+              "1": "self$get_samples()$score"
+            }
+          },
+          "judgment_coverage": {
+            "name": "judgment_coverage",
+            "value": 0.75,
+            "params": {
+              "1": "self$get_samples()$score"
+            }
+          },
+          "rated_outputs": {
+            "name": "rated_outputs",
+            "value": 4,
+            "params": {
+              "1": "self$get_samples()$score"
+            }
+          },
+          "judged_outputs": {
+            "name": "judged_outputs",
+            "value": 3,
+            "params": {
+              "1": "self$get_samples()$score"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2026-09-11T16:17:13-04:00",
+    "completed_at": "2026-09-11T16:17:13-04:00",
+    "model_usage": {
+      "retained-output": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "input_tokens_cache_write": 0,
+        "input_tokens_cache_read": 0
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": "31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720",
+      "epoch": 1,
+      "input": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}",
+      "target": "helpful",
+      "messages": [
+        {
+          "id": "tUttzn50pDpCb4ewWooidM",
+          "content": "Offline display of a retained Rill output for human evaluation. No model was called. This is not the original Agent Run transcript.",
+          "role": "system"
+        },
+        {
+          "id": "2iZD6Je375ryUqiJz9mZCF",
+          "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "aTDdSklioNIBqxGfLcykZ2",
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+            }
+          ],
+          "source": "generate",
+          "model": "retained-output",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "retained-output",
+        "choices": [
+          {
+            "message": {
+              "id": "ZjkCya704K02tjAQw8EAlH",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+                }
+              ],
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        },
+        "time": 0
+      },
+      "scores": {
+        "scorer": {
+          "value": 1,
+          "answer": "{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}",
+          "explanation": "Synthetic independent judgment.",
+          "metadata": {
+            "scorer_metadata": "{\"evaluated_dimension\":\"agreement_with_reader_helpfulness\",\"human_rating\":\"helpful\",\"judge\":\"synthetic-judge/rubric-v1\",\"judge_rating\":\"helpful\",\"judgment_available\":true}"
+          }
+        }
+      },
+      "metadata": {
+        "solver_metadata": "{\"comment\":\"A useful reason to read the original study.\",\"created_at\":\"2026-09-11T12:00:00Z\",\"human_rating\":\"helpful\",\"id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\",\"kind\":\"orientation\",\"model\":\"fixture-model\",\"original_trajectory_available\":false,\"original_usage_available\":false,\"output_hash\":\"e264124855d1a756a95a8e4f28f2664a36ab631abba1584ff9b3bbe1989f0171\",\"policy_version\":\"fixture-v1\",\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"reader_id\":\"reader\",\"reasons\":\"usefulness\",\"replay_status\":\"original_inputs_required\",\"response_state\":null,\"run_id\":\"run-replication\",\"source_id\":\"revision-replication\",\"status\":\"Current\",\"transcript_origin\":\"retained_output_display\",\"updated_at\":\"2026-09-11T12:00:00Z\"}"
+      },
+      "store": {},
+      "events": [
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "sample_init",
+          "sample": {
+            "input": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}",
+            "target": "helpful",
+            "id": "31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "NYu0M4H2GgveYkAKYC81cf",
+                "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": {},
+            "store": {},
+            "output": {
+              "model": "retained-output",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "model",
+          "model": "retained-output",
+          "input": [
+            {
+              "id": "SJsUNXTaIB0w1l8Yh6UWBV",
+              "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {},
+          "output": {
+            "model": "retained-output",
+            "choices": [
+              {
+                "message": {
+                  "id": "J2u7ft3ych0c9KiPI5dtpA",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+                    }
+                  ],
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "retained-output"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "usage": {
+              "input_tokens": 0,
+              "input_tokens_cache_write": 0,
+              "input_tokens_cache_read": 0,
+              "output_tokens": 0
+            },
+            "time": 0
+          },
+          "call": {
+            "request": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-replication\",\"document_id\":\"document-replication\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720\"}"
+                    }
+                  ]
+                }
+              ],
+              "tools": [],
+              "tool_choice": "none",
+              "model": "retained-output",
+              "extra_headers": {
+                "x-irid": "yL8MEJJpR7yzNHx95uwimM"
+              }
+            },
+            "response": {
+              "id": "msg_JAY6lfnX9ISu2n6JVLkQUM",
+              "content": [
+                {
+                  "citations": {},
+                  "text": "{\"cards\":[{\"document_id\":\"document-replication\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This result merits a larger replication.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}",
+                  "type": "text"
+                }
+              ],
+              "model": "retained-output",
+              "role": "assistant",
+              "stop_reason": "end_turn",
+              "stop_sequence": {},
+              "type": "message",
+              "usage": {
+                "input_tokens": 0,
+                "input_tokens_cache_write": 0,
+                "input_tokens_cache_read": 0,
+                "output_tokens": 0
+              }
+            },
+            "time": 0
+          },
+          "completed": "2026-09-11T16:17:13.293817-04:00",
+          "working_time": 0
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "generate"
+        }
+      ],
+      "model_usage": {
+        "retained-output": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      },
+      "attachments": {}
+    },
+    {
+      "id": "43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb",
+      "epoch": 1,
+      "input": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}",
+      "target": "not_helpful",
+      "messages": [
+        {
+          "id": "9Cthfw14UqlllVBtU7DLJE",
+          "content": "Offline display of a retained Rill output for human evaluation. No model was called. This is not the original Agent Run transcript.",
+          "role": "system"
+        },
+        {
+          "id": "rnXghWtqnvHiOnfuRTLIGT",
+          "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "WJEsYWPQK7boElqGWw8wHr",
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"}"
+            }
+          ],
+          "source": "generate",
+          "model": "retained-output",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "retained-output",
+        "choices": [
+          {
+            "message": {
+              "id": "INXVLFfrYDM8YgxDRv2SnL",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"}"
+                }
+              ],
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        },
+        "time": 0
+      },
+      "scores": {
+        "scorer": {
+          "value": 1,
+          "answer": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"}",
+          "explanation": "Synthetic independent judgment.",
+          "metadata": {
+            "scorer_metadata": "{\"evaluated_dimension\":\"agreement_with_reader_helpfulness\",\"human_rating\":\"not_helpful\",\"judge\":\"synthetic-judge/rubric-v1\",\"judge_rating\":\"not_helpful\",\"judgment_available\":true}"
+          }
+        }
+      },
+      "metadata": {
+        "solver_metadata": "{\"comment\":\"The answer stopped before addressing the limitations.\",\"created_at\":\"2026-09-11T12:00:00Z\",\"human_rating\":\"not_helpful\",\"id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\",\"kind\":\"question\",\"model\":\"fixture-model\",\"original_trajectory_available\":false,\"original_usage_available\":false,\"output_hash\":\"2028595b7d0bb55dcf1385b7e2d3f85b1d63ce989575f3e467089de1dd3c09db\",\"policy_version\":\"fixture-v1\",\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"reader_id\":\"reader\",\"reasons\":\"execution\",\"replay_status\":\"original_inputs_required\",\"response_state\":\"partial\",\"run_id\":\"run-partial\",\"source_id\":\"revision-partial\",\"status\":\"interrupted\",\"transcript_origin\":\"retained_output_display\",\"updated_at\":\"2026-09-11T12:00:00Z\"}"
+      },
+      "store": {},
+      "events": [
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "sample_init",
+          "sample": {
+            "input": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}",
+            "target": "not_helpful",
+            "id": "43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "i6Y5iLL5rrcTscpntniHVj",
+                "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": {},
+            "store": {},
+            "output": {
+              "model": "retained-output",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "model",
+          "model": "retained-output",
+          "input": [
+            {
+              "id": "6mHMHkQsm2ab2fpAUx2Qb7",
+              "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {},
+          "output": {
+            "model": "retained-output",
+            "choices": [
+              {
+                "message": {
+                  "id": "dmgG9UNkUfW919JM8Fbnoi",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"}"
+                    }
+                  ],
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "retained-output"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "usage": {
+              "input_tokens": 0,
+              "input_tokens_cache_write": 0,
+              "input_tokens_cache_read": 0,
+              "output_tokens": 0
+            },
+            "time": 0
+          },
+          "call": {
+            "request": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"},\"provenance\":{\"content_hash\":\"content-partial\",\"document_id\":\"document-partial\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb\"}"
+                    }
+                  ]
+                }
+              ],
+              "tools": [],
+              "tool_choice": "none",
+              "model": "retained-output",
+              "extra_headers": {
+                "x-irid": "3rYLKKtYhdTqyKx6iStWaC"
+              }
+            },
+            "response": {
+              "id": "msg_cKs4ZD56TsiSrkqTgM1Qpt",
+              "content": [
+                {
+                  "citations": {},
+                  "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"partial\",\"status\":\"interrupted\"}",
+                  "type": "text"
+                }
+              ],
+              "model": "retained-output",
+              "role": "assistant",
+              "stop_reason": "end_turn",
+              "stop_sequence": {},
+              "type": "message",
+              "usage": {
+                "input_tokens": 0,
+                "input_tokens_cache_write": 0,
+                "input_tokens_cache_read": 0,
+                "output_tokens": 0
+              }
+            },
+            "time": 0
+          },
+          "completed": "2026-09-11T16:17:13.293817-04:00",
+          "working_time": 0
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "generate"
+        }
+      ],
+      "model_usage": {
+        "retained-output": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      },
+      "attachments": {}
+    },
+    {
+      "id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "epoch": 1,
+      "input": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}",
+      "target": "not_helpful",
+      "messages": [
+        {
+          "id": "TV2q7A2toWvq1qzJvcrylk",
+          "content": "Offline display of a retained Rill output for human evaluation. No model was called. This is not the original Agent Run transcript.",
+          "role": "system"
+        },
+        {
+          "id": "BESSYksLXofB5SXCuIiNUW",
+          "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "FTfSopMbaZB6BIbJvDDQhI",
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+            }
+          ],
+          "source": "generate",
+          "model": "retained-output",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "retained-output",
+        "choices": [
+          {
+            "message": {
+              "id": "3T4PpMOotu1fcToLiJjCHD",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+                }
+              ],
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        },
+        "time": 0
+      },
+      "scores": {
+        "scorer": {
+          "value": 0,
+          "answer": "{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}",
+          "explanation": "Synthetic independent judgment.",
+          "metadata": {
+            "scorer_metadata": "{\"evaluated_dimension\":\"agreement_with_reader_helpfulness\",\"human_rating\":\"not_helpful\",\"judge\":\"synthetic-judge/rubric-v1\",\"judge_rating\":\"helpful\",\"judgment_available\":true}"
+          }
+        }
+      },
+      "metadata": {
+        "solver_metadata": "{\"comment\":\"The pilot is small; the interpretation overstates the evidence.\",\"created_at\":\"2026-09-11T12:00:00Z\",\"human_rating\":\"not_helpful\",\"id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\",\"kind\":\"orientation\",\"model\":\"fixture-model\",\"original_trajectory_available\":false,\"original_usage_available\":false,\"output_hash\":\"df67ac254cc23d088e345a7acddb09fda28cde411449165a10470ee005c23487\",\"policy_version\":\"fixture-v1\",\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"reader_id\":\"reader\",\"reasons\":\"source_faithfulness\",\"replay_status\":\"original_inputs_required\",\"response_state\":null,\"run_id\":\"run-pilot\",\"source_id\":\"revision-pilot\",\"status\":\"Current\",\"transcript_origin\":\"retained_output_display\",\"updated_at\":\"2026-09-11T12:00:00Z\"}"
+      },
+      "store": {},
+      "events": [
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "sample_init",
+          "sample": {
+            "input": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}",
+            "target": "not_helpful",
+            "id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "0r4qpel7UZfp7lgfmjhtOb",
+                "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": {},
+            "store": {},
+            "output": {
+              "model": "retained-output",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "model",
+          "model": "retained-output",
+          "input": [
+            {
+              "id": "UI7629B62k6BMB4qWNVo3v",
+              "content": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {},
+          "output": {
+            "model": "retained-output",
+            "choices": [
+              {
+                "message": {
+                  "id": "bPMnhMKWrbCaOaiLDur6yO",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}"
+                    }
+                  ],
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "retained-output"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "usage": {
+              "input_tokens": 0,
+              "input_tokens_cache_write": 0,
+              "input_tokens_cache_read": 0,
+              "output_tokens": 0
+            },
+            "time": 0
+          },
+          "call": {
+            "request": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"kind\":\"orientation\",\"output\":{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]},\"provenance\":{\"content_hash\":\"content-pilot\",\"document_id\":\"document-pilot\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e\"}"
+                    }
+                  ]
+                }
+              ],
+              "tools": [],
+              "tool_choice": "none",
+              "model": "retained-output",
+              "extra_headers": {
+                "x-irid": "wFdXv8rubGUYZ8huFuFEit"
+              }
+            },
+            "response": {
+              "id": "msg_IaSCEhUrxXMvVEdsDjBs7h",
+              "content": [
+                {
+                  "citations": {},
+                  "text": "{\"cards\":[{\"document_id\":\"document-pilot\",\"evidence\":\"The pilot included twelve samples.\",\"interpretation\":\"This pilot proves the treatment works.\",\"source\":{\"site\":\"Example Journal\",\"title\":\"A small pilot\"},\"why_now\":\"New evidence changes the next experiment.\"}],\"question\":\"Which findings deserve a closer look?\",\"status\":\"Current\",\"themes\":[{\"entry_ids\":[\"entry-a\",\"entry-b\"],\"name\":\"Replication\",\"note\":\"Two other studies explore reproducibility.\"}]}",
+                  "type": "text"
+                }
+              ],
+              "model": "retained-output",
+              "role": "assistant",
+              "stop_reason": "end_turn",
+              "stop_sequence": {},
+              "type": "message",
+              "usage": {
+                "input_tokens": 0,
+                "input_tokens_cache_write": 0,
+                "input_tokens_cache_read": 0,
+                "output_tokens": 0
+              }
+            },
+            "time": 0
+          },
+          "completed": "2026-09-11T16:17:13.293817-04:00",
+          "working_time": 0
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "generate"
+        }
+      ],
+      "model_usage": {
+        "retained-output": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      },
+      "attachments": {}
+    },
+    {
+      "id": "83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46",
+      "epoch": 1,
+      "input": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}",
+      "target": "helpful",
+      "messages": [
+        {
+          "id": "NBAlH9UNBiMqzcZUDyll8M",
+          "content": "Offline display of a retained Rill output for human evaluation. No model was called. This is not the original Agent Run transcript.",
+          "role": "system"
+        },
+        {
+          "id": "rCjN3gtn2dxXLCKSDfOfS5",
+          "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "xwYFnf6Mfobshd6YEG7Fs1",
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"}"
+            }
+          ],
+          "source": "generate",
+          "model": "retained-output",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "retained-output",
+        "choices": [
+          {
+            "message": {
+              "id": "30p2lkCSR9Yhu6Y46DT12S",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"}"
+                }
+              ],
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        },
+        "time": 0
+      },
+      "scores": {
+        "scorer": {
+          "value": "NA",
+          "answer": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"}",
+          "explanation": "No independent judgment supplied.",
+          "metadata": {
+            "scorer_metadata": "{\"evaluated_dimension\":\"agreement_with_reader_helpfulness\",\"human_rating\":\"helpful\",\"judge\":null,\"judge_rating\":null,\"judgment_available\":false}"
+          }
+        }
+      },
+      "metadata": {
+        "solver_metadata": "{\"comment\":\"The limitations are stated clearly.\",\"created_at\":\"2026-09-11T12:00:00Z\",\"human_rating\":\"helpful\",\"id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\",\"kind\":\"question\",\"model\":\"fixture-model\",\"original_trajectory_available\":false,\"original_usage_available\":false,\"output_hash\":\"32f06dc932d3f63ef7098638bd62bafc0617bb1a893890bec29ac298e55003ce\",\"policy_version\":\"fixture-v1\",\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"reader_id\":\"reader\",\"reasons\":[\"clarity\",\"source_faithfulness\"],\"replay_status\":\"original_inputs_required\",\"response_state\":\"complete\",\"run_id\":\"run-answer\",\"source_id\":\"revision-answer\",\"status\":\"completed\",\"transcript_origin\":\"retained_output_display\",\"updated_at\":\"2026-09-11T12:00:00Z\"}"
+      },
+      "store": {},
+      "events": [
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "sample_init",
+          "sample": {
+            "input": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}",
+            "target": "helpful",
+            "id": "83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "bZ4yGOTXMSqLLZyC0HS47K",
+                "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": {},
+            "store": {},
+            "output": {
+              "model": "retained-output",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "name": "init"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "model",
+          "model": "retained-output",
+          "input": [
+            {
+              "id": "xwFgrHHuzNwYNDCAbIJrZp",
+              "content": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {},
+          "output": {
+            "model": "retained-output",
+            "choices": [
+              {
+                "message": {
+                  "id": "Jg6sgkbuSgR1r0xzGhfLUH",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"}"
+                    }
+                  ],
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "retained-output"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "usage": {
+              "input_tokens": 0,
+              "input_tokens_cache_write": 0,
+              "input_tokens_cache_read": 0,
+              "output_tokens": 0
+            },
+            "time": 0
+          },
+          "call": {
+            "request": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\"kind\":\"question\",\"output\":{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"},\"provenance\":{\"content_hash\":\"content-answer\",\"document_id\":\"document-answer\",\"model\":\"fixture-model\",\"policy_version\":\"fixture-v1\"},\"target_id\":\"83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46\"}"
+                    }
+                  ]
+                }
+              ],
+              "tools": [],
+              "tool_choice": "none",
+              "model": "retained-output",
+              "extra_headers": {
+                "x-irid": "pPpxyiSsxXfQFO6Bm31TnB"
+              }
+            },
+            "response": {
+              "id": "msg_1l1TAHkVB5Y19CgW8Xf2Sx",
+              "content": [
+                {
+                  "citations": {},
+                  "text": "{\"question\":\"What are the limitations?\",\"response\":\"The pilot included only twelve samples.\",\"response_state\":\"complete\",\"status\":\"completed\"}",
+                  "type": "text"
+                }
+              ],
+              "model": "retained-output",
+              "role": "assistant",
+              "stop_reason": "end_turn",
+              "stop_sequence": {},
+              "type": "message",
+              "usage": {
+                "input_tokens": 0,
+                "input_tokens_cache_write": 0,
+                "input_tokens_cache_read": 0,
+                "output_tokens": 0
+              }
+            },
+            "time": 0
+          },
+          "completed": "2026-09-11T16:17:13.293817-04:00",
+          "working_time": 0
+        },
+        {
+          "timestamp": "2026-09-11T16:17:13.293817-04:00",
+          "working_start": 0,
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "generate"
+        }
+      ],
+      "model_usage": {
+        "retained-output": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      },
+      "attachments": {}
+    }
+  ]
+}

@@ -14,6 +14,12 @@ reference:
       - prepare_today
       - list_reader_feedback
 
+  - title: Evaluate Reader Feedback
+    desc: Review human ratings and calibrate independent judgments with vitals.
+    contents:
+      - evaluate_reader_feedback
+      - reader_feedback_samples
+
   - title: Subscription interchange
     desc: Move feed subscriptions into and out of Rill with OPML.
     contents:

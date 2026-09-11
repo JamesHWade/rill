@@ -1,0 +1,228 @@
+{
+  "description": "Synthetic Reader Feedback for demonstrating the vitals workflow. No real Reader data, provider calls, or measured model improvement.",
+  "baseline": [
+    {
+      "target_id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "snapshot": {
+        "reader_id": "reader",
+        "kind": "orientation",
+        "source_id": "revision-pilot",
+        "run_id": "run-pilot",
+        "output": {
+          "question": "Which findings deserve a closer look?",
+          "status": "Current",
+          "cards": [
+            {
+              "document_id": "document-pilot",
+              "interpretation": "This pilot proves the treatment works.",
+              "why_now": "New evidence changes the next experiment.",
+              "evidence": "The pilot included twelve samples.",
+              "source": {
+                "title": "A small pilot",
+                "site": "Example Journal"
+              }
+            }
+          ],
+          "themes": [
+            {
+              "name": "Replication",
+              "note": "Two other studies explore reproducibility.",
+              "entry_ids": [
+                "entry-a",
+                "entry-b"
+              ]
+            }
+          ]
+        },
+        "provenance": {
+          "model": "fixture-model",
+          "policy_version": "fixture-v1",
+          "document_id": "document-pilot",
+          "content_hash": "content-pilot"
+        }
+      },
+      "rating": "not_helpful",
+      "reasons": "source_faithfulness",
+      "comment": "The pilot is small; the interpretation overstates the evidence.",
+      "created_at": "2026-09-11T12:00:00Z",
+      "updated_at": "2026-09-11T12:00:00Z"
+    },
+    {
+      "target_id": "31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720",
+      "snapshot": {
+        "reader_id": "reader",
+        "kind": "orientation",
+        "source_id": "revision-replication",
+        "run_id": "run-replication",
+        "output": {
+          "question": "Which findings deserve a closer look?",
+          "status": "Current",
+          "cards": [
+            {
+              "document_id": "document-replication",
+              "interpretation": "This result merits a larger replication.",
+              "why_now": "New evidence changes the next experiment.",
+              "evidence": "The pilot included twelve samples.",
+              "source": {
+                "title": "A small pilot",
+                "site": "Example Journal"
+              }
+            }
+          ],
+          "themes": [
+            {
+              "name": "Replication",
+              "note": "Two other studies explore reproducibility.",
+              "entry_ids": [
+                "entry-a",
+                "entry-b"
+              ]
+            }
+          ]
+        },
+        "provenance": {
+          "model": "fixture-model",
+          "policy_version": "fixture-v1",
+          "document_id": "document-replication",
+          "content_hash": "content-replication"
+        }
+      },
+      "rating": "helpful",
+      "reasons": "usefulness",
+      "comment": "A useful reason to read the original study.",
+      "created_at": "2026-09-11T12:00:00Z",
+      "updated_at": "2026-09-11T12:00:00Z"
+    },
+    {
+      "target_id": "43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb",
+      "snapshot": {
+        "reader_id": "reader",
+        "kind": "question",
+        "source_id": "revision-partial",
+        "run_id": "run-partial",
+        "output": {
+          "question": "What are the limitations?",
+          "response": "The pilot included only twelve samples.",
+          "response_state": "partial",
+          "status": "interrupted"
+        },
+        "provenance": {
+          "model": "fixture-model",
+          "policy_version": "fixture-v1",
+          "document_id": "document-partial",
+          "content_hash": "content-partial"
+        }
+      },
+      "rating": "not_helpful",
+      "reasons": "execution",
+      "comment": "The answer stopped before addressing the limitations.",
+      "created_at": "2026-09-11T12:00:00Z",
+      "updated_at": "2026-09-11T12:00:00Z"
+    },
+    {
+      "target_id": "83a2c297de5b655eab4f5a57d871c857bf91f61b262e2687cda77c82f3740f46",
+      "snapshot": {
+        "reader_id": "reader",
+        "kind": "question",
+        "source_id": "revision-answer",
+        "run_id": "run-answer",
+        "output": {
+          "question": "What are the limitations?",
+          "response": "The pilot included only twelve samples.",
+          "response_state": "complete",
+          "status": "completed"
+        },
+        "provenance": {
+          "model": "fixture-model",
+          "policy_version": "fixture-v1",
+          "document_id": "document-answer",
+          "content_hash": "content-answer"
+        }
+      },
+      "rating": "helpful",
+      "reasons": ["clarity", "source_faithfulness"],
+      "comment": "The limitations are stated clearly.",
+      "created_at": "2026-09-11T12:00:00Z",
+      "updated_at": "2026-09-11T12:00:00Z"
+    }
+  ],
+  "candidate": [
+    {
+      "target_id": "1d44de86da7ac13d00aa64e81f29a10b439e4a3d36ec57a8da91758e2ce61ca1",
+      "snapshot": {
+        "reader_id": "reader",
+        "kind": "orientation",
+        "source_id": "revision-pilot-proposed",
+        "run_id": "run-pilot-proposed",
+        "output": {
+          "question": "Which findings deserve a closer look?",
+          "status": "Current",
+          "cards": [
+            {
+              "document_id": "document-pilot",
+              "interpretation": "This small pilot suggests a benefit that needs replication.",
+              "why_now": "New evidence changes the next experiment.",
+              "evidence": "The pilot included twelve samples.",
+              "source": {
+                "title": "A small pilot",
+                "site": "Example Journal"
+              }
+            }
+          ],
+          "themes": [
+            {
+              "name": "Replication",
+              "note": "Two other studies explore reproducibility.",
+              "entry_ids": [
+                "entry-a",
+                "entry-b"
+              ]
+            }
+          ]
+        },
+        "provenance": {
+          "model": "fixture-model-proposed",
+          "policy_version": "fixture-v2",
+          "document_id": "document-pilot",
+          "content_hash": "content-pilot"
+        }
+      },
+      "rating": "helpful",
+      "reasons": "source_faithfulness",
+      "comment": "A separately assigned synthetic rating of the more cautious interpretation.",
+      "created_at": "2026-09-11T13:00:00Z",
+      "updated_at": "2026-09-11T13:00:00Z"
+    }
+  ],
+  "pairs": [
+    {
+      "case_id": "small-pilot",
+      "baseline_target_id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "candidate_target_id": "1d44de86da7ac13d00aa64e81f29a10b439e4a3d36ec57a8da91758e2ce61ca1",
+      "input_status": "synthetic fixed source; no agent replay performed"
+    }
+  ],
+  "judgments": [
+    {
+      "target_id": "31b1751b2d04205108861b7924033751b4dcab1a5fa8dd1a46b71b3888917720",
+      "output_hash": "e264124855d1a756a95a8e4f28f2664a36ab631abba1584ff9b3bbe1989f0171",
+      "rating": "helpful",
+      "judge": "synthetic-judge/rubric-v1",
+      "explanation": "Synthetic independent judgment."
+    },
+    {
+      "target_id": "43d3f91e6dc6f54cf358fe18f2ed0021304d2d0e008aac2f95c7fe20b74b21bb",
+      "output_hash": "2028595b7d0bb55dcf1385b7e2d3f85b1d63ce989575f3e467089de1dd3c09db",
+      "rating": "not_helpful",
+      "judge": "synthetic-judge/rubric-v1",
+      "explanation": "Synthetic independent judgment."
+    },
+    {
+      "target_id": "7c44fa0ec57b4187f74b70b0aeaf9d8cdb21ef1b09ca37374bbfb55a21392f7e",
+      "output_hash": "df67ac254cc23d088e345a7acddb09fda28cde411449165a10470ee005c23487",
+      "rating": "helpful",
+      "judge": "synthetic-judge/rubric-v1",
+      "explanation": "Synthetic independent judgment."
+    }
+  ]
+}
