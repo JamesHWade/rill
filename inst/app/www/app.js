@@ -81,6 +81,7 @@
   let compactSurface = null;
   let compactReturnSurface = "queue";
   let pendingCompactQueue = false;
+  let pendingReaderDestination = null;
   let agentReturnFocus = null;
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
@@ -628,26 +629,6 @@
     }
   }
 
-  function ensureOrientationReturn(hasOrientation) {
-    const controls = document.querySelector(".queue-controls");
-    if (!controls) return;
-
-    let button = controls.querySelector(".orientation-return");
-    if (!button) {
-      button = document.createElement("button");
-      button.type = "button";
-      button.className = "orientation-return";
-      button.textContent = "Orientation";
-      button.title = "Return to Orientation";
-      button.setAttribute("aria-label", "Return to Orientation");
-      button.addEventListener("click", function () {
-        window.rillShowOrientation();
-      });
-      controls.prepend(button);
-    }
-    button.hidden = !hasOrientation;
-  }
-
   const surfaceAccessibilityState = new WeakMap();
 
   function setSurfaceCovered(element, covered) {
@@ -1000,7 +981,6 @@
       }
     }
     syncMobileSurfaces(shell, hasReader, hasOrientation);
-    ensureOrientationReturn(hasOrientation);
 
     if (!nextId) {
       restoreOrientationDismissFocus();
@@ -1108,6 +1088,7 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.getElementById("rill-app");
     shell?.classList.add("queue-opening");
     pendingArticleTiming = shell && shell.dataset.operationalTelemetry === "true" &&
@@ -1214,6 +1195,7 @@
 
   window.rillBrowseQueue = function () {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     window.Shiny.setInputValue(
       "browse_orientation_queue",
       { nonce: Math.random() },
@@ -1223,6 +1205,7 @@
 
   window.rillBrowseOrientationTheme = function (themeId) {
     if (!window.Shiny || !themeId) return;
+    pendingReaderDestination = null;
     window.Shiny.setInputValue(
       "browse_orientation_theme",
       { theme_id: themeId, nonce: Math.random() },
@@ -1230,7 +1213,7 @@
     );
   };
 
-  window.rillShowOrientation = function () {
+  function revealOrientation() {
     const shell = document.querySelector(".app-shell");
     pendingCompactQueue = false;
     shell?.classList.remove("queue-primary");
@@ -1238,9 +1221,33 @@
     if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
     focusOrientation();
+  }
+
+  window.rillShowOrientation = function () {
+    window.rillCancelQueueNavigation?.();
+    if (document.getElementById("rill-orientation")) {
+      pendingReaderDestination = null;
+      revealOrientation();
+      return;
+    }
+    if (!window.Shiny) return;
+    pendingReaderDestination = "orientation";
+    pendingEntrySurface = "orientation";
+    pendingCompactQueue = false;
+    window.Shiny.setInputValue("show_orientation", {nonce: Math.random()}, {priority: "event"});
+  };
+
+  window.rillReopenLastAnswer = function () {
+    if (!window.Shiny) return;
+    window.rillCancelQueueNavigation?.();
+    pendingReaderDestination = "last_answer";
+    pendingEntrySurface = "story_list";
+    pendingCompactQueue = false;
+    window.Shiny.setInputValue("reopen_last_answer", {nonce: Math.random()}, {priority: "event"});
   };
 
   window.rillOpenLibrary = function () {
+    pendingReaderDestination = null;
     showCompactSurface("library", { remember: true });
   };
 
@@ -1251,6 +1258,7 @@
   };
 
   window.rillOpenQueue = function () {
+    pendingReaderDestination = null;
     window.rillCancelQueueNavigation?.();
     const shell = document.querySelector(".app-shell");
     shell?.classList.add("queue-primary");
@@ -1270,6 +1278,7 @@
 
   window.rillSelectFeed = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1285,6 +1294,7 @@
 
   window.rillSelectFolder = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1300,6 +1310,7 @@
 
   window.rillSelectGroup = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1666,6 +1677,24 @@
           action.focus({ preventScroll: true });
         } else {
           focusOrientation();
+        }
+      }
+    );
+    window.Shiny.addCustomMessageHandler(
+      "rill-reader-destination",
+      function (message) {
+        if (pendingReaderDestination !== message.destination) return;
+        pendingReaderDestination = null;
+        pendingEntrySurface = null;
+        if (!message.ok) return;
+        if (message.destination === "orientation") {
+          revealOrientation();
+        } else {
+          const shell = document.querySelector(".app-shell");
+          shell?.classList.remove("queue-primary", "orientation-queue-visible");
+          showCompactSurface("reader");
+          syncReader();
+          window.rillOpenAskRill(document.querySelector(".reader-agent-trigger"));
         }
       }
     );

@@ -1,3 +1,31 @@
+testthat::test_that("Orientation can open from an article without changing the queue", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+    session$setInputs(show_orientation = list(nonce = 1))
+    testthat::expect_null(selected_id())
+    testthat::expect_null(selected_document_id())
+    testthat::expect_identical(input$view, "all")
+    testthat::expect_match(
+      output$reader_header$html,
+      'id="rill-orientation"',
+      fixed = TRUE
+    )
+    testthat::expect_null(output$reader_body)
+    store$memory$orientations[[config$actor_id]] <- NULL
+    session$setInputs(show_orientation = list(nonce = 2))
+    testthat::expect_match(
+      output$reader_header$html,
+      'id="rill-orientation"',
+      fixed = TRUE
+    )
+  })
+})
+
 testthat::test_that("reading actions flush before refreshing library navigation", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -1746,7 +1774,7 @@ testthat::test_that("a replacement session resumes a deferred question", {
   })
 })
 
-testthat::test_that("a replacement session restores a completed question", {
+testthat::test_that("a replacement session keeps a completed answer available without opening its article", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   config$orientation_enabled <- FALSE
@@ -1808,6 +1836,8 @@ testthat::test_that("a replacement session restores a completed question", {
 
     testthat::expect_identical(active_agent_run()$run_id, run$run_id)
     testthat::expect_identical(active_agent_run()$status, "completed")
+    testthat::expect_null(selected_id())
+    session$setInputs(reopen_last_answer = list(nonce = 1))
     testthat::expect_identical(selected_id(), document$entry_id)
     testthat::expect_identical(
       selected_document()$document_id,

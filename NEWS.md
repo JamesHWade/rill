@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Orientation has a labeled button in the queue and article toolbar. Fresh visits no longer reopen the article from a completed answer; use Reopen last answer in the Library to return to that answer and its reading copy.
+
 * Orientation now shows up to three independent picks in a compact row layout with the question as the headline, the first sentence of each exact Source Evidence passage inline, and the title as the read action; the agent evaluates up to 36 newest unread Documents within its source budget and folds the unpicked ones into up to five themes that open a scoped unread queue, with a computed totals line covering the whole unread queue (#51).
 
 * Article navigation and read actions respond sooner. On phones, queue cards follow your finger as you swipe left to mark read; inside an article, swipe left for the next article or right for the queue. Successful action notices dismiss after eight seconds, with extra time while using Undo (#88).

@@ -98,6 +98,11 @@ article next/back swipes, native code scrolling, a late article response after
 returning to the queue, notice expiry with keyboard focus, and failed or
 disconnected actions. The expiry checks deliberately wait eight seconds.
 
+`node orientation-entry.mjs` checks fresh visits with a completed answer,
+Orientation buttons in the queue and article toolbar, explicit answer recovery,
+and reloading at phone and desktop widths. Screenshots and accessibility results
+are retained in `artifacts/orientation-entry/`.
+
 From the repository root, `Rscript scripts/browser/benchmark-reader.R .` profiles
 server handling of article opens and mark-read requests. Pass another checkout
 path to profile a baseline. `node scripts/browser/benchmark-reader.mjs` measures

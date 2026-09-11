@@ -1344,7 +1344,19 @@ div.story-list.shiny-html-output {
 }
 
 .orientation-return {
-  display: none;
+  display: inline-flex;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--green-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.article-actions .orientation-return {
+  border: 1px solid var(--line);
+  background: var(--green-soft);
+  color: var(--green-deep);
+  font-weight: 700;
 }
 
 .orientation-browse:hover,
@@ -1688,10 +1700,6 @@ div.story-list.shiny-html-output {
 
 .orientation-quiet .orientation-evaluated {
   margin-top: 12px;
-}
-
-.orientation-return::before {
-  content: "\2190";
 }
 
 .article-header,

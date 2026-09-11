@@ -102,6 +102,8 @@ rill_server <- function(
       stats::runif(1)
     )
     selected_id <- shiny::reactiveVal(NULL)
+    orientation_requested <- shiny::reactiveVal(FALSE)
+    restored_question <- shiny::reactiveVal(NULL)
     selected_document_id <- shiny::reactiveVal(NULL)
     reading_copy <- shiny::reactiveVal(NULL)
     cached_reading_copy <- NULL
@@ -229,8 +231,12 @@ rill_server <- function(
         error = \(error) NULL
       )
       if (!is.null(document)) {
-        selected_id(document$entry_id)
-        selected_document_id(document$document_id)
+        if (identical(existing_agent_run$status, "completed")) {
+          restored_question(existing_agent_run)
+        } else {
+          selected_id(document$entry_id)
+          selected_document_id(document$document_id)
+        }
       }
     }
 
@@ -461,6 +467,16 @@ rill_server <- function(
         (!is.null(run) &&
           !run$status %in% terminal_agent_run_statuses)
     }
+
+    shiny::observeEvent(active_agent_run(), {
+      run <- active_agent_run()
+      if (
+        identical(run$status, "completed") &&
+          store_scalar_string(run$pinned_inputs$document_id)
+      ) {
+        restored_question(run)
+      }
+    })
 
     update_visible_agent_run <- function(run) {
       if (session$isClosed()) {
@@ -2944,7 +2960,7 @@ rill_server <- function(
           state$orientation,
           state$candidates
         )
-        return(orientation_ui(
+        header <- orientation_ui(
           state$orientation,
           state$candidates,
           feedback_token = feedback_token,
@@ -2957,7 +2973,11 @@ rill_server <- function(
             destination_state = orientation_destination_status(),
             preparing = orientation_preparing()
           )
-        ))
+        )
+        if (isTRUE(orientation_requested())) {
+          header$attribs$id <- "rill-orientation"
+        }
+        return(header)
       }
 
       document <- selected_document()
@@ -3481,6 +3501,112 @@ rill_server <- function(
           return()
         }
         bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$show_orientation,
+      {
+        opened <- clear_selection(clear_retained = FALSE)
+        if (isTRUE(opened)) {
+          orientation_requested(TRUE)
+          library_state_tick(shiny::isolate(library_state_tick()) + 1L)
+        } else {
+          shiny::showNotification(
+            "Finish or stop the current response before opening Orientation.",
+            type = "message",
+            duration = 5
+          )
+        }
+        session$onFlushed(
+          function() {
+            session$sendCustomMessage(
+              "rill-reader-destination",
+              list(destination = "orientation", ok = isTRUE(opened))
+            )
+          },
+          once = TRUE
+        )
+      },
+      ignoreInit = TRUE
+    )
+
+    output$recent_answer_control <- shiny::renderUI({
+      if (is.null(restored_question())) {
+        return(NULL)
+      }
+      shiny::tags$button(
+        type = "button",
+        class = "btn-manage-feeds recent-answer-control",
+        onclick = "rillReopenLastAnswer()",
+        bsicons::bs_icon("chat-left-text"),
+        "Reopen last answer"
+      )
+    })
+
+    shiny::observeEvent(
+      input$reopen_last_answer,
+      {
+        saved <- restored_question()
+        if (is.null(saved)) {
+          return()
+        }
+        if (reader_response_in_flight()) {
+          shiny::showNotification(
+            "Finish or stop the current response before reopening an answer.",
+            type = "message",
+            duration = 5
+          )
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(destination = "last_answer", ok = FALSE)
+          )
+          return()
+        }
+        run <- store_get_agent_run(store, actor_id, saved$run_id)
+        document <- if (!is.null(run)) {
+          store_get_document_by_id(
+            store,
+            actor_id,
+            run$pinned_inputs$document_id
+          )
+        }
+        if (is.null(document)) {
+          restored_question(NULL)
+          shiny::showNotification(
+            "That answer's reading copy is no longer available.",
+            type = "message",
+            duration = 5
+          )
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(destination = "last_answer", ok = FALSE)
+          )
+          return()
+        }
+        if (!identical(active_agent_run()$run_id, run$run_id)) {
+          reset_reader_chat()
+          active_agent_run(run)
+          if (nzchar(run$response_text %||% "")) {
+            append_reader_chat(run$response_text, session)
+          }
+        }
+        reading_copy(NULL)
+        cached_reading_copy <<- NULL
+        selected_orientation_provenance(NULL)
+        selected_id(document$entry_id)
+        selected_document_id(document$document_id)
+        selected_position(NA_integer_)
+        session$onFlushed(
+          function() {
+            session$sendCustomMessage(
+              "rill-reader-destination",
+              list(destination = "last_answer", ok = TRUE)
+            )
+          },
+          once = TRUE
+        )
       },
       ignoreInit = TRUE
     )

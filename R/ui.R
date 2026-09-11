@@ -246,6 +246,7 @@ navigation_sidebar_ui <- function(config) {
     group_reading_control_ui(),
     shiny::tags$div(
       class = "sidebar-footer",
+      shiny::uiOutput("recent_answer_control"),
       shiny::uiOutput(shiny::NS("access_requests", "launcher")),
       shiny::uiOutput("orientation_destination_settings"),
       appearance_control_ui(),
@@ -458,6 +459,17 @@ orientation_destination_confirmation_ui <- function(state) {
   )$allTags()
 }
 
+orientation_open_button <- function(class = "") {
+  shiny::tags$button(
+    type = "button",
+    class = paste("orientation-return", class),
+    onclick = "rillShowOrientation()",
+    `aria-label` = "Open Orientation",
+    bsicons::bs_icon("compass"),
+    "Orientation"
+  )
+}
+
 story_sidebar_ui <- function() {
   bslib::sidebar(
     shiny::tags$header(
@@ -474,6 +486,7 @@ story_sidebar_ui <- function() {
       ),
       htmltools::tagQuery(
         bslib::toolbar(
+          orientation_open_button(),
           shiny::uiOutput(
             "prepare_today_control",
             container = shiny::tags$div,
@@ -767,6 +780,7 @@ reader_article_header_ui <- function(
         bsicons::bs_icon("arrow-left"),
         "Queue"
       ),
+      orientation_open_button("reader-action"),
       shiny::tags$button(
         type = "button",
         class = "reader-action reader-previous",

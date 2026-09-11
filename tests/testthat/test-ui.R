@@ -1,3 +1,23 @@
+testthat::test_that("Orientation has a labeled entry point in the queue and article toolbar", {
+  sample <- sample_rill_data()
+  entry <- as.list(sample$entries[1L, ])
+  document <- sample$documents[[1L]]
+  queue <- htmltools::renderTags(story_sidebar_ui())$html
+  article <- htmltools::renderTags(reader_article_header_ui(
+    entry,
+    document
+  ))$html
+  for (html in c(queue, article)) {
+    testthat::expect_match(html, 'aria-label="Open Orientation"', fixed = TRUE)
+    testthat::expect_match(
+      html,
+      'onclick="rillShowOrientation()"',
+      fixed = TRUE
+    )
+    testthat::expect_match(html, "Orientation\\s*</button>")
+  }
+})
+
 testthat::test_that("preparation details escape titles and expose safe recovery", {
   html <- htmltools::renderTags(preparation_failures_ui(list(list(
     title = "<script>private title</script>",
