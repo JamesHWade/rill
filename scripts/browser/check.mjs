@@ -32,6 +32,46 @@ async function audit(state, width) {
   assert.equal(result.ui.horizontalOverflow, false, `${state} overflow at ${width}`);
   await page.screenshot({ path: path.join(output, `${width}-${state}.png`) });
 }
+const touchSession = await context.newCDPSession(page);
+const frame = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+async function drag(selector, dx, release = true, dy = 0) {
+  const element = page.locator(selector).first();
+  await element.evaluate(el => el.scrollIntoView({block: 'center', behavior: 'instant'}));
+  await page.evaluate(selector => new Promise((resolve, reject) => {
+    const deadline = performance.now() + 3000;
+    let previous = '', previousElement = null, stable = 0;
+    function check() {
+      const el = document.querySelector(selector);
+      const box = el?.getBoundingClientRect();
+      if (!box || !box.width || !box.height) {
+        stable = 0;
+        if (performance.now() > deadline) reject(new Error('Touch target disappeared'));
+        else requestAnimationFrame(check);
+        return;
+      }
+      const current = `${box.x},${box.y},${box.width},${box.height}`;
+      stable = el === previousElement && current === previous &&
+        !document.documentElement.classList.contains('shiny-busy') ? stable + 1 : 0;
+      previous = current;
+      previousElement = el;
+      if (stable >= 18) resolve();
+      else if (performance.now() > deadline) reject(new Error('Touch target kept moving'));
+      else requestAnimationFrame(check);
+    }
+    requestAnimationFrame(check);
+  }), selector);
+  const box = await element.boundingBox();
+  const x = dx < 0 ? Math.min(310, box.x + box.width - 25) : Math.max(70, box.x + 25);
+  const y = Math.max(1, Math.min(page.viewportSize().height - 1, box.y + Math.min(30, box.height / 2)));
+  assert.ok(await element.evaluate((el, {x, y}) => el.contains(document.elementFromPoint(x, y)), {x, y}),
+    'Native touch starts inside the requested element');
+  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: [{x, y}]});
+  for (let step = 1; step <= 5; step++) {
+    await touchSession.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: x + dx * step / 5, y: y + dy * step / 5}]});
+    await frame();
+  }
+  if (release) await touchSession.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+}
 try {
   await page.goto(url);
   await ready();
@@ -42,24 +82,10 @@ try {
   await page.waitForFunction(() => !document.querySelector('.shiny-busy'));
   await page.waitForTimeout(200);
   await page.evaluate(() => window.rillOpenQueue());
-  const gesture = async (selector, points) => page.locator(selector).first().evaluate((element, points) => {
-    for (const [type, x, y, count = 1] of points) {
-      const touch = new Touch({ identifier: 1, target: element, clientX: x, clientY: y });
-      element.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true,
-        touches: type === 'touchend' ? [] : Array(count).fill(touch), changedTouches: [touch] }));
-    }
-  }, points);
-  const touchSession = await context.newCDPSession(page);
-  const cardBounds = await page.locator('.story-card').first().boundingBox();
-  const y = cardBounds.y + cardBounds.height / 2;
-  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: [{x: 280, y}]});
-  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: 240, y}]});
-  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: 140, y}]});
-  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
-  await page.waitForFunction(() => document.querySelector('.story-swipe-tray').getAttribute('aria-hidden') === 'false');
+  await drag('.story-card', -140, false);
+  assert.equal(await page.locator('.story-swipe-tray').first().getAttribute('aria-hidden'), 'false');
   assert.equal(await page.locator('#reader-document').count(), 0, 'Swipe does not open article');
-  await page.locator('.story-swipe-button').first().focus();
-  await page.keyboard.press('Escape');
+  await touchSession.send('Input.dispatchTouchEvent', {type: 'touchCancel', touchPoints: []});
   assert.equal(await page.locator('.story-swipe-tray').first().getAttribute('aria-hidden'), 'true');
   await page.locator('.story-save').first().focus();
   await page.keyboard.press('Enter');
@@ -74,7 +100,7 @@ try {
   await page.locator('.story-card').first().click();
   await page.waitForSelector('#reader-document');
   const first = await page.locator('#reader-document').getAttribute('data-entry-id');
-  await gesture('#reader-document p', [['touchstart', 250, 350], ['touchmove', 130, 352], ['touchend', 130, 352]]);
+  await drag('#reader-document p', -130);
   await page.waitForFunction(id => document.querySelector('#reader-document')?.dataset.entryId !== id, first);
   assert.notEqual(await page.locator('#reader-document').getAttribute('data-entry-id'), first, 'Swipe navigates to next story');
   for (const width of [320, 390, 430, 768, 1024, 1440]) {
@@ -124,6 +150,12 @@ try {
   await page.getByRole('dialog').waitFor();
   await page.waitForFunction(() => document.querySelector('.modal.show')?.contains(document.activeElement));
   await audit('dark-manage-feeds', 390);
+  await page.locator('#managed_feed-selectized').click();
+  await page.waitForFunction(() => document.getElementById('managed_feed-selectized')?.getAttribute('aria-expanded') === 'true');
+  assert.equal(await page.locator('#managed_feed-selectized').evaluate(input =>
+    document.getElementById(input.getAttribute('aria-controls'))?.getAttribute('role')),
+    'listbox', 'Expanded feed picker identifies its controlled listbox');
+  await audit('dark-feed-picker-expanded', 390);
   for (let step = 0; step < 40; step++) {
     if (await page.evaluate(() => document.activeElement?.id === 'add_feed_groups')) break;
     await page.keyboard.press('Tab');

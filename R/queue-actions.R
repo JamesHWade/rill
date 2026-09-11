@@ -167,17 +167,66 @@ reader_queue_server <- function(
   reader_id,
   refresh,
   record_event,
-  session = shiny::getDefaultReactiveDomain()
+  session = shiny::getDefaultReactiveDomain(),
+  telemetry_enabled = FALSE
 ) {
   input <- session$input
   receipts <- list()
   completed <- list()
-  reply <- function(result) {
+  action_traces <- list()
+  begin_action <- function(request, action) {
+    timing <- view_telemetry(
+      telemetry_enabled,
+      "queue.action",
+      "queue_action",
+      "visible_ms"
+    )
+    timing$begin(request$telemetry_id, action)
+    id <- timing$id()
+    if (!is.null(id)) {
+      if (!is.null(action_traces[[id]])) {
+        action_traces[[id]]$finish("superseded")
+      }
+      action_traces[[id]] <<- timing
+      if (length(action_traces) > 20L) {
+        action_traces[[1L]]$finish("superseded")
+        action_traces[[1L]] <<- NULL
+      }
+    }
+    timing
+  }
+  reply <- function(result, timing) {
+    timing$annotate(list("queue_action.ok" = isTRUE(result$ok)))
+    if (!is.null(timing$id())) {
+      result$telemetry_id <- timing$id()
+    }
     session$onFlushed(
-      \() session$sendCustomMessage("rill-queue-action-result", result),
+      function() {
+        timing$flushed(timing$id())
+        session$sendCustomMessage("rill-queue-action-result", result)
+      },
       once = TRUE
     )
   }
+  shiny::observeEvent(input$queue_action_visible, {
+    report <- input$queue_action_visible
+    if (!is.list(report) || !store_scalar_string(report$id)) {
+      return()
+    }
+    timing <- action_traces[[report$id]]
+    if (is.null(timing)) {
+      return()
+    }
+    if (
+      isTRUE(timing$complete(report$id, report$elapsed_ms, report$dom_ready_ms))
+    ) {
+      action_traces[[report$id]] <<- NULL
+    }
+  })
+  session$onSessionEnded(function() {
+    lapply(action_traces, \(timing) timing$finish("disconnected"))
+    action_traces <<- list()
+  })
   shiny::observeEvent(
     input$queue_action,
     {
@@ -192,38 +241,47 @@ reader_queue_server <- function(
       ) {
         return()
       }
+      timing <- begin_action(request, request$action)
+      timing$activate()
       if (!is.null(completed[[request$id]])) {
-        reply(completed[[request$id]])
+        reply(completed[[request$id]], timing)
         return()
       }
       result <- tryCatch(
         {
-          changed <- switch(
-            request$action,
-            mark_read = {
-              receipt <- store_queue_mark_read(
+          changed <- telemetry_span(
+            "queue.action.persist",
+            switch(
+              request$action,
+              mark_read = {
+                receipt <- store_queue_mark_read(
+                  store,
+                  reader_id,
+                  request$entry_id
+                )
+                if (!is.null(receipt)) {
+                  receipts[[request$id]] <<- receipt
+                  receipts <<- utils::tail(receipts, 20L)
+                }
+                !is.null(receipt)
+              },
+              mark_unread = store_mark_unread(
                 store,
                 reader_id,
                 request$entry_id
+              ),
+              save = store_queue_set_saved(
+                store,
+                reader_id,
+                request$entry_id,
+                TRUE
+              ),
+              unsave = store_queue_set_saved(
+                store,
+                reader_id,
+                request$entry_id,
+                FALSE
               )
-              if (!is.null(receipt)) {
-                receipts[[request$id]] <<- receipt
-                receipts <<- utils::tail(receipts, 20L)
-              }
-              !is.null(receipt)
-            },
-            mark_unread = store_mark_unread(store, reader_id, request$entry_id),
-            save = store_queue_set_saved(
-              store,
-              reader_id,
-              request$entry_id,
-              TRUE
-            ),
-            unsave = store_queue_set_saved(
-              store,
-              reader_id,
-              request$entry_id,
-              FALSE
             )
           )
           if (changed) {
@@ -242,7 +300,7 @@ reader_queue_server <- function(
               }
             )
           }
-          refresh()
+          refresh(request$entry_id)
           list(
             id = request$id,
             entry_id = request$entry_id,
@@ -271,7 +329,7 @@ reader_queue_server <- function(
         completed[[request$id]] <<- result
         completed <<- utils::tail(completed, 50L)
       }
-      reply(result)
+      reply(result, timing)
     },
     ignoreInit = TRUE
   )
@@ -282,28 +340,39 @@ reader_queue_server <- function(
       if (!is.list(request) || !store_scalar_string(request$id)) {
         return()
       }
+      timing <- begin_action(request, "undo")
+      timing$activate()
       receipt <- receipts[[request$id]]
       if (is.null(receipt)) {
-        reply(list(
-          id = request$id,
-          ok = FALSE,
-          message = "This action can no longer be undone."
-        ))
+        reply(
+          list(
+            id = request$id,
+            ok = FALSE,
+            message = "This action can no longer be undone."
+          ),
+          timing
+        )
         return()
       }
       undone <- tryCatch(
-        store_queue_undo_read(store, reader_id, receipt),
+        telemetry_span(
+          "queue.action.persist",
+          store_queue_undo_read(store, reader_id, receipt)
+        ),
         error = \(error) NULL
       )
       if (is.null(undone)) {
-        reply(list(
-          id = request$id,
-          entry_id = receipt$entry_id,
-          action = "undo",
-          ok = FALSE,
-          undo = request$id,
-          message = "Couldn't undo this action. Please try again."
-        ))
+        reply(
+          list(
+            id = request$id,
+            entry_id = receipt$entry_id,
+            action = "undo",
+            ok = FALSE,
+            undo = request$id,
+            message = "Couldn't undo this action. Please try again."
+          ),
+          timing
+        )
         return()
       }
       receipts[[request$id]] <<- NULL
@@ -318,18 +387,21 @@ reader_queue_server <- function(
           payload = list(read = FALSE, reason = "undo_queue")
         )
       }
-      refresh()
-      reply(list(
-        id = request$id,
-        entry_id = receipt$entry_id,
-        action = "undo",
-        ok = undone,
-        message = if (undone) {
-          "Marked unread"
-        } else {
-          "This story changed since that action. Its current state was kept."
-        }
-      ))
+      refresh(receipt$entry_id)
+      reply(
+        list(
+          id = request$id,
+          entry_id = receipt$entry_id,
+          action = "undo",
+          ok = undone,
+          message = if (undone) {
+            "Marked unread"
+          } else {
+            "This story changed since that action. Its current state was kept."
+          }
+        ),
+        timing
+      )
     },
     ignoreInit = TRUE
   )

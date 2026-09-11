@@ -59,7 +59,7 @@ try {
     await page.getByRole('radio', {name: 'Not helpful', exact: true}).check();
     await page.getByRole('button', {name: 'Save rating', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
-    await page.getByRole('button', {name: 'Read the anchor source', exact: true}).click();
+    await page.locator('.orientation-read').first().click();
     await page.getByRole('button', {name: 'Ask Rill', exact: true}).click();
     await page.getByRole('link', {name: 'Rate an earlier response', exact: true}).click();
     await page.getByRole('button', {name: 'Review this response', exact: true}).click();
@@ -122,7 +122,11 @@ try {
     assert.equal(remaining[0].snapshot.kind, 'orientation');
     await page.goto(`${url}?feedback=fixture&resume=1`);
     await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
-    await page.getByRole('button', {name: 'Ask Rill', exact: true}).click();
+    if (width < 768) {
+      await page.locator('.orientation-browse').click();
+      await page.locator('.compact-library-trigger').click();
+    }
+    await page.getByRole('button', {name: 'Reopen last answer', exact: true}).click();
     await page.getByRole('button', {name: 'Rate this response', exact: true}).click();
     await page.getByRole('dialog').waitFor();
     await page.getByRole('dialog').locator('.feedback-answer').getByText('Interpretation: keep source material separate from generated explanation.', {exact: true}).waitFor();

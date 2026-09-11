@@ -22,8 +22,19 @@ queue_card_renderer <- function() {
       rm(list = remove, envir = cache)
     }
     built <- 0L
+    now <- Sys.time()
     cards <- lapply(seq_len(nrow(rows)), function(index) {
-      entry <- as.list(rows[index, , drop = FALSE])
+      entry <- lapply(rows, \(column) column[[index]])
+      previous <- cache[[ids[[index]]]]
+      published <- if (
+        !is.null(previous) &&
+          identical(previous$published_at, entry$published_at)
+      ) {
+        previous$published
+      } else {
+        parse_story_time(entry$published_at)
+      }
+      time_label <- format_story_time(published, now)
       selected <- identical(selected_id, ids[[index]])
       preview <- preview_src(entry)
       key <- digest::digest(
@@ -31,15 +42,19 @@ queue_card_renderer <- function() {
           entry,
           selected,
           preview,
-          format_story_time(entry$published_at)
+          time_label
         ),
         algo = "xxhash64"
       )
-      previous <- cache[[ids[[index]]]]
       if (is.null(previous) || !identical(previous$key, key)) {
-        card <- story_card(entry, index, selected, preview)
+        card <- story_card(entry, index, selected, preview, time_label)
         card$attribs$`data-queue-version` <- key
-        previous <- list(key = key, html = htmltools::renderTags(card)$html)
+        previous <- list(
+          key = key,
+          html = htmltools::renderTags(card)$html,
+          published_at = entry$published_at,
+          published = published
+        )
         cache[[ids[[index]]]] <- previous
         built <<- built + 1L
       }

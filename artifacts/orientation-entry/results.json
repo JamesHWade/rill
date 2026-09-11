@@ -1,0 +1,22 @@
+[
+  {
+    "width": 1440,
+    "noAutomaticArticle": true,
+    "queueAndArticleOrientation": true,
+    "lastAnswerAvailable": true,
+    "repeatedDestinationReplies": true,
+    "independentAnswerRecovery": true,
+    "violations": 0,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "noAutomaticArticle": true,
+    "queueAndArticleOrientation": true,
+    "lastAnswerAvailable": true,
+    "repeatedDestinationReplies": true,
+    "independentAnswerRecovery": true,
+    "violations": 0,
+    "errors": []
+  }
+]

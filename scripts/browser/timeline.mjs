@@ -34,7 +34,7 @@ for (const width of [320,390,430,768,1440]) {
 }
 await page.getByRole('radio',{name:'Today',exact:true}).check();
 await page.waitForFunction(()=>document.querySelector('.queue-batch')?.dataset.queueView==='today' && document.querySelector('#story_list').getAttribute('aria-busy')==='false');
-await page.getByRole('button',{name:'Return to Orientation',exact:true}).click();
+await page.locator('.story-pane').getByRole('button',{name:'Open Orientation',exact:true}).click();
 assert.equal(await page.locator('#rill-orientation').isVisible(),true);
 await page.getByRole('radio',{name:'Today',exact:true}).click();
 assert.equal(await page.locator('#rill-orientation').isVisible(),false);

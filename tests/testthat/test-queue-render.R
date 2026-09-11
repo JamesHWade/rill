@@ -33,6 +33,36 @@ testthat::test_that("queue cards reuse unchanged HTML and refresh Reader state",
   )
 })
 
+testthat::test_that("cached publication times still refresh relative labels", {
+  rows <- sample_rill_data()$entries[1L, ]
+  rows$read_at <- NA_character_
+  renderer <- queue_card_renderer()
+  label <- "59m"
+  parse <- parse_story_time
+  parsed_strings <- 0L
+  testthat::local_mocked_bindings(
+    format_story_time = function(...) label,
+    parse_story_time = function(value) {
+      if (is.character(value)) {
+        parsed_strings <<- parsed_strings + 1L
+      }
+      parse(value)
+    }
+  )
+  first <- renderer(rows, NULL, \(entry) NULL)
+  testthat::expect_match(first$cards[[1L]], "59m", fixed = TRUE)
+  testthat::expect_identical(renderer(rows, NULL, \(entry) NULL)$built, 0L)
+  testthat::expect_identical(parsed_strings, 1L)
+  label <- "1h"
+  later <- renderer(rows, NULL, \(entry) NULL)
+  testthat::expect_identical(later$built, 1L)
+  testthat::expect_match(later$cards[[1L]], "1h", fixed = TRUE)
+  testthat::expect_identical(parsed_strings, 1L)
+  rows$published_at <- "2026-09-10 00:00:00 UTC"
+  renderer(rows, NULL, \(entry) NULL)
+  testthat::expect_identical(parsed_strings, 2L)
+})
+
 testthat::test_that("queue batches expand and reset when the context changes", {
   shiny::testServer(
     function(input, output, session) {

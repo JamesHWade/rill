@@ -81,6 +81,8 @@
   let compactSurface = null;
   let compactReturnSurface = "queue";
   let pendingCompactQueue = false;
+  let pendingReaderDestination = null;
+  let readerDestinationSequence = 0;
   let agentReturnFocus = null;
   let agentSidebarExpanded = false;
   let agentSidebarObserver = null;
@@ -513,7 +515,7 @@
       const target = desktopReaderMode.matches
         ? heading || close
         : close || heading;
-      if (!target) return;
+      if (!target || (compactReaderMode.matches && compactSurface !== "reader")) return;
 
       if (target === heading) target.setAttribute("tabindex", "-1");
       target.focus({ preventScroll: true });
@@ -626,26 +628,6 @@
       orientationModalWasOpen = false;
       focusOrientationDestinationSettings();
     }
-  }
-
-  function ensureOrientationReturn(hasOrientation) {
-    const controls = document.querySelector(".queue-controls");
-    if (!controls) return;
-
-    let button = controls.querySelector(".orientation-return");
-    if (!button) {
-      button = document.createElement("button");
-      button.type = "button";
-      button.className = "orientation-return";
-      button.textContent = "Orientation";
-      button.title = "Return to Orientation";
-      button.setAttribute("aria-label", "Return to Orientation");
-      button.addEventListener("click", function () {
-        window.rillShowOrientation();
-      });
-      controls.prepend(button);
-    }
-    button.hidden = !hasOrientation;
   }
 
   const surfaceAccessibilityState = new WeakMap();
@@ -975,7 +957,7 @@
         shell.classList.remove("orientation-queue-visible");
       }
     }
-    if (compactReaderMode.matches && selectionChanged) {
+    if (compactReaderMode.matches && selectionChanged && !pendingCompactQueue) {
       compactSurface = "reader";
       pendingCompactQueue = false;
     } else if (
@@ -1000,7 +982,6 @@
       }
     }
     syncMobileSurfaces(shell, hasReader, hasOrientation);
-    ensureOrientationReturn(hasOrientation);
 
     if (!nextId) {
       restoreOrientationDismissFocus();
@@ -1061,8 +1042,8 @@
     activeEntryId = nextId;
     activeDocumentId = nextDocumentId;
     activeEntrySurface = nextSurface;
-    pendingReaderFocus =
-      compactReaderMode.matches || activeEntrySurface === "orientation";
+    pendingReaderFocus = !pendingCompactQueue &&
+      (compactReaderMode.matches || activeEntrySurface === "orientation");
     pendingEntrySurface = null;
     pendingOrientationSelectionCardId = null;
     accumulatedReadingMs = 0;
@@ -1108,6 +1089,7 @@
     provenance = null
   ) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.getElementById("rill-app");
     shell?.classList.add("queue-opening");
     pendingArticleTiming = shell && shell.dataset.operationalTelemetry === "true" &&
@@ -1214,6 +1196,7 @@
 
   window.rillBrowseQueue = function () {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     window.Shiny.setInputValue(
       "browse_orientation_queue",
       { nonce: Math.random() },
@@ -1223,6 +1206,7 @@
 
   window.rillBrowseOrientationTheme = function (themeId) {
     if (!window.Shiny || !themeId) return;
+    pendingReaderDestination = null;
     window.Shiny.setInputValue(
       "browse_orientation_theme",
       { theme_id: themeId, nonce: Math.random() },
@@ -1230,7 +1214,7 @@
     );
   };
 
-  window.rillShowOrientation = function () {
+  function revealOrientation() {
     const shell = document.querySelector(".app-shell");
     pendingCompactQueue = false;
     shell?.classList.remove("queue-primary");
@@ -1238,19 +1222,45 @@
     if (compactReaderMode.matches) compactSurface = "reader";
     syncReader();
     focusOrientation();
+  }
+
+  window.rillShowOrientation = function () {
+    window.rillCancelQueueNavigation?.();
+    if (document.getElementById("rill-orientation")) {
+      pendingReaderDestination = null;
+      revealOrientation();
+      return;
+    }
+    if (!window.Shiny) return;
+    pendingReaderDestination = {destination: "orientation", request_id: String(++readerDestinationSequence)};
+    pendingEntrySurface = "orientation";
+    pendingCompactQueue = false;
+    window.Shiny.setInputValue("show_orientation", pendingReaderDestination, {priority: "event"});
+  };
+
+  window.rillReopenLastAnswer = function () {
+    if (!window.Shiny) return;
+    window.rillCancelQueueNavigation?.();
+    pendingReaderDestination = {destination: "last_answer", request_id: String(++readerDestinationSequence)};
+    pendingEntrySurface = "story_list";
+    pendingCompactQueue = false;
+    window.Shiny.setInputValue("reopen_last_answer", pendingReaderDestination, {priority: "event"});
   };
 
   window.rillOpenLibrary = function () {
+    pendingReaderDestination = null;
     showCompactSurface("library", { remember: true });
   };
 
   window.rillCloseLibrary = function () {
+    pendingReaderDestination = null;
     const destination = compactReturnSurface;
     compactReturnSurface = "queue";
     showCompactSurface(destination);
   };
 
   window.rillOpenQueue = function () {
+    pendingReaderDestination = null;
     window.rillCancelQueueNavigation?.();
     const shell = document.querySelector(".app-shell");
     shell?.classList.add("queue-primary");
@@ -1262,6 +1272,7 @@
   };
 
   window.rillReturnToReading = function () {
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     shell?.classList.remove("queue-primary");
     if (shell) shell.classList.remove("orientation-queue-visible");
@@ -1270,6 +1281,7 @@
 
   window.rillSelectFeed = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1285,6 +1297,7 @@
 
   window.rillSelectFolder = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1300,6 +1313,7 @@
 
   window.rillSelectGroup = function (id) {
     if (!window.Shiny) return;
+    pendingReaderDestination = null;
     const shell = document.querySelector(".app-shell");
     if (compactReaderMode.matches) pendingCompactQueue = true;
     if (shell && document.getElementById("rill-orientation")) {
@@ -1378,44 +1392,96 @@
 
   window.rillMoveStory = moveStory;
 
-  let swipe = null;
-  document.addEventListener("touchstart", function (event) {
-    swipe = null;
-    if (!compactReaderMode.matches || event.touches.length !== 1 ||
-        document.querySelector(".modal.show") ||
-        window.getSelection().toString()) return;
-    const target = event.target;
-    const article = target.closest("#reader-document");
-    if (!article) return;
-    if (target.closest("a, input, textarea, select, [contenteditable], .story-actions, .story-actions-toggle") ||
-        (article && target.closest("button, pre, table"))) return;
-    const touch = event.touches[0];
-    if (touch.clientX < 24 || touch.clientX > window.innerWidth - 24) return;
-    swipe = { x: touch.clientX, y: touch.clientY, article,
-      started: performance.now() };
-  }, { passive: true });
-  document.addEventListener("touchmove", function (event) {
-    if (!swipe) return;
-    if (event.touches.length !== 1 ||
-        Math.abs(event.touches[0].clientY - swipe.y) > 24) swipe = null;
-  }, { passive: true });
-  document.addEventListener("touchcancel", function () { swipe = null; });
-  document.addEventListener("touchend", function (event) {
-    const gesture = swipe;
-    swipe = null;
-    if (!gesture || !event.changedTouches.length ||
-        performance.now() - gesture.started > 800 ||
-        window.getSelection().toString()) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - gesture.x;
-    const dy = touch.clientY - gesture.y;
-    if (Math.abs(dx) < 72 || Math.abs(dy) > 24 ||
-        Math.abs(dx) < Math.abs(dy) * 3) return;
-    if (gesture.article && gesture.article.isConnected) {
-      moveStory(dx < 0 ? 1 : -1);
+  let readerSwipe = null;
+  let suppressReaderClickUntil = 0;
+
+  function resetReaderSwipe() {
+    if (!readerSwipe) return;
+    const surface = readerSwipe.surface;
+    surface.classList.remove("is-reader-swiping", "is-reader-swipe-armed");
+    surface.style.removeProperty("--reader-swipe-distance");
+    delete surface.dataset.swipeDirection;
+    delete surface.dataset.swipeLabel;
+    readerSwipe = null;
+  }
+
+  document.addEventListener("pointerdown", function (event) {
+    suppressReaderClickUntil = 0;
+    if (readerSwipe) { resetReaderSwipe(); return; }
+    if (!compactReaderMode.matches || event.pointerType === "mouse" || !event.isPrimary ||
+        document.querySelector(".modal.show") || window.getSelection()?.toString()) return;
+    const article = event.target.closest("#reader-document");
+    if (!article || !article.getClientRects().length ||
+        event.target.closest("a, button, input, textarea, select, [contenteditable], pre, table, video, audio, iframe") ||
+        event.clientX < 24 || event.clientX > window.innerWidth - 24) return;
+    readerSwipe = {
+      id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0,
+      horizontal: false, available: false, article, surface: article.closest(".reader-scroll"),
+      threshold: Math.min(80, Math.max(56, window.innerWidth * 0.18))
+    };
+  });
+
+  document.addEventListener("pointermove", function (event) {
+    if (!readerSwipe || event.pointerId !== readerSwipe.id) return;
+    const dx = event.clientX - readerSwipe.x;
+    const dy = event.clientY - readerSwipe.y;
+    if (!readerSwipe.article.isConnected || window.getSelection()?.toString()) {
+      resetReaderSwipe();
+      return;
     }
+    if (!readerSwipe.horizontal) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
+        resetReaderSwipe();
+        return;
+      }
+      if (Math.abs(dx) < 12 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      readerSwipe.horizontal = true;
+      readerSwipe.article.setPointerCapture(event.pointerId);
+      readerSwipe.surface.classList.add("is-reader-swiping");
+    }
+    readerSwipe.dx = dx;
+    const next = dx < 0;
+    const available = !next || document.querySelector(".reader-next")?.disabled === false;
+    readerSwipe.available = available;
+    readerSwipe.surface.dataset.swipeDirection = next ? "next" : "queue";
+    readerSwipe.surface.dataset.swipeLabel = available ? (next ? "Next article" : "Back to queue") : "End of queue";
+    readerSwipe.surface.classList.toggle("is-reader-swipe-armed",
+      available && Math.abs(dx) >= readerSwipe.threshold);
+    const distance = Math.max(-90, Math.min(90, dx * (available ? 0.4 : 0.15)));
+    readerSwipe.surface.style.setProperty("--reader-swipe-distance", `${distance}px`);
     if (event.cancelable) event.preventDefault();
-  }, { passive: false });
+  }, {passive: false});
+
+  document.addEventListener("pointerup", function (event) {
+    if (!readerSwipe || event.pointerId !== readerSwipe.id) return;
+    const finished = readerSwipe;
+    const commit = finished.horizontal && finished.available &&
+      (finished.dx > 0 || document.querySelector(".reader-next")?.disabled === false) &&
+      Math.abs(finished.dx) >= finished.threshold &&
+      finished.article.isConnected && finished.article.getClientRects().length &&
+      !window.getSelection()?.toString();
+    resetReaderSwipe();
+    if (finished.horizontal) suppressReaderClickUntil = performance.now() + 350;
+    if (!commit) return;
+    if (finished.dx > 0) window.rillOpenQueue();
+    else moveStory(1);
+    if (event.cancelable) event.preventDefault();
+  });
+
+  document.addEventListener("pointercancel", resetReaderSwipe);
+  document.addEventListener("lostpointercapture", event => {
+    if (readerSwipe?.id === event.pointerId && event.target === readerSwipe.article) resetReaderSwipe();
+  });
+  document.addEventListener("touchstart", event => {
+    if (event.touches.length > 1) resetReaderSwipe();
+  }, {passive: true});
+  document.addEventListener("click", event => {
+    if (event.detail !== 0 && performance.now() < suppressReaderClickUntil &&
+        event.target.closest("#reader-document")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
 
 
   function openOriginal() {
@@ -1621,16 +1687,36 @@
       }
     );
     window.Shiny.addCustomMessageHandler(
+      "rill-reader-destination",
+      function (message) {
+        if (!pendingReaderDestination || pendingReaderDestination.destination !== message.destination ||
+            pendingReaderDestination.request_id !== message.request_id) return;
+        pendingReaderDestination = null;
+        pendingEntrySurface = null;
+        if (!message.ok) return;
+        if (message.destination === "orientation") {
+          revealOrientation();
+        } else {
+          const shell = document.querySelector(".app-shell");
+          shell?.classList.remove("queue-primary", "orientation-queue-visible");
+          showCompactSurface("reader");
+          syncReader();
+          window.rillOpenAskRill(document.querySelector(".reader-agent-trigger"));
+        }
+      }
+    );
+    window.Shiny.addCustomMessageHandler(
       "rill-selection-accepted",
       function (message) {
         pendingEntrySurface = null;
         pendingOrientationSelectionCardId = null;
-        if (message.surface === "orientation") {
+        if (message.surface === "orientation" && !pendingCompactQueue) {
           pendingReaderFocus = true;
           focusReader();
           recoverReaderFocus();
         } else if (
           compactReaderMode.matches &&
+          !pendingCompactQueue &&
           document.getElementById("reader-document")
         ) {
           showCompactSurface("reader");
@@ -1976,7 +2062,19 @@
     });
   }
 
+  function syncSelectizeControls() {
+    document.querySelectorAll('.selectize-control input[role="combobox"][aria-owns]').forEach(function (input) {
+      const listboxId = input.getAttribute("aria-owns");
+      const listbox = document.getElementById(listboxId);
+      if (listbox?.getAttribute("role") !== "listbox") return;
+      if (input.getAttribute("aria-controls") !== listboxId) {
+        input.setAttribute("aria-controls", listboxId);
+      }
+    });
+  }
+
   function syncReaderSurfaces() {
+    syncSelectizeControls();
     syncStoryNavigation();
     syncReader();
     syncAskRillControls();
@@ -2071,7 +2169,10 @@
     registerSystemEvents();
     registerInputValidity();
     enhanceNativeFeedback();
+    syncSelectizeControls();
     new MutationObserver(syncReaderSurfaces).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["aria-owns"],
       childList: true,
       subtree: true
     });

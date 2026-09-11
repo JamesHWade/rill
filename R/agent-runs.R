@@ -386,16 +386,25 @@ store_get_active_agent_run <- function(store, reader_id) {
   if (!length(active)) NULL else active[[1L]]
 }
 
-store_get_latest_question_agent_run <- function(store, reader_id) {
+store_get_latest_question_agent_run <- function(
+  store,
+  reader_id,
+  status = NULL
+) {
   if (identical(store$mode, "postgres")) {
+    params <- list(reader_id)
+    if (!is.null(status)) {
+      params <- c(params, list(status))
+    }
     rows <- DBI::dbGetQuery(
       store$pool,
       paste(
         "SELECT * FROM agent_runs",
         "WHERE reader_id = $1 AND kind = 'question'",
+        if (!is.null(status)) "AND status = $2" else "",
         "ORDER BY requested_at DESC LIMIT 1"
       ),
-      params = list(reader_id)
+      params = params
     )
     return(agent_run_from_rows(rows))
   }
@@ -403,7 +412,8 @@ store_get_latest_question_agent_run <- function(store, reader_id) {
   questions <- Filter(
     \(run) {
       identical(run$reader_id, reader_id) &&
-        identical(run$kind, "question")
+        identical(run$kind, "question") &&
+        (is.null(status) || identical(run$status, status))
     },
     store$memory$agent_runs
   )

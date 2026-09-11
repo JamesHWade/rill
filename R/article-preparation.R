@@ -703,7 +703,7 @@ article_preparation_controller <- function(
     invisible(NULL)
   }
   list(
-    request = function(ids, retry = FALSE) {
+    request = function(ids, retry = FALSE, context = telemetry_context()) {
       if (state$closed) {
         return(invisible(NULL))
       }
@@ -711,7 +711,7 @@ article_preparation_controller <- function(
       for (id in ids) {
         state$requested[[id]] <- list(
           at = proc.time()[[3L]],
-          context = telemetry_context()
+          context = context
         )
       }
       state$requested <- state$requested[intersect(

@@ -102,8 +102,11 @@ rill_server <- function(
       stats::runif(1)
     )
     selected_id <- shiny::reactiveVal(NULL)
+    orientation_requested <- shiny::reactiveVal(FALSE)
+    restored_question <- shiny::reactiveVal(NULL)
     selected_document_id <- shiny::reactiveVal(NULL)
     reading_copy <- shiny::reactiveVal(NULL)
+    cached_reading_copy <- NULL
     opening_telemetry <- reading_telemetry(config$telemetry_enabled)
     queue_request_id <- shiny::reactiveVal(NULL)
     queue_telemetry <- view_telemetry(
@@ -170,6 +173,10 @@ rill_server <- function(
     retained_ids <- shiny::reactiveVal(character())
     retained_context <- shiny::reactiveVal(NULL)
     refresh_tick <- shiny::reactiveVal(0L)
+    queue_state_tick <- shiny::reactiveVal(0L)
+    selected_state_tick <- shiny::reactiveVal(0L)
+    library_state_tick <- shiny::reactiveVal(0L)
+    library_refresh_cancel <- NULL
     feed_management_tick <- shiny::reactiveVal(0L)
     status_text <- shiny::reactiveVal(NULL)
     status_kind <- shiny::reactiveVal("info")
@@ -210,22 +217,45 @@ rill_server <- function(
     } else {
       NULL
     }
+    completed_question <- tryCatch(
+      store_get_latest_question_agent_run(
+        store,
+        actor_id,
+        status = "completed"
+      ),
+      error = \(error) NULL
+    )
+    if (!is.null(completed_question)) {
+      document <- tryCatch(
+        store_get_document_by_id(
+          store,
+          actor_id,
+          completed_question$pinned_inputs$document_id
+        ),
+        error = \(error) NULL
+      )
+      if (!is.null(document)) {
+        restored_question(completed_question)
+      }
+    }
     if (
       !is.null(existing_agent_run) &&
         identical(existing_agent_run$kind, "question")
     ) {
       active_agent_run(existing_agent_run)
-      document <- tryCatch(
-        store_get_document_by_id(
-          store,
-          actor_id,
-          existing_agent_run$pinned_inputs$document_id
-        ),
-        error = \(error) NULL
-      )
-      if (!is.null(document)) {
-        selected_id(document$entry_id)
-        selected_document_id(document$document_id)
+      if (!identical(existing_agent_run$status, "completed")) {
+        document <- tryCatch(
+          store_get_document_by_id(
+            store,
+            actor_id,
+            existing_agent_run$pinned_inputs$document_id
+          ),
+          error = \(error) NULL
+        )
+        if (!is.null(document)) {
+          selected_id(document$entry_id)
+          selected_document_id(document$document_id)
+        }
       }
     }
 
@@ -235,6 +265,38 @@ rill_server <- function(
         feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
       }
     }
+
+    bump_entry_refresh <- function(entry_id) {
+      queue_state_tick(shiny::isolate(queue_state_tick()) + 1L)
+      if (identical(entry_id, shiny::isolate(selected_id()))) {
+        selected_state_tick(shiny::isolate(selected_state_tick()) + 1L)
+      }
+      session$onFlushed(
+        function() {
+          if (is.function(library_refresh_cancel)) {
+            library_refresh_cancel()
+          }
+          library_refresh_cancel <<- later::later(
+            function() {
+              library_refresh_cancel <<- NULL
+              if (!session$isClosed()) {
+                shiny::withReactiveDomain(
+                  session,
+                  shiny::isolate({
+                    library_state_tick(library_state_tick() + 1L)
+                  })
+                )
+              }
+            },
+            0.15
+          )
+        },
+        once = TRUE
+      )
+    }
+    session$onSessionEnded(function() {
+      if (is.function(library_refresh_cancel)) library_refresh_cancel()
+    })
 
     acknowledge_orientation_queue <- function() {
       session$onFlushed(
@@ -284,6 +346,7 @@ rill_server <- function(
       }
       selected_id(NULL)
       reading_copy(NULL)
+      cached_reading_copy <<- NULL
       selected_document_id(NULL)
       selected_orientation_provenance(NULL)
       selected_position(NA_integer_)
@@ -423,6 +486,16 @@ rill_server <- function(
         (!is.null(run) &&
           !run$status %in% terminal_agent_run_statuses)
     }
+
+    shiny::observeEvent(active_agent_run(), {
+      run <- active_agent_run()
+      if (
+        identical(run$status, "completed") &&
+          store_scalar_string(run$pinned_inputs$document_id)
+      ) {
+        restored_question(run)
+      }
+    })
 
     update_visible_agent_run <- function(run) {
       if (session$isClosed()) {
@@ -1603,6 +1676,7 @@ rill_server <- function(
 
     feeds <- shiny::reactive({
       refresh_tick()
+      library_state_tick()
       store_list_feeds(store, actor_id)
     })
 
@@ -1622,6 +1696,7 @@ rill_server <- function(
 
     queue_entries <- shiny::reactive({
       refresh_tick()
+      queue_state_tick()
       calendar <- calendar_window()
       queue_telemetry$activate()
       telemetry_local_span("queue.entries")
@@ -1723,6 +1798,7 @@ rill_server <- function(
 
     orientation_state <- shiny::reactive({
       refresh_tick()
+      library_state_tick()
       polled <- store_orientation_polled_state(store, actor_id)
       orientation_poll_token <<- polled$token
       polled$state
@@ -2134,6 +2210,7 @@ rill_server <- function(
       entry_id <- selected_id()
       shiny::req(entry_id)
       refresh_tick()
+      selected_state_tick()
       entry <- telemetry_span(
         "store.entry.lookup",
         store_get_entry(store, actor_id, entry_id)
@@ -2176,12 +2253,12 @@ rill_server <- function(
         }
         return(document)
       }
-      current <- reading_copy()
+      current <- reading_copy() %||% cached_reading_copy
       if (!is.null(current) && identical(current$entry_id, entry$entry_id)) {
         return(current)
       }
       document <- reading_document(store, actor_id, entry)
-      reading_copy(document)
+      cached_reading_copy <<- document
       document
     })
 
@@ -2252,7 +2329,16 @@ rill_server <- function(
         if (full_reading_document(selected_document())) {
           return(invisible(NULL))
         }
-        article_preparer$request(selected_id())
+        entry_id <- selected_id()
+        context <- telemetry_context()
+        session$onFlushed(
+          function() {
+            if (!session$isClosed()) {
+              article_preparer$request(entry_id, context = context)
+            }
+          },
+          once = TRUE
+        )
       },
       ignoreNULL = TRUE
     )
@@ -2893,7 +2979,7 @@ rill_server <- function(
           state$orientation,
           state$candidates
         )
-        return(orientation_ui(
+        header <- orientation_ui(
           state$orientation,
           state$candidates,
           feedback_token = feedback_token,
@@ -2906,7 +2992,11 @@ rill_server <- function(
             destination_state = orientation_destination_status(),
             preparing = orientation_preparing()
           )
-        ))
+        )
+        if (isTRUE(orientation_requested())) {
+          header$attribs$id <- "rill-orientation"
+        }
+        return(header)
       }
 
       document <- selected_document()
@@ -3308,6 +3398,7 @@ rill_server <- function(
         ) {
           reset_reader_chat()
           reading_copy(NULL)
+          cached_reading_copy <<- NULL
         }
         retain_entry(entry_id)
         selected_id(entry_id)
@@ -3334,7 +3425,7 @@ rill_server <- function(
           "rill-selection-accepted",
           list(surface = surface)
         )
-        bump_refresh()
+        bump_entry_refresh(entry_id)
       },
       ignoreInit = TRUE
     )
@@ -3429,6 +3520,146 @@ rill_server <- function(
           return()
         }
         bump_refresh()
+      },
+      ignoreInit = TRUE
+    )
+
+    shiny::observeEvent(
+      input$show_orientation,
+      {
+        request <- input$show_orientation
+        if (!is.list(request) || !store_scalar_string(request$request_id)) {
+          return()
+        }
+        request_id <- request$request_id
+        opened <- clear_selection(clear_retained = FALSE)
+        if (isTRUE(opened)) {
+          orientation_requested(TRUE)
+          library_state_tick(shiny::isolate(library_state_tick()) + 1L)
+        } else {
+          shiny::showNotification(
+            "Finish or stop the current response before opening Orientation.",
+            type = "message",
+            duration = 5
+          )
+        }
+        session$onFlushed(
+          function() {
+            session$sendCustomMessage(
+              "rill-reader-destination",
+              list(
+                destination = "orientation",
+                request_id = request_id,
+                ok = isTRUE(opened)
+              )
+            )
+          },
+          once = TRUE
+        )
+      },
+      ignoreInit = TRUE
+    )
+
+    output$recent_answer_control <- shiny::renderUI({
+      if (is.null(restored_question())) {
+        return(NULL)
+      }
+      shiny::tags$button(
+        type = "button",
+        class = "btn-manage-feeds recent-answer-control",
+        onclick = "rillReopenLastAnswer()",
+        bsicons::bs_icon("chat-left-text"),
+        "Reopen last answer"
+      )
+    })
+
+    shiny::observeEvent(
+      input$reopen_last_answer,
+      {
+        request <- input$reopen_last_answer
+        if (!is.list(request) || !store_scalar_string(request$request_id)) {
+          return()
+        }
+        request_id <- request$request_id
+        saved <- restored_question()
+        if (is.null(saved)) {
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
+          )
+          return()
+        }
+        if (reader_response_in_flight()) {
+          shiny::showNotification(
+            "Finish or stop the current response before reopening an answer.",
+            type = "message",
+            duration = 5
+          )
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
+          )
+          return()
+        }
+        run <- store_get_agent_run(store, actor_id, saved$run_id)
+        document <- if (!is.null(run)) {
+          store_get_document_by_id(
+            store,
+            actor_id,
+            run$pinned_inputs$document_id
+          )
+        }
+        if (is.null(document)) {
+          restored_question(NULL)
+          shiny::showNotification(
+            "That answer's reading copy is no longer available.",
+            type = "message",
+            duration = 5
+          )
+          session$sendCustomMessage(
+            "rill-reader-destination",
+            list(
+              destination = "last_answer",
+              request_id = request_id,
+              ok = FALSE
+            )
+          )
+          return()
+        }
+        if (!identical(active_agent_run()$run_id, run$run_id)) {
+          reset_reader_chat()
+          active_agent_run(run)
+          if (nzchar(run$response_text %||% "")) {
+            append_reader_chat(run$response_text, session)
+          }
+        }
+        reading_copy(NULL)
+        cached_reading_copy <<- NULL
+        selected_orientation_provenance(NULL)
+        selected_id(document$entry_id)
+        selected_document_id(document$document_id)
+        selected_position(NA_integer_)
+        session$onFlushed(
+          function() {
+            session$sendCustomMessage(
+              "rill-reader-destination",
+              list(
+                destination = "last_answer",
+                request_id = request_id,
+                ok = TRUE
+              )
+            )
+          },
+          once = TRUE
+        )
       },
       ignoreInit = TRUE
     )
@@ -3673,7 +3904,14 @@ rill_server <- function(
       ignoreInit = TRUE
     )
 
-    reader_queue_server(store, actor_id, bump_refresh, record_event, session)
+    reader_queue_server(
+      store,
+      actor_id,
+      bump_entry_refresh,
+      record_event,
+      session,
+      telemetry_enabled = config$telemetry_enabled
+    )
 
     shiny::observeEvent(
       input$toggle_save,

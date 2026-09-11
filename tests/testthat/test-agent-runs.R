@@ -201,6 +201,88 @@ testthat::test_that("the latest question remains available after interruption", 
   )
 })
 
+testthat::test_that("the latest completed question is scoped to its Reader and status", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader-1")
+    requested_at <- Sys.time() - 30
+    completed <- character()
+    statuses <- c("completed", "completed", "failed", "cancelled")
+    for (index in seq_along(statuses)) {
+      status <- statuses[[index]]
+      run <- store_start_agent_run(
+        store,
+        "reader-1",
+        "question",
+        paste0("question-", index),
+        pinned_inputs = list(document_id = "document-1"),
+        requested_at = requested_at + index
+      )
+      store_claim_agent_run(
+        store,
+        "reader-1",
+        run$run_id,
+        "worker",
+        lease_expires_at = Sys.time() + 120
+      )
+      if (identical(status, "cancelled")) {
+        store_request_agent_run_cancel(store, "reader-1", run$run_id)
+      }
+      store_finish_agent_run(store, "reader-1", run$run_id, "worker", status)
+      if (identical(status, "completed")) completed <- run$run_id
+    }
+    store_ensure_reader(store, "reader-2")
+    other <- store_start_agent_run(
+      store,
+      "reader-2",
+      "question",
+      "other-reader",
+      pinned_inputs = list(document_id = "document-2"),
+      requested_at = requested_at + 10
+    )
+    store_claim_agent_run(
+      store,
+      "reader-2",
+      other$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    store_finish_agent_run(
+      store,
+      "reader-2",
+      other$run_id,
+      "worker",
+      "completed"
+    )
+    store_start_agent_run(
+      store,
+      "reader-1",
+      "orientation",
+      "active-orientation",
+      pinned_inputs = list(boundary_hash = "boundary-1"),
+      requested_at = requested_at + 20
+    )
+    testthat::expect_identical(
+      store_get_latest_question_agent_run(store, "reader-1")$status,
+      "cancelled"
+    )
+    testthat::expect_identical(
+      store_get_latest_question_agent_run(
+        store,
+        "reader-1",
+        status = "completed"
+      )$run_id,
+      completed
+    )
+    testthat::expect_null(
+      store_get_latest_question_agent_run(
+        store,
+        "reader-3",
+        status = "completed"
+      )
+    )
+  }
+})
+
 testthat::test_that("an unconfirmed interrupt releases an owned Agent Run", {
   store <- rill_store(list(demo_mode = TRUE))
   requested_at <- as.POSIXct("2026-09-02 12:00:00", tz = "UTC")

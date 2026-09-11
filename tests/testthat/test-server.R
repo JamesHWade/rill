@@ -1,3 +1,152 @@
+testthat::test_that("Orientation can open from an article without changing the queue", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  destinations <- list()
+  shiny::testServer(rill_server(config, store), {
+    session$sendCustomMessage <- function(type, message) {
+      if (identical(type, "rill-reader-destination")) {
+        destinations[[length(destinations) + 1L]] <<- message
+      }
+    }
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+    session$setInputs(show_orientation = list(request_id = 1))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+    session$setInputs(show_orientation = list(request_id = "orientation-1"))
+    testthat::expect_null(selected_id())
+    testthat::expect_null(selected_document_id())
+    testthat::expect_identical(input$view, "all")
+    testthat::expect_match(
+      output$reader_header$html,
+      'id="rill-orientation"',
+      fixed = TRUE
+    )
+    testthat::expect_null(output$reader_body)
+    store$memory$orientations[[config$actor_id]] <- NULL
+    session$setInputs(show_orientation = list(request_id = "orientation-2"))
+    testthat::expect_match(
+      output$reader_header$html,
+      'id="rill-orientation"',
+      fixed = TRUE
+    )
+    draining_agent_run_id("busy")
+    session$setInputs(show_orientation = list(request_id = "blocked"))
+    testthat::expect_identical(
+      destinations,
+      list(
+        list(
+          destination = "orientation",
+          request_id = "orientation-1",
+          ok = TRUE
+        ),
+        list(
+          destination = "orientation",
+          request_id = "orientation-2",
+          ok = TRUE
+        ),
+        list(destination = "orientation", request_id = "blocked", ok = FALSE)
+      )
+    )
+  })
+})
+
+testthat::test_that("reading actions flush before refreshing library navigation", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  local_span <- telemetry_local_span
+  lookups <- 0L
+  document_ui <- reader_document_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(telemetry_local_span = function(name, ...) {
+    if (identical(name, "navigation.render")) {
+      lookups <<- lookups + 1L
+    }
+    local_span(name, ...)
+  })
+  testthat::local_mocked_bindings(reader_document_ui = function(...) {
+    renders <<- renders + 1L
+    document_ui(...)
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    initial <- lookups
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(lookups, initial)
+    testthat::expect_identical(selected_entry()$read_reason, "opened")
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+    for (index in seq_len(3L)) {
+      later::run_now(0.3)
+      session$flushReact()
+    }
+    initial <- lookups
+    session$setInputs(
+      queue_action = list(
+        id = "responsive-read",
+        entry_id = "sample-entry-3",
+        action = "mark_read"
+      )
+    )
+    testthat::expect_identical(lookups, initial)
+    testthat::expect_identical(
+      queue_entries()$read_reason[queue_entries()$entry_id == "sample-entry-3"],
+      "manual_queue"
+    )
+    testthat::expect_identical(renders, 1L)
+    for (index in seq_len(3L)) {
+      later::run_now(0.3)
+      session$flushReact()
+    }
+    testthat::expect_gt(lookups, initial)
+    testthat::expect_equal(
+      sum(feeds()$unread_count),
+      sum(is.na(
+        store_list_entries(store, config$actor_id, view = "all")$read_at
+      ))
+    )
+  }))
+})
+
+testthat::test_that("background acquisition is queued after the reading copy is flushed", {
+  withr::local_envvar(DATABASE_URL = "", RILL_ACTOR_ID = "reader")
+  config <- rill_config()
+  store <- preparation_test_store()
+  factory <- article_preparation_controller
+  flushed <- FALSE
+  queued_after_flush <- NULL
+  testthat::local_mocked_bindings(start_article_preparation = function(...) {
+    NULL
+  })
+  testthat::local_mocked_bindings(article_preparation_controller = function(
+    ...
+  ) {
+    controller <- factory(...)
+    request <- controller$request
+    controller$request <- function(...) {
+      queued_after_flush <<- flushed
+      request(...)
+    }
+    controller
+  })
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    session$onFlushed(
+      function() {
+        flushed <<- TRUE
+      },
+      once = TRUE
+    )
+    entry_id <- store$memory$entries$entry_id[[1L]]
+    session$setInputs(select_entry = list(id = entry_id))
+    testthat::expect_identical(queued_after_flush, TRUE)
+    testthat::expect_identical(article_preparer$state$queue, entry_id)
+    testthat::expect_match(output$reader_body$html, entry_id, fixed = TRUE)
+  }))
+})
+
 testthat::test_that("Today uses the browser day on a UTC host", {
   withr::local_envvar(DATABASE_URL = "", TZ = "UTC")
   config <- rill_config()
@@ -1651,7 +1800,7 @@ testthat::test_that("a replacement session resumes a deferred question", {
   })
 })
 
-testthat::test_that("a replacement session restores a completed question", {
+testthat::test_that("a replacement session keeps a completed answer available without opening its article", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   config$orientation_enabled <- FALSE
@@ -1713,6 +1862,14 @@ testthat::test_that("a replacement session restores a completed question", {
 
     testthat::expect_identical(active_agent_run()$run_id, run$run_id)
     testthat::expect_identical(active_agent_run()$status, "completed")
+    testthat::expect_null(selected_id())
+    destinations <- list()
+    session$sendCustomMessage <- function(type, message) {
+      if (identical(type, "rill-reader-destination")) {
+        destinations[[length(destinations) + 1L]] <<- message
+      }
+    }
+    session$setInputs(reopen_last_answer = list(request_id = "answer-1"))
     testthat::expect_identical(selected_id(), document$entry_id)
     testthat::expect_identical(
       selected_document()$document_id,
@@ -1726,7 +1883,124 @@ testthat::test_that("a replacement session restores a completed question", {
       appended,
       "Answer completed before reconnection."
     )
+    draining_agent_run_id("busy")
+    session$setInputs(reopen_last_answer = list(request_id = "blocked"))
+    draining_agent_run_id(NULL)
+    restored_question(list(run_id = "missing"))
+    session$setInputs(reopen_last_answer = list(request_id = "missing"))
+    testthat::expect_identical(
+      destinations,
+      list(
+        list(destination = "last_answer", request_id = "answer-1", ok = TRUE),
+        list(destination = "last_answer", request_id = "blocked", ok = FALSE),
+        list(destination = "last_answer", request_id = "missing", ok = FALSE)
+      )
+    )
   })
+})
+
+testthat::test_that("answer recovery is independent of newer failed questions and active work", {
+  withr::local_envvar(DATABASE_URL = "")
+  for (newer in c("failed", "cancelled", "orientation", "question")) {
+    config <- rill_config()
+    config$orientation_enabled <- FALSE
+    store <- rill_store(config)
+    document <- store$memory$documents[[1L]]
+    requested_at <- Sys.time() - 10
+    completed <- store_start_agent_run(
+      store,
+      config$actor_id,
+      "question",
+      "completed-answer",
+      pinned_inputs = list(document_id = document$document_id),
+      requested_at = requested_at
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    store_record_agent_run_response(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      "Retained answer."
+    )
+    store_finish_agent_run(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      "completed"
+    )
+    latest <- store_start_agent_run(
+      store,
+      config$actor_id,
+      if (identical(newer, "orientation")) "orientation" else "question",
+      paste0("newer-", newer),
+      pinned_inputs = list(document_id = document$document_id),
+      requested_at = requested_at + 1
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      latest$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    if (newer %in% c("failed", "cancelled")) {
+      if (identical(newer, "cancelled")) {
+        store_request_agent_run_cancel(store, config$actor_id, latest$run_id)
+      }
+      store_finish_agent_run(
+        store,
+        config$actor_id,
+        latest$run_id,
+        "worker",
+        newer
+      )
+    }
+    appended <- character()
+    testthat::local_mocked_bindings(
+      clear_reader_chat = function(session) NULL,
+      rill_reader_agent = function(...) {
+        list(get_model = \() config$agent_model)
+      },
+      append_reader_chat = function(response, session) {
+        appended <<- c(appended, response)
+        promises::promise_resolve(response)
+      }
+    )
+    shiny::testServer(rill_server(config, store), {
+      session$flushReact()
+      testthat::expect_identical(restored_question()$run_id, completed$run_id)
+      if (!identical(newer, "question")) {
+        testthat::expect_match(
+          output$recent_answer_control$html,
+          "Reopen last answer",
+          fixed = TRUE
+        )
+      }
+      session$setInputs(reopen_last_answer = list(request_id = "reopen"))
+      if (identical(newer, "question")) {
+        testthat::expect_identical(active_agent_run()$run_id, latest$run_id)
+        testthat::expect_length(appended, 0L)
+      } else {
+        testthat::expect_identical(active_agent_run()$run_id, completed$run_id)
+        testthat::expect_identical(selected_document_id(), document$document_id)
+        testthat::expect_identical(appended, "Retained answer.")
+      }
+      if (identical(newer, "orientation")) {
+        testthat::expect_identical(
+          store_get_active_agent_run(store, config$actor_id)$run_id,
+          latest$run_id
+        )
+      }
+    })
+  }
 })
 
 testthat::test_that("a replacement session stops polling a legacy response", {
