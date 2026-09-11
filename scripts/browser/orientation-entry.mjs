@@ -140,9 +140,19 @@ try {
     assert.equal(await page.locator('.reader-pane').isVisible(), true,
       'An old failure does not suppress the newer answer transition');
     await audit();
+    for (const newer of ['failed', 'cancelled', 'orientation']) {
+      await page.goto(`${url}?feedback=fixture&resume=${newer}`);
+      await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
+      await page.evaluate(() => window.rillOpenLibrary());
+      await page.getByRole('button', {name: 'Reopen last answer', exact: true}).click();
+      await page.getByRole('button', {name: 'Close Ask Rill', exact: true}).waitFor();
+      await page.getByText('Interpretation: keep source material separate from generated explanation.', {exact: false}).waitFor();
+      assert.equal(await page.locator('.reader-pane').isVisible(), true,
+        `The earlier completed answer opens after a newer ${newer} run`);
+    }
     assert.deepEqual(errors, []);
     results.push({width, noAutomaticArticle: true, queueAndArticleOrientation: true, lastAnswerAvailable: true,
-      repeatedDestinationReplies: true, violations: 0, errors});
+      repeatedDestinationReplies: true, independentAnswerRecovery: true, violations: 0, errors});
     await page.close();
   }
   await fs.writeFile(new URL('results.json', output), JSON.stringify(results, null, 2) + '\n');

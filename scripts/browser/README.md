@@ -102,7 +102,8 @@ disconnected actions. The expiry checks deliberately wait eight seconds.
 `node orientation-entry.mjs` checks fresh visits with a completed answer,
 Orientation buttons in the queue and article toolbar, explicit answer recovery,
 reloading, and stale replies after repeated destination requests at phone and
-desktop widths. Screenshots and accessibility results
+desktop widths. It also checks recovery after newer failed or cancelled questions
+and during active Orientation. Screenshots and accessibility results
 are retained in `artifacts/orientation-entry/`.
 
 From the repository root, `Rscript scripts/browser/benchmark-reader.R .` profiles

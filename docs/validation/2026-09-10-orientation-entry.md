@@ -65,5 +65,13 @@ widths; server tests check the echoed ID on success and rejection paths.
 The September 11 server and deployment test run passed 702 assertions with no
 warnings or skips.
 
+A subsequent review regression checks that a later failed or cancelled question,
+or an active Orientation, cannot hide an earlier completed answer. Startup now
+retrieves the latest completed question independently of active-work recovery.
+The store regression covers status ordering and Reader isolation in memory and
+PostgreSQL. Server checks preserve an unfinished question when reopening is
+blocked; browser checks reopen the earlier answer after each of the other three
+states at phone and desktop widths.
+
 These checks establish local behavior. Production verification requires
 publishing this revision and repeating the flow in the authenticated Reader.

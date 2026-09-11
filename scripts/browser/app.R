@@ -91,7 +91,16 @@ app <- shiny::shinyApp(
             model = "fixture-model",
             policy_version = "fixture-policy",
             document_id = if (
-              isTRUE(query$resume %in% c("1", "unsubscribed")) &&
+              isTRUE(
+                query$resume %in%
+                  c(
+                    "1",
+                    "unsubscribed",
+                    "failed",
+                    "cancelled",
+                    "orientation"
+                  )
+              ) &&
                 identical(reader_id, config$actor_id)
             ) {
               names(store$memory$documents)[[1L]]
@@ -153,6 +162,39 @@ app <- shiny::shinyApp(
         document <- store$memory$documents[[1L]]
         entry <- store_get_entry(store, config$actor_id, document$entry_id)
         store_unsubscribe_feed(store, config$actor_id, entry$feed_id)
+      }
+      if (isTRUE(query$resume %in% c("failed", "cancelled", "orientation"))) {
+        run <- store_start_agent_run(
+          store,
+          config$actor_id,
+          if (identical(query$resume, "orientation")) {
+            "orientation"
+          } else {
+            "question"
+          },
+          paste0("newer-", query$resume),
+          pinned_inputs = list(),
+          requested_at = Sys.time() + 1
+        )
+        if (!identical(query$resume, "orientation")) {
+          store_claim_agent_run(
+            store,
+            config$actor_id,
+            run$run_id,
+            "fixture-worker",
+            lease_expires_at = Sys.time() + 120
+          )
+          if (identical(query$resume, "cancelled")) {
+            store_request_agent_run_cancel(store, config$actor_id, run$run_id)
+          }
+          store_finish_agent_run(
+            store,
+            config$actor_id,
+            run$run_id,
+            "fixture-worker",
+            query$resume
+          )
+        }
       }
     }
     if (

@@ -1899,6 +1899,110 @@ testthat::test_that("a replacement session keeps a completed answer available wi
   })
 })
 
+testthat::test_that("answer recovery is independent of newer failed questions and active work", {
+  withr::local_envvar(DATABASE_URL = "")
+  for (newer in c("failed", "cancelled", "orientation", "question")) {
+    config <- rill_config()
+    config$orientation_enabled <- FALSE
+    store <- rill_store(config)
+    document <- store$memory$documents[[1L]]
+    requested_at <- Sys.time() - 10
+    completed <- store_start_agent_run(
+      store,
+      config$actor_id,
+      "question",
+      "completed-answer",
+      pinned_inputs = list(document_id = document$document_id),
+      requested_at = requested_at
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    store_record_agent_run_response(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      "Retained answer."
+    )
+    store_finish_agent_run(
+      store,
+      config$actor_id,
+      completed$run_id,
+      "worker",
+      "completed"
+    )
+    latest <- store_start_agent_run(
+      store,
+      config$actor_id,
+      if (identical(newer, "orientation")) "orientation" else "question",
+      paste0("newer-", newer),
+      pinned_inputs = list(document_id = document$document_id),
+      requested_at = requested_at + 1
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      latest$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    if (newer %in% c("failed", "cancelled")) {
+      if (identical(newer, "cancelled")) {
+        store_request_agent_run_cancel(store, config$actor_id, latest$run_id)
+      }
+      store_finish_agent_run(
+        store,
+        config$actor_id,
+        latest$run_id,
+        "worker",
+        newer
+      )
+    }
+    appended <- character()
+    testthat::local_mocked_bindings(
+      clear_reader_chat = function(session) NULL,
+      rill_reader_agent = function(...) {
+        list(get_model = \() config$agent_model)
+      },
+      append_reader_chat = function(response, session) {
+        appended <<- c(appended, response)
+        promises::promise_resolve(response)
+      }
+    )
+    shiny::testServer(rill_server(config, store), {
+      session$flushReact()
+      testthat::expect_identical(restored_question()$run_id, completed$run_id)
+      if (!identical(newer, "question")) {
+        testthat::expect_match(
+          output$recent_answer_control$html,
+          "Reopen last answer",
+          fixed = TRUE
+        )
+      }
+      session$setInputs(reopen_last_answer = list(request_id = "reopen"))
+      if (identical(newer, "question")) {
+        testthat::expect_identical(active_agent_run()$run_id, latest$run_id)
+        testthat::expect_length(appended, 0L)
+      } else {
+        testthat::expect_identical(active_agent_run()$run_id, completed$run_id)
+        testthat::expect_identical(selected_document_id(), document$document_id)
+        testthat::expect_identical(appended, "Retained answer.")
+      }
+      if (identical(newer, "orientation")) {
+        testthat::expect_identical(
+          store_get_active_agent_run(store, config$actor_id)$run_id,
+          latest$run_id
+        )
+      }
+    })
+  }
+})
+
 testthat::test_that("a replacement session stops polling a legacy response", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

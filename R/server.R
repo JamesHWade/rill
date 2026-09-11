@@ -217,23 +217,42 @@ rill_server <- function(
     } else {
       NULL
     }
+    completed_question <- tryCatch(
+      store_get_latest_question_agent_run(
+        store,
+        actor_id,
+        status = "completed"
+      ),
+      error = \(error) NULL
+    )
+    if (!is.null(completed_question)) {
+      document <- tryCatch(
+        store_get_document_by_id(
+          store,
+          actor_id,
+          completed_question$pinned_inputs$document_id
+        ),
+        error = \(error) NULL
+      )
+      if (!is.null(document)) {
+        restored_question(completed_question)
+      }
+    }
     if (
       !is.null(existing_agent_run) &&
         identical(existing_agent_run$kind, "question")
     ) {
       active_agent_run(existing_agent_run)
-      document <- tryCatch(
-        store_get_document_by_id(
-          store,
-          actor_id,
-          existing_agent_run$pinned_inputs$document_id
-        ),
-        error = \(error) NULL
-      )
-      if (!is.null(document)) {
-        if (identical(existing_agent_run$status, "completed")) {
-          restored_question(existing_agent_run)
-        } else {
+      if (!identical(existing_agent_run$status, "completed")) {
+        document <- tryCatch(
+          store_get_document_by_id(
+            store,
+            actor_id,
+            existing_agent_run$pinned_inputs$document_id
+          ),
+          error = \(error) NULL
+        )
+        if (!is.null(document)) {
           selected_id(document$entry_id)
           selected_document_id(document$document_id)
         }
