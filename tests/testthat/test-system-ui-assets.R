@@ -89,22 +89,28 @@ testthat::test_that("article disclosures own Escape before pane focus", {
     "Node.js is required for browser logic tests"
   )
   log <- withr::local_tempfile()
-
-  status <- system2(
-    node,
-    shQuote(c(
-      testthat::test_path("fixtures", "reader-toolbar.cjs"),
-      rill_package_file("app", "www", "app.js")
-    )),
-    stdout = log,
-    stderr = log
+  script <- withr::local_tempfile(fileext = ".js")
+  lines <- readLines(
+    rill_package_file("app", "www", "app.js"),
+    warn = FALSE
   )
-
-  testthat::expect_identical(
-    status,
-    0L,
-    info = paste(readLines(log, warn = FALSE), collapse = "\n")
-  )
+  for (ending in c("\n", "\r\n")) {
+    writeBin(charToRaw(paste(lines, collapse = ending)), script)
+    status <- system2(
+      node,
+      shQuote(c(
+        testthat::test_path("fixtures", "reader-toolbar.cjs"),
+        script
+      )),
+      stdout = log,
+      stderr = log
+    )
+    testthat::expect_identical(
+      status,
+      0L,
+      info = paste(readLines(log, warn = FALSE), collapse = "\n")
+    )
+  }
 })
 
 testthat::test_that("native Shiny feedback receives durable semantics", {

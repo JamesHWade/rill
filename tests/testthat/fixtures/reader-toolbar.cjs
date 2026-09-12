@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const script = fs.readFileSync(process.argv[2], "utf8");
+const script = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
 const source = script.match(/  function handleAskRillEscape\(event\) \{.*?\n  }\n/s);
 assert.ok(source, "Reader Escape handler must exist");
 
