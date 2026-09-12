@@ -104,11 +104,18 @@ try {
   await selected(29);
   await page.locator('#reader-document').waitFor();
   const cdp = await page.context().newCDPSession(page);
+  await page.waitForFunction(() => !document.querySelector('.transitioning') &&
+    !document.documentElement.classList.contains('shiny-busy'));
+  await page.locator('#reader-document p').first().evaluate(el =>
+    el.scrollIntoView({block: 'center', behavior: 'instant'}));
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const point = await page.locator('#reader-document p').first().evaluate(el => {
-    el.scrollIntoView({block: 'center'});
     const box = el.getBoundingClientRect();
-    return {x: Math.min(310, box.right - 30), y: Math.max(150, box.top + 30)};
+    return {x: Math.min(310, box.right - 30),
+      y: Math.max(1, Math.min(innerHeight - 1, box.top + Math.min(30, box.height / 2)))};
   });
+  assert.equal(await page.locator('#reader-document p').first().evaluate(
+    (el, point) => el.contains(document.elementFromPoint(point.x, point.y)), point), true);
   await cdp.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: [point]});
   await cdp.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: point.x - 110, y: point.y}]});
   await cdp.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});

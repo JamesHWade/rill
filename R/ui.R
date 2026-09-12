@@ -939,6 +939,7 @@ reader_article_toolbar_ui <- function(entry, source_url) {
       "reader_previous",
       "Previous (K)",
       icon = bsicons::bs_icon("chevron-left"),
+      class = "reader-previous",
       onclick = "rillMoveStory(-1)",
       `aria-keyshortcuts` = "k"
     ),
@@ -946,6 +947,7 @@ reader_article_toolbar_ui <- function(entry, source_url) {
       "reader_next",
       "Next (J)",
       icon = bsicons::bs_icon("chevron-right"),
+      class = "reader-next",
       onclick = "rillMoveStory(1)",
       `aria-keyshortcuts` = "j"
     ),

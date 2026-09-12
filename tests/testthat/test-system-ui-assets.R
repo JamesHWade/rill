@@ -390,7 +390,7 @@ testthat::test_that("reader toolbar states survive the bslib toolbar reset", {
   )
   testthat::expect_match(
     styles,
-    "outline: 3px solid var(--amber) !important;",
+    "outline: 3px solid var(--green-deep) !important;",
     fixed = TRUE
   )
   testthat::expect_no_match(styles, ":where(button, a, summary", fixed = TRUE)

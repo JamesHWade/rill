@@ -183,3 +183,32 @@ State: dark theme, Library collapsed, queue visible, article selected, menu clos
 Browser checks cover the overflow menu, Save/Star hotkeys with the menu closed, article navigation, focus/restore, copy details, Ask Rill open/close, and mobile return to the queue. The 320px layout has no horizontal document overflow; its menu and copy popover remain within the viewport. A 390 × 844 capture is saved at `artifacts/reading-toolbar/mobile.png`. Browser error/warning logs were empty in the final desktop pass.
 
 No remaining P0/P1/P2 findings. Production deployment and authenticated production traces are outside this local implementation pass. The local preview uses in-memory demo data and does not send model requests.
+
+## Reading toolbar integration review, September 12
+
+The six-commit integration was reviewed against `7769879`. The new toolbar had
+lost the `.reader-previous` and `.reader-next` hooks used by navigation state and
+article swipes. The existing native-touch test reproduced the failure; restoring
+those hooks fixes forward swipes and the disabled state at queue boundaries.
+The toolbar focus ring now uses the theme's deep green, measuring 8.32:1 in
+light mode and 9.63:1 in dark mode against the focused button background.
+
+`scripts/browser/reading-toolbar.mjs` verifies both themes at 320, 390, 1024,
+and 1440 pixels. Menus and reading-copy popovers stay within the viewport;
+Escape closes them; reading focus toggles its pressed state; Ask Rill opens and
+closes; and the toolbar remains at the scroll surface's top edge. All eight
+states have zero horizontal overflow and no axe WCAG A/AA violations. Results
+are in `artifacts/reading-toolbar/verification.json`.
+
+The responsive audit and native article-swipe suite also pass. Queue navigation
+checks cover buttons, hotkeys, and native swipes across batches. That test now
+measures a point inside the paragraph after scrolling, since the previous fixed
+vertical coordinate could land outside the shorter reading header's paragraph.
+
+A separate live check supplied six public R Blog feed entries to Muse through
+OpenRouter. Orientation completed with three cards and two themes, passing the
+normal exact-evidence validation; Ask Rill also completed. No Reader Library was
+accessed. This is a public-source smoke check, not a production evaluation.
+
+The larger design follow-ups remain open as GitHub issues #95 through #102.
+This review does not close those issues or establish hosted behavior.

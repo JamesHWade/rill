@@ -2755,7 +2755,7 @@
       "checksum": "9bf1eb37152769d2dfdaf7213a9ab332"
     },
     "inst/app/www/styles.css": {
-      "checksum": "1f565de6d8d9c0ae0458a85692f9cea1"
+      "checksum": "24e22f4a6871847fb984ed3cd869722b"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2875,7 +2875,7 @@
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "86459ea90fdb0d8774db6e9c8914f161"
+      "checksum": "f8fd573548984109f5e63a929b051c74"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

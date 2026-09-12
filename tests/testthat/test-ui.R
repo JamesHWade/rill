@@ -1194,6 +1194,17 @@ testthat::test_that("article actions stay compact while hidden actions remain av
     button <- xml2::xml_find_first(menu, paste0('.//button[@id="', id, '"]'))
     testthat::expect_identical(xml2::xml_attr(button, "aria-pressed"), "true")
   }
+  for (direction in c("previous", "next")) {
+    button <- xml2::xml_find_first(
+      dom,
+      paste0('//button[@id="reader_', direction, '"]')
+    )
+    testthat::expect_match(
+      xml2::xml_attr(button, "class"),
+      paste0("reader-", direction),
+      fixed = TRUE
+    )
+  }
   for (id in c(
     "reader_queue",
     "reader_previous",

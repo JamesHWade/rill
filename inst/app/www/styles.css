@@ -1766,7 +1766,7 @@ div.story-list.shiny-html-output {
 }
 
 .article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):focus-visible {
-  outline: 3px solid var(--amber) !important;
+  outline: 3px solid var(--green-deep) !important;
   outline-offset: -2px;
   box-shadow: none !important;
 }
