@@ -723,3 +723,32 @@ testthat::test_that("Orientation limits keep the cost cap only when ellmer can p
     64000L
   )
 })
+
+testthat::test_that("a quiet Orientation drops a placeholder question", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 3L)
+  boundary <- orientation_boundary(candidates)
+  quiet <- function(question) {
+    rill_orientation_from_output(
+      list(
+        status = "Nothing clears the threshold.",
+        question = question,
+        cards = list(),
+        themes = list()
+      ),
+      reader_id = "reader-1",
+      boundary = boundary,
+      candidates = candidates,
+      agent_run_id = "orientation-run-quiet"
+    )$question
+  }
+
+  testthat::expect_null(quiet("null"))
+  testthat::expect_null(quiet(" NULL "))
+  testthat::expect_null(quiet(""))
+  testthat::expect_null(quiet(NULL))
+  testthat::expect_identical(
+    quiet("What still deserves attention?"),
+    "What still deserves attention?"
+  )
+})
