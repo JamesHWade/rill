@@ -20,7 +20,7 @@
 
 The final dark comparison places the exact 1440 x 1024 reference and browser capture side by side in the same first-story state. The three-column geometry, warm-black reader, near-black queue, moss sidebar, parchment hierarchy, celadon secondary color, ochre selection, icon treatment, article measure, and Literata reading rhythm match the selected direction. The appearance control and demo badge remain as intentional product controls.
 
-The light regression frame preserves the earlier duck-egg, reed, paper, and sand theme without typography or spacing drift. The dark duck is a dedicated transparent raster asset, not a CSS filter or a drawn substitute.
+The light regression frame preserves the river-mist, reed, paper, and sand theme without typography or spacing drift. The otter mark is a single transparent raster asset that reads on both palettes, not a CSS filter or a drawn substitute.
 
 #### Responsive behavior
 
@@ -39,7 +39,7 @@ Measured dark-mode contrast was 11.42:1 for reading copy, 7.59:1 for queue summa
 - P1 layout: removed inherited page padding that clipped the 100dvh shell and prevented the target's full-bleed composition.
 - P2 typography: reduced queue-title weight and scale while increasing article-source prominence and restoring the reference's more generous header rhythm.
 - P2 icons: replaced text glyph approximations with Bootstrap Icons for navigation, story status, refresh, and reader actions.
-- P2 imagery: replaced the letter monogram with the generated duck-and-ripple asset and verified its transparent treatment at navigation and empty-state sizes.
+- P2 imagery: replaced the letter monogram with the generated reading-otter assets and verified their transparent treatment at navigation, welcome, and empty-state sizes.
 - P2 color modes: added paired semantic tokens for every navigation, queue, reader, form, keycap, code, quote, link, status, hover, focus, and selected surface instead of relying on a global color inversion.
 - P2 mode behavior: added an early system-aware theme resolver to avoid an initial wrong-palette flash, persisted explicit choices, and kept system mode responsive to operating-system changes.
 - P2 mobile accessibility: enlarged appearance choices at the narrow breakpoint and verified the queue and reader at 390 x 844 with zero page-level horizontal overflow.

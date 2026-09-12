@@ -1271,7 +1271,7 @@ div.story-list.shiny-html-output {
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, var(--duck-egg) 22%, transparent),
+      color-mix(in srgb, var(--river-mist) 22%, transparent),
       transparent 42%
     ),
     var(--paper);
