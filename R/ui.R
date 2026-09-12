@@ -46,32 +46,71 @@ rill_ui <- function(config) {
         `aria-busy` = "true",
         compact_app_bar_ui(config),
         compact_queue_navigation_ui(),
-        bslib::layout_sidebar(
-          bslib::layout_sidebar(
-            reader_pane_ui(config),
-            sidebar = story_sidebar_ui(),
-            fillable = TRUE,
-            fill = TRUE,
-            border = FALSE,
-            border_radius = FALSE,
-            padding = 0,
-            gap = 0,
-            height = "100%",
-            class = "reader-pane"
+        label_sidebar_toggle(
+          label_sidebar_toggle(
+            bslib::layout_sidebar(
+              bslib::layout_sidebar(
+                reader_pane_ui(config),
+                sidebar = story_sidebar_ui(),
+                fillable = TRUE,
+                fill = TRUE,
+                border = FALSE,
+                border_radius = FALSE,
+                padding = 0,
+                gap = 0,
+                height = "100%",
+                class = "reader-pane"
+              ),
+              sidebar = navigation_sidebar_ui(config),
+              fillable = TRUE,
+              fill = TRUE,
+              border = FALSE,
+              border_radius = FALSE,
+              padding = 0,
+              gap = 0,
+              height = "100%",
+              class = "reading-shell"
+            ),
+            "navigation_sidebar",
+            "Toggle Library"
           ),
-          sidebar = navigation_sidebar_ui(config),
-          fillable = TRUE,
-          fill = TRUE,
-          border = FALSE,
-          border_radius = FALSE,
-          padding = 0,
-          gap = 0,
-          height = "100%",
-          class = "reading-shell"
+          "story_sidebar",
+          "Toggle reading queue"
         )
       )
     )
   )
+}
+
+rill_modal_dialog <- function(title, ..., id = "rill-modal") {
+  title_id <- paste0(id, "-title")
+  modal <- shiny::modalDialog(
+    title = shiny::tags$span(id = title_id, title),
+    ...
+  )
+  modal <- htmltools::tagQuery(modal)$find(".modal-dialog")$addClass(
+    "modal-dialog-scrollable"
+  )$reset()$find(".modal-header")$append(
+    shiny::tags$button(
+      type = "button",
+      class = "btn-close",
+      `data-bs-dismiss` = "modal",
+      `data-dismiss` = "modal",
+      `aria-label` = "Close"
+    )
+  )$allTags()
+  htmltools::tagAppendAttributes(
+    modal,
+    role = "dialog",
+    `aria-modal` = "true",
+    `aria-labelledby` = title_id
+  )
+}
+
+label_sidebar_toggle <- function(layout, id, label) {
+  htmltools::tagQuery(layout)$find("button.collapse-toggle")$filter(
+    function(x, i) identical(htmltools::tagGetAttribute(x, "aria-controls"), id)
+  )$removeAttrs("title")$addAttrs(`aria-label` = label, title = label)$allTags()
 }
 
 rill_skip_link_ui <- function() {
@@ -474,6 +513,14 @@ story_sidebar_ui <- function() {
   bslib::sidebar(
     shiny::tags$header(
       class = "pane-header",
+      shiny::tags$button(
+        type = "button",
+        class = "queue-library-trigger",
+        onclick = "rillShowLibrary()",
+        `aria-controls` = "navigation_sidebar",
+        bsicons::bs_icon("list"),
+        shiny::tags$span("Library")
+      ),
       shiny::tags$div(
         class = "queue-heading",
         shiny::tags$div(
@@ -684,6 +731,13 @@ reader_pane_ui <- function(config) {
     sidebar = bslib::sidebar(
       shiny::tags$header(
         class = "reader-agent-header",
+        shiny::tags$button(
+          type = "button",
+          class = "reader-action mobile-back",
+          onclick = "rillCloseAskRill()",
+          bsicons::bs_icon("arrow-left"),
+          "Back to article"
+        ),
         reader_focus_controls(),
         shiny::tags$div(
           class = "reader-agent-kicker",
@@ -840,16 +894,31 @@ reader_article_toolbar_ui <- function(entry, source_url) {
       shiny::tags$hr(class = "dropdown-divider"),
       shiny::tags$span(
         class = "shortcut-hint",
-        shiny::tags$kbd("J"),
-        "/",
-        shiny::tags$kbd("K"),
-        " navigate \u00b7 ",
-        shiny::tags$kbd("O"),
-        " original \u00b7 ",
-        shiny::tags$kbd("S"),
-        " save \u00b7 ",
-        shiny::tags$kbd("F"),
-        " star"
+        shiny::tags$span(
+          class = "shortcut-hint-item",
+          shiny::tags$kbd("J"),
+          "/",
+          shiny::tags$kbd("K"),
+          " navigate"
+        ),
+        " \u00b7 ",
+        shiny::tags$span(
+          class = "shortcut-hint-item",
+          shiny::tags$kbd("O"),
+          " original"
+        ),
+        " \u00b7 ",
+        shiny::tags$span(
+          class = "shortcut-hint-item",
+          shiny::tags$kbd("S"),
+          " save"
+        ),
+        " \u00b7 ",
+        shiny::tags$span(
+          class = "shortcut-hint-item",
+          shiny::tags$kbd("F"),
+          " star"
+        )
       )
     )
   )
@@ -946,7 +1015,7 @@ reader_copy_details_ui <- function(document) {
         }
       ),
       shiny::tags$dt("Reading copy"),
-      shiny::tags$dd(shiny::tags$code(document$document_id)),
+      shiny::tags$dd(reading_copy_id_ui(document$document_id)),
       shiny::tags$dt("Prepared"),
       shiny::tags$dd(
         paste(document$producer %||% "feed fallback", "via", acquisition)
@@ -954,6 +1023,26 @@ reader_copy_details_ui <- function(document) {
       shiny::tags$dt("Captured"),
       shiny::tags$dd(captured_at)
     )
+  )
+}
+
+reading_copy_id_ui <- function(document_id) {
+  document_id <- as.character(document_id %||% "")
+  shortened <- if (nchar(document_id) > 12L) {
+    substr(document_id, 1L, 12L)
+  } else {
+    document_id
+  }
+  shiny::tagList(
+    shiny::tags$code(title = document_id, shortened),
+    shiny::tags$button(
+      type = "button",
+      class = "reading-copy-copy",
+      `data-rill-copy-value` = document_id,
+      `aria-label` = "Copy the full reading copy id",
+      bsicons::bs_icon("clipboard")
+    ),
+    shiny::tags$span(class = "rill-copy-status", role = "status")
   )
 }
 
@@ -1103,10 +1192,10 @@ orientation_ui <- function(
       shiny::tags$h1("Choose something worth reading"),
       orientation_failure_ui(
         if (preparing) {
-          "Evaluating the current unread Documents\u2026"
+          "Evaluating the current unread stories\u2026"
         } else {
           failure %||%
-            "Orientation will appear after Rill evaluates your unread Documents."
+            "Orientation will appear after Rill evaluates your unread stories."
         }
       ),
       orientation_retry_button(failure, "retry_orientation"),
@@ -1211,7 +1300,7 @@ orientation_ui <- function(
             feedback_token
           )
         },
-        orientation_browse_button("Browse the full unread queue")
+        orientation_browse_button("Browse unread stories")
       )
     ),
     shiny::tags$div(
@@ -1324,7 +1413,7 @@ orientation_totals_ui <- function(unread_total, picked, themes, evaluated) {
       type = "button",
       class = "orientation-totals-link",
       onclick = "rillBrowseQueue()",
-      "Everything unread"
+      "Browse unread stories"
     )
   )
 }
@@ -1374,10 +1463,10 @@ orientation_queue_status_ui <- function(
 
   status <- if (is.null(orientation)) {
     if (preparing) {
-      "Evaluating the current unread Documents\u2026"
+      "Evaluating the current unread stories\u2026"
     } else {
       failure %||%
-        "Orientation will appear after Rill evaluates your unread Documents."
+        "Orientation will appear after Rill evaluates your unread stories."
     }
   } else {
     orientation$status
@@ -1483,7 +1572,7 @@ orientation_evaluated_basis <- function(
   preparing = FALSE
 ) {
   count <- as.integer(orientation$boundary$candidate_count %||% 0L)
-  noun <- if (count == 1L) "unread Document" else "unread Documents"
+  noun <- if (count == 1L) "unread story" else "unread stories"
   evaluated <- gsub(
     " +",
     " ",
@@ -1750,7 +1839,7 @@ feed_manager_choices <- function(feeds) {
 }
 
 feed_manager_ui <- function(feeds, selected = NULL) {
-  shiny::modalDialog(
+  rill_modal_dialog(
     title = "Manage feeds",
     feed_tools_ui(feeds, selected),
     size = "l",
@@ -2240,7 +2329,7 @@ empty_story_list <- function(view, feed_title = NULL) {
     ),
     starred = list(
       title = "No starred stories yet",
-      body = "Press F while reading to keep favorites close."
+      body = "Press F while reading to keep starred stories close."
     ),
     saved = list(
       title = "Nothing saved yet",

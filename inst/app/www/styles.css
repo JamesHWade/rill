@@ -53,6 +53,8 @@
   --ui-font: "Atkinson Hyperlegible", Aptos, "Segoe UI", sans-serif;
   --reading-font: Literata, Georgia, serif;
   --shadow: 0 16px 40px rgba(36, 57, 54, 0.09);
+  --surface-raised: #fffdf7;
+  --surface-raised-line: rgba(36, 57, 54, 0.22);
 }
 
 [data-bs-theme="dark"] {
@@ -113,6 +115,8 @@
   --agent-muted: #b9ae9d;
   --agent-composer-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  --surface-raised: #1b1d19;
+  --surface-raised-line: rgba(230, 215, 195, 0.45);
   --bs-body-bg: var(--paper);
   --bs-body-color: var(--ink);
   --bs-emphasis-color: var(--ink);
@@ -144,7 +148,13 @@ body.bslib-page-fill {
   padding: 0 !important;
 }
 
-:where(button, a, summary, input, select, textarea, [tabindex]):focus-visible {
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
   outline: 3px solid var(--amber);
   outline-offset: 2px;
 }
@@ -668,8 +678,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 }
 
 .btn-add-feed,
-.btn-rename-feed,
-.btn-move-feed {
+.btn-rename-feed {
   width: 100%;
   border: 1px solid var(--green);
   color: var(--on-primary);
@@ -681,14 +690,11 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .btn-add-feed:hover,
 .btn-add-feed:focus,
 .btn-rename-feed:hover,
-.btn-rename-feed:focus,
-.btn-move-feed:hover,
-.btn-move-feed:focus {
+.btn-rename-feed:focus {
   color: white;
   background: var(--green-deep);
 }
 
-.btn-move-feed,
 .btn-unsubscribe-feed {
   margin-top: 6px;
 }
@@ -751,13 +757,6 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 .feed-tool-section + .feed-tool-section {
   padding-top: 12px;
   border-top: 1px solid var(--sidebar-border);
-}
-
-.feed-tool-label {
-  margin: 0 0 7px;
-  color: var(--sidebar-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
 .feed-tool-help {
@@ -871,6 +870,35 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-bottom: 1px solid var(--line);
 }
 
+.queue-library-trigger {
+  display: none;
+}
+
+.bslib-sidebar-layout.sidebar-collapsed:has(> #navigation_sidebar)
+  .queue-library-trigger {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-left: 32px;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--green-deep);
+  background: var(--pill-background);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.bslib-sidebar-layout.sidebar-collapsed:has(> #navigation_sidebar)
+  .queue-library-trigger:hover,
+.bslib-sidebar-layout.sidebar-collapsed:has(> #navigation_sidebar)
+  .queue-library-trigger:focus-visible {
+  border-color: var(--green);
+  background: var(--story-hover);
+}
+
 .queue-heading {
   display: flex;
   align-items: center;
@@ -927,6 +955,13 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   border-color: var(--green);
   color: var(--green-deep);
   background: var(--story-hover);
+}
+
+.modal-dialog-scrollable .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--surface-raised);
 }
 
 .read-actions-menu {
@@ -1005,7 +1040,9 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 }
 
 .article-source {
-  margin: 0;
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
   margin: 0 0 3px;
   color: var(--green);
   font-size: 1.0625rem;
@@ -1239,30 +1276,6 @@ div.story-list.shiny-html-output {
   height: 100%;
   overflow-y: auto;
   scroll-behavior: smooth;
-}
-
-.reader-empty-header {
-  max-width: 520px;
-  margin: 22vh auto 0;
-  padding: 40px;
-  color: var(--muted);
-  text-align: center;
-}
-
-.reader-monogram {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 20px;
-  place-items: center;
-}
-
-.reader-empty-header h1 {
-  margin-bottom: 12px;
-  color: var(--ink);
-  font-family: var(--reading-font);
-  font-size: clamp(28px, 4vw, 42px);
-  font-weight: 500;
 }
 
 .orientation-canvas {
@@ -1715,6 +1728,9 @@ div.story-list.shiny-html-output {
 }
 
 .article-actions.bslib-toolbar {
+  position: sticky;
+  z-index: 3;
+  top: 0;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -1736,20 +1752,65 @@ div.story-list.shiny-html-output {
   color: var(--reader-action);
 }
 
-.article-actions .bslib-toolbar-input-button:hover,
-.article-actions .bslib-toolbar-input-button:focus-visible,
-.article-actions .bslib-toolbar-input-button[aria-pressed="true"] {
-  color: var(--green-deep);
-  background: var(--green-soft);
+/* bslib resets toolbar buttons with !important, so these selectors repeat its
+   :not() chain to stay one class more specific than it. */
+.article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):hover,
+.article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):focus-visible,
+.article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark)[aria-pressed="true"] {
+  color: var(--green-deep) !important;
+  background-color: var(--green-soft) !important;
+}
+
+.article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark)[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--green) !important;
+}
+
+.article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):focus-visible {
+  outline: 3px solid var(--amber) !important;
+  outline-offset: -2px;
+  box-shadow: none !important;
 }
 
 .article-menu {
   width: min(280px, calc(100vw - 24px));
   padding: 8px;
   color: var(--ink);
-  background: var(--paper);
-  border-color: var(--line);
+  background: var(--surface-raised);
+  border-color: var(--surface-raised-line);
   box-shadow: var(--shadow);
+}
+
+.article-menu-container {
+  display: flex;
+  align-items: center;
+}
+
+.article-menu .reader-action {
+  color: var(--ink);
+}
+
+.article-menu .orientation-return,
+.article-menu .reader-focus-controls button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink);
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.article-menu .orientation-return:hover,
+.article-menu .orientation-return:focus-visible,
+.article-menu .reader-focus-controls button:hover,
+.article-menu .reader-focus-controls button:focus-visible {
+  color: var(--green-deep);
+  background: var(--green-soft);
+}
+
+.article-menu .reader-focus-controls button[aria-pressed="true"] {
+  color: var(--green-deep);
+  background: var(--green-soft);
 }
 
 .article-menu .reader-action,
@@ -1773,6 +1834,17 @@ div.story-list.shiny-html-output {
   line-height: 2;
 }
 
+.shortcut-hint-item {
+  white-space: nowrap;
+}
+
+@media (hover: none) {
+  .article-menu .shortcut-hint,
+  .article-menu .dropdown-divider:has(+ .shortcut-hint) {
+    display: none;
+  }
+}
+
 .article-copy-link {
   display: inline-flex;
   align-items: center;
@@ -1789,6 +1861,34 @@ div.story-list.shiny-html-output {
 .article-copy-link:hover,
 .article-copy-link:focus-visible {
   color: var(--green-deep);
+}
+
+.tooltip {
+  --bs-tooltip-bg: var(--surface-raised);
+  --bs-tooltip-color: var(--ink);
+  --bs-tooltip-opacity: 1;
+}
+
+.tooltip .tooltip-inner {
+  border: 1px solid var(--surface-raised-line);
+}
+
+.reading-copy-copy {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.reading-copy-copy:hover,
+.reading-copy-copy:focus-visible {
+  color: var(--green-deep);
+}
+
+.rill-copy-status {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .reading-copy-popover {
@@ -1868,20 +1968,6 @@ div.story-list.shiny-html-output {
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.13;
-}
-
-.article-source {
-  display: flex;
-  gap: 7px;
-  align-items: baseline;
-}
-
-.article-source span {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .article-source a {
@@ -2049,48 +2135,6 @@ div.story-list.shiny-html-output {
   color: var(--green-deep);
   text-decoration-color: var(--link-underline);
   text-underline-offset: 3px;
-}
-
-.article-footer {
-  margin-top: 55px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-family: var(--ui-font);
-  font-size: 0.75rem;
-}
-
-.reading-provenance.accordion {
-  --bs-accordion-border-color: var(--line);
-  --bs-accordion-btn-bg: transparent;
-  --bs-accordion-active-bg: var(--green-soft);
-  --bs-accordion-active-color: var(--green-deep);
-  --bs-accordion-btn-focus-box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--green) 22%, transparent);
-  --bs-accordion-body-padding-x: 16px;
-  --bs-accordion-body-padding-y: 16px;
-  --bs-accordion-btn-padding-x: 14px;
-  --bs-accordion-btn-padding-y: 12px;
-
-  color: var(--reader-copy);
-}
-
-.reading-provenance .accordion-button {
-  gap: 8px;
-  color: var(--green-deep);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.reading-provenance .accordion-title {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.reading-provenance .accordion-title .bi {
-  width: 14px;
-  height: 14px;
 }
 
 .reading-copy-boundary {
@@ -2468,9 +2512,9 @@ div.story-list.shiny-html-output {
 
 .modal-content,
 .popover {
-  border-color: var(--line);
+  border-color: var(--surface-raised-line);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface-raised);
   box-shadow: var(--shadow);
 }
 
@@ -3019,10 +3063,6 @@ div.story-list.shiny-html-output {
     margin-top: 7px;
   }
 
-  .orientation-step-actions {
-    align-items: stretch;
-  }
-
   .mobile-back {
     display: inline-flex;
     min-height: 44px;
@@ -3159,8 +3199,14 @@ div.story-list.shiny-html-output {
 }
 
 @media (forced-colors: active) {
-  :where(button, a, summary, input, select, textarea, [tabindex]):focus-visible {
-    outline-color: Highlight;
+  button:focus-visible,
+  a:focus-visible,
+  summary:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline-color: Highlight !important;
   }
 
   .rill-system-status,

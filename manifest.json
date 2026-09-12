@@ -2740,7 +2740,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "780ee1023085addd47fa44e3bb7e569e"
+      "checksum": "e6ad3132cc0981864ca28a1770266a01"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "3ef1e30269336389451d958b3fbfb5af"
@@ -2755,7 +2755,7 @@
       "checksum": "9bf1eb37152769d2dfdaf7213a9ab332"
     },
     "inst/app/www/styles.css": {
-      "checksum": "2dbd0a61ad6ac62ef92a04cfd2dc8f1c"
+      "checksum": "1f565de6d8d9c0ae0458a85692f9cea1"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2806,7 +2806,7 @@
       "checksum": "9fd39ef4cfa09232c25e9a32222feadd"
     },
     "R/agent.R": {
-      "checksum": "9e8c56e4cd359f9c63c934c0a9aebbdd"
+      "checksum": "74987957c39e34e542176e13d494e8e8"
     },
     "R/app.R": {
       "checksum": "3366c1245d77ebee54ba830e8ad0fa5e"
@@ -2842,7 +2842,7 @@
       "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
-      "checksum": "b85b2dab3480b0d0cec5c8954a46c6c2"
+      "checksum": "e0a5d8b2c9478fec60a7e136ca1650b3"
     },
     "R/orientation-diagnostics.R": {
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
@@ -2851,10 +2851,10 @@
       "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
     },
     "R/orientation-maintenance.R": {
-      "checksum": "75517954e90b77ff59c6dd22c66aa80b"
+      "checksum": "ccc3019ab04dd13b3f39209424bf949a"
     },
     "R/orientation.R": {
-      "checksum": "c35fe545dedd9ba3b012d34d08e7235c"
+      "checksum": "ed1fe44a0b8b2b956073fea5a1aa14de"
     },
     "R/polling.R": {
       "checksum": "97a3417444f755c2f4f50a69c359c770"
@@ -2869,13 +2869,13 @@
       "checksum": "485e4e9572826ea422dc2fab162a1d62"
     },
     "R/server.R": {
-      "checksum": "a1e8f63505d43a09e8cc621f86578380"
+      "checksum": "a0e817fc71fac5d5e3c37fe192f76cfe"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "000ec53c334d2f79040ed588f1dce948"
+      "checksum": "86459ea90fdb0d8774db6e9c8914f161"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2884,7 +2884,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "053b0d9fc2498e1b8a711688c906cdf2"
+      "checksum": "0726780b4d95548878540a04c527f8be"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"

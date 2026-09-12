@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* The article toolbar keeps a visible focus ring, a pressed reading-focus state, and stays in reach while scrolling; its overflow menu reads as one menu, the Library stays reachable with a labeled control on narrower windows, dialogs gained a close button and an accessible name, and Orientation copy now counts unread stories.
+
 * Ask Rill and Orientation default to Meta's Muse Spark 1.3 Contributor through OpenRouter (`RILL_AGENT_MODEL=openrouter/meta/muse-spark-1.3-contributor` with `OPENROUTER_API_KEY`), a low-cost tier whose providers may train on prompts; Rill resolves the OpenRouter endpoint itself, names OpenRouter as the Data Destination, and sends the `data_collection: allow` routing preference explicitly. Any other `ellmer::chat()` model remains available.
 
 * Article reading starts sooner with a compact toolbar, an overflow menu for secondary actions, and reading-copy details beside the byline; keyboard shortcuts and visible feed-excerpt warnings remain available.

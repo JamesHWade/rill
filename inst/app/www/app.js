@@ -1252,6 +1252,14 @@
     showCompactSurface("library", { remember: true });
   };
 
+  window.rillShowLibrary = function () {
+    if (compactReaderMode.matches) {
+      window.rillOpenLibrary();
+      return;
+    }
+    setSidebarExpanded("navigation_sidebar", true);
+  };
+
   window.rillCloseLibrary = function () {
     pendingReaderDestination = null;
     const destination = compactReturnSurface;
@@ -1872,6 +1880,17 @@
     if (button) focusPane(button.dataset.rillPaneFocus, button);
   });
   document.addEventListener("click", async function(event) {
+    const button = event.target.closest("button[data-rill-copy-value]");
+    if (!button) return;
+    const status = button.parentElement.querySelector(".rill-copy-status");
+    try {
+      await navigator.clipboard.writeText(button.dataset.rillCopyValue);
+      if (status) status.textContent = " Copied.";
+    } catch (_error) {
+      if (status) status.textContent = " Copy failed. Select the id to copy it.";
+    }
+  });
+  document.addEventListener("click", async function(event) {
     const button = event.target.closest("button[data-rill-copy-text]");
     if (!button) return;
     const details = button.closest("details");
@@ -2025,6 +2044,10 @@
     });
     syncAskRillControls();
   }
+
+  window.rillCloseAskRill = function () {
+    setSidebarExpanded("reader_agent_sidebar", false);
+  };
 
   window.rillOpenAskRill = function (trigger) {
     if (savedPaneLayout) {

@@ -2485,6 +2485,9 @@ rill_server <- function(
             } else {
               selected_ungrouped()
             }
+            if (!nzchar(id) && !nrow(rows)) {
+              return(NULL)
+            }
             shiny::tags$div(
               class = "feed-folder",
               shiny::tags$button(
@@ -2498,43 +2501,45 @@ rill_server <- function(
                 shiny::tags$span(folder),
                 shiny::tags$small(index$unread[[i]])
               ),
-              shiny::tags$details(
-                open = if (
-                  !is.null(selected_feed()) &&
-                    selected_feed() %in% rows$feed_id
-                ) {
-                  "open"
-                } else {
-                  NULL
-                },
-                shiny::tags$summary(paste(
-                  nrow(rows),
-                  if (nrow(rows) == 1L) "feed in" else "feeds in",
-                  folder
-                )),
-                lapply(seq_len(nrow(rows)), function(index) {
-                  feed <- rows[index, , drop = FALSE]
-                  active <- identical(
-                    selected_feed(),
-                    as.character(feed$feed_id)
-                  )
-                  shiny::tags$button(
-                    type = "button",
-                    class = paste("feed-link", if (active) "is-active"),
-                    `aria-current` = if (active) "true" else NULL,
-                    onclick = sprintf(
-                      "rillSelectFeed(%s)",
-                      jsonlite::toJSON(
-                        as.character(feed$feed_id),
-                        auto_unbox = TRUE
-                      )
-                    ),
-                    title = feed$title,
-                    shiny::tags$span(feed$title),
-                    shiny::tags$small(feed$unread_count)
-                  )
-                })
-              )
+              if (nrow(rows)) {
+                shiny::tags$details(
+                  open = if (
+                    !is.null(selected_feed()) &&
+                      selected_feed() %in% rows$feed_id
+                  ) {
+                    "open"
+                  } else {
+                    NULL
+                  },
+                  shiny::tags$summary(paste(
+                    nrow(rows),
+                    if (nrow(rows) == 1L) "feed in" else "feeds in",
+                    folder
+                  )),
+                  lapply(seq_len(nrow(rows)), function(index) {
+                    feed <- rows[index, , drop = FALSE]
+                    active <- identical(
+                      selected_feed(),
+                      as.character(feed$feed_id)
+                    )
+                    shiny::tags$button(
+                      type = "button",
+                      class = paste("feed-link", if (active) "is-active"),
+                      `aria-current` = if (active) "true" else NULL,
+                      onclick = sprintf(
+                        "rillSelectFeed(%s)",
+                        jsonlite::toJSON(
+                          as.character(feed$feed_id),
+                          auto_unbox = TRUE
+                        )
+                      ),
+                      title = feed$title,
+                      shiny::tags$span(feed$title),
+                      shiny::tags$small(feed$unread_count)
+                    )
+                  })
+                )
+              }
             )
           })
         )

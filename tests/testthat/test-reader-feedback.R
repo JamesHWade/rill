@@ -771,7 +771,8 @@ testthat::test_that("retained Markdown is readable without active markup or nest
       existing = list(reasons = "clarity", comment = "Saved")
     ))$html
   )
-  testthat::expect_length(xml2::xml_find_all(dialog, ".//details[@open]"), 1L)
+  testthat::expect_length(xml2::xml_find_all(dialog, ".//details[@open]"), 0L)
+  testthat::expect_gt(length(xml2::xml_find_all(dialog, ".//details")), 0L)
   testthat::expect_length(
     xml2::xml_find_all(dialog, ".//*[@style[contains(., 'max-height')]]"),
     0L
@@ -970,4 +971,47 @@ testthat::test_that("Orientation feedback freezes visible themes with their sour
       )
     }
   }
+})
+
+testthat::test_that("the rating dialog names the output it was opened from", {
+  store <- local_orientation_backend_store("memory", "reader")
+  source <- list(
+    reader_id = "reader",
+    kind = "question",
+    run_id = "run",
+    status = "completed",
+    response_text = "An answer",
+    pinned_inputs = list(question = "Why?")
+  )
+  target <- feedback_target(store, "reader", "question", source)
+  html <- htmltools::renderTags(feedback_dialog(target))$html
+  dom <- xml2::read_html(html)
+
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(
+      dom,
+      '//*[@id="rill-feedback-modal-title"]'
+    )),
+    "Rate this response"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(
+      xml2::xml_find_first(dom, '//*[@id="shiny-modal"]'),
+      "aria-labelledby"
+    ),
+    "rill-feedback-modal-title"
+  )
+  testthat::expect_length(
+    xml2::xml_find_all(dom, '//details[@open]'),
+    0L
+  )
+
+  target$snapshot$kind <- "orientation"
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(
+      xml2::read_html(htmltools::renderTags(feedback_dialog(target))$html),
+      '//*[@id="rill-feedback-modal-title"]'
+    )),
+    "Rate this Orientation"
+  )
 })

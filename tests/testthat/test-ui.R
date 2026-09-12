@@ -616,7 +616,7 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
     "Bundled demo content cannot support real-world claims.",
     fixed = TRUE
   )
-  testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
+  testthat::expect_match(html, "Browse unread stories", fixed = TRUE)
   testthat::expect_match(html, "rillSelectEntry", fixed = TRUE)
   testthat::expect_match(html, "orientation", fixed = TRUE)
   testthat::expect_match(html, "rillDismissOrientation", fixed = TRUE)
@@ -774,6 +774,13 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
     fixed = TRUE
   )
   testthat::expect_no_match(html, "orientation-step", fixed = TRUE)
+  testthat::expect_match(
+    preparing_html,
+    "Evaluating the current unread stories",
+    fixed = TRUE
+  )
+  testthat::expect_no_match(preparing_html, "unread Document", fixed = TRUE)
+  testthat::expect_no_match(html, "Browse the full unread queue", fixed = TRUE)
 
   queue_html <- htmltools::renderTags(
     orientation_queue_status_ui(
@@ -932,7 +939,7 @@ testthat::test_that("Orientation failure retains current cards and evidence", {
     fixed = TRUE
   )
   testthat::expect_match(html, "provider rejected", fixed = TRUE)
-  testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
+  testthat::expect_match(html, "Browse unread stories", fixed = TRUE)
   testthat::expect_length(query$find("#retry_orientation")$selectedTags(), 1L)
 })
 
@@ -1216,5 +1223,145 @@ testthat::test_that("article actions stay compact while hidden actions remain av
       '//header//*[contains(@class, "article-byline")]//bslib-popover'
     ),
     1L
+  )
+})
+
+testthat::test_that("the reader toolbar keeps its overflow menu shortcuts on one line each", {
+  data <- sample_rill_data()
+  entry <- as.list(data$entries[1, , drop = FALSE])
+  entry$library_access <- TRUE
+  html <- htmltools::renderTags(reader_article_header_ui(
+    entry,
+    data$documents[[1]]
+  ))$html
+  dom <- xml2::read_html(html)
+  items <- xml2::xml_find_all(
+    dom,
+    '//*[contains(@class, "shortcut-hint")]/*[contains(@class, "shortcut-hint-item")]'
+  )
+  testthat::expect_length(items, 4L)
+  testthat::expect_all_equal(
+    vapply(
+      items,
+      function(item) {
+        length(xml2::xml_find_all(item, ".//kbd")) > 0L
+      },
+      logical(1)
+    ),
+    TRUE
+  )
+})
+
+testthat::test_that("the reading copy id is shortened with the full value available", {
+  data <- sample_rill_data()
+  document <- data$documents[[1L]]
+  html <- htmltools::renderTags(reading_copy_id_ui(document$document_id))$html
+  dom <- xml2::read_html(html)
+  code <- xml2::xml_find_first(dom, "//code")
+
+  testthat::expect_identical(
+    xml2::xml_text(code),
+    substr(document$document_id, 1L, 12L)
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(code, "title"),
+    document$document_id
+  )
+  copy <- xml2::xml_find_first(dom, '//button[@data-rill-copy-value]')
+  testthat::expect_identical(
+    xml2::xml_attr(copy, "data-rill-copy-value"),
+    document$document_id
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(copy, "aria-label"),
+    "Copy the full reading copy id"
+  )
+})
+
+testthat::test_that("Ask Rill offers a labeled return to the article", {
+  html <- htmltools::renderTags(reader_pane_ui(list(
+    agent_model = "openai/gpt-5.6-sol",
+    agent_base_url = ""
+  )))$html
+  dom <- xml2::read_html(html)
+  back <- xml2::xml_find_first(
+    dom,
+    '//*[contains(@class, "reader-agent-header")]//button[contains(@class, "mobile-back")]'
+  )
+
+  testthat::expect_identical(
+    xml2::xml_attr(back, "onclick"),
+    "rillCloseAskRill()"
+  )
+  testthat::expect_match(xml2::xml_text(back), "Back to article", fixed = TRUE)
+})
+
+testthat::test_that("collapsed panes keep named toggles and a labeled Library control", {
+  html <- htmltools::renderTags(rill_ui(rill_config()))$html
+  dom <- xml2::read_html(html)
+
+  for (pane in list(
+    c("navigation_sidebar", "Toggle Library"),
+    c("story_sidebar", "Toggle reading queue")
+  )) {
+    toggle <- xml2::xml_find_first(
+      dom,
+      paste0(
+        '//button[contains(@class, "collapse-toggle") and @aria-controls="',
+        pane[[1L]],
+        '"]'
+      )
+    )
+    testthat::expect_identical(xml2::xml_attr(toggle, "aria-label"), pane[[2L]])
+    testthat::expect_identical(xml2::xml_attr(toggle, "title"), pane[[2L]])
+  }
+
+  library_button <- xml2::xml_find_first(
+    dom,
+    '//button[contains(@class, "queue-library-trigger")]'
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(library_button, "onclick"),
+    "rillShowLibrary()"
+  )
+  testthat::expect_identical(
+    xml2::xml_attr(library_button, "aria-controls"),
+    "navigation_sidebar"
+  )
+  testthat::expect_match(
+    xml2::xml_text(library_button),
+    "Library",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("modal dialogs are named, closable, and keep their footer reachable", {
+  html <- htmltools::renderTags(feed_manager_ui(NULL))$html
+  dom <- xml2::read_html(html)
+  dialog <- xml2::xml_find_first(dom, '//*[@id="shiny-modal"]')
+
+  testthat::expect_identical(xml2::xml_attr(dialog, "role"), "dialog")
+  testthat::expect_identical(
+    xml2::xml_attr(dialog, "aria-labelledby"),
+    "rill-modal-title"
+  )
+  testthat::expect_identical(
+    xml2::xml_text(xml2::xml_find_first(dom, '//*[@id="rill-modal-title"]')),
+    "Manage feeds"
+  )
+  testthat::expect_length(
+    xml2::xml_find_all(
+      dom,
+      '//*[contains(@class, "modal-header")]//button[contains(@class, "btn-close")]'
+    ),
+    1L
+  )
+  testthat::expect_match(
+    xml2::xml_attr(
+      xml2::xml_find_first(dom, '//*[contains(@class, "modal-dialog")]'),
+      "class"
+    ),
+    "modal-dialog-scrollable",
+    fixed = TRUE
   )
 })

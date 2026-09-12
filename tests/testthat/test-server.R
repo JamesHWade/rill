@@ -5915,3 +5915,27 @@ testthat::test_that("new Group and folder scopes clear an Orientation theme", {
     }))
   }
 })
+
+testthat::test_that("navigation hides an Ungrouped folder that can only ever be empty", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  feed_ids <- store_list_feeds(store, config$actor_id)$feed_id
+  store_move_feed(store, config$actor_id, feed_ids[[1]], "Together")
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      select_folder = NULL,
+      select_feed = NULL,
+      mark_all_read = NULL
+    )
+    html <- output$feed_nav$html
+    nav <- xml2::read_html(html)
+
+    testthat::expect_no_match(html, "Ungrouped", fixed = TRUE)
+    testthat::expect_match(html, "1 feed in Together", fixed = TRUE)
+    testthat::expect_length(
+      xml2::xml_find_all(nav, ".//details[not(.//button)]"),
+      0L
+    )
+  }))
+})
