@@ -702,6 +702,7 @@ testthat::test_that("compact submissions reject oversized wording and allow corr
 })
 
 testthat::test_that("Orientation limits keep the cost cap only when ellmer can price the model", {
+  withr::local_options(lifecycle_verbosity = "error")
   priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
   unpriced <- ellmer::chat_openrouter(
     credentials = \() "test-key",

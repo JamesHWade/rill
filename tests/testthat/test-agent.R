@@ -419,6 +419,7 @@ testthat::test_that("OpenRouter chats state their data policy and keep a fixed e
 })
 
 testthat::test_that("usage limits keep the cost cap only when ellmer can price the model", {
+  withr::local_options(lifecycle_verbosity = "error")
   priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
   unpriced <- ellmer::chat_openrouter(
     credentials = \() "test-key",

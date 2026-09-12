@@ -319,7 +319,17 @@ rill_agent_cost_known <- function(chat) {
   if (!is.function(has_cost)) {
     return(FALSE)
   }
-  isTRUE(tryCatch(has_cost(provider, provider@model), error = \(error) FALSE))
+  isTRUE(tryCatch(
+    {
+      # ellmer 0.5.0 takes a provider name; earlier versions take its object.
+      if ("provider_name" %in% names(formals(has_cost))) {
+        has_cost(provider@name, chat$get_model())
+      } else {
+        has_cost(provider, chat$get_model())
+      }
+    },
+    error = \(error) FALSE
+  ))
 }
 
 rill_agent_effective_limits <- function(agent, default) {
