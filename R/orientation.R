@@ -426,7 +426,10 @@ orientation_status <- function(
         }
       )
     } else {
-      "No current Orientation selection remains."
+      paste(
+        "These selections left the bounded unread window.",
+        "Rill picks again after the next refresh."
+      )
     }
     if (count) {
       orientation$question <- "What still deserves attention?"

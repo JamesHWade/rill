@@ -1,6 +1,11 @@
 args <- commandArgs(trailingOnly = TRUE)
 root <- if (length(args)) args[[1L]] else "."
-Sys.unsetenv(c("DATABASE_URL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"))
+Sys.unsetenv(c(
+  "DATABASE_URL",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "ANTHROPIC_API_KEY"
+))
 Sys.setenv(RILL_IDENTITY_MODE = "local")
 pkgload::load_all(root, quiet = TRUE)
 fixture <- parse(file.path(root, "scripts/browser/app.R"))

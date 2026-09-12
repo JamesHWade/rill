@@ -1,3 +1,5 @@
+rill_default_agent_model <- "openrouter/meta/muse-spark-1.3-contributor"
+
 `%||%` <- function(x, y) {
   missing <- is.null(x) || length(x) == 0L || all(is.na(x))
   blank <- is.character(x) && length(x) == 1L && !is.na(x) && !nzchar(x)
@@ -224,9 +226,12 @@ rill_config <- function() {
   if (!nzchar(defuddle_command)) {
     defuddle_command <- "defuddle"
   }
-  agent_model <- trimws(Sys.getenv("RILL_AGENT_MODEL", unset = "openai"))
+  agent_model <- trimws(Sys.getenv(
+    "RILL_AGENT_MODEL",
+    unset = rill_default_agent_model
+  ))
   if (!nzchar(agent_model)) {
-    agent_model <- "openai"
+    agent_model <- rill_default_agent_model
   }
   agent_provider <- rill_agent_provider(agent_model)
   agent_base_url <- trimws(Sys.getenv("RILL_AGENT_BASE_URL", unset = ""))

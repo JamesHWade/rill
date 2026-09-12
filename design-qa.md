@@ -20,7 +20,7 @@
 
 The final dark comparison places the exact 1440 x 1024 reference and browser capture side by side in the same first-story state. The three-column geometry, warm-black reader, near-black queue, moss sidebar, parchment hierarchy, celadon secondary color, ochre selection, icon treatment, article measure, and Literata reading rhythm match the selected direction. The appearance control and demo badge remain as intentional product controls.
 
-The light regression frame preserves the earlier duck-egg, reed, paper, and sand theme without typography or spacing drift. The dark duck is a dedicated transparent raster asset, not a CSS filter or a drawn substitute.
+The light regression frame preserves the river-mist, reed, paper, and sand theme without typography or spacing drift. The otter mark is a single transparent raster asset that reads on both palettes, not a CSS filter or a drawn substitute.
 
 #### Responsive behavior
 
@@ -39,7 +39,7 @@ Measured dark-mode contrast was 11.42:1 for reading copy, 7.59:1 for queue summa
 - P1 layout: removed inherited page padding that clipped the 100dvh shell and prevented the target's full-bleed composition.
 - P2 typography: reduced queue-title weight and scale while increasing article-source prominence and restoring the reference's more generous header rhythm.
 - P2 icons: replaced text glyph approximations with Bootstrap Icons for navigation, story status, refresh, and reader actions.
-- P2 imagery: replaced the letter monogram with the generated duck-and-ripple asset and verified its transparent treatment at navigation and empty-state sizes.
+- P2 imagery: replaced the letter monogram with the generated reading-otter assets and verified their transparent treatment at navigation, welcome, and empty-state sizes.
 - P2 color modes: added paired semantic tokens for every navigation, queue, reader, form, keycap, code, quote, link, status, hover, focus, and selected surface instead of relying on a global color inversion.
 - P2 mode behavior: added an early system-aware theme resolver to avoid an initial wrong-palette flash, persisted explicit choices, and kept system mode responsive to operating-system changes.
 - P2 mobile accessibility: enlarged appearance choices at the narrow breakpoint and verified the queue and reader at 390 x 844 with zero page-level horizontal overflow.
@@ -152,3 +152,63 @@ No open P0, P1, or P2 findings remained in the baseline pass.
 - Both target viewports have no horizontal overflow.
 
 final result: passed
+
+## Reading toolbar
+
+final result: passed
+
+The source is the approved single reading-mode wireframe at `/Users/james/.codex/generated_images/01a0930a-6b9d-7212-95cc-be8ef23c4f55/exec-5a942dd1-881f-430f-9ce3-1cfd692512dd.png` (1587 × 991). The implementation is `artifacts/reading-toolbar/desktop.png` (1232 × 768 CSS pixels, density 1) at http://127.0.0.1:3927. Both were opened in the same comparison input; comparison uses their equivalent viewport aspect ratio, not literal pixel differences.
+
+State: dark theme, Library collapsed, queue visible, article selected, menu closed. The implementation uses bundled demo content, so article wording, headings, queue contents, and title wrapping intentionally differ. The existing resizable queue width is preserved. This is a layout/hierarchy comparison rather than a pixel reproduction of the article text.
+
+### Visual review
+
+- Typography: existing Literata/Atkinson families retained; title capped at 44px, with a readable serif article body and small utility metadata.
+- Spacing: a single 49px desktop toolbar replaces the stacked controls. Article content begins at 191px in the verified desktop state. Source, title, and byline remain grouped. Focus mode centers the reading column.
+- Colors: existing dark-paper, cream, and river-green theme tokens retained; light theme was also visually checked.
+- Assets: Bootstrap icons from bsicons; no replacement brand artwork.
+- Copy: source link and reading-copy identity remain explicit. Provenance moves into a byline popover; feed-excerpt warnings and preparation/recovery controls stay visible.
+- The full-view comparison makes the toolbar, metadata, and article text readable without a separate detail crop.
+
+### Corrections verified
+
+- Removed the redundant sidebar toggle that obscured the overflow button.
+- Corrected dropdown nesting so hidden actions remain bound without occupying the toolbar.
+- Disabled animation on article tooltips and copy popovers to avoid Bootstrap callbacks after a reactive header is disposed.
+- Removed the mobile sidebar header's unused 56px gap.
+- Escape closes the current article disclosure before restoring pane focus; regression cases cover menu, copy popover, modal ownership, focus, and Ask Rill.
+
+### Interaction checks
+
+Browser checks cover the overflow menu, Save/Star hotkeys with the menu closed, article navigation, focus/restore, copy details, Ask Rill open/close, and mobile return to the queue. The 320px layout has no horizontal document overflow; its menu and copy popover remain within the viewport. A 390 × 844 capture is saved at `artifacts/reading-toolbar/mobile.png`. Browser error/warning logs were empty in the final desktop pass.
+
+No remaining P0/P1/P2 findings. Production deployment and authenticated production traces are outside this local implementation pass. The local preview uses in-memory demo data and does not send model requests.
+
+## Reading toolbar integration review, September 12
+
+The six-commit integration was reviewed against `7769879`. The new toolbar had
+lost the `.reader-previous` and `.reader-next` hooks used by navigation state and
+article swipes. The existing native-touch test reproduced the failure; restoring
+those hooks fixes forward swipes and the disabled state at queue boundaries.
+The toolbar focus ring now uses the theme's deep green, measuring 8.32:1 in
+light mode and 9.63:1 in dark mode against the focused button background.
+
+`scripts/browser/reading-toolbar.mjs` verifies both themes at 320, 390, 1024,
+and 1440 pixels. Menus and reading-copy popovers stay within the viewport;
+Escape closes them; reading focus toggles its pressed state; Ask Rill opens and
+closes; and the toolbar remains at the scroll surface's top edge. All eight
+states have zero horizontal overflow and no axe WCAG A/AA violations. Results
+are in `artifacts/reading-toolbar/verification.json`.
+
+The responsive audit and native article-swipe suite also pass. Queue navigation
+checks cover buttons, hotkeys, and native swipes across batches. That test now
+measures a point inside the paragraph after scrolling, since the previous fixed
+vertical coordinate could land outside the shorter reading header's paragraph.
+
+A separate live check supplied six public R Blog feed entries to Muse through
+OpenRouter. Orientation completed with three cards and two themes, passing the
+normal exact-evidence validation; Ask Rill also completed. No Reader Library was
+accessed. This is a public-source smoke check, not a production evaluation.
+
+The larger design follow-ups remain open as GitHub issues #95 through #102.
+This review does not close those issues or establish hosted behavior.

@@ -82,6 +82,37 @@ testthat::test_that("browser time zone reporting preserves unavailable zones", {
   )
 })
 
+testthat::test_that("article disclosures own Escape before pane focus", {
+  node <- Sys.which("node")
+  testthat::skip_if(
+    !nzchar(node),
+    "Node.js is required for browser logic tests"
+  )
+  log <- withr::local_tempfile()
+  script <- withr::local_tempfile(fileext = ".js")
+  lines <- readLines(
+    rill_package_file("app", "www", "app.js"),
+    warn = FALSE
+  )
+  for (ending in c("\n", "\r\n")) {
+    writeBin(charToRaw(paste(lines, collapse = ending)), script)
+    status <- system2(
+      node,
+      shQuote(c(
+        testthat::test_path("fixtures", "reader-toolbar.cjs"),
+        script
+      )),
+      stdout = log,
+      stderr = log
+    )
+    testthat::expect_identical(
+      status,
+      0L,
+      info = paste(readLines(log, warn = FALSE), collapse = "\n")
+    )
+  }
+})
+
 testthat::test_that("native Shiny feedback receives durable semantics", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
@@ -141,7 +172,7 @@ testthat::test_that("reading typography keeps titles and separators compact", {
 
   testthat::expect_match(
     styles,
-    "clamp(34px, 3.5vw, 50px)",
+    "clamp(34px, 3.5vw, 44px)",
     fixed = TRUE
   )
   testthat::expect_match(
@@ -338,6 +369,105 @@ testthat::test_that("the skip link follows the visible compact surface", {
   testthat::expect_match(
     javascript,
     "focusCompactSurface(surface, hasReader)",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("reader toolbar states survive the bslib toolbar reset", {
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  toolbar <- paste0(
+    ".article-actions.bslib-toolbar .bslib-toolbar-input-button.btn-default",
+    ":not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger)",
+    ":not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark)"
+  )
+  testthat::expect_match(
+    styles,
+    paste0(toolbar, ":focus-visible"),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    paste0(toolbar, '[aria-pressed="true"]'),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "outline: 3px solid var(--green-deep) !important;",
+    fixed = TRUE
+  )
+  testthat::expect_no_match(styles, ":where(button, a, summary", fixed = TRUE)
+  testthat::expect_match(styles, "button:focus-visible,", fixed = TRUE)
+  testthat::expect_match(
+    styles,
+    ".article-actions.bslib-toolbar {\n  position: sticky;",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("raised surfaces stay legible against the reading page", {
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(styles, "--surface-raised: #1b1d19;", fixed = TRUE)
+  testthat::expect_match(
+    styles,
+    "--surface-raised-line: rgba(230, 215, 195, 0.45);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "background: var(--surface-raised);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "border-color: var(--surface-raised-line);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    "--bs-tooltip-bg: var(--surface-raised);",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    styles,
+    ".article-menu .reader-action {\n  color: var(--ink);",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("reader styles keep only rules the interface still emits", {
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  for (selector in c(
+    ".article-footer",
+    ".reading-provenance",
+    ".btn-move-feed",
+    ".feed-tool-label",
+    ".reader-empty-header",
+    ".reader-monogram",
+    ".orientation-step-actions",
+    ".article-source span"
+  )) {
+    testthat::expect_no_match(styles, selector, fixed = TRUE)
+  }
+  testthat::expect_match(styles, ".article-menu-container {", fixed = TRUE)
+  testthat::expect_length(
+    gregexpr(".article-source {", styles, fixed = TRUE)[[1L]],
+    1L
+  )
+  testthat::expect_match(
+    styles,
+    "@media (hover: none) {\n  .article-menu .shortcut-hint,",
     fixed = TRUE
   )
 })

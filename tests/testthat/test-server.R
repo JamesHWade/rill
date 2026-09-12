@@ -399,7 +399,11 @@ testthat::test_that("selecting a story records the open and updates the queue", 
     testthat::expect_identical(store$memory$events$event_type, "entry_opened")
     testthat::expect_identical(store$memory$state$read_reason, "opened")
     reader_header <- paste(as.character(output$reader_header), collapse = "")
-    testthat::expect_match(reader_header, "rillOpenQueue()", fixed = TRUE)
+    testthat::expect_match(
+      reader_header,
+      "rillToggleReadingQueue()",
+      fixed = TRUE
+    )
     testthat::expect_match(reader_header, "Queue", fixed = TRUE)
 
     session$setInputs(close_reader = list(nonce = 1))
@@ -1697,10 +1701,12 @@ testthat::test_that("a replacement session resumes a deferred question", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
-    data_destination_id = rill_agent_data_destination_details("openai")$id,
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
+    data_destination_id = rill_agent_data_destination_details(
+      rill_default_agent_model
+    )$id,
     question = "What changed?",
-    model = "openai",
+    model = rill_default_agent_model,
     policy_version = "ask-rill-v1",
     limits = rill_agent_run_limits()
   )
@@ -2106,8 +2112,10 @@ testthat::test_that("a replacement session polls a promoted partial response", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
-    data_destination_id = rill_agent_data_destination_details("openai")$id,
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
+    data_destination_id = rill_agent_data_destination_details(
+      rill_default_agent_model
+    )$id,
     question = "What changed?",
     model = config$agent_model,
     policy_version = "ask-rill-v1",
@@ -2270,7 +2278,7 @@ testthat::test_that("a deferred question rejects a changed destination", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
     data_destination_id = "agent-data-destination-old-endpoint",
     question = "What changed?",
     model = config$agent_model,
@@ -2606,13 +2614,16 @@ testthat::test_that("asking about a story runs Deputy through shinychat", {
     )
     testthat::expect_identical(
       run$pinned_inputs$data_destination,
-      "OpenAI at api.openai.com"
+      rill_agent_data_destination(rill_default_agent_model)
     )
     testthat::expect_identical(
       run$pinned_inputs$data_destination_id,
-      rill_agent_data_destination_details("openai")$id
+      rill_agent_data_destination_details(rill_default_agent_model)$id
     )
-    testthat::expect_identical(run$pinned_inputs$model, "openai")
+    testthat::expect_identical(
+      run$pinned_inputs$model,
+      rill_default_agent_model
+    )
     testthat::expect_identical(
       run$pinned_inputs$limits,
       rill_agent_run_limits()
@@ -3402,10 +3413,12 @@ testthat::test_that("a restarted question remains visible and retryable", {
         kind = "selected_document",
         document_ids = document$document_id
       ),
-      data_destination = "OpenAI at api.openai.com",
-      data_destination_id = rill_agent_data_destination_details("openai")$id,
+      data_destination = rill_agent_data_destination(rill_default_agent_model),
+      data_destination_id = rill_agent_data_destination_details(
+        rill_default_agent_model
+      )$id,
       question = "What changed?",
-      model = "openai",
+      model = rill_default_agent_model,
       policy_version = "ask-rill-v1",
       limits = rill_agent_run_limits()
     ),
@@ -5901,4 +5914,28 @@ testthat::test_that("new Group and folder scopes clear an Orientation theme", {
       testthat::expect_setequal(queue_entries()$feed_id, expected)
     }))
   }
+})
+
+testthat::test_that("navigation hides an Ungrouped folder that can only ever be empty", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  feed_ids <- store_list_feeds(store, config$actor_id)$feed_id
+  store_move_feed(store, config$actor_id, feed_ids[[1]], "Together")
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    session$setInputs(
+      select_folder = NULL,
+      select_feed = NULL,
+      mark_all_read = NULL
+    )
+    html <- output$feed_nav$html
+    nav <- xml2::read_html(html)
+
+    testthat::expect_no_match(html, "Ungrouped", fixed = TRUE)
+    testthat::expect_match(html, "1 feed in Together", fixed = TRUE)
+    testthat::expect_length(
+      xml2::xml_find_all(nav, ".//details[not(.//button)]"),
+      0L
+    )
+  }))
 })

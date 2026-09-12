@@ -15,9 +15,12 @@
 #' `/api/v1/captures`. Captures and reading-copy selection remain private to
 #' that Reader. `RILL_AGENT_MODEL` selects the
 #' [ellmer][ellmer::chat()] model used for source-grounded questions and
-#' Orientation. Its provider credential must also be available.
+#' Orientation; the default is Meta's Muse Spark 1.3 Contributor through
+#' OpenRouter (`openrouter/meta/muse-spark-1.3-contributor`), which needs
+#' `OPENROUTER_API_KEY`. Its provider credential must always be available.
 #' `RILL_AGENT_BASE_URL` selects a custom provider endpoint and is required
-#' when Rill cannot resolve the effective endpoint itself.
+#' when Rill cannot resolve the effective endpoint itself; OpenRouter's
+#' endpoint is fixed.
 #' `RILL_ORIENTATION_ENABLED=true` makes automatic Orientation available; each
 #' Reader must still confirm the configured Data Destination in the app before
 #' bounded reading copies are sent. External destinations also require an

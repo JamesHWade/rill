@@ -21,3 +21,4 @@
     Condition
       Error in `validate_public_http_url()`:
       ! `url` must be a complete `http://` or `https://` URL.
+

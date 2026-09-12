@@ -291,7 +291,9 @@ maintain_orientation_async <- function(
     data_destination_id = runtime_identity$data_destination_id,
     model = runtime_identity$model,
     policy_version = policy_version,
-    limits = rill_orientation_run_limits()
+    limits = rill_orientation_run_limits(
+      rill_agent_effective_limits(agent, rill_orientation_usage_limits())
+    )
   )
   request_key <- orientation_request_key(pinned_inputs)
   run_id <- rill_id("agent-run", reader_id, request_key)

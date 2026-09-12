@@ -388,6 +388,18 @@ testthat::test_that("invalid Orientation cards disappear without discarding vali
     changed$orientation$question,
     "What still deserves attention?"
   )
+
+  store_mark_opened(store, reader_id, cards[[2]]$entry_id)
+  emptied <- orientation_status(store, reader_id, limit = 4L)
+
+  testthat::expect_length(emptied$orientation$cards, 0L)
+  testthat::expect_identical(
+    emptied$orientation$status,
+    paste(
+      "These selections left the bounded unread window.",
+      "Rill picks again after the next refresh."
+    )
+  )
 })
 
 testthat::test_that("active processing names the current model destination", {

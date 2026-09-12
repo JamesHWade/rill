@@ -100,6 +100,7 @@ rill_agent_base_url <- function(model, configured = "") {
     google_gemini = "https://generativelanguage.googleapis.com/v1beta",
     gemini = "https://generativelanguage.googleapis.com/v1beta",
     ollama = "http://localhost:11434",
+    openrouter = "https://openrouter.ai/api/v1",
     NA_character_
   )
 }
@@ -138,6 +139,7 @@ rill_agent_data_destination_details <- function(
     gemini = "Google Gemini",
     google_gemini = "Google Gemini",
     ollama = "Ollama",
+    openrouter = "OpenRouter",
     id
   )
   endpoint <- rill_agent_base_url(model, base_url)
@@ -183,17 +185,41 @@ rill_agent_data_destination <- function(model, base_url = "") {
 }
 
 rill_agent_chat <- function(model, base_url = "", echo = "none") {
+  provider <- rill_agent_provider(model)
   arguments <- list(name = model, echo = echo)
   configured <- trimws(base_url %||% "")
   if (nzchar(configured)) {
-    argument <- if (identical(rill_agent_provider(model), "azure_openai")) {
-      "endpoint"
+    endpoint <- rill_agent_base_url(model, configured)
+    if (identical(provider, "azure_openai")) {
+      arguments$endpoint <- endpoint
+    } else if (identical(provider, "openrouter")) {
+      if (!identical(endpoint, rill_agent_base_url(model))) {
+        cli::cli_abort(
+          paste(
+            "{.envvar RILL_AGENT_BASE_URL} cannot change the OpenRouter",
+            "endpoint; leave it unset for OpenRouter models."
+          ),
+          class = "rill_agent_url_invalid"
+        )
+      }
     } else {
-      "base_url"
+      arguments$base_url <- endpoint
     }
-    arguments[[argument]] <- rill_agent_base_url(model, configured)
   }
-  do.call(ellmer::chat, arguments)
+  if (identical(provider, "openrouter")) {
+    arguments$api_args <- rill_openrouter_api_args()
+  }
+  do.call(rill_ellmer_chat, arguments)
+}
+
+rill_ellmer_chat <- function(...) {
+  ellmer::chat(...)
+}
+
+# OpenRouter routes contributor-tier models only through providers that may
+# retain and train on prompts; state that data policy explicitly per request.
+rill_openrouter_api_args <- function() {
+  list(provider = list(data_collection = "allow"))
 }
 
 rill_document_tool <- function(document) {
@@ -260,22 +286,65 @@ rill_agent_permissions <- function() {
   )
 }
 
-rill_agent_usage_limits <- function() {
+rill_agent_usage_limits <- function(chat = NULL) {
   deputy::UsageLimits(
     max_requests = 8L,
     max_tool_calls = 16L,
     max_total_tokens = 128000L,
     max_output_tokens = 8000L,
-    max_cost_usd = 2
+    max_cost_usd = rill_agent_cost_limit(chat, 2)
   )
+}
+
+# Deputy stops a run as `cost_unavailable` when a cost cap is set but ellmer
+# cannot price the model (OpenRouter models outside ellmer's price table, for
+# example). Keep the cap whenever the price is known and otherwise rely on the
+# token caps, which still bound spending.
+rill_agent_cost_limit <- function(chat, max_cost_usd) {
+  if (is.null(chat) || rill_agent_cost_known(chat)) {
+    return(max_cost_usd)
+  }
+  NULL
+}
+
+rill_agent_cost_known <- function(chat) {
+  provider <- tryCatch(chat$get_provider(), error = \(error) NULL)
+  if (is.null(provider)) {
+    return(TRUE)
+  }
+  has_cost <- tryCatch(
+    utils::getFromNamespace("has_cost", "ellmer"),
+    error = \(error) NULL
+  )
+  if (!is.function(has_cost)) {
+    return(FALSE)
+  }
+  isTRUE(tryCatch(
+    {
+      # ellmer 0.5.0 takes a provider name; earlier versions take its object.
+      if ("provider_name" %in% names(formals(has_cost))) {
+        has_cost(provider@name, chat$get_model())
+      } else {
+        has_cost(provider, chat$get_model())
+      }
+    },
+    error = \(error) FALSE
+  ))
+}
+
+rill_agent_effective_limits <- function(agent, default) {
+  if (is.null(agent) || inherits(agent, "error")) {
+    return(default)
+  }
+  limits <- tryCatch(agent$usage_limits, error = \(error) NULL)
+  if (inherits(limits, "UsageLimits")) limits else default
 }
 
 rill_agent_wall_time_seconds <- function() {
   5 * 60
 }
 
-rill_agent_run_limits <- function() {
-  limits <- rill_agent_usage_limits()
+rill_agent_run_limits <- function(limits = rill_agent_usage_limits()) {
   list(
     wall_time_seconds = rill_agent_wall_time_seconds(),
     max_requests = limits$max_requests,
@@ -476,7 +545,7 @@ rill_reader_agent <- function(
     tools = list(rill_document_tool(document)),
     system_prompt = rill_agent_system_prompt(),
     permissions = rill_agent_permissions(),
-    usage_limits = rill_agent_usage_limits(),
+    usage_limits = rill_agent_usage_limits(chat),
     working_dir = getwd(),
     session_id = session_id,
     agent_id = paste0(

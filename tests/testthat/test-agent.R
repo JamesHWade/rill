@@ -68,6 +68,18 @@ testthat::test_that("Agent destinations have stable consent identities", {
     base_url = "http://127.attacker.example:11434"
   )
 
+  openrouter <- rill_agent_data_destination_details(
+    "openrouter/meta/muse-spark-1.3-contributor",
+    policy_url = "https://openrouter.ai/privacy"
+  )
+
+  testthat::expect_identical(openrouter$name, "OpenRouter")
+  testthat::expect_identical(openrouter$label, "OpenRouter at openrouter.ai")
+  testthat::expect_identical(
+    openrouter$endpoint,
+    "https://openrouter.ai/api/v1"
+  )
+  testthat::expect_identical(openrouter$kind, "external")
   testthat::expect_identical(openai$id, upgraded$id)
   testthat::expect_identical(identical(openai$id, changed_policy$id), FALSE)
   testthat::expect_identical(openai$name, "OpenAI")
@@ -361,4 +373,90 @@ testthat::test_that("source display makes missing metadata explicit without chan
     )
   )
   testthat::expect_identical(result@value, value)
+})
+
+testthat::test_that("OpenRouter chats state their data policy and keep a fixed endpoint", {
+  calls <- list()
+  testthat::local_mocked_bindings(
+    rill_ellmer_chat = function(...) {
+      calls[[length(calls) + 1L]] <<- list(...)
+      "chat"
+    }
+  )
+
+  rill_agent_chat("openrouter/meta/muse-spark-1.3-contributor")
+  rill_agent_chat(
+    "openrouter/meta/muse-spark-1.3-contributor",
+    base_url = "https://openrouter.ai/api/v1/"
+  )
+  rill_agent_chat("openai/gpt-5", base_url = "https://gateway.example/v1")
+
+  testthat::expect_identical(
+    calls[[1L]],
+    list(
+      name = "openrouter/meta/muse-spark-1.3-contributor",
+      echo = "none",
+      api_args = list(provider = list(data_collection = "allow"))
+    )
+  )
+  testthat::expect_identical(calls[[2L]], calls[[1L]])
+  testthat::expect_identical(
+    calls[[3L]],
+    list(
+      name = "openai/gpt-5",
+      echo = "none",
+      base_url = "https://gateway.example/v1"
+    )
+  )
+  testthat::expect_error(
+    rill_agent_chat(
+      "openrouter/meta/muse-spark-1.3-contributor",
+      base_url = "https://gateway.example/v1"
+    ),
+    class = "rill_agent_url_invalid"
+  )
+  testthat::expect_length(calls, 3L)
+})
+
+testthat::test_that("usage limits keep the cost cap only when ellmer can price the model", {
+  withr::local_options(lifecycle_verbosity = "error")
+  priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
+  unpriced <- ellmer::chat_openrouter(
+    credentials = \() "test-key",
+    model = "meta/muse-spark-1.3-contributor"
+  )
+
+  testthat::expect_identical(rill_agent_usage_limits(priced)$max_cost_usd, 2)
+  testthat::expect_null(rill_agent_usage_limits(unpriced)$max_cost_usd)
+  testthat::expect_identical(
+    rill_agent_run_limits(rill_agent_usage_limits(priced))$max_cost_usd,
+    2
+  )
+  testthat::expect_null(
+    rill_agent_run_limits(rill_agent_usage_limits(unpriced))$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_agent_usage_limits(unpriced)$max_total_tokens,
+    128000L
+  )
+
+  agent <- rill_reader_agent(
+    document = sample_rill_data()$documents[[1]],
+    reader_id = "reader-1",
+    session_id = "rill-session-1",
+    chat = unpriced
+  )
+  testthat::expect_null(agent$usage_limits$max_cost_usd)
+  testthat::expect_null(
+    rill_agent_run_limits(
+      rill_agent_effective_limits(agent, rill_agent_usage_limits())
+    )$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_agent_effective_limits(
+      simpleError("no agent"),
+      rill_agent_usage_limits()
+    )$max_cost_usd,
+    2
+  )
 })

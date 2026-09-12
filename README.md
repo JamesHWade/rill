@@ -68,12 +68,18 @@ The panel names the configured model provider that receives the Reader's
 question and the provider-safe projection of the selected Document.
 
 Set the model and the matching provider credential before launching Rill. The
-default uses ellmer's OpenAI provider:
+default is Meta's Muse Spark 1.3 Contributor through ellmer's OpenRouter
+provider, a low-cost tier whose providers may retain and train on prompts:
 
 ```text
-RILL_AGENT_MODEL=openai
-OPENAI_API_KEY=your-key
+RILL_AGENT_MODEL=openrouter/meta/muse-spark-1.3-contributor
+OPENROUTER_API_KEY=your-key
 ```
+
+Rill sends OpenRouter's `data_collection: allow` routing preference with each
+request, so keep that in mind when choosing what to ask. To use a provider that
+does not train on prompts, name any other model instead, for example
+`RILL_AGENT_MODEL=openai` with `OPENAI_API_KEY`.
 
 Any model specification supported by `ellmer::chat()` can be supplied through
 `RILL_AGENT_MODEL`. Ask Rill messages currently last for the Shiny session;
@@ -105,10 +111,9 @@ Automatic model use is off by default. To make maintained Orientation available
 in the app, configure the model provider and installation gate:
 
 ```text
-RILL_AGENT_MODEL=openai
-RILL_AGENT_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=your-key
-RILL_AGENT_POLICY_URL=https://provider.example/privacy
+RILL_AGENT_MODEL=openrouter/meta/muse-spark-1.3-contributor
+OPENROUTER_API_KEY=your-key
+RILL_AGENT_POLICY_URL=https://openrouter.ai/privacy
 RILL_ORIENTATION_ENABLED=true
 ```
 

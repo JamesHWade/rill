@@ -26,7 +26,7 @@ agent_interaction_prototype_head <- function() {
     shiny::tags$link(
       rel = "icon",
       type = "image/png",
-      href = "rill-assets/rill-duck.png"
+      href = "rill-assets/favicon-32.png"
     ),
     shiny::includeCSS(
       prototype_file("www", "prototype-agent-interaction.css")

@@ -700,3 +700,56 @@ testthat::test_that("compact submissions reject oversized wording and allow corr
     testthat::expect_identical(state$submission_attempts, 2L)
   }
 })
+
+testthat::test_that("Orientation limits keep the cost cap only when ellmer can price the model", {
+  withr::local_options(lifecycle_verbosity = "error")
+  priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
+  unpriced <- ellmer::chat_openrouter(
+    credentials = \() "test-key",
+    model = "meta/muse-spark-1.3-contributor"
+  )
+
+  testthat::expect_identical(
+    rill_orientation_usage_limits(priced)$max_cost_usd,
+    0.5
+  )
+  testthat::expect_null(rill_orientation_usage_limits(unpriced)$max_cost_usd)
+  testthat::expect_null(
+    rill_orientation_run_limits(
+      rill_orientation_usage_limits(unpriced)
+    )$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_orientation_usage_limits(unpriced)$max_total_tokens,
+    64000L
+  )
+})
+
+testthat::test_that("a quiet Orientation drops a placeholder question", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 3L)
+  boundary <- orientation_boundary(candidates)
+  quiet <- function(question) {
+    rill_orientation_from_output(
+      list(
+        status = "Nothing clears the threshold.",
+        question = question,
+        cards = list(),
+        themes = list()
+      ),
+      reader_id = "reader-1",
+      boundary = boundary,
+      candidates = candidates,
+      agent_run_id = "orientation-run-quiet"
+    )$question
+  }
+
+  testthat::expect_null(quiet("null"))
+  testthat::expect_null(quiet(" NULL "))
+  testthat::expect_null(quiet(""))
+  testthat::expect_null(quiet(NULL))
+  testthat::expect_identical(
+    quiet("What still deserves attention?"),
+    "What still deserves attention?"
+  )
+})

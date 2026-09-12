@@ -540,8 +540,14 @@ feedback_output_ui <- function(output) {
 }
 
 feedback_dialog <- function(target, existing = NULL, return_focus = NULL) {
-  modal <- shiny::modalDialog(
-    title = "Rate this Rill output",
+  title <- if (identical(target$snapshot$kind, "orientation")) {
+    "Rate this Orientation"
+  } else {
+    "Rate this response"
+  }
+  modal <- rill_modal_dialog(
+    title = title,
+    id = "rill-feedback-modal",
     size = "l",
     easyClose = TRUE,
     shiny::tags$p(
@@ -554,7 +560,6 @@ feedback_dialog <- function(target, existing = NULL, return_focus = NULL) {
       selected = existing$rating %||% character()
     ),
     shiny::tags$details(
-      open = NA,
       shiny::tags$summary("Review the exact output being rated"),
       shiny::tags$div(
         class = "feedback-output",

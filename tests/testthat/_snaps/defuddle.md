@@ -17,3 +17,4 @@
       Error in `run_defuddle_cli()`:
       ! The local Defuddle executable 'rill-defuddle-command-that-does-not-exist' was not found.
       i Install it with `npm install -g defuddle`, or set `DEFUDDLE_COMMAND`.
+
