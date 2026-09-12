@@ -1701,10 +1701,12 @@ testthat::test_that("a replacement session resumes a deferred question", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
-    data_destination_id = rill_agent_data_destination_details("openai")$id,
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
+    data_destination_id = rill_agent_data_destination_details(
+      rill_default_agent_model
+    )$id,
     question = "What changed?",
-    model = "openai",
+    model = rill_default_agent_model,
     policy_version = "ask-rill-v1",
     limits = rill_agent_run_limits()
   )
@@ -2110,8 +2112,10 @@ testthat::test_that("a replacement session polls a promoted partial response", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
-    data_destination_id = rill_agent_data_destination_details("openai")$id,
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
+    data_destination_id = rill_agent_data_destination_details(
+      rill_default_agent_model
+    )$id,
     question = "What changed?",
     model = config$agent_model,
     policy_version = "ask-rill-v1",
@@ -2274,7 +2278,7 @@ testthat::test_that("a deferred question rejects a changed destination", {
       kind = "selected_document",
       document_ids = document$document_id
     ),
-    data_destination = "OpenAI at api.openai.com",
+    data_destination = rill_agent_data_destination(rill_default_agent_model),
     data_destination_id = "agent-data-destination-old-endpoint",
     question = "What changed?",
     model = config$agent_model,
@@ -2610,13 +2614,16 @@ testthat::test_that("asking about a story runs Deputy through shinychat", {
     )
     testthat::expect_identical(
       run$pinned_inputs$data_destination,
-      "OpenAI at api.openai.com"
+      rill_agent_data_destination(rill_default_agent_model)
     )
     testthat::expect_identical(
       run$pinned_inputs$data_destination_id,
-      rill_agent_data_destination_details("openai")$id
+      rill_agent_data_destination_details(rill_default_agent_model)$id
     )
-    testthat::expect_identical(run$pinned_inputs$model, "openai")
+    testthat::expect_identical(
+      run$pinned_inputs$model,
+      rill_default_agent_model
+    )
     testthat::expect_identical(
       run$pinned_inputs$limits,
       rill_agent_run_limits()
@@ -3406,10 +3413,12 @@ testthat::test_that("a restarted question remains visible and retryable", {
         kind = "selected_document",
         document_ids = document$document_id
       ),
-      data_destination = "OpenAI at api.openai.com",
-      data_destination_id = rill_agent_data_destination_details("openai")$id,
+      data_destination = rill_agent_data_destination(rill_default_agent_model),
+      data_destination_id = rill_agent_data_destination_details(
+        rill_default_agent_model
+      )$id,
       question = "What changed?",
-      model = "openai",
+      model = rill_default_agent_model,
       policy_version = "ask-rill-v1",
       limits = rill_agent_run_limits()
     ),

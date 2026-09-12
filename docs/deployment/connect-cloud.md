@@ -72,9 +72,9 @@ AUTH0_CLIENT_ID=<Auth0 client ID>
 AUTH0_CLIENT_SECRET=<Auth0 client secret>
 AUTH0_REDIRECT_URI=https://rill.share.connect.posit.cloud/
 DATABASE_URL=<Neon pooled URL ending in sslmode=require>
-RILL_AGENT_MODEL=openai
-OPENAI_API_KEY=<dedicated project key>
-RILL_AGENT_POLICY_URL=https://platform.openai.com/docs/models/default-usage-policies-by-endpoint
+RILL_AGENT_MODEL=openrouter/meta/muse-spark-1.3-contributor
+OPENROUTER_API_KEY=<dedicated OpenRouter key>
+RILL_AGENT_POLICY_URL=https://openrouter.ai/privacy
 RILL_ORIENTATION_ENABLED=true
 DEFUDDLE_BACKEND=hosted
 ```

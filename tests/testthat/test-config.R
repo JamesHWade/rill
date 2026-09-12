@@ -44,7 +44,10 @@ testthat::test_that("configuration defaults to the bundled demo", {
   testthat::expect_identical(config$demo_mode, TRUE)
   testthat::expect_identical(config$defuddle_backend, "hosted")
   testthat::expect_identical(config$defuddle_command, "defuddle")
-  testthat::expect_identical(config$agent_model, "openai")
+  testthat::expect_identical(
+    config$agent_model,
+    "openrouter/meta/muse-spark-1.3-contributor"
+  )
   testthat::expect_identical(config$agent_base_url, "")
   testthat::expect_identical(config$agent_policy_url, "")
   testthat::expect_identical(config$capture_token, "")
@@ -291,7 +294,10 @@ testthat::test_that("a blank Agent model uses the default", {
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
   ))
 
-  testthat::expect_identical(rill_config()$agent_model, "openai")
+  testthat::expect_identical(
+    rill_config()$agent_model,
+    "openrouter/meta/muse-spark-1.3-contributor"
+  )
 })
 
 testthat::test_that("configuration reads provider endpoint overrides", {

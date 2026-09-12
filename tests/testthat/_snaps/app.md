@@ -15,3 +15,4 @@
       Error in `prepare_today()`:
       ! Can't prepare today's articles without a durable store.
       i Set `DATABASE_URL` to a PostgreSQL connection string.
+

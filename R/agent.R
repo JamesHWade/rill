@@ -100,6 +100,7 @@ rill_agent_base_url <- function(model, configured = "") {
     google_gemini = "https://generativelanguage.googleapis.com/v1beta",
     gemini = "https://generativelanguage.googleapis.com/v1beta",
     ollama = "http://localhost:11434",
+    openrouter = "https://openrouter.ai/api/v1",
     NA_character_
   )
 }
@@ -138,6 +139,7 @@ rill_agent_data_destination_details <- function(
     gemini = "Google Gemini",
     google_gemini = "Google Gemini",
     ollama = "Ollama",
+    openrouter = "OpenRouter",
     id
   )
   endpoint <- rill_agent_base_url(model, base_url)
@@ -183,17 +185,41 @@ rill_agent_data_destination <- function(model, base_url = "") {
 }
 
 rill_agent_chat <- function(model, base_url = "", echo = "none") {
+  provider <- rill_agent_provider(model)
   arguments <- list(name = model, echo = echo)
   configured <- trimws(base_url %||% "")
   if (nzchar(configured)) {
-    argument <- if (identical(rill_agent_provider(model), "azure_openai")) {
-      "endpoint"
+    endpoint <- rill_agent_base_url(model, configured)
+    if (identical(provider, "azure_openai")) {
+      arguments$endpoint <- endpoint
+    } else if (identical(provider, "openrouter")) {
+      if (!identical(endpoint, rill_agent_base_url(model))) {
+        cli::cli_abort(
+          paste(
+            "{.envvar RILL_AGENT_BASE_URL} cannot change the OpenRouter",
+            "endpoint; leave it unset for OpenRouter models."
+          ),
+          class = "rill_agent_url_invalid"
+        )
+      }
     } else {
-      "base_url"
+      arguments$base_url <- endpoint
     }
-    arguments[[argument]] <- rill_agent_base_url(model, configured)
   }
-  do.call(ellmer::chat, arguments)
+  if (identical(provider, "openrouter")) {
+    arguments$api_args <- rill_openrouter_api_args()
+  }
+  do.call(rill_ellmer_chat, arguments)
+}
+
+rill_ellmer_chat <- function(...) {
+  ellmer::chat(...)
+}
+
+# OpenRouter routes contributor-tier models only through providers that may
+# retain and train on prompts; state that data policy explicitly per request.
+rill_openrouter_api_args <- function() {
+  list(provider = list(data_collection = "allow"))
 }
 
 rill_document_tool <- function(document) {

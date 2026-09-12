@@ -1,5 +1,10 @@
 # Start from the repository root: Rscript scripts/browser/app.R
-Sys.unsetenv(c("DATABASE_URL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"))
+Sys.unsetenv(c(
+  "DATABASE_URL",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "ANTHROPIC_API_KEY"
+))
 Sys.setenv(RILL_IDENTITY_MODE = "local")
 pkgload::load_all(helpers = FALSE)
 config <- rill_config()
