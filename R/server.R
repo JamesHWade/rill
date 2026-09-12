@@ -1224,7 +1224,9 @@ rill_server <- function(
             question = question,
             model = runtime_identity$model,
             policy_version = "ask-rill-v1",
-            limits = rill_agent_run_limits()
+            limits = rill_agent_run_limits(
+              rill_agent_effective_limits(agent, rill_agent_usage_limits())
+            )
           )
         } else {
           NULL

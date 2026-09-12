@@ -302,13 +302,13 @@ rill_orientation_permissions <- function() {
   )
 }
 
-rill_orientation_usage_limits <- function() {
+rill_orientation_usage_limits <- function(chat = NULL) {
   deputy::UsageLimits(
     max_requests = 4L,
     max_tool_calls = 8L,
     max_total_tokens = 64000L,
     max_output_tokens = 4000L,
-    max_cost_usd = 0.5
+    max_cost_usd = rill_agent_cost_limit(chat, 0.5)
   )
 }
 
@@ -316,8 +316,9 @@ rill_orientation_wall_time_seconds <- function() {
   2 * 60
 }
 
-rill_orientation_run_limits <- function() {
-  limits <- rill_orientation_usage_limits()
+rill_orientation_run_limits <- function(
+  limits = rill_orientation_usage_limits()
+) {
   list(
     wall_time_seconds = rill_orientation_wall_time_seconds(),
     max_requests = limits$max_requests,
@@ -395,7 +396,7 @@ rill_orientation_agent <- function(
     ),
     system_prompt = rill_orientation_system_prompt(),
     permissions = rill_orientation_permissions(),
-    usage_limits = rill_orientation_usage_limits(),
+    usage_limits = rill_orientation_usage_limits(chat),
     working_dir = getwd(),
     session_id = session_id,
     agent_id = paste0(

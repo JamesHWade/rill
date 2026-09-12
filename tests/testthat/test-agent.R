@@ -417,3 +417,45 @@ testthat::test_that("OpenRouter chats state their data policy and keep a fixed e
   )
   testthat::expect_length(calls, 3L)
 })
+
+testthat::test_that("usage limits keep the cost cap only when ellmer can price the model", {
+  priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
+  unpriced <- ellmer::chat_openrouter(
+    credentials = \() "test-key",
+    model = "meta/muse-spark-1.3-contributor"
+  )
+
+  testthat::expect_identical(rill_agent_usage_limits(priced)$max_cost_usd, 2)
+  testthat::expect_null(rill_agent_usage_limits(unpriced)$max_cost_usd)
+  testthat::expect_identical(
+    rill_agent_run_limits(rill_agent_usage_limits(priced))$max_cost_usd,
+    2
+  )
+  testthat::expect_null(
+    rill_agent_run_limits(rill_agent_usage_limits(unpriced))$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_agent_usage_limits(unpriced)$max_total_tokens,
+    128000L
+  )
+
+  agent <- rill_reader_agent(
+    document = sample_rill_data()$documents[[1]],
+    reader_id = "reader-1",
+    session_id = "rill-session-1",
+    chat = unpriced
+  )
+  testthat::expect_null(agent$usage_limits$max_cost_usd)
+  testthat::expect_null(
+    rill_agent_run_limits(
+      rill_agent_effective_limits(agent, rill_agent_usage_limits())
+    )$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_agent_effective_limits(
+      simpleError("no agent"),
+      rill_agent_usage_limits()
+    )$max_cost_usd,
+    2
+  )
+})

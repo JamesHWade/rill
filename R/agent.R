@@ -286,22 +286,55 @@ rill_agent_permissions <- function() {
   )
 }
 
-rill_agent_usage_limits <- function() {
+rill_agent_usage_limits <- function(chat = NULL) {
   deputy::UsageLimits(
     max_requests = 8L,
     max_tool_calls = 16L,
     max_total_tokens = 128000L,
     max_output_tokens = 8000L,
-    max_cost_usd = 2
+    max_cost_usd = rill_agent_cost_limit(chat, 2)
   )
+}
+
+# Deputy stops a run as `cost_unavailable` when a cost cap is set but ellmer
+# cannot price the model (OpenRouter models outside ellmer's price table, for
+# example). Keep the cap whenever the price is known and otherwise rely on the
+# token caps, which still bound spending.
+rill_agent_cost_limit <- function(chat, max_cost_usd) {
+  if (is.null(chat) || rill_agent_cost_known(chat)) {
+    return(max_cost_usd)
+  }
+  NULL
+}
+
+rill_agent_cost_known <- function(chat) {
+  provider <- tryCatch(chat$get_provider(), error = \(error) NULL)
+  if (is.null(provider)) {
+    return(TRUE)
+  }
+  has_cost <- tryCatch(
+    utils::getFromNamespace("has_cost", "ellmer"),
+    error = \(error) NULL
+  )
+  if (!is.function(has_cost)) {
+    return(FALSE)
+  }
+  isTRUE(tryCatch(has_cost(provider, provider@model), error = \(error) FALSE))
+}
+
+rill_agent_effective_limits <- function(agent, default) {
+  if (is.null(agent) || inherits(agent, "error")) {
+    return(default)
+  }
+  limits <- tryCatch(agent$usage_limits, error = \(error) NULL)
+  if (inherits(limits, "UsageLimits")) limits else default
 }
 
 rill_agent_wall_time_seconds <- function() {
   5 * 60
 }
 
-rill_agent_run_limits <- function() {
-  limits <- rill_agent_usage_limits()
+rill_agent_run_limits <- function(limits = rill_agent_usage_limits()) {
   list(
     wall_time_seconds = rill_agent_wall_time_seconds(),
     max_requests = limits$max_requests,
@@ -502,7 +535,7 @@ rill_reader_agent <- function(
     tools = list(rill_document_tool(document)),
     system_prompt = rill_agent_system_prompt(),
     permissions = rill_agent_permissions(),
-    usage_limits = rill_agent_usage_limits(),
+    usage_limits = rill_agent_usage_limits(chat),
     working_dir = getwd(),
     session_id = session_id,
     agent_id = paste0(

@@ -700,3 +700,26 @@ testthat::test_that("compact submissions reject oversized wording and allow corr
     testthat::expect_identical(state$submission_attempts, 2L)
   }
 })
+
+testthat::test_that("Orientation limits keep the cost cap only when ellmer can price the model", {
+  priced <- ellmer::chat_openai(credentials = \() "test-key", model = "gpt-5.4")
+  unpriced <- ellmer::chat_openrouter(
+    credentials = \() "test-key",
+    model = "meta/muse-spark-1.3-contributor"
+  )
+
+  testthat::expect_identical(
+    rill_orientation_usage_limits(priced)$max_cost_usd,
+    0.5
+  )
+  testthat::expect_null(rill_orientation_usage_limits(unpriced)$max_cost_usd)
+  testthat::expect_null(
+    rill_orientation_run_limits(
+      rill_orientation_usage_limits(unpriced)
+    )$max_cost_usd
+  )
+  testthat::expect_identical(
+    rill_orientation_usage_limits(unpriced)$max_total_tokens,
+    64000L
+  )
+})
