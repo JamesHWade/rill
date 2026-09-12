@@ -456,12 +456,18 @@ testthat::test_that("preparation states make an explicit copy switch available",
       testthat::expect_match(html, 'id="use_prepared_article"', fixed = TRUE)
       testthat::expect_match(html, "Load full article", fixed = TRUE)
       testthat::expect_length(
-        xml2::xml_find_all(xml2::read_html(html), "//button[@disabled]"),
+        xml2::xml_find_all(
+          xml2::read_html(html),
+          '//button[@id="prepare_article" and @disabled]'
+        ),
         0L
       )
     } else {
       testthat::expect_length(
-        xml2::xml_find_all(xml2::read_html(html), "//button[@disabled]"),
+        xml2::xml_find_all(
+          xml2::read_html(html),
+          '//button[@id="prepare_article" and @disabled]'
+        ),
         1L
       )
       testthat::expect_no_match(html, 'id="use_prepared_article"', fixed = TRUE)
@@ -490,8 +496,8 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
   )$html
 
   testthat::expect_match(header_html, "bslib-toolbar", fixed = TRUE)
-  testthat::expect_match(header_html, "Stored reading copy", fixed = TRUE)
-  testthat::expect_match(header_html, "Prepared by rill", fixed = TRUE)
+  testthat::expect_match(header_html, "Reading copy", fixed = TRUE)
+  testthat::expect_match(header_html, "rill via sample", fixed = TRUE)
   testthat::expect_no_match(
     header_html,
     "provenance and limitations below",
@@ -506,22 +512,22 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
   testthat::expect_match(header_html, "rillOpenAskRill(this)", fixed = TRUE)
   testthat::expect_match(header_html, "Original", fixed = TRUE)
   testthat::expect_match(
-    document_html,
+    header_html,
     "About this reading copy",
     fixed = TRUE
   )
-  testthat::expect_match(document_html, "reading-provenance", fixed = TRUE)
+  testthat::expect_match(header_html, "reading-copy-metadata", fixed = TRUE)
   testthat::expect_match(
-    document_html,
+    header_html,
     "remains separate from Ask Rill",
     fixed = TRUE
   )
   testthat::expect_match(
-    document_html,
+    header_html,
     rill_document_limitations(document),
     fixed = TRUE
   )
-  testthat::expect_match(document_html, document$document_id, fixed = TRUE)
+  testthat::expect_match(header_html, document$document_id, fixed = TRUE)
   testthat::expect_match(
     context_html,
     "Grounded in this reading copy",
@@ -1139,5 +1145,76 @@ testthat::test_that("long inline Source Evidence stays a verbatim substring", {
   testthat::expect_identical(
     orientation_evidence_lead("First sentence. Second sentence."),
     "First sentence."
+  )
+})
+
+
+testthat::test_that("article actions stay compact while hidden actions remain available to hotkeys", {
+  data <- sample_rill_data()
+  entry <- as.list(data$entries[1, , drop = FALSE])
+  entry$library_access <- TRUE
+  entry$read_at <- "2026-09-11T12:00:00Z"
+  entry$saved <- TRUE
+  entry$starred <- TRUE
+  html <- htmltools::renderTags(reader_article_header_ui(
+    entry,
+    data$documents[[1]]
+  ))$html
+  dom <- xml2::read_html(html)
+  toolbar <- xml2::xml_find_all(dom, '//*[contains(@class, "article-actions")]')
+  testthat::expect_length(toolbar, 1L)
+  testthat::expect_length(
+    xml2::xml_find_all(dom, '//header//*[contains(@class, "article-actions")]'),
+    0L
+  )
+  testthat::expect_length(
+    xml2::xml_find_all(dom, '//*[contains(@class, "article-copy-status")]'),
+    0L
+  )
+  testthat::expect_length(xml2::xml_find_all(dom, "//button//button"), 0L)
+  menu <- xml2::xml_find_first(dom, '//*[@id="reader-action-menu"]')
+  for (id in c("mark_unread", "toggle_save", "toggle_star")) {
+    testthat::expect_length(
+      xml2::xml_find_all(menu, paste0('.//button[@id="', id, '"]')),
+      1L
+    )
+    testthat::expect_length(
+      xml2::xml_find_all(dom, paste0('//template//button[@id="', id, '"]')),
+      0L
+    )
+  }
+  for (id in c("toggle_save", "toggle_star")) {
+    button <- xml2::xml_find_first(menu, paste0('.//button[@id="', id, '"]'))
+    testthat::expect_identical(xml2::xml_attr(button, "aria-pressed"), "true")
+  }
+  for (id in c(
+    "reader_queue",
+    "reader_previous",
+    "reader_next",
+    "reader_ask",
+    "reader_focus",
+    "reader_more"
+  )) {
+    button <- xml2::xml_find_first(dom, paste0('//button[@id="', id, '"]'))
+    testthat::expect_match(
+      xml2::xml_attr(button, "class"),
+      "bslib-toolbar-input-button",
+      fixed = TRUE
+    )
+    label_id <- xml2::xml_attr(button, "aria-labelledby")
+    testthat::expect_gt(
+      nchar(xml2::xml_text(xml2::xml_find_first(
+        dom,
+        paste0('//*[@id="', label_id, '"]')
+      ))),
+      0L
+    )
+  }
+  testthat::expect_length(
+    xml2::xml_find_all(
+      dom,
+      '//header//*[contains(@class, "article-byline")]//bslib-popover'
+    ),
+    1L
   )
 })

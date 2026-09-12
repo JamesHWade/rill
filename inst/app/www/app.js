@@ -1523,6 +1523,21 @@
       dialogOwnedEscapeEvents.add(event);
       return;
     }
+    const copyDetails = document.querySelector(".reading-copy-popover.show");
+    if (copyDetails) {
+      copyDetails.querySelector('button[aria-label="Close"]')?.click();
+      document.querySelector(".article-copy-link")?.focus();
+      event.preventDefault();
+      return;
+    }
+    const articleMenu = document.querySelector(".article-menu.show");
+    if (articleMenu) {
+      const trigger = document.getElementById("reader_more");
+      window.bootstrap.Dropdown.getOrCreateInstance(trigger).hide();
+      trigger.focus();
+      event.preventDefault();
+      return;
+    }
 
     if (savedPaneLayout) {
       focusPane("restore");
@@ -1833,7 +1848,26 @@
     }, 400);
   }
 
+  window.rillToggleReadingQueue = function () {
+    if (compactReaderMode.matches) {
+      window.rillOpenQueue();
+      return;
+    }
+    if (savedPaneLayout) {
+      focusPane("restore");
+      setSidebarExpanded("story_sidebar", true);
+      return;
+    }
+    const layout = document.getElementById("story_sidebar")?.parentElement;
+    if (layout) setSidebarExpanded("story_sidebar", layout.classList.contains("sidebar-collapsed"));
+  };
+
   document.addEventListener("click", function(event) {
+    const toggle = event.target.closest("button[data-rill-reading-focus-toggle]");
+    if (toggle) {
+      focusPane(savedPaneLayout ? "restore" : "reading", toggle);
+      return;
+    }
     const button = event.target.closest("button[data-rill-pane-focus]");
     if (button) focusPane(button.dataset.rillPaneFocus, button);
   });
@@ -1922,6 +1956,12 @@
   }
 
   function syncAskRillControls() {
+    document.querySelectorAll('[data-rill-pane-focus="restore"]').forEach(button => {
+      button.disabled = !savedPaneLayout;
+    });
+    document.querySelectorAll("[data-rill-reading-focus-toggle]").forEach(button => {
+      button.setAttribute("aria-pressed", String(Boolean(savedPaneLayout)));
+    });
     const { layout, main, toggle } = readerAgentElements();
     if (!layout || !toggle) {
       askRillReadingTelemetryPaused = false;

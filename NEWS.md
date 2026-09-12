@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Article reading starts sooner with a compact toolbar, an overflow menu for secondary actions, and reading-copy details beside the byline; keyboard shortcuts and visible feed-excerpt warnings remain available.
+
 * `evaluate_reader_feedback()` turns retained Reader ratings into offline vitals evaluations and compares independent helpfulness judgments against those ratings; `reader_feedback_samples()` preserves output identity, reasons, and historical provenance for analysis (#93).
 
 * Orientation has a labeled button in the queue and article toolbar. Fresh visits no longer reopen the article from a completed answer; use Reopen last answer in the Library to return to that answer and its reading copy.

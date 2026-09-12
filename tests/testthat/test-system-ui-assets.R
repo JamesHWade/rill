@@ -82,6 +82,31 @@ testthat::test_that("browser time zone reporting preserves unavailable zones", {
   )
 })
 
+testthat::test_that("article disclosures own Escape before pane focus", {
+  node <- Sys.which("node")
+  testthat::skip_if(
+    !nzchar(node),
+    "Node.js is required for browser logic tests"
+  )
+  log <- withr::local_tempfile()
+
+  status <- system2(
+    node,
+    shQuote(c(
+      testthat::test_path("fixtures", "reader-toolbar.cjs"),
+      rill_package_file("app", "www", "app.js")
+    )),
+    stdout = log,
+    stderr = log
+  )
+
+  testthat::expect_identical(
+    status,
+    0L,
+    info = paste(readLines(log, warn = FALSE), collapse = "\n")
+  )
+})
+
 testthat::test_that("native Shiny feedback receives durable semantics", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
@@ -141,7 +166,7 @@ testthat::test_that("reading typography keeps titles and separators compact", {
 
   testthat::expect_match(
     styles,
-    "clamp(34px, 3.5vw, 50px)",
+    "clamp(34px, 3.5vw, 44px)",
     fixed = TRUE
   )
   testthat::expect_match(

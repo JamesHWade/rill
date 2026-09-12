@@ -2740,7 +2740,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "5a1af9cf604066c5a2de94daae832a09"
+      "checksum": "780ee1023085addd47fa44e3bb7e569e"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2761,7 +2761,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "14fd4f1979b25944a50a2281b0e71497"
+      "checksum": "3efc659fb28fb28e2d7a48ecbec0f2f8"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2881,7 +2881,7 @@
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "4260e79587733b95ebc2c461455a020e"
+      "checksum": "000ec53c334d2f79040ed588f1dce948"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

@@ -1005,6 +1005,7 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
 }
 
 .article-source {
+  margin: 0;
   margin: 0 0 3px;
   color: var(--green);
   font-size: 1.0625rem;
@@ -1704,25 +1705,98 @@ div.story-list.shiny-html-output {
 
 .article-header,
 .reader-document {
-  width: min(620px, calc(100% - 90px));
+  width: min(660px, calc(100% - 90px));
   margin-right: auto;
-  margin-left: 45px;
+  margin-left: auto;
 }
 
 .article-header {
-  padding: 45px 0 38px;
-  border-bottom: 1px solid var(--line);
+  padding: 24px 0 0;
 }
 
 .article-actions.bslib-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.reader-scroll:has(.article-header) > .reader-focus-controls {
+  display: none;
+}
+
+.article-actions .bslib-toolbar-input-button {
+  min-width: 36px;
+  min-height: 36px;
+  color: var(--reader-action);
+}
+
+.article-actions .bslib-toolbar-input-button:hover,
+.article-actions .bslib-toolbar-input-button:focus-visible,
+.article-actions .bslib-toolbar-input-button[aria-pressed="true"] {
+  color: var(--green-deep);
+  background: var(--green-soft);
+}
+
+.article-menu {
+  width: min(280px, calc(100vw - 24px));
+  padding: 8px;
+  color: var(--ink);
+  background: var(--paper);
+  border-color: var(--line);
+  box-shadow: var(--shadow);
+}
+
+.article-menu .reader-action,
+.article-menu .reader-focus-controls button {
+  width: 100%;
+  min-height: 36px;
+  text-align: left;
   justify-content: flex-start;
-  gap: 6px;
-  margin-bottom: 34px;
+}
+
+.article-menu .reader-focus-controls {
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+}
+
+.article-menu .shortcut-hint {
+  display: block;
+  margin: 8px 4px 4px;
+  white-space: normal;
+  line-height: 2;
+}
+
+.article-copy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0;
   border: 0;
   background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.article-copy-link:hover,
+.article-copy-link:focus-visible {
+  color: var(--green-deep);
+}
+
+.reading-copy-popover {
+  --bs-popover-max-width: min(420px, calc(100vw - 24px));
+}
+
+.reading-copy-popover .reading-copy-metadata {
+  overflow-wrap: anywhere;
 }
 
 .reader-action {
@@ -1788,9 +1862,9 @@ div.story-list.shiny-html-output {
 }
 
 .article-header h1 {
-  margin: 13px 0 18px;
+  margin: 12px 0 14px;
   font-family: var(--reading-font);
-  font-size: clamp(34px, 3.5vw, 50px);
+  font-size: clamp(34px, 3.5vw, 44px);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.13;
@@ -1871,7 +1945,7 @@ div.story-list.shiny-html-output {
 }
 
 .reader-document {
-  padding: 34px 0 80px;
+  padding: 24px 0 80px;
   color: var(--reader-copy);
   font-family: var(--reading-font);
   font-size: 1.125rem;
@@ -1886,8 +1960,8 @@ div.story-list.shiny-html-output {
   line-height: 1.2;
 }
 
-.reader-document > h2:first-child {
-  margin-top: 1em;
+.reader-document > :first-child {
+  margin-top: 0;
 }
 
 .reader-document :is(p, blockquote, ul, ol):has(+ hr) {
@@ -2963,12 +3037,30 @@ div.story-list.shiny-html-output {
 
   .article-header {
     padding-top: max(12px, env(safe-area-inset-top));
-    padding-bottom: 22px;
+    padding-bottom: 0;
   }
 
   .article-actions.bslib-toolbar {
-    gap: 7px;
-    margin-bottom: 22px;
+    gap: 2px;
+    margin-bottom: 0;
+    padding: 4px 8px;
+  }
+
+  .article-actions .bslib-toolbar-input-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .article-menu .reader-action {
+    min-height: 44px;
+  }
+
+  .article-actions #reader_focus_tooltip {
+    display: none;
+  }
+
+  .article-copy-link {
+    min-height: 32px;
   }
 
   .reader-action {
@@ -3294,4 +3386,27 @@ div.story-list.shiny-html-output {
 .story-list.queue-changing {
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* The article toolbar owns the Ask Rill entry point while reading. */
+.reader-pane > .bslib-sidebar-layout.sidebar-collapsed:has(.article-header) > .collapse-toggle {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.article-source .bi { margin-left: 5px; width: .8em; }
+.article-byline bslib-popover::before { content: "\00b7"; margin-right: 12px; color: var(--byline-dot); }
+
+@media (max-width: 767.98px) {
+  .reader-pane > .bslib-sidebar-layout.sidebar-collapsed:has(.article-header) {
+    grid-template-rows: 0 minmax(0, 1fr);
+  }
+
+  .reader-scroll:has(.article-header) {
+    max-height: 100dvh;
+  }
+
+  .article-menu .dropdown-divider:first-of-type {
+    display: none;
+  }
 }
