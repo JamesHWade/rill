@@ -59,7 +59,7 @@ Orientation and general Carry-forward outcomes are separate work.
 
 ## Run in demo mode
 
-You need a current R installation. From the project directory:
+You need R 4.3.0 or later. From the project directory:
 
 ```r
 source("scripts/bootstrap.R")

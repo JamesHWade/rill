@@ -9,7 +9,7 @@ Description: A deployable Shiny feed reader with local browser capture,
 URL: https://jameshwade.github.io/rill/
 License: MIT + file LICENSE
 Depends:
-    R (>= 4.1.0)
+    R (>= 4.3.0)
 Imports:
     brand.yml,
     bslib (>= 0.12.0),

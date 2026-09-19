@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Rill now requires R 4.3.0 or later, matching its Graft dependency (#104).
+
 * Opt-in Reader Memory preserves explicitly accepted preferences and source-anchored interpretations privately through Graft, with correction, Archive, restore, and exact decision checks before Ask Rill consultation (#104).
 
 * `evaluate_reader_feedback()` turns retained Reader ratings into offline vitals evaluations and compares independent helpfulness judgments against those ratings; `reader_feedback_samples()` preserves output identity, reasons, and historical provenance for analysis (#93).

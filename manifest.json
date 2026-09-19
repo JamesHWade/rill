@@ -11,7 +11,7 @@
   },
   "environment": {
     "r": {
-      "requires": ">= 4.1.0"
+      "requires": ">= 4.3.0"
     }
   },
   "packages": {
@@ -2776,7 +2776,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "c4450f6cb579489de1b7e723b8cb49f0"
+      "checksum": "9f891d3a8296e577e2e1a01d6db25e04"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
