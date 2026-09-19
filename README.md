@@ -41,7 +41,8 @@ own package.
 
 Set `RILL_READER_MEMORY_ENABLED=true` to enable the opt-in Reader Memory button.
 Review a preference or an interpretation, then choose **Accept as Reader Memory**.
-An interpretation requires an exact passage from the selected reading copy.
+A new interpretation requires an exact passage from the selected reading copy.
+Revisions retain their original reading copy, named in the approval preview.
 Typing, reviewing, and ordinary conversation do not accept memory.
 
 Accepted memories are private Reader Context. Ask Rill can consult the exact

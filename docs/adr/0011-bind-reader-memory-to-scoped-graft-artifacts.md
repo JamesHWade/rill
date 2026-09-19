@@ -50,6 +50,9 @@ this display limit never excludes accepted memory from consultation. Exact
 historical records remain addressable internally. The provider-facing memory
 tool strips credentials, query parameters, and fragments from evidence URLs
 using the same projection as the Document tool; retained evidence stays exact.
+Ordinary interpretation revisions keep the retained Document even if a different
+reading copy is selected, and the approval preview names that source. A failed
+initial memory lookup creates no pinned run or empty fallback basis.
 
 ## Consequences
 

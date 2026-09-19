@@ -237,3 +237,127 @@ testthat::test_that("local and external memory changes visibly start a new conve
     testthat::expect_length(messages, 2L)
   })
 })
+
+testthat::test_that("revisions keep the retained interpretation source while another Document is selected", {
+  store <- local_orientation_backend_store("memory", "reader")
+  access <- reader_memory_access(store, "reader")
+  original_document <- capture_document(
+    store,
+    capture_test_payload(title = "Original reading copy"),
+    "reader"
+  )
+  another_document <- capture_document(
+    store,
+    capture_test_payload(
+      capture_id = "another-capture",
+      source_url = "https://example.com/another",
+      canonical_url = "https://example.com/another",
+      title = "Another reading copy"
+    ),
+    "reader"
+  )
+  another_document <- store_get_document_by_id(
+    store,
+    "reader",
+    another_document$document_id
+  )
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(
+      access,
+      "Original interpretation",
+      "interpretation",
+      original_document$document_id,
+      "Source-grounded text."
+    )
+  )
+  shiny::testServer(
+    reader_memory_server,
+    args = list(access = access, document = function() another_document),
+    {
+      session$setInputs(selected = saved$memory_id)
+      session$setInputs(
+        kind = "interpretation",
+        text = "Revised interpretation",
+        quote = "Source-grounded text."
+      )
+      session$setInputs(review = 1)
+      testthat::expect_identical(
+        pending()$anchor$document_id,
+        original_document$document_id
+      )
+      testthat::expect_match(
+        output$preview$html,
+        "Original reading copy",
+        fixed = TRUE
+      )
+      session$setInputs(accept = 1)
+      revised <- reader_memory_read(access, saved$memory_id)
+      testthat::expect_identical(revised$text, "Revised interpretation")
+      testthat::expect_identical(
+        revised$evidence[[1L]]$document_id,
+        original_document$document_id
+      )
+      testthat::expect_identical(
+        reader_memory_read(access, saved$memory_id, saved$decision$id)$text,
+        "Original interpretation"
+      )
+    }
+  )
+})
+
+testthat::test_that("memory lookup failures cannot create an empty pinned run", {
+  withr::local_envvar(
+    DATABASE_URL = "",
+    RILL_IDENTITY_MODE = "local",
+    RILL_READER_MEMORY_ENABLED = "true"
+  )
+  config <- rill_config()
+  store <- rill_store(config)
+  access <- reader_memory_access(store, config$actor_id)
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(access, "Retain this context")
+  )
+  basis <- list(reader_memory_read(access, saved$memory_id)$basis)
+  read_memories <- reader_memory_list
+  unavailable <- TRUE
+  recover <- function() unavailable <<- FALSE
+  constructions <- 0L
+  testthat::local_mocked_bindings(
+    reader_memory_list = function(...) {
+      if (unavailable) {
+        reader_memory_abort("Temporary lookup failure")
+      }
+      read_memories(...)
+    },
+    rill_reader_agent = function(...) {
+      constructions <<- constructions + 1L
+      cli::cli_abort("Synthetic setup failure", class = "test_setup_failure")
+    },
+    append_reader_chat = function(...) invisible(NULL)
+  )
+  shiny::testServer(rill_server(config, store), {
+    doc <- sample_rill_data()$documents[[1L]]
+    testthat::expect_error(
+      run_reader_question("Question", doc, request_key = "memory-recovery"),
+      class = "rill_memory_unavailable"
+    )
+    testthat::expect_identical(constructions, 0L)
+    testthat::expect_null(store_get_agent_run_by_request_key(
+      store,
+      config$actor_id,
+      "memory-recovery"
+    ))
+    recover()
+    run_reader_question("Question", doc, request_key = "memory-recovery")
+    run <- store_get_agent_run_by_request_key(
+      store,
+      config$actor_id,
+      "memory-recovery"
+    )
+    testthat::expect_identical(run$pinned_inputs$reader_memory, basis)
+    testthat::expect_identical(run$status, "failed")
+    testthat::expect_identical(constructions, 1L)
+  })
+})

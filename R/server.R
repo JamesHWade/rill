@@ -1237,22 +1237,21 @@ rill_server <- function(
           class = "rill_agent_memory_mode_changed"
         )
       }
-      memory_basis <- NULL
+      memory_basis <- if (!is.null(memory_access)) {
+        if (!is.null(preserved_inputs)) {
+          preserved_inputs$reader_memory %||% list()
+        } else {
+          lapply(
+            reader_memory_list(memory_access, consult = TRUE),
+            `[[`,
+            "basis"
+          )
+        }
+      } else {
+        NULL
+      }
       agent <- tryCatch(
-        {
-          if (!is.null(memory_access)) {
-            memory_basis <- if (!is.null(preserved_inputs)) {
-              preserved_inputs$reader_memory %||% list()
-            } else {
-              lapply(
-                reader_memory_list(memory_access, consult = TRUE),
-                `[[`,
-                "basis"
-              )
-            }
-          }
-          reader_agent_for(document, memory_basis)
-        },
+        reader_agent_for(document, memory_basis),
         error = \(error) error
       )
       configured_destination <- rill_agent_data_destination_details(
@@ -1316,7 +1315,7 @@ rill_server <- function(
           is.null(preserved_inputs) &&
           !is.null(pinned_inputs)
       ) {
-        pinned_inputs$reader_memory <- memory_basis %||% list()
+        pinned_inputs$reader_memory <- memory_basis
       }
       run <- tryCatch(
         store_start_prioritized_reader_question(

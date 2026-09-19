@@ -76,7 +76,7 @@ reader_memory_server <- function(
           sprintf("input['%s'] === 'interpretation'", session$ns("kind")),
           shiny::textAreaInput(
             session$ns("quote"),
-            "Exact passage from the selected reading copy",
+            "Exact passage from the reading copy",
             rows = 3
           ),
           shiny::tags$p(
@@ -128,8 +128,16 @@ reader_memory_server <- function(
       pending(NULL)
       status(NULL)
       proposal <- handle(function() {
-        source <- if (identical(input$kind, "interpretation")) {
-          document()
+        source_id <- if (identical(input$kind, "interpretation")) {
+          retained <- shown()
+          if (nzchar(input$selected %||% "") && is.null(retained)) {
+            reader_memory_abort()
+          }
+          if (length(retained$evidence)) {
+            retained$evidence[[1L]]$document_id
+          } else {
+            document()$document_id
+          }
         } else {
           NULL
         }
@@ -137,7 +145,7 @@ reader_memory_server <- function(
           access,
           input$text,
           input$kind,
-          document_id = source$document_id,
+          document_id = source_id,
           quote = if (identical(input$kind, "interpretation")) {
             input$quote
           } else {
@@ -161,7 +169,10 @@ reader_memory_server <- function(
         shiny::tags$h4("Review before accepting"),
         shiny::tags$p(proposal$text),
         if (!is.null(proposal$anchor)) {
-          shiny::tags$blockquote(proposal$anchor$quote)
+          shiny::tagList(
+            shiny::tags$p(proposal$anchor$title),
+            shiny::tags$blockquote(proposal$anchor$quote)
+          )
         },
         shiny::tags$p(
           "This may be used as Reader Context in later conversations."
