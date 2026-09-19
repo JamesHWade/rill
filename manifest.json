@@ -2770,7 +2770,7 @@
       "checksum": "b38630ea116d02ff1c8e90bd7437eb56"
     },
     ".Rbuildignore": {
-      "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
+      "checksum": "30d0992a179a0c1b7fe290c14fff52d4"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
@@ -2851,7 +2851,7 @@
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "9fd39ef4cfa09232c25e9a32222feadd"
+      "checksum": "4dc1b98416a77f48ec7b1a5f786d2f95"
     },
     "R/agent.R": {
       "checksum": "0663f98cdea4edef40e6a52a26656997"
@@ -2947,7 +2947,7 @@
       "checksum": "b333adaebf2bc742c626b05483909f6f"
     },
     "R/reader-memory.R": {
-      "checksum": "f531bba9853c5d5182bad111a7026647"
+      "checksum": "bbaadbc4f8d322814493cdd7b5486739"
     }
   },
   "users": null

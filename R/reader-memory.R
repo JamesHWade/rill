@@ -415,7 +415,12 @@ reader_memory_consult <- function(access, basis) {
         x$decision,
         consult = TRUE
       )
-      if (!identical(result$basis, x)) {
+      if (
+        !identical(
+          canonicalize_json_value(result$basis),
+          canonicalize_json_value(x)
+        )
+      ) {
         reader_memory_abort()
       }
       result
