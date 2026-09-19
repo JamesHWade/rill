@@ -1417,7 +1417,9 @@ agent_run_from_row <- function(row) {
     status = value("status"),
     pinned_inputs = jsonlite::fromJSON(
       as.character(value("pinned_inputs")),
-      simplifyVector = TRUE
+      simplifyVector = TRUE,
+      simplifyDataFrame = FALSE,
+      simplifyMatrix = FALSE
     ),
     requested_at = value("requested_at")
   )

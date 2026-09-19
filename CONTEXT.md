@@ -205,3 +205,14 @@ _Avoid_: Forget, hide
 **Forget**:
 A Reader's choice to permanently remove Reader Memory and its derived copies.
 _Avoid_: Archive, hide
+
+## Implemented Reader Memory boundary
+
+The opt-in Reader Memory pilot retains explicitly accepted preferences and
+source-anchored interpretations as Graft artifacts, selections, and decisions.
+Rill owns Reader identity, Document access, the acceptance UI, and eligibility.
+The agent has a read-only tool bound to one authenticated Reader and exact
+accepted decisions; no tool argument can choose a Reader or grant approval.
+Corrections preserve history, and Archive excludes a record from automatic use.
+PostgreSQL persistence commits Graft objects and Rill's receipt together.
+Permanent Forget and restored-backup admission remain a rollout gate.

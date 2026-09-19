@@ -180,6 +180,7 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
   DBI::dbExecute(store$pool, "DROP TABLE reader_admission_requests")
   DBI::dbExecute(store$pool, "DROP TABLE reader_external_identities")
   DBI::dbExecute(store$pool, "DROP TABLE reader_feedback")
+  DBI::dbExecute(store$pool, "DROP TABLE reader_memory_index")
   DBI::dbExecute(store$pool, "DROP TABLE readers CASCADE")
   DBI::dbExecute(
     store$pool,
@@ -246,7 +247,8 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
       "012_article_preparation",
       "013_feed_groups",
       "014_reader_feedback",
-      "015_entry_previews"
+      "015_entry_previews",
+      "016_reader_memory"
     )
   )
   testthat::expect_match(migrations$checksum, "^[0-9a-f]{64}$")
@@ -933,4 +935,69 @@ testthat::test_that("PostgreSQL migrates and persists Agent Runs", {
     store_apply_schema(store),
     class = "rill_schema_newer"
   )
+})
+
+testthat::test_that("persisted runs retain exact lists of Reader Memory bases", {
+  for (count in 0:2) {
+    store <- local_orientation_backend_store("postgres", "reader")
+    access <- reader_memory_access(store, "reader")
+    records <- lapply(seq_len(count), function(index) {
+      saved <- reader_memory_accept(
+        access,
+        reader_memory_propose(access, paste("Preference", index))
+      )
+      reader_memory_read(access, saved$memory_id)
+    })
+    basis <- lapply(records, `[[`, "basis")
+    pinned <- list(question = "Use accepted context", reader_memory = basis)
+    run <- store_start_agent_run(
+      store,
+      "reader",
+      "question",
+      "original",
+      pinned
+    )
+    reopened <- store_get_agent_run(store, "reader", run$run_id)
+    testthat::expect_type(reopened$pinned_inputs$reader_memory, "list")
+    testthat::expect_identical(
+      reader_memory_consult(access, reopened$pinned_inputs$reader_memory),
+      records
+    )
+    deferred <- store_save_deferred_reader_question(
+      store,
+      "reader",
+      "deferred",
+      pinned
+    )
+    testthat::expect_identical(
+      reader_memory_consult(access, deferred$pinned_inputs$reader_memory),
+      records
+    )
+    store_claim_agent_run(
+      store,
+      "reader",
+      run$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 60
+    )
+    store_finish_agent_run(store, "reader", run$run_id, "worker", "failed")
+    retried <- store_retry_agent_run(store, "reader", run$run_id, "retry")
+    testthat::expect_identical(
+      reader_memory_consult(access, retried$pinned_inputs$reader_memory),
+      records
+    )
+    if (count) {
+      current <- records[[1L]]
+      reader_memory_archive(
+        access,
+        current$memory_id,
+        current$basis$decision,
+        "archive-after-reload"
+      )
+      testthat::expect_error(
+        reader_memory_consult(access, retried$pinned_inputs$reader_memory),
+        class = "graft_artifact_error"
+      )
+    }
+  }
 })

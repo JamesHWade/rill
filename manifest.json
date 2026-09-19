@@ -11,7 +11,7 @@
   },
   "environment": {
     "r": {
-      "requires": ">= 4.1.0"
+      "requires": ">= 4.3.0"
     }
   },
   "packages": {
@@ -1082,6 +1082,48 @@
         "RemoteRepos": "https://cloud.r-project.org",
         "RemotePkgPlatform": "aarch64-apple-darwin23",
         "RemoteSha": "1.8.1"
+      }
+    },
+    "graft": {
+      "Source": "github",
+      "Repository": null,
+      "description": {
+        "Package": "graft",
+        "Title": "Persistent Artifacts and Shared Vocabulary",
+        "Version": "0.0.0.9000",
+        "Authors@R": "\n    person(\"James\", role = c(\"aut\", \"cre\"), email = \"github@jameshwade.com\")",
+        "Description": "Retains exact immutable artifacts, dependency selections, and\n    explicit host acceptance and withdrawal decisions across R workflows.\n    Publishes shared concepts and relationships bound to pinned data-dict\n    dictionaries. Applications own scientific validation, access policy,\n    execution, and decisions about when retained evidence may be reused.",
+        "License": "MIT + file LICENSE",
+        "Encoding": "UTF-8",
+        "Roxygen": "list(markdown = TRUE)",
+        "Depends": "R (>= 4.3.0)",
+        "Imports": "digest, jsonlite, rlang",
+        "Suggests": "DBI, RPostgres, callr, commonmark, commons, datadict, knitr,\npkgload, rmarkdown, testthat (>= 3.0.0), withr",
+        "Config/testthat/edition": "3",
+        "Config/testthat/parallel": "true",
+        "Config/roxygen2/version": "8.1.0",
+        "Config/Needs/check": "posit-dev/commons/pkg-r@726a2ed459c2b7c7aebc29539895f04873276b4f,\ndatadict=tidyverse/data-dict/r@0161d460b6eb70d337028f8eddbf2f443bcb8f67",
+        "Config/Needs/coverage": "posit-dev/commons/pkg-r@726a2ed459c2b7c7aebc29539895f04873276b4f,\ndatadict=tidyverse/data-dict/r@0161d460b6eb70d337028f8eddbf2f443bcb8f67",
+        "Config/Needs/website": "brand.yml,\nposit-dev/commons/pkg-r@726a2ed459c2b7c7aebc29539895f04873276b4f,\ndatadict=tidyverse/data-dict/r@0161d460b6eb70d337028f8eddbf2f443bcb8f67",
+        "URL": "https://jameshwade.github.io/graft/,\nhttps://github.com/JamesHWade/graft",
+        "VignetteBuilder": "knitr",
+        "BugReports": "https://github.com/JamesHWade/graft/issues",
+        "RemoteType": "github",
+        "RemoteHost": "api.github.com",
+        "RemoteRepo": "graft",
+        "RemoteUsername": "JamesHWade",
+        "RemotePkgRef": "JamesHWade/graft@0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "RemoteRef": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "RemoteSha": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "GithubRepo": "graft",
+        "GithubUsername": "JamesHWade",
+        "GithubRef": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "GithubSHA1": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "NeedsCompilation": "no",
+        "Packaged": "2026-09-19 15:15:03 UTC; james",
+        "Author": "James [aut, cre]",
+        "Maintainer": "James <github@jameshwade.com>",
+        "Built": "R 4.6.1; ; 2026-09-19 15:15:04 UTC; unix"
       }
     },
     "hms": {
@@ -2734,7 +2776,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "3efd3d8409374fb13a68f9d9b2b114ba"
+      "checksum": "9f891d3a8296e577e2e1a01d6db25e04"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
@@ -2809,10 +2851,10 @@
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "9fd39ef4cfa09232c25e9a32222feadd"
+      "checksum": "4dc1b98416a77f48ec7b1a5f786d2f95"
     },
     "R/agent.R": {
-      "checksum": "5dc5b510d626254c0ae3a6164868625c"
+      "checksum": "0663f98cdea4edef40e6a52a26656997"
     },
     "R/app.R": {
       "checksum": "d92126e1dd4186d0be593c71948b8062"
@@ -2824,7 +2866,7 @@
       "checksum": "abcb82a29dd76278aefe85555c4f369a"
     },
     "R/config.R": {
-      "checksum": "0f591a8efb231e79d1c9c70ba46dbe43"
+      "checksum": "5206d42437e61cd3f411f870321d5871"
     },
     "R/db.R": {
       "checksum": "774b02c3744941ede23a737878ded331"
@@ -2842,7 +2884,7 @@
       "checksum": "777ff77b7c0e782845c773132d6347b9"
     },
     "R/identity.R": {
-      "checksum": "cb1fedd9d9854824c7492804f109d314"
+      "checksum": "e64c8edd29d09c44f4a256cf598867e2"
     },
     "R/opml.R": {
       "checksum": "2673ec178d6be92fa608f505aa42648e"
@@ -2875,13 +2917,13 @@
       "checksum": "485e4e9572826ea422dc2fab162a1d62"
     },
     "R/server.R": {
-      "checksum": "a1e8f63505d43a09e8cc621f86578380"
+      "checksum": "1129c8f61c07f17d327b3668b2c6b9c6"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "4260e79587733b95ebc2c461455a020e"
+      "checksum": "140f7542dfd8a23881eb695d09f77578"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2897,6 +2939,15 @@
     },
     "R/queue-render.R": {
       "checksum": "f729d02a98a725e26b9cf099cc61a537"
+    },
+    "inst/sql/016_reader_memory.sql": {
+      "checksum": "a135500a8f41ab57343a55c41d77f428"
+    },
+    "R/reader-memory-ui.R": {
+      "checksum": "3a9e2f798108cf7221d490199215ef7b"
+    },
+    "R/reader-memory.R": {
+      "checksum": "003df1e835aac9bc22d930b611d600d5"
     }
   },
   "users": null

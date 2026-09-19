@@ -37,9 +37,30 @@ Subscription lists. Feed parsing, storage, telemetry, and UI helpers remain
 internal. Defuddle remains behind a narrow adapter rather than becoming its
 own package.
 
+## Reader Memory pilot
+
+Set `RILL_READER_MEMORY_ENABLED=true` to enable the opt-in Reader Memory button.
+Review a preference or an interpretation, then choose **Accept as Reader Memory**.
+A new interpretation requires an exact passage from the selected reading copy.
+Revisions retain their original reading copy, named in the approval preview.
+Typing, reviewing, and ordinary conversation do not accept memory.
+
+Accepted memories are private Reader Context. Ask Rill can consult the exact
+accepted decision; corrections or Archive make an older consultation fail.
+Preferences are not source claims, and an interpretation's passage anchors what
+was read without proving the interpretation. The dialog lists the most recent
+100 records and supports inspection, correction, Archive, and restore.
+
+PostgreSQL retains accepted content, decisions, and the Reading History receipt
+in one transaction. The demo keeps temporary memory only while the app runs.
+Memory is disabled by default: permanent Forget and backup-restore admission
+remain the rollout gate tracked in [Graft #48](https://github.com/JamesHWade/graft/issues/48).
+Archive preserves history and is not deletion. This pilot covers Ask Rill;
+Orientation and general Carry-forward outcomes are separate work.
+
 ## Run in demo mode
 
-You need a current R installation. From the project directory:
+You need R 4.3.0 or later. From the project directory:
 
 ```r
 source("scripts/bootstrap.R")
@@ -60,12 +81,15 @@ On desktop, press `J` or `K` to move to the next or previous visible story, `O` 
 ## Ask Rill about a story
 
 Select a story and use the **Ask Rill** panel without leaving the reading
-surface. Rill creates a session-scoped Deputy Agent with one read-only tool: it
-can retrieve the selected immutable Document and its provenance, but it cannot
-browse the web, read or write files, run a shell, or execute R code. Answers are
+surface. Rill creates a session-scoped Deputy Agent with a read-only Document tool.
+The opt-in Reader Memory pilot adds a second read-only tool for exact accepted
+context. The agent cannot browse the web, read or write files, run a shell, or
+execute R code. Answers are
 prompted to distinguish source evidence, interpretation, and unsupported gaps.
 The panel names the configured model provider that receives the Reader's
-question and the provider-safe projection of the selected Document.
+question and the provider-safe projection of the selected Document. When Memory
+is enabled, accepted preferences and interpretations, including retained source
+passages, can also be sent to that provider.
 
 Set the model and the matching provider credential before launching Rill. The
 default uses ellmer's OpenAI provider:

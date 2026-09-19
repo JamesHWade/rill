@@ -181,8 +181,19 @@ rill_server <- function(
     status_text <- shiny::reactiveVal(NULL)
     status_kind <- shiny::reactiveVal("info")
     preparation_failures <- shiny::reactiveVal(list())
+    memory_access <- if (isTRUE(config$reader_memory_enabled)) {
+      authorize <- session$userData$rill_reader_authorize
+      if (is.null(authorize) && identical(config$identity_mode, "local")) {
+        authorize <- function() TRUE
+      }
+      reader_memory_access(store, actor_id, authorize)
+    } else {
+      NULL
+    }
     reader_agent <- shiny::reactiveVal(NULL)
     reader_agent_document_id <- shiny::reactiveVal(NULL)
+    reader_agent_memory_basis <- shiny::reactiveVal(NULL)
+    reader_memory_context_notice <- shiny::reactiveVal(FALSE)
     active_agent_run <- shiny::reactiveVal(NULL)
     feedback_controller <- reader_feedback_server(
       store,
@@ -1111,14 +1122,41 @@ rill_server <- function(
       reader_agent(NULL)
       reader_agent_document_id(NULL)
       active_agent_run(NULL)
+      reader_memory_context_notice(FALSE)
       clear_reader_chat(session)
     }
 
-    reader_agent_for <- function(document) {
+    invalidate_reader_memory_context <- function() {
+      had_agent <- !is.null(reader_agent())
+      reader_agent(NULL)
+      reader_agent_document_id(NULL)
+      reader_agent_memory_basis(NULL)
+      if (had_agent) {
+        reader_memory_context_notice(TRUE)
+        shiny::showNotification(
+          "Reader Memory changed. This starts a new conversation.",
+          type = "message"
+        )
+      }
+      invisible(NULL)
+    }
+
+    reader_agent_for <- function(document, memory_basis = NULL) {
+      if (!is.null(memory_access)) {
+        memory_basis <- canonicalize_json_value(memory_basis %||% list())
+        reader_memory_consult(memory_access, memory_basis)
+      }
       agent <- reader_agent()
       if (
+        !is.null(agent) && !identical(reader_agent_memory_basis(), memory_basis)
+      ) {
+        invalidate_reader_memory_context()
+        agent <- NULL
+      }
+      if (
         is.null(agent) ||
-          !identical(reader_agent_document_id(), document$document_id)
+          !identical(reader_agent_document_id(), document$document_id) ||
+          !identical(reader_agent_memory_basis(), memory_basis)
       ) {
         agent <- rill_reader_agent(
           document = document,
@@ -1126,10 +1164,25 @@ rill_server <- function(
           session_id = session_id,
           model = config$agent_model,
           base_url = config$agent_base_url %||% "",
-          on_stop = finish_agent_run
+          on_stop = finish_agent_run,
+          memory_access = memory_access,
+          memory_basis = memory_basis
         )
         reader_agent(agent)
         reader_agent_document_id(document$document_id)
+        reader_agent_memory_basis(memory_basis)
+        if (reader_memory_context_notice()) {
+          append_reader_chat(
+            paste0(
+              "**New conversation for this question**\n\n",
+              "Reader Memory changed. This question starts a new conversation ",
+              "using the current memory. Earlier messages remain here for ",
+              "reference and are not passed to the new conversation."
+            ),
+            session
+          )
+          reader_memory_context_notice(FALSE)
+        }
       }
       agent
     }
@@ -1168,8 +1221,38 @@ rill_server <- function(
           request_token = request_token
         )
       run_id <- rill_id("agent-run", actor_id, request_key)
+      preserved_inputs <- pinned_inputs %||% retry_of$pinned_inputs %||% NULL
+      if (
+        !is.null(preserved_inputs) &&
+          !identical(
+            "reader_memory" %in% names(preserved_inputs),
+            !is.null(memory_access)
+          )
+      ) {
+        store_delete_deferred_reader_question(store, actor_id, request_key)
+        cli::cli_abort(
+          c(
+            "Reader Memory settings changed before Rill could answer.",
+            "i" = "Ask a new question to use the current memory setting."
+          ),
+          class = "rill_agent_memory_mode_changed"
+        )
+      }
+      memory_basis <- if (!is.null(memory_access)) {
+        if (!is.null(preserved_inputs)) {
+          preserved_inputs$reader_memory %||% list()
+        } else {
+          lapply(
+            reader_memory_list(memory_access, consult = TRUE),
+            `[[`,
+            "basis"
+          )
+        }
+      } else {
+        NULL
+      }
       agent <- tryCatch(
-        reader_agent_for(document),
+        reader_agent_for(document, memory_basis),
         error = \(error) error
       )
       configured_destination <- rill_agent_data_destination_details(
@@ -1190,7 +1273,6 @@ rill_server <- function(
           configured_destination_id = configured_destination$id
         )
       }
-      preserved_inputs <- pinned_inputs %||% retry_of$pinned_inputs %||% NULL
       identity_error <- tryCatch(
         {
           rill_assert_question_runtime_identity(
@@ -1229,6 +1311,13 @@ rill_server <- function(
         } else {
           NULL
         }
+      if (
+        !is.null(memory_access) &&
+          is.null(preserved_inputs) &&
+          !is.null(pinned_inputs)
+      ) {
+        pinned_inputs$reader_memory <- memory_basis
+      }
       run <- tryCatch(
         store_start_prioritized_reader_question(
           store,
@@ -2261,6 +2350,16 @@ rill_server <- function(
       cached_reading_copy <<- document
       document
     })
+
+    if (!is.null(memory_access)) {
+      reader_memory_server(
+        "memory",
+        memory_access,
+        selected_document,
+        changed = invalidate_reader_memory_context,
+        demo = config$demo_mode
+      )
+    }
 
     article_preparer <- article_preparation_controller(
       store,

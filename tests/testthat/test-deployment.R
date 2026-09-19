@@ -184,15 +184,27 @@ testthat::test_that("the Connect Cloud manifest uses its supported R runtime", {
     "github"
   )
 
+  testthat::expect_identical(
+    remotes[grepl("^JamesHWade/graft@", remotes)],
+    paste0("JamesHWade/graft@", manifest$packages$graft$description$RemoteSha)
+  )
+  testthat::expect_contains(
+    names(manifest$files),
+    c(
+      "R/reader-memory.R",
+      "R/reader-memory-ui.R",
+      "inst/sql/016_reader_memory.sql"
+    )
+  )
   testthat::expect_identical(manifest$platform, "4.6.0")
   testthat::expect_contains(
     names(manifest$packages),
-    c("deputy", "shinyOAuth")
+    c("deputy", "graft", "shinyOAuth")
   )
   testthat::expect_contains(names(manifest$files), "app.R")
   testthat::expect_contains(names(manifest$files), "R/identity.R")
   testthat::expect_contains(names(manifest$files), "R/access-requests.R")
-  source_files <- setdiff(names(manifest$files), ".Rbuildignore")
+  source_files <- names(manifest$files)
   source_paths <- file.path(dirname(manifest_path), source_files)
   source_files <- source_files[file.exists(source_paths)]
   source_paths <- source_paths[file.exists(source_paths)]
