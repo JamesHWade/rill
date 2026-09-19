@@ -336,3 +336,42 @@ testthat::test_that("Deputy gets only bound read-only memory context", {
     fixed = TRUE
   )
 })
+
+
+testthat::test_that("the dialog limit does not exclude accepted memory from consultation", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    access <- reader_memory_access(store, "reader")
+    accepted <- lapply(seq_len(101L), function(i) {
+      reader_memory_accept(
+        access,
+        reader_memory_propose(access, paste("Accepted preference", i))
+      )
+    })
+    oldest <- accepted[[1L]]
+    displayed <- reader_memory_list(access)
+    testthat::expect_length(displayed, 100L)
+    testthat::expect_setequal(
+      vapply(displayed, `[[`, "", "memory_id"),
+      vapply(accepted[-1L], `[[`, "", "memory_id")
+    )
+    eligible <- reader_memory_list(access, consult = TRUE)
+    testthat::expect_length(eligible, 101L)
+    testthat::expect_setequal(
+      vapply(eligible, `[[`, "", "memory_id"),
+      vapply(accepted, `[[`, "", "memory_id")
+    )
+    reader_memory_archive(
+      access,
+      oldest$memory_id,
+      oldest$decision$id,
+      "archive-oldest"
+    )
+    eligible <- reader_memory_list(access, consult = TRUE)
+    testthat::expect_length(eligible, 100L)
+    testthat::expect_setequal(
+      vapply(eligible, `[[`, "", "memory_id"),
+      vapply(accepted[-1L], `[[`, "", "memory_id")
+    )
+  }
+})

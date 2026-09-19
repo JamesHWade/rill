@@ -46,7 +46,8 @@ conversation boundary; earlier displayed messages are not passed to the new
 agent.
 An already delivered answer is historical output; Archive cannot retract model
 context that was already consumed. The dialog lists the latest 100 memories;
-exact historical records remain addressable internally.
+this display limit never excludes accepted memory from consultation. Exact
+historical records remain addressable internally.
 
 ## Consequences
 

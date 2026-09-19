@@ -64,20 +64,22 @@ reader_memory_access <- function(
   }
 }
 
-reader_memory_ids <- function(store, reader_id) {
+reader_memory_ids <- function(store, reader_id, limit = 100L) {
   if (identical(store$mode, "postgres")) {
     return(
       DBI::dbGetQuery(
         store$pool,
         paste(
           "SELECT memory_id FROM reader_memory_index WHERE reader_id = $1",
-          "ORDER BY created_at DESC, memory_id LIMIT 100"
+          "ORDER BY created_at DESC, memory_id",
+          if (!is.null(limit)) "LIMIT $2" else ""
         ),
-        params = list(reader_id)
+        params = if (is.null(limit)) list(reader_id) else list(reader_id, limit)
       )$memory_id
     )
   }
-  rev(store$memory$reader_memory_index[[reader_id]] %||% character())
+  ids <- rev(store$memory$reader_memory_index[[reader_id]] %||% character())
+  if (is.null(limit)) ids else utils::head(ids, limit)
 }
 
 reader_memory_require_id <- function(store, reader_id, memory_id) {
@@ -393,7 +395,12 @@ reader_memory_read <- function(access, memory_id, decision = NULL) {
 
 reader_memory_list <- function(access, consult = FALSE) {
   access(function(store, artifacts, reader_id) {
-    values <- lapply(reader_memory_ids(store, reader_id), function(id) {
+    ids <- reader_memory_ids(
+      store,
+      reader_id,
+      limit = if (consult) NULL else 100L
+    )
+    values <- lapply(ids, function(id) {
       reader_memory_read_in_transaction(store, artifacts, reader_id, id)
     })
     if (consult) {
