@@ -132,6 +132,8 @@ testthat::test_that("cached agents recheck memory before returning for a retry",
     document <- sample_rill_data()$documents[[1L]]
     first <- reader_agent_for(document, basis)
     testthat::expect_identical(reader_agent_for(document, basis), first)
+    reordered <- lapply(basis, function(x) x[rev(names(x))])
+    testthat::expect_identical(reader_agent_for(document, reordered), first)
     testthat::expect_identical(constructions, 1L)
     reader_memory_archive(
       access,
@@ -144,5 +146,94 @@ testthat::test_that("cached agents recheck memory before returning for a retry",
       class = "graft_artifact_error"
     )
     testthat::expect_identical(constructions, 1L)
+  })
+})
+
+testthat::test_that("memory mode changes reject preserved runs before constructing an agent", {
+  for (enabled in c(FALSE, TRUE)) {
+    withr::local_envvar(
+      DATABASE_URL = "",
+      RILL_IDENTITY_MODE = "local",
+      RILL_READER_MEMORY_ENABLED = tolower(as.character(enabled))
+    )
+    config <- rill_config()
+    store <- rill_store(config)
+    calls <- 0L
+    testthat::local_mocked_bindings(rill_reader_agent = function(...) {
+      calls <<- calls + 1L
+      list()
+    })
+    old <- if (enabled) {
+      list(question = "Old question")
+    } else {
+      list(reader_memory = list())
+    }
+    shiny::testServer(rill_server(config, store), {
+      doc <- sample_rill_data()$documents[[1L]]
+      testthat::expect_error(
+        run_reader_question("Old question", doc, pinned_inputs = old),
+        class = "rill_agent_memory_mode_changed"
+      )
+      testthat::expect_error(
+        run_reader_question(
+          "Old question",
+          doc,
+          retry_of = list(pinned_inputs = old)
+        ),
+        class = "rill_agent_memory_mode_changed"
+      )
+      testthat::expect_identical(calls, 0L)
+    })
+  }
+})
+
+testthat::test_that("local and external memory changes visibly start a new conversation", {
+  withr::local_envvar(
+    DATABASE_URL = "",
+    RILL_IDENTITY_MODE = "local",
+    RILL_READER_MEMORY_ENABLED = "true"
+  )
+  config <- rill_config()
+  store <- rill_store(config)
+  access <- reader_memory_access(store, config$actor_id)
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(access, "An accepted preference")
+  )
+  basis <- list(reader_memory_read(access, saved$memory_id)$basis)
+  messages <- character()
+  testthat::local_mocked_bindings(
+    rill_reader_agent = function(...) list(),
+    append_reader_chat = function(response, session) {
+      messages <<- c(messages, response)
+      invisible(NULL)
+    }
+  )
+  shiny::testServer(rill_server(config, store), {
+    doc <- sample_rill_data()$documents[[1L]]
+    reader_agent_for(doc, basis)
+    session$setInputs(`memory-selected` = saved$memory_id)
+    session$setInputs(`memory-archive` = 1L)
+    testthat::expect_null(reader_agent())
+    testthat::expect_length(messages, 0L)
+    testthat::expect_identical(reader_memory_context_notice(), TRUE)
+    reader_agent_for(doc, list())
+    testthat::expect_length(messages, 1L)
+    testthat::expect_match(messages[[1L]], "New conversation", fixed = TRUE)
+    testthat::expect_match(
+      messages[[1L]],
+      "not passed to the new conversation",
+      fixed = TRUE
+    )
+    reader_agent_for(doc, list())
+    reader_memory_accept(
+      access,
+      reader_memory_propose(access, "Added in another session")
+    )
+    latest <- lapply(reader_memory_list(access, consult = TRUE), `[[`, "basis")
+    reader_agent_for(doc, latest)
+    testthat::expect_length(messages, 2L)
+    reader_agent_for(doc, latest)
+    testthat::expect_length(messages, 2L)
   })
 })
