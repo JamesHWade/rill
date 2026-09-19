@@ -106,13 +106,15 @@ reader_memory_propose <- function(
   kind = "preference",
   document_id = NULL,
   quote = NULL,
-  memory_id = NULL
+  memory_id = NULL,
+  expected = NULL
 ) {
   force(text)
   force(kind)
   force(document_id)
   force(quote)
   force(memory_id)
+  force(expected)
   if (
     !store_scalar_string(text) ||
       nchar(text, type = "bytes") > 8000L ||
@@ -126,11 +128,21 @@ reader_memory_propose <- function(
   }
   access(function(store, artifacts, reader_id) {
     if (is.null(memory_id)) {
+      if (!is.null(expected)) {
+        reader_memory_abort()
+      }
       memory_id <- rill_id("memory", reader_id, utc_now(), stats::runif(1))
       expected <- NULL
     } else {
       reader_memory_require_id(store, reader_id, memory_id)
-      expected <- graft::graft_artifact_read_decision(artifacts, memory_id)$id
+      current <- graft::graft_artifact_read_decision(artifacts, memory_id)
+      if (
+        !store_scalar_string(expected) ||
+          is.null(current) ||
+          !identical(expected, current$id)
+      ) {
+        reader_memory_abort()
+      }
     }
     anchor <- NULL
     if (identical(kind, "interpretation")) {

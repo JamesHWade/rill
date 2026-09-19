@@ -27,8 +27,10 @@ expected-head and request-key checks prevent stale changes and duplicate events.
 PostgreSQL backup configuration remains an operator responsibility.
 
 A proposal is server-side session state until the Reader reviews and explicitly
-accepts it. Editing any field invalidates the pending approval. A preference is
-Reader Context without a citation. An interpretation has a retained exact quote,
+accepts it. Editing any field invalidates the pending approval. Revision proposals
+bind the exact decision displayed to the Reader and reject intervening changes
+before review as well as before acceptance. A preference is Reader Context
+without a citation. An interpretation has a retained exact quote,
 character offset, Document identity, content hash, record hash, and source label.
 Rill verifies current Document access and the exact passage again at acceptance.
 The quote anchors the interpretation; it does not prove it.
@@ -52,7 +54,8 @@ tool strips credentials, query parameters, and fragments from evidence URLs
 using the same projection as the Document tool; retained evidence stays exact.
 Ordinary interpretation revisions keep the retained Document even if a different
 reading copy is selected, and the approval preview names that source. A failed
-initial memory lookup creates no pinned run or empty fallback basis.
+initial memory lookup creates no pinned run or empty fallback basis. Failure to
+open the management dialog produces a visible notification with retry guidance.
 
 ## Consequences
 

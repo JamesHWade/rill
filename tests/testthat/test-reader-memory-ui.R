@@ -36,6 +36,54 @@ testthat::test_that("Reader Memory requires preview and explicit acceptance", {
   )
 })
 
+testthat::test_that("opening Reader Memory reports lookup failures visibly", {
+  store <- local_orientation_backend_store("memory", "reader")
+  access <- reader_memory_access(store, "reader")
+  notifications <- list()
+  modals <- list()
+  testthat::local_mocked_bindings(
+    reader_memory_list = function(...) {
+      reader_memory_abort("Synthetic lookup failure")
+    }
+  )
+  shiny::testServer(
+    reader_memory_server,
+    args = list(access = access, document = function() NULL),
+    {
+      session$.__enclos_env__$sendNotification <- function(type, message) {
+        notifications[[length(notifications) + 1L]] <<- list(
+          type = type,
+          message = message
+        )
+      }
+      session$.__enclos_env__$sendModal <- function(type, message) {
+        modals[[length(modals) + 1L]] <<- list(
+          type = type,
+          message = message
+        )
+      }
+      session$setInputs(open = 1)
+      testthat::expect_length(notifications, 1L)
+      testthat::expect_identical(notifications[[1L]]$type, "show")
+      testthat::expect_identical(
+        notifications[[1L]]$message$type,
+        "error"
+      )
+      testthat::expect_match(
+        notifications[[1L]]$message$html,
+        "Reader Memory could not be opened. Try again.",
+        fixed = TRUE
+      )
+      testthat::expect_length(modals, 0L)
+      testthat::expect_match(
+        status(),
+        "memory or source changed",
+        fixed = TRUE
+      )
+    }
+  )
+})
+
 testthat::test_that("stale memory approval reports failure without replacing newer intent", {
   store <- local_orientation_backend_store("memory", "reader")
   access <- reader_memory_access(store, "reader")
@@ -61,7 +109,8 @@ testthat::test_that("stale memory approval reports failure without replacing new
         reader_memory_propose(
           access,
           "Newer intent",
-          memory_id = original$memory_id
+          memory_id = original$memory_id,
+          expected = original$decision$id
         )
       )
       session$setInputs(accept = 1)
@@ -72,6 +121,63 @@ testthat::test_that("stale memory approval reports failure without replacing new
       testthat::expect_match(status(), "Review it again", fixed = TRUE)
     }
   )
+})
+
+testthat::test_that("review rejects a correction or archive made after the dialog loaded", {
+  for (change in c("correction", "archive")) {
+    store <- local_orientation_backend_store("memory", "reader")
+    access <- reader_memory_access(store, "reader")
+    original <- reader_memory_accept(
+      access,
+      reader_memory_propose(access, "Original")
+    )
+    shiny::testServer(
+      reader_memory_server,
+      args = list(
+        access = access,
+        document = function() NULL
+      ),
+      {
+        session$setInputs(
+          selected = original$memory_id,
+          text = "Stale proposal",
+          kind = "preference"
+        )
+        if (identical(change, "correction")) {
+          correction <- reader_memory_propose(
+            access,
+            "External correction",
+            memory_id = original$memory_id,
+            expected = original$decision$id
+          )
+          reader_memory_accept(access, correction)
+        } else {
+          reader_memory_archive(
+            access,
+            original$memory_id,
+            original$decision$id,
+            "external-archive"
+          )
+        }
+        session$setInputs(review = 1)
+        testthat::expect_null(pending())
+        testthat::expect_match(status(), "Review it again", fixed = TRUE)
+        session$setInputs(accept = 1)
+        testthat::expect_null(pending())
+        if (identical(change, "correction")) {
+          testthat::expect_identical(
+            reader_memory_read(access, original$memory_id)$text,
+            "External correction"
+          )
+        } else {
+          testthat::expect_identical(
+            reader_memory_read(access, original$memory_id)$archived,
+            TRUE
+          )
+        }
+      }
+    )
+  }
 })
 
 testthat::test_that("committed acceptance survives an unavailable refresh", {

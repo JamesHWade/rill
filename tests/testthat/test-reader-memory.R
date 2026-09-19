@@ -27,12 +27,14 @@ testthat::test_that("only explicit acceptance creates isolated Reader Memory", {
     stale <- reader_memory_propose(
       access,
       "A stale change.",
-      memory_id = accepted$memory_id
+      memory_id = accepted$memory_id,
+      expected = accepted$decision$id
     )
     correction <- reader_memory_propose(
       access,
       "Prioritize original climate research.",
-      memory_id = accepted$memory_id
+      memory_id = accepted$memory_id,
+      expected = accepted$decision$id
     )
     changed <- reader_memory_accept(access, correction)
     testthat::expect_error(
@@ -40,6 +42,31 @@ testthat::test_that("only explicit acceptance creates isolated Reader Memory", {
       class = "graft_artifact_error"
     )
     testthat::expect_identical(reader_memory_accept(access, proposal), accepted)
+    testthat::expect_error(
+      reader_memory_propose(
+        access,
+        "A new memory with an expected decision.",
+        expected = accepted$decision$id
+      ),
+      class = "rill_memory_unavailable"
+    )
+    testthat::expect_error(
+      reader_memory_propose(
+        access,
+        "A revision without an expected decision.",
+        memory_id = accepted$memory_id
+      ),
+      class = "rill_memory_unavailable"
+    )
+    testthat::expect_error(
+      reader_memory_propose(
+        access,
+        "A revision with the wrong expected decision.",
+        memory_id = accepted$memory_id,
+        expected = "not-the-current-decision"
+      ),
+      class = "rill_memory_unavailable"
+    )
     testthat::expect_identical(
       reader_memory_read(access, accepted$memory_id, accepted$decision$id)$text,
       proposal$text
@@ -290,7 +317,12 @@ testthat::test_that("a fresh process rebinds Reader authority and exact memory",
   )
   reader_memory_accept(
     access,
-    reader_memory_propose(access, "A correction.", memory_id = saved$memory_id)
+    reader_memory_propose(
+      access,
+      "A correction.",
+      memory_id = saved$memory_id,
+      expected = saved$decision$id
+    )
   )
   testthat::expect_contains(
     consult("reader", list(record$basis)),

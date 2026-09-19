@@ -42,6 +42,10 @@ reader_memory_server <- function(
     shiny::observeEvent(input$open, {
       options <- handle(choices)
       if (is.null(options)) {
+        shiny::showNotification(
+          "Reader Memory could not be opened. Try again.",
+          type = "error"
+        )
         return()
       }
       pending(NULL)
@@ -128,11 +132,12 @@ reader_memory_server <- function(
       pending(NULL)
       status(NULL)
       proposal <- handle(function() {
+        selected <- nzchar(input$selected %||% "")
+        retained <- shown()
+        if (selected && is.null(retained)) {
+          reader_memory_abort()
+        }
         source_id <- if (identical(input$kind, "interpretation")) {
-          retained <- shown()
-          if (nzchar(input$selected %||% "") && is.null(retained)) {
-            reader_memory_abort()
-          }
           if (length(retained$evidence)) {
             retained$evidence[[1L]]$document_id
           } else {
@@ -151,11 +156,12 @@ reader_memory_server <- function(
           } else {
             NULL
           },
-          memory_id = if (nzchar(input$selected %||% "")) {
+          memory_id = if (selected) {
             input$selected
           } else {
             NULL
-          }
+          },
+          expected = if (selected) retained$basis$decision else NULL
         )
       })
       pending(proposal)
