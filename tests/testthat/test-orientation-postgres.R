@@ -295,7 +295,8 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
       "012_article_preparation",
       "013_feed_groups",
       "014_reader_feedback",
-      "015_entry_previews"
+      "015_entry_previews",
+      "016_reader_memory"
     )
   )
 })

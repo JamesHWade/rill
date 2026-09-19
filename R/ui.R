@@ -729,6 +729,7 @@ reader_pane_ui <- function(config) {
           )
         )
       ),
+      if (isTRUE(config$reader_memory_enabled)) reader_memory_ui("memory"),
       shiny::uiOutput(
         "reader_feedback_actions",
         class = "reader-feedback-actions"

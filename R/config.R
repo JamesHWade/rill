@@ -353,6 +353,7 @@ rill_config <- function() {
     auth0_redirect_uri = auth0_redirect_uri,
     database_url = database_url,
     demo_mode = identical(database_url, ""),
+    reader_memory_enabled = env_flag("RILL_READER_MEMORY_ENABLED", FALSE),
     defuddle_backend = normalize_defuddle_backend(Sys.getenv(
       "DEFUDDLE_BACKEND",
       unset = "hosted"

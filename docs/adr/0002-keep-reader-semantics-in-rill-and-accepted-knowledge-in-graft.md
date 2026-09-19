@@ -11,9 +11,10 @@ Tempest remains deferred until Rill needs a genuine multi-source research
 workflow.
 
 Graft is a required v1 dependency and the authoritative store for Reader Memory
-and accepted Carry-forward outcomes. Rill authorizes and maps each write, Graft
-plans and commits it, and later Reading Loops consume bounded context from a
-pinned Graft snapshot.
+and accepted Carry-forward outcomes. Rill authorizes and maps each write. Graft retains immutable artifacts, exact
+selections, and decision streams; later Reading Loops consult an exact accepted
+decision only after Rill rechecks current Reader access. ADR 0011 supersedes the
+original native graph plan and snapshot integration.
 
 ## Consequences
 
@@ -22,10 +23,10 @@ pinned Graft snapshot.
 - Documents, Reading History, Session Context, Orientation, and unaccepted
   proposals remain in Rill. Deputy owns execution records, and shinychat owns
   reader-visible Conversation presentation and durable history.
-- Rill and Graft keep their `main` branches compatible through real-object
-  integration tests rather than a commit pin.
-- A first vertical slice uses Graft's current schema, plan, commit, and snapshot
-  interfaces. Generally useful improvements belong upstream in Graft.
+- Rill tests against the exact Graft revision recorded in `DESCRIPTION`. A
+  reviewed dependency update must pass the real-object PostgreSQL tests.
+- The first vertical slice uses Graft artifacts, selections, and decisions in
+  PostgreSQL. Generally useful persistence mechanisms belong upstream in Graft.
 - Permanent Forget and durable Graft backup and restore are MVP gates. Richer
   receipts, scoped query helpers, and supersession conveniences may follow the
   working integration.

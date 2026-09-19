@@ -41,8 +41,8 @@ promise deletion before Logfire's disclosed retention period ends.
 - Corrections create new immutable Reading Artifact revisions rather than
   overwriting accepted history.
 - Orientation keeps only its current maintained state. Drafts and rejected
-  Graft plans disappear after their decision event is recorded in Reading
-  History.
+  memory proposals remain Rill-owned; they are not published to Graft before
+  acceptance. ADR 0011 defines the implemented Reader Memory slice.
 - A recommendation or briefing becomes durable only through explicit
   Carry-forward. It does not persist merely because an agent generated it.
 - Permanent Forget remains separate from Archive and requires the Graft purge

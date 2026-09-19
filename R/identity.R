@@ -1239,6 +1239,13 @@ identity_show_denied_modal <- function(config, status = "denied") {
 }
 
 reader_identity_guard_session <- function(adapter, resolution, session) {
+  if (is.environment(session$userData)) {
+    session$userData$rill_reader_authorize <- function() {
+      current <- adapter$session_status(resolution)
+      identical(current$status, "active") &&
+        identical(current$reader_id, resolution$reader_id)
+    }
+  }
   if (!is.function(session$onSessionEnded)) {
     return(invisible(NULL))
   }
