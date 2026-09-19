@@ -219,7 +219,11 @@ testthat::test_that("local and external memory changes visibly start a new conve
     testthat::expect_identical(reader_memory_context_notice(), TRUE)
     reader_agent_for(doc, list())
     testthat::expect_length(messages, 1L)
-    testthat::expect_match(messages[[1L]], "New conversation", fixed = TRUE)
+    testthat::expect_match(
+      messages[[1L]],
+      "New conversation for this question",
+      fixed = TRUE
+    )
     testthat::expect_match(
       messages[[1L]],
       "not passed to the new conversation",
@@ -233,6 +237,11 @@ testthat::test_that("local and external memory changes visibly start a new conve
     latest <- lapply(reader_memory_list(access, consult = TRUE), `[[`, "basis")
     reader_agent_for(doc, latest)
     testthat::expect_length(messages, 2L)
+    testthat::expect_match(
+      messages[[2L]],
+      "New conversation for this question",
+      fixed = TRUE
+    )
     reader_agent_for(doc, latest)
     testthat::expect_length(messages, 2L)
   })

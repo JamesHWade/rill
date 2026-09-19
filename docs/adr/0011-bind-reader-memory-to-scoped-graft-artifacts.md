@@ -41,9 +41,9 @@ its memory basis separately from the selected Document research scope. It cannot
 silently substitute corrected or archived memory. Presence of the run's
 `reader_memory` field (including an empty list) pins enabled mode; absence pins
 disabled mode. Retry or deferred execution rejects a mode change. Replacing an
-agent after a local or externally observed memory change inserts a visible
-conversation boundary; earlier displayed messages are not passed to the new
-agent.
+agent after a local or externally observed memory change shows a notice that
+the current question starts a new conversation. Earlier displayed messages are
+not passed to the new agent.
 An already delivered answer is historical output; Archive cannot retract model
 context that was already consumed. The dialog lists the latest 100 memories;
 this display limit never excludes accepted memory from consultation. Exact

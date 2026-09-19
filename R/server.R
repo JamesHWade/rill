@@ -1174,9 +1174,10 @@ rill_server <- function(
         if (reader_memory_context_notice()) {
           append_reader_chat(
             paste0(
-              "**New conversation**\n\n",
-              "Reader Memory changed. Earlier messages remain here for reference ",
-              "and are not passed to the new conversation."
+              "**New conversation for this question**\n\n",
+              "Reader Memory changed. This question starts a new conversation ",
+              "using the current memory. Earlier messages remain here for ",
+              "reference and are not passed to the new conversation."
             ),
             session
           )

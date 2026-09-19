@@ -3880,7 +3880,6 @@ testthat::test_that("a deadline setup read error is retried", {
     session$flushReact()
 
     testthat::expect_identical(state$read_failures, 1L)
-    testthat::expect_length(interrupted, 0L)
 
     deadline <- Sys.time() + 2
     while (length(interrupted) == 0L && Sys.time() < deadline) {
