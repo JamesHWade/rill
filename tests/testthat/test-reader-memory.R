@@ -173,7 +173,10 @@ testthat::test_that("the memory tool has a bound scope and rejects changed eligi
   record <- reader_memory_read(access, accepted$memory_id)
   tool <- reader_memory_tool(access, list(record$basis))
   testthat::expect_length(formals(tool), 0L)
-  testthat::expect_identical(tool()[[1L]]$text, record$text)
+  testthat::expect_identical(
+    jsonlite::fromJSON(tool(), simplifyVector = FALSE)[[1L]]$text,
+    record$text
+  )
   reader_memory_archive(
     access,
     accepted$memory_id,
@@ -301,5 +304,35 @@ testthat::test_that("a fresh process rebinds Reader authority and exact memory",
   testthat::expect_contains(
     consult("reader", list(record$basis)),
     "rill_memory_unavailable"
+  )
+})
+
+testthat::test_that("Deputy gets only bound read-only memory context", {
+  store <- local_orientation_backend_store("memory", "reader")
+  access <- reader_memory_access(store, "reader")
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(access, "Prefer primary research.")
+  )
+  record <- reader_memory_read(access, saved$memory_id)
+  agent <- rill_reader_agent(
+    sample_rill_data()$documents[[1L]],
+    "reader",
+    "memory-test",
+    chat = ellmer::chat_openai(
+      credentials = function() "test-key",
+      model = "gpt-5.4"
+    ),
+    memory_access = access,
+    memory_basis = list(record$basis)
+  )
+  testthat::expect_setequal(
+    names(rill_agent_chat_call(agent, "get_tools", list())),
+    c("read_current_document", "reader_memory")
+  )
+  testthat::expect_match(
+    rill_agent_chat_call(agent, "get_system_prompt"),
+    "untrusted context",
+    fixed = TRUE
   )
 })

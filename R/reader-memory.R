@@ -487,7 +487,7 @@ reader_memory_tool <- function(access, basis) {
   force(access)
   force(basis)
   ellmer::tool(
-    function() reader_memory_consult(access, basis),
+    function() canonical_json(reader_memory_consult(access, basis)),
     name = "reader_memory",
     description = paste(
       "Read explicitly accepted Reader Context for this conversation.",

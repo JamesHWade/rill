@@ -73,3 +73,76 @@ testthat::test_that("stale memory approval reports failure without replacing new
     }
   )
 })
+
+testthat::test_that("committed acceptance survives an unavailable refresh", {
+  store <- local_orientation_backend_store("memory", "reader")
+  allowed <- TRUE
+  access <- reader_memory_access(store, "reader", function() allowed)
+  changed_count <- 0L
+  shiny::testServer(
+    reader_memory_server,
+    args = list(
+      access = access,
+      document = function() NULL,
+      changed = function() {
+        changed_count <<- changed_count + 1L
+        allowed <<- FALSE
+      }
+    ),
+    {
+      session$setInputs(
+        text = "A retained preference",
+        kind = "preference",
+        selected = ""
+      )
+      session$setInputs(review = 1)
+      session$setInputs(accept = 1)
+      testthat::expect_match(status(), "action was saved", fixed = TRUE)
+      testthat::expect_null(shown())
+      testthat::expect_null(pending())
+      testthat::expect_identical(changed_count, 1L)
+      testthat::expect_length(
+        reader_memory_list(reader_memory_access(store, "reader")),
+        1L
+      )
+    }
+  )
+})
+
+testthat::test_that("cached agents recheck memory before returning for a retry", {
+  withr::local_envvar(
+    DATABASE_URL = "",
+    RILL_IDENTITY_MODE = "local",
+    RILL_READER_MEMORY_ENABLED = "true"
+  )
+  config <- rill_config()
+  store <- rill_store(config)
+  access <- reader_memory_access(store, config$actor_id)
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(access, "An accepted preference")
+  )
+  basis <- list(reader_memory_read(access, saved$memory_id)$basis)
+  constructions <- 0L
+  testthat::local_mocked_bindings(rill_reader_agent = function(...) {
+    constructions <<- constructions + 1L
+    list(instance = constructions)
+  })
+  shiny::testServer(rill_server(config, store), {
+    document <- sample_rill_data()$documents[[1L]]
+    first <- reader_agent_for(document, basis)
+    testthat::expect_identical(reader_agent_for(document, basis), first)
+    testthat::expect_identical(constructions, 1L)
+    reader_memory_archive(
+      access,
+      saved$memory_id,
+      saved$decision$id,
+      "another-session"
+    )
+    testthat::expect_error(
+      reader_agent_for(document, basis),
+      class = "graft_artifact_error"
+    )
+    testthat::expect_identical(constructions, 1L)
+  })
+})

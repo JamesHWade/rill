@@ -1125,6 +1125,9 @@ rill_server <- function(
     }
 
     reader_agent_for <- function(document, memory_basis = NULL) {
+      if (!is.null(memory_access)) {
+        reader_memory_consult(memory_access, memory_basis %||% list())
+      }
       agent <- reader_agent()
       if (
         is.null(agent) ||

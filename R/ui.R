@@ -250,6 +250,7 @@ navigation_sidebar_ui <- function(config) {
       shiny::uiOutput(shiny::NS("access_requests", "launcher")),
       shiny::uiOutput("orientation_destination_settings"),
       appearance_control_ui(),
+      if (isTRUE(config$reader_memory_enabled)) reader_memory_ui("memory"),
       shiny::actionButton(
         "manage_feeds",
         "Manage feeds",
@@ -720,7 +721,11 @@ reader_pane_ui <- function(config) {
         enable_cancel = TRUE,
         footer = shiny::tags$span(
           paste(
-            "Sends your question and selected reading copy to",
+            if (isTRUE(config$reader_memory_enabled)) {
+              "Sends your question, selected reading copy, and accepted Reader Memory (including retained passages) to"
+            } else {
+              "Sends your question and selected reading copy to"
+            },
             rill_agent_data_destination(
               config$agent_model,
               config$agent_base_url %||% ""
@@ -729,7 +734,6 @@ reader_pane_ui <- function(config) {
           )
         )
       ),
-      if (isTRUE(config$reader_memory_enabled)) reader_memory_ui("memory"),
       shiny::uiOutput(
         "reader_feedback_actions",
         class = "reader-feedback-actions"

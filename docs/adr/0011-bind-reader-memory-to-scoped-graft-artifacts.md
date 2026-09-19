@@ -36,7 +36,9 @@ The quote anchors the interpretation; it does not prove it.
 Correction creates another immutable revision and acceptance event. Archive
 records withdrawal, preserving inspection; restore is a new acceptance. Ask Rill
 pins the exact accepted decisions when its agent is built and rechecks them on
-every tool call. It cannot silently substitute corrected or archived memory.
+every tool call and before every run, including cached retries. The run retains
+its memory basis separately from the selected Document research scope. It cannot
+silently substitute corrected or archived memory.
 An already delivered answer is historical output; Archive cannot retract model
 context that was already consumed. The dialog lists the latest 100 memories;
 exact historical records remain addressable internally.

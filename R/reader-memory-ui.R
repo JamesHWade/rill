@@ -208,15 +208,28 @@ reader_memory_server <- function(
     output$status <- shiny::renderText(status())
     refresh <- function(memory_id, message) {
       pending(NULL)
-      shown(reader_memory_read(access, memory_id))
-      shiny::updateSelectInput(
-        session,
-        "selected",
-        choices = choices(),
-        selected = memory_id
-      )
-      status(message)
+      shown(NULL)
       changed()
+      tryCatch(
+        {
+          value <- reader_memory_read(access, memory_id)
+          options <- choices()
+          shown(value)
+          shiny::updateSelectInput(
+            session,
+            "selected",
+            choices = options,
+            selected = memory_id
+          )
+          status(message)
+        },
+        error = function(e) {
+          status(paste(
+            message,
+            "The action was saved, but the view could not refresh. Reopen Reader Memory."
+          ))
+        }
+      )
     }
     shiny::observeEvent(input$accept, {
       proposal <- pending()

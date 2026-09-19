@@ -1141,3 +1141,19 @@ testthat::test_that("long inline Source Evidence stays a verbatim substring", {
     "First sentence."
   )
 })
+
+testthat::test_that("enabled memory is disclosed to the named model destination", {
+  withr::local_envvar(DATABASE_URL = "", RILL_READER_MEMORY_ENABLED = "true")
+  config <- rill_config()
+  html <- htmltools::renderTags(reader_pane_ui(config))$html
+  testthat::expect_match(
+    html,
+    "accepted Reader Memory (including retained passages)",
+    fixed = TRUE
+  )
+  navigation <- htmltools::renderTags(navigation_sidebar_ui(config))$html
+  testthat::expect_match(navigation, 'id="memory-open"', fixed = TRUE)
+  config$reader_memory_enabled <- FALSE
+  disabled <- htmltools::renderTags(navigation_sidebar_ui(config))$html
+  testthat::expect_no_match(disabled, 'id="memory-open"', fixed = TRUE)
+})

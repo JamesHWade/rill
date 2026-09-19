@@ -47,7 +47,7 @@ Suggests:
     testthat (>= 3.3.0),
     vitals (>= 0.3.0)
 Remotes:
-    JamesHWade/graft,
+    JamesHWade/graft@0592feccd52cf287b0c7cb381ea8c7eabc37dc8c,
     JamesHWade/deputy@4a8ee639df8c5e5e32567cb706b722f14732c923,
     posit-dev/shinychat/pkg-r@dde163ea6b27099304a658f3649dd1fac98208bd
 Config/testthat/edition: 3
