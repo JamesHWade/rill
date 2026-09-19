@@ -375,3 +375,45 @@ testthat::test_that("the dialog limit does not exclude accepted memory from cons
     )
   }
 })
+
+
+testthat::test_that("the memory tool removes source URL credentials without changing retained evidence", {
+  store <- local_orientation_backend_store("memory", "reader")
+  access <- reader_memory_access(store, "reader")
+  source_url <- paste0(
+    "https://reader:source-secret@example.com/story?",
+    "ticket=ST-secret-grant&session=private-session#private"
+  )
+  saved_document <- capture_document(
+    store,
+    capture_test_payload(source_url = source_url),
+    "reader"
+  )
+  saved <- reader_memory_accept(
+    access,
+    reader_memory_propose(
+      access,
+      "A qualified interpretation.",
+      "interpretation",
+      saved_document$document_id,
+      "Source-grounded text."
+    )
+  )
+  record <- reader_memory_read(access, saved$memory_id)
+  tool <- reader_memory_tool(access, list(record$basis))
+  supplied <- jsonlite::fromJSON(tool(), simplifyVector = FALSE)[[1L]]
+  testthat::expect_identical(
+    supplied$evidence[[1L]]$source_url,
+    "https://example.com/story"
+  )
+  expected <- record
+  expected$evidence[[1L]]$source_url <- "https://example.com/story"
+  testthat::expect_identical(
+    canonical_json(supplied),
+    canonical_json(expected)
+  )
+  testthat::expect_identical(
+    reader_memory_read(access, saved$memory_id)$evidence[[1L]]$source_url,
+    source_url
+  )
+})

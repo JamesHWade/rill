@@ -47,7 +47,9 @@ agent.
 An already delivered answer is historical output; Archive cannot retract model
 context that was already consumed. The dialog lists the latest 100 memories;
 this display limit never excludes accepted memory from consultation. Exact
-historical records remain addressable internally.
+historical records remain addressable internally. The provider-facing memory
+tool strips credentials, query parameters, and fragments from evidence URLs
+using the same projection as the Document tool; retained evidence stays exact.
 
 ## Consequences
 
