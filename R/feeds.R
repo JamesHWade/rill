@@ -59,6 +59,16 @@ feed_request <- function(url, etag = NULL, last_modified = NULL) {
 }
 
 looks_like_feed <- function(response, body) {
+  is_obvious_html <- grepl(
+    "^\\s*(?:<\\?xml[^>]*>\\s*)?(?:<!doctype\\s+html(?:\\s|>)|<html(?:\\s|>))",
+    body,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+  if (is_obvious_html) {
+    return(FALSE)
+  }
+
   content_type <- tolower(httr2::resp_header(response, "content-type") %||% "")
   if (grepl("(rss|atom|rdf|xml)", content_type)) {
     return(TRUE)
@@ -67,6 +77,28 @@ looks_like_feed <- function(response, body) {
     "^\\s*<\\?xml|^\\s*<(rss|feed|rdf:RDF)(\\s|>)",
     body,
     ignore.case = TRUE
+  )
+}
+
+read_feed_xml <- function(xml) {
+  tryCatch(
+    xml2::read_xml(xml),
+    error = function(error) {
+      can_repair <- is.character(xml) &&
+        length(xml) == 1L &&
+        !is.na(xml) &&
+        grepl("]]>", xml, fixed = TRUE) &&
+        !grepl("<![CDATA[", xml, fixed = TRUE)
+      if (!can_repair) {
+        stop(error)
+      }
+
+      repaired_xml <- gsub("]]>", "]]&gt;", xml, fixed = TRUE)
+      tryCatch(
+        xml2::read_xml(repaired_xml),
+        error = function(repair_error) stop(error)
+      )
+    }
   )
 }
 
@@ -161,7 +193,7 @@ parse_feed_document <- function(
   headers = list(),
   folder = "Unsorted"
 ) {
-  document <- xml2::read_xml(xml)
+  document <- read_feed_xml(xml)
   is_atom <- identical(xml2::xml_name(document), "feed")
   channel <- xml2::xml_find_first(
     document,

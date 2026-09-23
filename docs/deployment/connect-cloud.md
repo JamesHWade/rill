@@ -113,6 +113,22 @@ and failure counts by native condition class. Native error messages remain in
 `feed_poll_outcomes` for operator diagnosis; join `feeds` on `feed_id` to inspect
 the corresponding source URL.
 
+Use the run ID from the Actions log against the database configured as
+`RILL_DATABASE_URL` to inspect the failed sources privately:
+
+```sql
+SELECT f.title, f.feed_url, o.error_class, o.error_message
+FROM feed_poll_outcomes AS o
+JOIN feeds AS f USING (feed_id)
+WHERE o.run_id = '<run ID>' AND o.status = 'failed'
+ORDER BY f.title;
+```
+
+Keep this output out of public logs and issues: source URLs and error messages
+may contain private query parameters. Confirm that the database has
+`feed_poll_outcomes` before interpreting a query result; a different or older
+database cannot diagnose the Actions run.
+
 Repeated `httr2_http_404` failures require checking the source's feed URL;
 `httr2_http_403` means the source refused the request. These failures do not
 remove Subscriptions or saved articles. Repair the source or retry it through

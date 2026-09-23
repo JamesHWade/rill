@@ -22,6 +22,8 @@
 
 * Reading copies remain saveable when an extractor supplies a relative or nonstandard publication date, and local extraction diagnostics distinguish source HTTP failures from extractor failures (#78).
 
+* Feed refresh tolerates unescaped `]]>` text in XML sources and rejects HTML directory pages mislabeled as XML (#78).
+
 * Organize feeds into overlapping Groups, manage several feeds at once, and read feeds in any or all selected Groups. OPML preserves memberships and empty Groups when moving between Rill Libraries (#76).
 
 * Folder buttons combine their feeds into one reading queue, with folder-scoped views and bulk read actions; individual feeds can be expanded beneath each folder (#75).

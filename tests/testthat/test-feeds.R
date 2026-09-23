@@ -17,6 +17,52 @@ testthat::test_that("RSS items become normalized entries", {
   testthat::expect_match(result$entries$summary, "Hello reader")
 })
 
+testthat::test_that("feed parsing repairs illegal text terminators", {
+  rss <- paste0(
+    "<rss version='2.0'><channel><title>Example RSS</title>",
+    "<item><guid>post-1</guid><title>First post</title>",
+    "<link>https://example.com/first</link>",
+    "<description>ordinary ]]> text</description>",
+    "</item></channel></rss>"
+  )
+
+  result <- parse_feed_document(rss, "https://example.com/feed.xml")
+
+  testthat::expect_identical(
+    result$entries$feed_content,
+    "ordinary ]]> text"
+  )
+})
+
+testthat::test_that("feed parsing preserves valid CDATA content", {
+  rss <- paste0(
+    "<rss version='2.0'><channel><title>Example RSS</title>",
+    "<item><guid>post-1</guid><title>First post</title>",
+    "<link>https://example.com/first</link>",
+    "<description><![CDATA[<p>CDATA source</p>]]></description>",
+    "</item></channel></rss>"
+  )
+
+  result <- parse_feed_document(rss, "https://example.com/feed.xml")
+
+  testthat::expect_identical(
+    result$entries$feed_content,
+    "<p>CDATA source</p>"
+  )
+})
+
+testthat::test_that("HTML directory pages are not treated as XML feeds", {
+  response <- httr2::response(headers = list("content-type" = "text/xml"))
+
+  testthat::expect_identical(
+    looks_like_feed(
+      response,
+      "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN'><html><head>"
+    ),
+    FALSE
+  )
+})
+
 testthat::test_that("Atom links and authors are recognized", {
   atom <- paste0(
     "<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'>",
