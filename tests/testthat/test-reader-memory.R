@@ -41,7 +41,10 @@ testthat::test_that("only explicit acceptance creates isolated Reader Memory", {
       reader_memory_accept(access, stale),
       class = "graft_artifact_error"
     )
-    testthat::expect_identical(reader_memory_accept(access, proposal), accepted)
+    testthat::expect_error(
+      reader_memory_accept(access, proposal),
+      class = "graft_stale_review_error"
+    )
     testthat::expect_error(
       reader_memory_propose(
         access,
@@ -77,7 +80,7 @@ testthat::test_that("only explicit acceptance creates isolated Reader Memory", {
     )
     testthat::expect_error(
       reader_memory_consult(access, list(memory$basis)),
-      class = "graft_artifact_error"
+      class = "graft_stale_review_error"
     )
     current <- reader_memory_read(access, accepted$memory_id)
     testthat::expect_identical(
@@ -326,7 +329,7 @@ testthat::test_that("a fresh process rebinds Reader authority and exact memory",
   )
   testthat::expect_contains(
     consult("reader", list(record$basis)),
-    "graft_artifact_error"
+    "graft_stale_review_error"
   )
   testthat::expect_identical(
     reader_memory_read(access, saved$memory_id, saved$decision$id)$text,

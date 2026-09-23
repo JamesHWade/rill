@@ -29,7 +29,14 @@ reader_memory_server <- function(
       tryCatch(code(), error = function(e) {
         status(
           if (
-            inherits(e, c("rill_memory_unavailable", "graft_artifact_error"))
+            inherits(
+              e,
+              c(
+                "rill_memory_unavailable",
+                "graft_artifact_error",
+                "graft_stale_review_error"
+              )
+            )
           ) {
             "The memory or source changed or is unavailable. Review it again."
           } else {

@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* Reader Memory now consumes Graft's public API4 artifact workflow while preserving exact reviewed decisions, retained evidence, and Reader-scoped consultation (JamesHWade/graft#91).
+
 * Rill now requires R 4.3.0 or later, matching its Graft dependency (#104).
 
 * Opt-in Reader Memory preserves explicitly accepted preferences and source-anchored interpretations privately through Graft, with correction, Archive, restore, and exact decision checks before Ask Rill consultation (#104).
