@@ -4,6 +4,62 @@ reader_memory_abort <- function(
   cli::cli_abort(message, class = "rill_memory_unavailable")
 }
 
+reader_memory_graft_abort <- function(message) {
+  cli::cli_abort(message, class = "graft_artifact_error")
+}
+
+reader_memory_stale_abort <- function(message) {
+  cli::cli_abort(message, class = "graft_stale_review_error")
+}
+
+reader_memory_ref_record <- function(ref) {
+  list(id = ref@id, revision = ref@revision)
+}
+
+reader_memory_decision_record <- function(decision) {
+  list(
+    id = decision@id,
+    sequence = decision@sequence,
+    stream = decision@stream,
+    key = decision@key,
+    previous = decision@previous,
+    action = decision@action,
+    selection = decision@selection,
+    actor = decision@actor,
+    reason = decision@reason,
+    purpose = decision@purpose
+  )
+}
+
+reader_memory_selection_record <- function(selection) {
+  list(
+    id = selection@id,
+    roots = lapply(selection@roots, reader_memory_ref_record),
+    artifacts = lapply(selection@artifacts, reader_memory_ref_record)
+  )
+}
+
+reader_memory_decision <- function(artifacts, stream, decision = NULL) {
+  history <- graft::graft_history(artifacts, stream)
+  if (!length(history)) {
+    return(NULL)
+  }
+  if (is.null(decision)) {
+    return(history[[length(history)]])
+  }
+  expected <- if (is.character(decision)) decision else decision@id
+  matches <- Filter(
+    function(value) identical(value@id, expected),
+    history
+  )
+  if (!length(matches)) {
+    reader_memory_graft_abort(
+      "The requested Reader Memory decision is no longer retained."
+    )
+  }
+  matches[[1L]]
+}
+
 reader_memory_access <- function(
   store,
   reader_id,
@@ -38,7 +94,7 @@ reader_memory_access <- function(
         }
         current <- store
         current$pool <- connection
-        artifacts <- graft::graft_artifact_store_postgres(
+        artifacts <- graft::graft_store_postgres(
           connection,
           paste0("rill:reader:", reader_id),
           create = TRUE,
@@ -55,7 +111,7 @@ reader_memory_access <- function(
       store$memory$reader_memory_index <- list()
     }
     path <- file.path(store$memory$reader_memory_path, rill_id(reader_id))
-    artifacts <- graft::graft_artifact_store(
+    artifacts <- graft::graft_store(
       path,
       create = !dir.exists(path),
       max_bytes = 1024^2
@@ -135,11 +191,11 @@ reader_memory_propose <- function(
       expected <- NULL
     } else {
       reader_memory_require_id(store, reader_id, memory_id)
-      current <- graft::graft_artifact_read_decision(artifacts, memory_id)
+      current <- reader_memory_decision(artifacts, memory_id)
       if (
         !store_scalar_string(expected) ||
           is.null(current) ||
-          !identical(expected, current$id)
+          !identical(expected, current@id)
       ) {
         reader_memory_abort()
       }
@@ -229,48 +285,53 @@ reader_memory_accept <- function(access, proposal) {
         "The proposed Source Evidence changed. Review it again."
       )
     }
-    dependencies <- list()
+    graft_dependencies <- list()
     if (!is.null(proposal$anchor)) {
-      dependencies <- list(graft::graft_artifact_save(
+      graft_dependencies <- list(graft::graft_save(
         artifacts,
-        paste0(
+        charToRaw(canonical_json(proposal$anchor)),
+        id = paste0(
           "rill:evidence:",
           proposal$anchor$document_id,
           ":",
           rill_id(canonical_json(proposal$anchor))
         ),
-        charToRaw(canonical_json(proposal$anchor)),
-        "application/json"
+        media_type = "application/json"
       ))
     }
+    dependencies <- lapply(graft_dependencies, reader_memory_ref_record)
     payload <- list(
       format = 1L,
       kind = proposal$kind,
       text = proposal$text,
       evidence = dependencies
     )
-    ref <- graft::graft_artifact_save(
+    ref <- graft::graft_save(
       artifacts,
-      paste0("rill:memory:", proposal$memory_id),
       charToRaw(canonical_json(payload)),
-      "application/json",
-      dependencies
+      id = paste0("rill:memory:", proposal$memory_id),
+      media_type = "application/json",
+      dependencies = graft_dependencies
     )
-    selection <- graft::graft_artifact_select(artifacts, list(ref))
-    decision <- graft::graft_artifact_decide(
+    selection <- graft::graft_select(artifacts, ref)
+    decision <- graft::graft_accept(
       artifacts,
-      proposal$memory_id,
-      proposal$key,
-      proposal$expected,
       selection,
-      "accept",
-      reader_id,
-      "Reader explicitly accepted this memory",
-      "rill:reader-context"
+      stream = proposal$memory_id,
+      expected = proposal$expected,
+      key = proposal$key,
+      actor = reader_id,
+      reason = "Reader explicitly accepted this memory",
+      purpose = "rill:reader-context"
     )
+    decision <- reader_memory_decision_record(decision)
     reader_memory_index_add(store, reader_id, proposal$memory_id)
     reader_memory_record_event(store, reader_id, proposal$memory_id, decision)
-    list(memory_id = proposal$memory_id, decision = decision, ref = ref)
+    list(
+      memory_id = proposal$memory_id,
+      decision = decision,
+      ref = reader_memory_ref_record(ref)
+    )
   })
 }
 
@@ -323,33 +384,56 @@ reader_memory_read_in_transaction <- function(
   consult = FALSE
 ) {
   reader_memory_require_id(store, reader_id, memory_id)
-  retained <- graft::graft_artifact_read_decision(
-    artifacts,
-    memory_id,
-    decision
-  )
+  retained <- reader_memory_decision(artifacts, memory_id, decision)
   if (is.null(retained)) {
     reader_memory_abort()
   }
-  selected <- if (consult) {
-    graft::graft_artifact_reuse(
+  if (consult) {
+    recalled <- graft::graft_recall(
       artifacts,
-      memory_id,
-      retained$id,
-      "rill:reader-context",
+      stream = memory_id,
+      purpose = "rill:reader-context",
       eligible = TRUE
-    )$selection
+    )
+    if (
+      !is.null(recalled@decision) &&
+        !identical(recalled@decision@id, retained@id) &&
+        recalled@status == "accepted"
+    ) {
+      reader_memory_stale_abort(
+        "The accepted Reader Memory changed while it was being consulted."
+      )
+    }
+    if (recalled@status != "accepted" || is.null(recalled@decision)) {
+      reader_memory_graft_abort(
+        "The accepted Reader Memory changed or is unavailable."
+      )
+    }
+    selected <- recalled@selection
+    if (length(recalled@roots) != 1L) {
+      reader_memory_abort()
+    }
+    root <- recalled@roots[[1L]]
   } else {
-    graft::graft_artifact_read_selection(artifacts, retained$selection)
+    selected <- graft::graft_read_selection(artifacts, retained@selection)
+    if (length(selected@roots) != 1L) {
+      reader_memory_abort()
+    }
+    root <- graft::graft_read(artifacts, selected@roots[[1L]])
   }
+  selected <- reader_memory_selection_record(selected)
   if (
     length(selected$roots) != 1L ||
-      !identical(selected$roots[[1L]]$id, paste0("rill:memory:", memory_id))
+      !identical(
+        selected$roots[[1L]]$id,
+        paste0("rill:memory:", memory_id)
+      ) ||
+      !identical(reader_memory_ref_record(root@ref), selected$roots[[1L]])
   ) {
     reader_memory_abort()
   }
-  root <- graft::graft_artifact_read(artifacts, selected$roots[[1L]])
-  payload <- jsonlite::fromJSON(rawToChar(root$bytes), simplifyVector = FALSE)
+  payload <- jsonlite::fromJSON(rawToChar(root@bytes), simplifyVector = FALSE)
+  dependencies <- lapply(root@dependencies, reader_memory_ref_record)
   if (
     !is.list(payload) ||
       !identical(
@@ -364,30 +448,31 @@ reader_memory_read_in_transaction <- function(
       !is.list(payload$evidence) ||
       length(payload$evidence) !=
         as.integer(payload$kind == "interpretation") ||
-      !identical(payload$evidence, root$metadata$dependencies)
+      !identical(payload$evidence, dependencies)
   ) {
     reader_memory_abort()
   }
-  evidence <- lapply(payload$evidence, function(ref) {
-    if (!any(vapply(root$metadata$dependencies, identical, logical(1), ref))) {
+  evidence <- lapply(seq_along(payload$evidence), function(index) {
+    ref <- payload$evidence[[index]]
+    if (!identical(dependencies[[index]], ref)) {
       reader_memory_abort()
     }
-    value <- graft::graft_artifact_read(artifacts, ref)
-    jsonlite::fromJSON(rawToChar(value$bytes), simplifyVector = FALSE)
+    value <- graft::graft_read(artifacts, root@dependencies[[index]])
+    jsonlite::fromJSON(rawToChar(value@bytes), simplifyVector = FALSE)
   })
   list(
     memory_id = memory_id,
     kind = payload$kind,
     text = payload$text,
     evidence = evidence,
-    archived = identical(retained$action, "withdraw"),
+    archived = identical(retained@action, "withdraw"),
     basis = list(
       memory_id = memory_id,
-      decision = retained$id,
-      selection = retained$selection,
+      decision = retained@id,
+      selection = retained@selection,
       ref = selected$roots[[1L]]
     ),
-    previous = retained$previous
+    previous = retained@previous
   )
 }
 
@@ -453,25 +538,19 @@ reader_memory_archive <- function(access, memory_id, expected, key) {
   force(key)
   access(function(store, artifacts, reader_id) {
     reader_memory_require_id(store, reader_id, memory_id)
-    previous <- graft::graft_artifact_read_decision(
-      artifacts,
-      memory_id,
-      expected
-    )
+    previous <- reader_memory_decision(artifacts, memory_id, expected)
     if (is.null(previous)) {
       reader_memory_abort()
     }
-    decision <- graft::graft_artifact_decide(
+    decision <- graft::graft_withdraw(
       artifacts,
-      memory_id,
-      key,
-      expected,
-      previous$selection,
-      "withdraw",
-      reader_id,
-      "Reader archived this memory",
-      "rill:reader-context"
+      stream = memory_id,
+      expected = previous@id,
+      key = key,
+      actor = reader_id,
+      reason = "Reader archived this memory"
     )
+    decision <- reader_memory_decision_record(decision)
     reader_memory_record_event(store, reader_id, memory_id, decision)
     decision
   })
@@ -483,25 +562,22 @@ reader_memory_restore <- function(access, memory_id, expected, key) {
   force(key)
   access(function(store, artifacts, reader_id) {
     reader_memory_require_id(store, reader_id, memory_id)
-    previous <- graft::graft_artifact_read_decision(
-      artifacts,
-      memory_id,
-      expected
-    )
-    if (is.null(previous) || previous$action != "withdraw") {
+    previous <- reader_memory_decision(artifacts, memory_id, expected)
+    if (is.null(previous) || previous@action != "withdraw") {
       reader_memory_abort()
     }
-    decision <- graft::graft_artifact_decide(
+    selection <- graft::graft_read_selection(artifacts, previous@selection)
+    decision <- graft::graft_accept(
       artifacts,
-      memory_id,
-      key,
-      expected,
-      previous$selection,
-      "accept",
-      reader_id,
-      "Reader restored this memory",
-      "rill:reader-context"
+      selection,
+      stream = memory_id,
+      expected = previous@id,
+      key = key,
+      actor = reader_id,
+      reason = "Reader restored this memory",
+      purpose = previous@purpose
     )
+    decision <- reader_memory_decision_record(decision)
     reader_memory_record_event(store, reader_id, memory_id, decision)
     decision
   })

@@ -1112,13 +1112,13 @@
         "RemoteHost": "api.github.com",
         "RemoteRepo": "graft",
         "RemoteUsername": "JamesHWade",
-        "RemotePkgRef": "JamesHWade/graft@0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
-        "RemoteRef": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
-        "RemoteSha": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "RemotePkgRef": "JamesHWade/graft@936d133570e3096a8a1e5f565e887238bff89c17",
+        "RemoteRef": "936d133570e3096a8a1e5f565e887238bff89c17",
+        "RemoteSha": "936d133570e3096a8a1e5f565e887238bff89c17",
         "GithubRepo": "graft",
         "GithubUsername": "JamesHWade",
-        "GithubRef": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
-        "GithubSHA1": "0592feccd52cf287b0c7cb381ea8c7eabc37dc8c",
+        "GithubRef": "936d133570e3096a8a1e5f565e887238bff89c17",
+        "GithubSHA1": "936d133570e3096a8a1e5f565e887238bff89c17",
         "NeedsCompilation": "no",
         "Packaged": "2026-09-19 15:15:03 UTC; james",
         "Author": "James [aut, cre]",
@@ -2776,7 +2776,7 @@
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "9f891d3a8296e577e2e1a01d6db25e04"
+      "checksum": "4fce8780861fec8c51a0cd6e3158a190"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
@@ -2944,10 +2944,10 @@
       "checksum": "a135500a8f41ab57343a55c41d77f428"
     },
     "R/reader-memory-ui.R": {
-      "checksum": "3a9e2f798108cf7221d490199215ef7b"
+      "checksum": "37dd4bd99a57fe07635738b2fbee2c27"
     },
     "R/reader-memory.R": {
-      "checksum": "003df1e835aac9bc22d930b611d600d5"
+      "checksum": "7dc67dfab8f9794a6e9e896c9be58d0a"
     }
   },
   "users": null

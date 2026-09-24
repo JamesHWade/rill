@@ -19,6 +19,12 @@ have no Reader identity argument and receive neither database handles nor write
 authority. Workers must resolve current authority and bind a new access closure;
 serialized handles are not credentials.
 
+Rill consumes Graft's API4 workflow through `graft_store()` or
+`graft_store_postgres()`, `graft_save()`, `graft_select()`, `graft_read()`,
+`graft_accept()`, `graft_withdraw()`, `graft_recall()`, and `graft_history()`.
+The adapter converts Graft's typed values into the plain, reader-scoped basis
+retained by Rill; it does not copy Graft serialization into Rill.
+
 Rill retains only a Reader-to-memory catalog and Reading History receipts.
 Graft owns immutable content and the decision journal in its scoped object table.
 Acceptance, catalog insertion, and the host receipt commit in the same database
