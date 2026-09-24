@@ -87,19 +87,47 @@ read_feed_xml <- function(xml) {
       can_repair <- is.character(xml) &&
         length(xml) == 1L &&
         !is.na(xml) &&
-        grepl("]]>", xml, fixed = TRUE) &&
-        !grepl("<![CDATA[", xml, fixed = TRUE)
+        grepl("]]>", xml, fixed = TRUE)
       if (!can_repair) {
         stop(error)
       }
 
-      repaired_xml <- gsub("]]>", "]]&gt;", xml, fixed = TRUE)
+      repaired_xml <- escape_text_terminators(xml)
       tryCatch(
         xml2::read_xml(repaired_xml),
         error = function(repair_error) stop(error)
       )
     }
   )
+}
+
+escape_text_terminators <- function(xml) {
+  cdata <- gregexpr("(?s)<!\\[CDATA\\[.*?\\]\\]>", xml, perl = TRUE)[[1L]]
+  if (cdata[[1L]] == -1L) {
+    return(gsub("]]>", "]]&gt;", xml, fixed = TRUE))
+  }
+
+  lengths <- attr(cdata, "match.length")
+  parts <- character(length(cdata) * 2L + 1L)
+  cursor <- 1L
+  for (i in seq_along(cdata)) {
+    end <- cdata[[i]] + lengths[[i]] - 1L
+    parts[[2L * i - 1L]] <- gsub(
+      "]]>",
+      "]]&gt;",
+      substr(xml, cursor, cdata[[i]] - 1L),
+      fixed = TRUE
+    )
+    parts[[2L * i]] <- substr(xml, cdata[[i]], end)
+    cursor <- end + 1L
+  }
+  parts[[length(parts)]] <- gsub(
+    "]]>",
+    "]]&gt;",
+    substr(xml, cursor, nchar(xml)),
+    fixed = TRUE
+  )
+  paste0(parts, collapse = "")
 }
 
 discover_feed_url <- function(page_url, html) {

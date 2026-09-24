@@ -51,6 +51,24 @@ testthat::test_that("feed parsing preserves valid CDATA content", {
   )
 })
 
+testthat::test_that("feed parsing repairs text beside valid CDATA", {
+  rss <- paste0(
+    "<rss version='2.0'><channel><title>Example RSS</title>",
+    "<item><guid>post-1</guid><title>First post</title>",
+    "<link>https://example.com/first</link>",
+    "<description><![CDATA[<p>CDATA source</p>]]> ordinary ]]>",
+    " text <![CDATA[<em>more</em>]]></description>",
+    "</item></channel></rss>"
+  )
+
+  result <- parse_feed_document(rss, "https://example.com/feed.xml")
+
+  testthat::expect_identical(
+    result$entries$feed_content,
+    "<p>CDATA source</p> ordinary ]]> text <em>more</em>"
+  )
+})
+
 testthat::test_that("HTML directory pages are not treated as XML feeds", {
   response <- httr2::response(headers = list("content-type" = "text/xml"))
 
