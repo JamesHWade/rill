@@ -10,6 +10,23 @@ testthat::test_that("reading a cache miss never calls the extractor", {
   testthat::expect_identical(reading_document(store, "reader", entry), document)
 })
 
+testthat::test_that("feed copies without readable content use a placeholder", {
+  store <- preparation_test_store()
+  entry <- store_get_entry(store, "reader", store$memory$entries$entry_id[[1]])
+  entry$feed_content <- paste0(
+    "<p></p>",
+    "<iframe src='https://open.spotify.com/embed/episode/1'></iframe>"
+  )
+
+  document <- reading_document(store, "reader", entry)
+
+  testthat::expect_identical(document$acquisition_method, "feed_fallback")
+  testthat::expect_identical(
+    document$markdown,
+    "No readable content was supplied by this feed."
+  )
+})
+
 testthat::test_that("reading repairs flattened public copies without changing pins", {
   store <- preparation_test_store()
   id <- store$memory$entries$entry_id[[1]]

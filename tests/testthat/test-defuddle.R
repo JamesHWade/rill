@@ -1087,6 +1087,28 @@ testthat::test_that("rendered documents drop executable markup", {
   )
 })
 
+testthat::test_that("rendered documents drop markup that browsers parse differently", {
+  dirty <- c(
+    "<p>Kept<!--><img src=x onerror=alert(1)>--> words</p>",
+    "<noscript><!--</noscript><img src=x onerror=alert(2)>--></noscript>",
+    "<textarea><!--</textarea><img src=x onerror=alert(3)>--></textarea>",
+    "<title></title><img src=x onerror=alert(4)></title>",
+    paste0(
+      "<iframe src='https://www.youtube.com/embed/18PIeJoxYtc'>",
+      "<p title='</iframe><img src=x onerror=alert(5)>'>fallback</p>",
+      "</iframe>"
+    ),
+    "<p>Plain <?php echo 1; ?> text</p>"
+  )
+
+  clean <- vapply(dirty, sanitize_rendered_html, character(1))
+
+  testthat::expect_no_match(clean, "onerror|<!--|<\\?", ignore.case = TRUE)
+  testthat::expect_match(clean[[1L]], "Kept", fixed = TRUE)
+  testthat::expect_match(clean[[5L]], "youtube-nocookie.com", fixed = TRUE)
+  testthat::expect_no_match(clean[[5L]], "fallback", fixed = TRUE)
+})
+
 testthat::test_that("rendered documents restore safe video embeds", {
   document <- list(
     markdown = paste(

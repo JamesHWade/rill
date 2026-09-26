@@ -38,16 +38,11 @@ entry_preview_image <- function(content, base_url, item = NULL) {
     candidates <- as.list(nodes)
   }
   if (store_scalar_string(content)) {
-    html <- tryCatch(
-      xml2::read_html(content),
+    images <- tryCatch(
+      xml2::xml_find_all(read_markup(content, as_html = TRUE), "//img[@src]"),
       error = \(error) NULL
     )
-    if (!is.null(html)) {
-      candidates <- c(
-        candidates,
-        as.list(xml2::xml_find_all(html, "//img[@src]"))
-      )
-    }
+    candidates <- c(candidates, as.list(images))
   }
   for (node in utils::head(candidates, 30L)) {
     attributes <- xml2::xml_attrs(node)

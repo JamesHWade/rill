@@ -2395,7 +2395,7 @@ store_mark_entries_read <- function(
     entry_clauses <- c(entry_clauses, group_filter$sql)
     parameters <- group_filter$parameters
     if (!is.null(before)) {
-      parameters <- append(parameters, before)
+      parameters[[length(parameters) + 1L]] <- before
       entry_clauses <- c(
         entry_clauses,
         paste0(
