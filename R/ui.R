@@ -1839,6 +1839,10 @@ feed_poll_status_ui <- function(feed) {
   )
 }
 
+feed_group_ids <- function(feed) {
+  unlist(feed$group_ids, use.names = FALSE) %||% character()
+}
+
 feed_organization_control_ui <- function(
   feed = NULL,
   folders = character(),
@@ -1861,7 +1865,10 @@ feed_organization_control_ui <- function(
   }
 
   shiny::tagList(
-    shiny::tags$p(class = "feed-source-url", feed$feed_url),
+    shiny::textOutput(
+      "managed_feed_url",
+      container = \(...) shiny::tags$p(class = "feed-source-url", ...)
+    ),
     if (identical(feed$source_kind %||% "subscription", "subscription")) {
       shiny::tagList(
         shiny::uiOutput("managed_feed_status"),
@@ -1892,7 +1899,7 @@ feed_organization_control_ui <- function(
           } else {
             stats::setNames(groups$group_id, groups$name)
           },
-          selected = unlist(feed$group_ids, use.names = FALSE),
+          selected = feed_group_ids(feed),
           multiple = TRUE,
           options = list(closeAfterSelect = TRUE),
           width = "100%"

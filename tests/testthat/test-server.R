@@ -2103,6 +2103,67 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
   })
 })
 
+testthat::test_that("Manage feeds updates untouched fields and keeps drafts", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  render_controls <- feed_organization_control_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(
+    feed_organization_control_ui = function(...) {
+      renders <<- renders + 1L
+      render_controls(...)
+    }
+  )
+  groups <- store_list_groups(store, config$actor_id)$group_id
+  change_feed <- function(title, feed_url, group_ids) {
+    feeds <- store$memory$feeds
+    feeds$title[feeds$feed_id == "sample-posit"] <- title
+    feeds$feed_url[feeds$feed_id == "sample-posit"] <- feed_url
+    store$memory$feeds <- feeds
+    store_update_group_memberships(
+      store,
+      config$actor_id,
+      "sample-posit",
+      group_ids
+    )
+  }
+  input_messages <- list()
+  shiny::testServer(rill_server(config, store), {
+    session$sendInputMessage <- function(input_id, message) {
+      input_messages[[input_id]] <<- message
+    }
+    session$setInputs(manage_feeds = 1, managed_feed = "sample-posit")
+    rendered <- renders
+    session$setInputs(
+      feed_title = "Posit Blog",
+      feed_groups = feed_group_ids(managed_feed())
+    )
+
+    change_feed("Posit News", "https://posit.co/blog/feed.xml", groups)
+    bump_refresh(feeds_changed = TRUE)
+    session$flushReact()
+    testthat::expect_identical(input_messages$feed_title$value, "Posit News")
+    testthat::expect_setequal(input_messages$feed_groups$value, groups)
+    testthat::expect_identical(
+      output$managed_feed_url,
+      "https://posit.co/blog/feed.xml"
+    )
+
+    input_messages <<- list()
+    session$setInputs(feed_title = "My Posit", feed_groups = groups[[1L]])
+    change_feed("Posit Updates", "https://posit.co/blog/rss.xml", groups[[2L]])
+    bump_refresh(feeds_changed = TRUE)
+    session$flushReact()
+    testthat::expect_disjoint(
+      names(input_messages),
+      c("feed_title", "feed_groups")
+    )
+    testthat::expect_identical(renders, rendered)
+  })
+})
+
 testthat::test_that("reading actions report store failures without ending the session", {
   local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
