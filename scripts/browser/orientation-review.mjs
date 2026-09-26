@@ -16,7 +16,7 @@ try {
     await page.goto(url);
     await page.locator('.orientation-theme').first().waitFor();
     assert.equal(await page.locator('.orientation-step').count(), 3);
-    assert.match(await page.locator('.orientation-totals').innerText(), /6 unread in total/);
+    assert.match(await page.locator('.orientation-totals').innerText(), /\b6 unread\b/);
     const excerpts = await page.locator('.orientation-step').evaluateAll(cards => cards.map(card => ({
       lead: card.querySelector('.orientation-evidence-lead').textContent,
       full: card.querySelector('.orientation-evidence blockquote').textContent
@@ -37,8 +37,8 @@ try {
     await page.getByRole('button', {name: 'The agent features (2 unread stories)', exact: true}).click();
     await page.waitForFunction(() => document.querySelectorAll('.story-card').length === 2);
     if (width < 1000) await page.locator('.compact-library-trigger').click();
-    await page.locator('#feed_nav button').filter({hasText: /^\s*R\s*4\s*$/}).click();
-    await page.waitForFunction(() => document.querySelectorAll('.story-card').length === 4);
+    await page.locator('#feed_nav button').filter({hasText: /^\s*About Rill\s*6\s*$/}).click();
+    await page.waitForFunction(() => document.querySelectorAll('.story-card').length === 6);
     await page.close();
     page = await browser.newPage({viewport: {width, height: 1000}, reducedMotion: 'reduce'});
     page.setDefaultTimeout(15000);
@@ -68,7 +68,7 @@ try {
     assert.deepEqual(feedbackAudit.violations.map(v => ({id: v.id, impact: v.impact})), []);
     await page.screenshot({path: new URL(`${width}-theme-rating.png`, output).pathname, fullPage: true});
     assert.deepEqual(errors, []);
-    results.push({width, picks: 3, unreadTotal: 6, themeStories: 2, groupStories: 4, themeOnlyRatingSaved: true, violations: 0, errors});
+    results.push({width, picks: 3, unreadTotal: 6, themeStories: 2, groupStories: 6, themeOnlyRatingSaved: true, violations: 0, errors});
     await page.close();
   }
   await fs.writeFile(new URL('results.json', output), JSON.stringify(results, null, 2) + '\n');
