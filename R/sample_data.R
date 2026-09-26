@@ -1,18 +1,27 @@
 sample_rill_data <- function() {
+  # The tour stories come from Rill itself, so they live in the Rill project's
+  # own feed. The other three are real feeds for trying Refresh.
   feeds <- data.frame(
-    feed_id = c("sample-r-project", "sample-posit", "sample-rweekly"),
+    feed_id = c(
+      "sample-rill",
+      "sample-r-project",
+      "sample-posit",
+      "sample-rweekly"
+    ),
     feed_url = c(
+      "https://github.com/JamesHWade/rill/releases.atom",
       "https://blog.r-project.org/feed.xml",
       "https://posit.co/blog/rss.xml",
       "https://rweekly.org/atom.xml"
     ),
     site_url = c(
+      "https://github.com/JamesHWade/rill",
       "https://www.r-project.org",
       "https://posit.co/blog",
       "https://rweekly.org"
     ),
-    title = c("The R Blog", "Posit Blog", "R Weekly"),
-    folder = c("R", "R", "Community"),
+    title = c("Rill", "The R Blog", "Posit Blog", "R Weekly"),
+    folder = c("About Rill", "R", "R", "Community"),
     source_kind = "subscription",
     etag = NA_character_,
     last_modified = NA_character_,
@@ -22,27 +31,20 @@ sample_rill_data <- function() {
     stringsAsFactors = FALSE
   )
 
-  site <- "https://jameshwade.github.io/rill/"
+  readme <- "https://github.com/JamesHWade/rill"
   entries <- data.frame(
     entry_id = paste0("sample-entry-", 1:6),
-    feed_id = c(
-      "sample-r-project",
-      "sample-posit",
-      "sample-rweekly",
-      "sample-r-project",
-      "sample-posit",
-      "sample-rweekly"
-    ),
+    feed_id = "sample-rill",
     external_id = paste0("sample-", 1:6),
     url = paste0(
-      site,
+      readme,
       c(
         "",
-        "#features",
-        "articles/agents.html",
-        "articles/agents.html#orientation",
-        "articles/configuration.html",
-        "articles/reading-copies.html"
+        "#run-in-demo-mode",
+        "#ask-rill-about-a-story",
+        "#maintain-orientation",
+        "#add-neon",
+        "#browser-capture"
       )
     ),
     canonical_url = NA_character_,
@@ -167,13 +169,12 @@ sample_rill_data <- function() {
       ),
       "    DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require",
       paste(
-        "Rill creates its tables the first time it starts. A small hosted",
+        "Rill creates and updates its tables when it starts. A small hosted",
         "database such as Neon works well."
       ),
       paste(
-        "To run Rill for other people, the",
-        "[hosting guide](https://jameshwade.github.io/rill/articles/hosting.html)",
-        "covers sign-in, scheduled feed polling, and approving new readers."
+        "To run Rill for other people, see the",
+        "[deployment guides](https://github.com/JamesHWade/rill/tree/main/docs/deployment)."
       ),
       sep = "\n\n"
     ),

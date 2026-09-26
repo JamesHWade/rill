@@ -2104,6 +2104,7 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
 })
 
 testthat::test_that("reading actions report store failures without ending the session", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   config$orientation_enabled <- FALSE
@@ -5467,6 +5468,7 @@ testthat::test_that("uploading OPML reports the result and records an event", {
 })
 
 testthat::test_that("OPML import registers feeds before any refresh", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -5938,6 +5940,7 @@ testthat::test_that("queue saves are scoped and do not open the story", {
 
 
 testthat::test_that("folder selection scopes queues and resets when selecting a feed", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6007,6 +6010,7 @@ testthat::test_that("feed management preserves empty Groups after their last fee
 })
 
 testthat::test_that("Group management and combined reading share a single queue state", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6169,6 +6173,7 @@ testthat::test_that("only valid queue transition tokens reach the rendered batch
 })
 
 testthat::test_that("new Group and folder scopes clear an Orientation theme", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   for (navigation in c("group", "groups", "folder", "ungrouped")) {
     config <- rill_config()

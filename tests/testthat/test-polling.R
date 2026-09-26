@@ -88,6 +88,7 @@ testthat::test_that("disabled Readers do not keep Feeds eligible for polling", {
 })
 
 testthat::test_that("due polling refreshes each active shared Feed once", {
+  local_three_feed_demo()
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
   store$memory$feeds$last_polled_at <- "2026-09-03 10:00:00 UTC"
   store_ensure_reader(store, "reader-two")
@@ -133,6 +134,7 @@ testthat::test_that("due polling refreshes each active shared Feed once", {
 })
 
 testthat::test_that("isolated Feed failures remain durable without failing", {
+  local_three_feed_demo()
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
   store$memory$feeds$last_polled_at <- "2026-09-03 10:00:00 UTC"
   stale_feed_id <- store$memory$feeds$feed_id[[1L]]
@@ -309,6 +311,7 @@ testthat::test_that("poll_feeds reports skipped and successful runs", {
 })
 
 testthat::test_that("failed polling prepares healthy articles before signaling the threshold", {
+  local_three_feed_demo()
   local_article_preparation_worker()
   store <- preparation_test_store()
   store$memory$entries <- store$memory$entries[0, , drop = FALSE]

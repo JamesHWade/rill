@@ -41,6 +41,7 @@ testthat::test_that("marking unread preserves evidence that a story was opened",
 })
 
 testthat::test_that("bulk read state records its reason and respects scope", {
+  local_three_feed_demo()
   actor_id <- "test-reader"
   store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))
   feed_id <- store$memory$feeds$feed_id[[1]]
@@ -566,6 +567,7 @@ testthat::test_that("public copy repair is conditional and preserves historical 
 
 
 testthat::test_that("folder queues and bulk reads use the Reader's subscriptions", {
+  local_three_feed_demo()
   reader <- "folder-reader"
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, reader)

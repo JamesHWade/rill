@@ -1,4 +1,5 @@
 testthat::test_that("Groups overlap without duplicating Entries or reading state", {
+  local_three_feed_demo()
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, "reader")
     feeds <- store_list_feeds(store, "reader")$feed_id
@@ -97,6 +98,7 @@ testthat::test_that("Groups overlap without duplicating Entries or reading state
 })
 
 testthat::test_that("Group mutations are atomic and Reader scoped", {
+  local_three_feed_demo()
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, "reader")
     store_ensure_reader(store, "other")
@@ -151,6 +153,7 @@ testthat::test_that("Group mutations are atomic and Reader scoped", {
 })
 
 testthat::test_that("migration 013 preserves existing folders and inactive memberships", {
+  local_three_feed_demo()
   store <- local_orientation_backend_store("postgres", "reader")
   store_ensure_reader(store, "other")
   feeds <- store_list_feeds(store, "reader")$feed_id
