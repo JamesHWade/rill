@@ -34,7 +34,7 @@
 
 * RSS publication dates now keep their time zone offsets, such as `-0700`, so stories from feeds outside UTC sort correctly and appear in the right calendar view.
 
-* Feeds that declare their encoding only in the XML prolog, or send Windows-1252 text without a charset, now refresh instead of failing.
+* Feeds that declare their encoding only in the XML prolog, are encoded as UTF-16, or send Windows-1252 text without a charset now refresh instead of failing.
 
 * Opening a story whose feed item has no readable text now shows a placeholder copy instead of closing the session.
 

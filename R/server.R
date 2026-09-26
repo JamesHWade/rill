@@ -2856,22 +2856,57 @@ rill_server <- function(
       if (identical(result$status, "running")) feed_refresh_status_ui(result)
     })
 
-    output$feed_organization_control <- shiny::renderUI({
+    managed_feed <- shiny::reactive({
       feed_id <- management_feed_id()
       if (is.null(feed_id)) {
-        return(feed_organization_control_ui())
+        return(NULL)
       }
       feed_rows <- management_feeds()
       selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
       if (!nrow(selected)) {
+        return(NULL)
+      }
+      as.list(selected[1, , drop = FALSE])
+    })
+
+    # A finished refresh changes every feed's poll results. Keeping those out
+    # of the editable controls stops it from resetting a half-typed name or
+    # unsaved Groups; a reactiveVal only invalidates on a changed value.
+    managed_feed_fields <- shiny::reactiveVal(NULL)
+    shiny::observe({
+      feed <- managed_feed()
+      editable <- c(
+        "feed_id",
+        "feed_url",
+        "title",
+        "status",
+        "source_kind",
+        "group_ids"
+      )
+      managed_feed_fields(
+        if (!is.null(feed)) feed[intersect(editable, names(feed))]
+      )
+    })
+    managed_feed_groups <- shiny::reactiveVal(NULL)
+    shiny::observe({
+      groups <- feed_groups()
+      managed_feed_groups(data.frame(
+        group_id = groups$group_id,
+        name = groups$name
+      ))
+    })
+
+    output$feed_organization_control <- shiny::renderUI({
+      feed <- managed_feed_fields()
+      if (is.null(feed)) {
         return(feed_organization_control_ui())
       }
-      # Groups change only through feed management, which also invalidates
-      # management_feeds(). Other refreshes would reset half-typed edits.
-      feed_organization_control_ui(
-        as.list(selected[1, , drop = FALSE]),
-        groups = shiny::isolate(feed_groups())
-      )
+      feed_organization_control_ui(feed, groups = managed_feed_groups())
+    })
+
+    output$managed_feed_status <- shiny::renderUI({
+      feed <- managed_feed()
+      if (!is.null(feed)) feed_poll_status_ui(feed)
     })
 
     output$group_management_control <- shiny::renderUI({
