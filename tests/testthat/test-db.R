@@ -89,6 +89,22 @@ testthat::test_that("bulk read state records its reason and respects scope", {
   )
 })
 
+testthat::test_that("both stores mark stories older than a cutoff as read", {
+  for (backend in c("memory", "postgres")) {
+    store <- local_orientation_backend_store(backend, "reader")
+    old_ids <- sample_rill_data()$entries$entry_id[5:6]
+
+    marked <- store_mark_entries_read(
+      store,
+      "reader",
+      before = Sys.time() - 25 * 60 * 60,
+      reason = "bulk_older_than_day"
+    )
+
+    testthat::expect_setequal(marked, old_ids)
+  }
+})
+
 testthat::test_that("reader feed labels survive source refreshes", {
   actor_id <- "test-reader"
   store <- rill_store(list(demo_mode = TRUE, actor_id = actor_id))

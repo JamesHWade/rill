@@ -98,6 +98,82 @@ testthat::test_that("Atom links and authors are recognized", {
   testthat::expect_equal(result$entries$author, "Ada")
 })
 
+testthat::test_that("preferred feed fields win regardless of element order", {
+  rss <- paste0(
+    "<rss version='2.0' xmlns:atom='http://www.w3.org/2005/Atom' ",
+    "xmlns:content='http://purl.org/rss/1.0/modules/content/' ",
+    "xmlns:media='http://search.yahoo.com/mrss/'><channel>",
+    "<title>Example</title>",
+    "<atom:link rel='self' href='https://example.com/feed/'/>",
+    "<link>https://example.com</link>",
+    "<item><title>Excerpt first</title><link>https://example.com/1</link>",
+    "<description>Short excerpt</description>",
+    "<content:encoded><![CDATA[<p>Full article</p>]]></content:encoded>",
+    "</item>",
+    "<item><title>Media first</title><link>https://example.com/2</link>",
+    "<media:content url='https://example.com/2.jpg' medium='image'/>",
+    "<description>Plain description</description></item>",
+    "<item><title>Permalink only</title>",
+    "<guid>https://example.com/3</guid><description>Text</description></item>",
+    "</channel></rss>"
+  )
+  atom <- paste0(
+    "<feed xmlns='http://www.w3.org/2005/Atom'><title>Example Atom</title>",
+    "<entry><id>tag:example.org,2026:1</id><title>Entry</title>",
+    "<link href='https://example.org/1'/>",
+    "<author><name>Jane Doe</name><uri>https://jane.example</uri>",
+    "<email>jane@example.org</email></author>",
+    "<updated>2026-09-02T00:00:00Z</updated>",
+    "<published>2026-09-01T12:00:00Z</published>",
+    "<summary>Summary</summary><content type='html'>Full content</content>",
+    "</entry></feed>"
+  )
+
+  rss_result <- parse_feed_document(rss, "https://example.com/feed/")
+  atom_result <- parse_feed_document(atom, "https://example.org/atom.xml")
+
+  testthat::expect_identical(rss_result$feed$site_url, "https://example.com")
+  testthat::expect_identical(
+    rss_result$entries$feed_content,
+    c("<p>Full article</p>", "Plain description", "Text")
+  )
+  testthat::expect_identical(
+    rss_result$entries$url[[3L]],
+    "https://example.com/3"
+  )
+  testthat::expect_identical(atom_result$entries$author, "Jane Doe")
+  testthat::expect_identical(atom_result$entries$feed_content, "Full content")
+  testthat::expect_identical(
+    atom_result$entries$published_at,
+    "2026-09-01 12:00:00 UTC"
+  )
+})
+
+testthat::test_that("feed dates keep RFC 822 offsets and explicit times", {
+  dates <- c(
+    "Mon, 06 Sep 2021 16:45:00 -0700",
+    "Mon, 06 Sep 2021 16:45:00 +1000",
+    "Monday, 6 Sep 2021 16:45 PDT",
+    "06 Sep 2021 16:45:00 GMT",
+    "2021-09-06T16:45:00-07:00",
+    "Mon, 06 Sep 2021 00:00:00 GMT",
+    "not a date"
+  )
+
+  testthat::expect_identical(
+    vapply(dates, parse_feed_date, character(1), USE.NAMES = FALSE),
+    c(
+      "2021-09-06 23:45:00 UTC",
+      "2021-09-06 06:45:00 UTC",
+      "2021-09-06 23:45:00 UTC",
+      "2021-09-06 16:45:00 UTC",
+      "2021-09-06 23:45:00 UTC",
+      "2021-09-06 00:00:00 UTC",
+      NA_character_
+    )
+  )
+})
+
 testthat::test_that("RSS 1.0 preserves channel metadata and sibling items", {
   rdf <- paste0(
     '<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#" ',
@@ -186,6 +262,32 @@ testthat::test_that("unrelated XML is not accepted as an empty feed", {
   testthat::expect_identical(parsed$feed$title, "https://example.org/feed")
 })
 
+testthat::test_that("feed bodies are parsed as text, never opened as paths or URLs", {
+  path <- withr::local_tempfile(fileext = ".xml")
+  writeLines(
+    paste0(
+      "<rss version='2.0'><channel><title>Local file</title>",
+      "<link>https://example.com</link>",
+      "<item><title>Secret</title><link>https://example.com/secret</link>",
+      "<description><img src='https://example.com/secret.png'/></description>",
+      "</item></channel></rss>"
+    ),
+    path
+  )
+
+  testthat::expect_error(
+    parse_feed_document(path, "https://example.com/feed.xml")
+  )
+  testthat::expect_error(
+    discover_feed_url("https://example.com/", path),
+    "does not advertise"
+  )
+  testthat::expect_identical(
+    entry_preview_image(path, "https://example.com/post")$url,
+    NA_character_
+  )
+})
+
 testthat::test_that("local network feed URLs are rejected", {
   testthat::expect_snapshot(
     validate_public_http_url("http://127.0.0.1/feed"),
@@ -198,6 +300,97 @@ testthat::test_that("local network feed URLs are rejected", {
   testthat::expect_equal(
     validate_public_http_url("https://example.com/feed"),
     "https://example.com/feed"
+  )
+})
+
+testthat::test_that("loopback names, private ranges, and IPv6 literals are rejected", {
+  for (url in c(
+    "http://anything.localhost:3000/feed",
+    "http://localhost./feed",
+    "http://100.64.1.1/feed",
+    "http://2130706433/feed",
+    "http://[::1]:8080/feed",
+    "http://[fd00::1]/feed"
+  )) {
+    testthat::expect_error(
+      validate_public_http_url(url),
+      class = "rill_url_invalid"
+    )
+  }
+  testthat::expect_identical(
+    validate_public_http_url("https://123.example.com/rss"),
+    "https://123.example.com/rss"
+  )
+})
+
+testthat::test_that("feed redirects are checked before each request", {
+  requested <- character()
+  httr2::local_mocked_responses(function(req) {
+    requested <<- c(requested, req$url)
+    if (identical(req$url, "https://example.com/feed")) {
+      httr2::response(
+        302L,
+        req$url,
+        headers = list(Location = "/moved.xml")
+      )
+    } else if (identical(req$url, "https://example.com/moved.xml")) {
+      httr2::response(
+        301L,
+        req$url,
+        headers = list(Location = "http://127.0.0.1/internal")
+      )
+    } else {
+      httr2::response(200L, req$url, body = charToRaw("<rss/>"))
+    }
+  })
+
+  testthat::expect_error(
+    feed_request("https://example.com/feed"),
+    class = "rill_url_invalid"
+  )
+  testthat::expect_identical(
+    requested,
+    c("https://example.com/feed", "https://example.com/moved.xml")
+  )
+
+  requested <- character()
+  response <- feed_request("https://example.com/other")
+  testthat::expect_identical(httr2::resp_url(response), requested)
+})
+
+testthat::test_that("feeds decode the encoding declared in their XML prolog", {
+  rss <- paste0(
+    "<?xml version='1.0' encoding='ISO-8859-1'?>",
+    "<rss version='2.0'><channel><title>Café</title>",
+    "<item><title>Crème brûlée</title>",
+    "<link>https://example.com/1</link></item></channel></rss>"
+  )
+  body <- iconv(rss, from = "UTF-8", to = "latin1", toRaw = TRUE)[[1L]]
+  httr2::local_mocked_responses(function(req) {
+    httr2::response(
+      200L,
+      req$url,
+      headers = list(`Content-Type` = "application/rss+xml"),
+      body = body
+    )
+  })
+
+  result <- fetch_feed("https://example.com/feed.xml")
+
+  testthat::expect_identical(result$feed$title, "Café")
+  testthat::expect_identical(result$entries$title, "Crème brûlée")
+})
+
+testthat::test_that("feed retries only honour short Retry-After waits", {
+  short <- httr2::response(503L, headers = list(`Retry-After` = "5"))
+  long <- httr2::response(503L, headers = list(`Retry-After` = "86400"))
+  missing <- httr2::response(429L)
+  testthat::expect_identical(feed_retry_is_transient(short), TRUE)
+  testthat::expect_identical(feed_retry_is_transient(long), FALSE)
+  testthat::expect_identical(feed_retry_is_transient(missing), TRUE)
+  testthat::expect_identical(
+    feed_retry_is_transient(httr2::response(404L)),
+    FALSE
   )
 })
 
