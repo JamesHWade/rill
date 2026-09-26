@@ -14,6 +14,8 @@ behind a focused application interface.
 Useful links:
 \itemize{
   \item \url{https://jameshwade.github.io/rill/}
+  \item \url{https://github.com/JamesHWade/rill}
+  \item Report bugs at \url{https://github.com/JamesHWade/rill/issues}
 }
 
 }

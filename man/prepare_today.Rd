@@ -7,15 +7,17 @@
 prepare_today()
 }
 \value{
-Invisibly, a list with counts for total, cached, prepared, and failed
-Feed Entries, named safe error summaries, and per-Entry \code{failures} with the
-extraction or storage stage, diagnostic code, HTTP status when available,
-and a reference matching the content-free server log. Raw error messages,
-request URLs, and credentials are not included in diagnostics.
+Invisibly, a list with the number of \code{total}, \code{cached}, \code{prepared},
+and \code{failed} articles; \code{errors}, a short message for each failed article,
+named by its entry ID; and \code{failures}, a list with one diagnostic per
+failure. Each diagnostic names the stage (extraction or storage), a
+diagnostic code, the HTTP status when known, and a reference that matches
+the server log. Neither includes raw error messages, request URLs, or
+credentials.
 }
 \description{
-\code{prepare_today()} extracts and caches clean reading copies for articles
-published during the current local calendar day. Existing documents are
-preserved, and failed extractions remain uncached so a later run can retry.
-It is intended for interactive use or scheduled jobs.
+\code{prepare_today()} fetches and saves full reading copies for articles
+published today, in the R process's time zone. Existing copies are kept.
+Articles that fail stay without a full copy, so a later run can retry them.
+It needs \code{DATABASE_URL} and suits interactive use or a scheduled job.
 }

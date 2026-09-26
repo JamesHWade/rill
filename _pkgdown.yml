@@ -1,27 +1,43 @@
 url: https://jameshwade.github.io/rill/
 
+# docs/ holds design records and runbooks, so the site is built elsewhere.
+destination: _site
+
 template:
   bootstrap: 5
 
+articles:
+  - title: Using Rill
+    navbar: ~
+    contents:
+      - articles/configuration
+      - articles/agents
+      - articles/reading-copies
+      - articles/hosting
+
 reference:
-  - title: Run Rill
-    desc: Launch the reader or refresh its subscriptions.
+  - title: Run the reader
+    desc: Start the app and keep its Library current.
     contents:
       - rill_app
-      - list_reader_admissions
-      - approve_reader_admission
       - poll_feeds
       - prepare_today
-      - list_reader_feedback
 
-  - title: Evaluate Reader Feedback
-    desc: Review human ratings and calibrate independent judgments with vitals.
-    contents:
-      - evaluate_reader_feedback
-      - reader_feedback_samples
-
-  - title: Subscription interchange
-    desc: Move feed subscriptions into and out of Rill with OPML.
+  - title: Move subscriptions
+    desc: Read and write OPML subscription lists.
     contents:
       - read_opml
       - write_opml
+
+  - title: Admit readers
+    desc: Approve access requests on a hosted instance.
+    contents:
+      - list_reader_admissions
+      - approve_reader_admission
+
+  - title: Review ratings
+    desc: Read a reader's ratings of agent answers and evaluate them with vitals.
+    contents:
+      - list_reader_feedback
+      - evaluate_reader_feedback
+      - reader_feedback_samples

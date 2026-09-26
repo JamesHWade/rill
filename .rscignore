@@ -16,7 +16,6 @@ _pkgdown.yml
 air.toml
 artifacts
 compose.yaml
-design-qa.md
 docker
 docs
 man
@@ -26,3 +25,5 @@ scripts
 tests
 tools
 pkgdown
+vignettes
+_site

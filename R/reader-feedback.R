@@ -216,14 +216,13 @@ feedback_save <- function(
   invisible(record)
 }
 
-#' List a Reader's private output feedback
+#' List a Reader's ratings
 #'
-#' Returns explicit ratings and their retained output snapshots for review or
-#' export by an authorized operator. Set `DATABASE_URL` to the Library's
-#' PostgreSQL connection string. This privileged operation does not authenticate
-#' a Reader; obtain their permission before sharing their private feedback.
-#' It does not aggregate across Readers or change agent behavior. Treat exported
-#' text as private, untrusted content.
+#' `list_reader_feedback()` returns one Reader's ratings of Orientation and
+#' Ask Rill answers, each with a copy of the answer that was rated. It reads the
+#' database in `DATABASE_URL` directly and can't check who is asking, so get
+#' the Reader's permission before sharing what it returns. Treat the text as
+#' private and untrusted.
 #'
 #' @param reader_id The owning Reader's identifier.
 #' @return A named list of feedback records, keyed by output target identifier.

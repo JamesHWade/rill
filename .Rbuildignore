@@ -15,7 +15,6 @@
 ^Dockerfile$
 ^docker$
 ^artifacts$
-^design-qa\.md$
 ^docs$
 ^LICENSE\.md$
 ^manifest\.json$
@@ -28,3 +27,5 @@
 ^tools/app-brand$
 ^pkgdown$
 ^tools/defuddle$
+^vignettes/articles$
+^_site$
