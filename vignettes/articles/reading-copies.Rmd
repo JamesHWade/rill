@@ -26,7 +26,7 @@ Rill prepares full articles in a separate background process, so reading
 never waits on it:
 
 - after each feed refresh, for public articles from the past seven days that
-  don't have a copy yet;
+  don't have a full copy yet;
 - after each scheduled `poll_feeds()` run, for up to 100 articles or ten
   minutes of work;
 - when you choose **Prepare full article** on a story, or **Prepare** in the
@@ -116,10 +116,10 @@ only a hash of the token.
 
 ## Preparing copies from R
 
-`prepare_today()` prepares copies for everything published today, in the time
-zone of the R process. It needs `DATABASE_URL` and uses the same settings as
-the app. Each failure comes with a reference that matches an entry in the
-server log:
+`prepare_today()` prepares full copies for articles published today that don't
+have one yet, in the time zone of the R process. It needs `DATABASE_URL` and
+uses the same settings as the app. Each failure comes with a reference that
+matches an entry in the server log:
 
 ```r
 result <- rill::prepare_today()
