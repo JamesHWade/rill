@@ -16,7 +16,7 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
       entry_id = document$entry_id,
       interpretation = "Keep this exact useful interpretation.",
       why_now = "It remains the clearest unread account.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "seed-orientation-run"
   )
@@ -43,7 +43,7 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
         frame = "unresolved_question",
         interpretation = "Keep this exact useful interpretation.",
         why_now = "It remains the clearest unread account.",
-        evidence = "Rill keeps the source feed"
+        evidence = "This story comes with Rill's demo"
       ))
     )
     orientation_test_tool_state(agent, output)
@@ -349,7 +349,7 @@ testthat::test_that("Orientation publishes an accepted correction after rejected
         ),
         class = "rill_orientation_invalid"
       )
-      cards[[1L]]$evidence <- "Rill keeps the source feed"
+      cards[[1L]]$evidence <- "This story comes with Rill's demo"
       submit(
         status = "One source deserves attention.",
         question = "What should stay separate?",
@@ -395,7 +395,7 @@ testthat::test_that("Orientation publishes an accepted correction after rejected
   testthat::expect_identical(orientation$agent_run_id, run$run_id)
   testthat::expect_identical(
     orientation$cards[[1L]]$evidence,
-    "Rill keeps the source feed"
+    "This story comes with Rill's demo"
   )
 })
 
@@ -1226,7 +1226,7 @@ testthat::test_that("a changed source boundary rejects stale publication", {
       frame = "change",
       interpretation = "This was selected from the old boundary.",
       why_now = "It had been unread when maintenance began.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     ))
   ))
   rejected <- NULL

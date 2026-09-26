@@ -339,7 +339,7 @@ seed_orientation_backend <- function(store, reader_id, candidate_limit = 12L) {
         entry_id = candidate$entry$entry_id,
         interpretation = "This Document tests the shared store contract.",
         why_now = "It is part of the current bounded unread set.",
-        evidence = "Rill keeps the source feed"
+        evidence = "This story comes with Rill's demo"
       )
     },
     candidates[1:2],

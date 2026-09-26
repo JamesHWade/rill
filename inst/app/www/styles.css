@@ -1476,6 +1476,10 @@ div.story-list.shiny-html-output {
   line-height: 1.45;
 }
 
+.orientation-evidence-lead.is-truncated::after {
+  content: "\2026";
+}
+
 .orientation-evidence {
   margin-top: 5px;
   color: var(--muted);

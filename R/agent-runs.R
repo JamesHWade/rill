@@ -106,7 +106,7 @@ validate_deferred_reader_question_replay <- function(
       )
   ) {
     cli::cli_abort(
-      "Rill is already preserving another Reader question.",
+      "Rill is already holding another question until Orientation stops.",
       class = "rill_agent_run_draining"
     )
   }
@@ -311,7 +311,7 @@ store_start_agent_run <- function(
           )
         ) {
           cli::cli_abort(
-            "Reader {.val {reader_id}} already has an active Agent Run.",
+            "Rill is already answering a question or updating Orientation. Try again when it finishes.",
             class = "rill_agent_run_conflict",
             parent = error
           )
@@ -322,7 +322,7 @@ store_start_agent_run <- function(
     run <- store_get_agent_run(store, reader_id, run_id)
     if (is.null(run)) {
       cli::cli_abort(
-        "Reader {.val {reader_id}} already has an active Agent Run.",
+        "Rill is already answering a question or updating Orientation. Try again when it finishes.",
         class = "rill_agent_run_conflict"
       )
     }
@@ -339,7 +339,7 @@ store_start_agent_run <- function(
   )
   if (length(active_runs)) {
     cli::cli_abort(
-      "Reader {.val {reader_id}} already has an active Agent Run.",
+      "Rill is already answering a question or updating Orientation. Try again when it finishes.",
       class = "rill_agent_run_conflict"
     )
   }

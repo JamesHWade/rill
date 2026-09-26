@@ -90,6 +90,7 @@ testthat::test_that("write_opml requires HTTP feed URLs", {
 })
 
 testthat::test_that("OPML imports add and reorganize subscriptions", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)

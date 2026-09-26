@@ -1718,7 +1718,11 @@ testthat::test_that("a failed resume names its actual cause", {
     session$flushReact()
   })
 
-  testthat::expect_match(appended, "couldn't send the preserved", all = FALSE)
+  testthat::expect_match(
+    appended,
+    "couldn't send your held question",
+    all = FALSE
+  )
   testthat::expect_no_match(appended, "destination changed")
 })
 
@@ -2161,6 +2165,7 @@ testthat::test_that("Manage feeds updates untouched fields and keeps drafts", {
 })
 
 testthat::test_that("reading actions report store failures without ending the session", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   config$orientation_enabled <- FALSE
@@ -2692,7 +2697,7 @@ testthat::test_that("a deferred question rejects a changed destination", {
     )
     testthat::expect_match(
       appended,
-      "didn't send the preserved question",
+      "didn't send your held question",
       fixed = TRUE
     )
   })
@@ -4451,7 +4456,7 @@ testthat::test_that("asking without a story returns a usable chat response", {
     session$setInputs(reader_chat_user_input = "What does this say?")
     session$flushReact()
 
-    testthat::expect_match(appended, "Choose a story", fixed = TRUE)
+    testthat::expect_match(appended, "Open a story first", fixed = TRUE)
     testthat::expect_null(active_agent_run())
     testthat::expect_length(
       Filter(
@@ -5331,7 +5336,7 @@ testthat::test_that("Today finishes when all stories already have full copies", 
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Today's preparation check is complete. Available copies are preserved."
+      "Finished checking today's stories for full articles."
     )
     testthat::expect_length(preparation_failures(), 0L)
     testthat::expect_null(article_preparer$state$job)
@@ -5356,7 +5361,7 @@ testthat::test_that("Today finishes when there are no stories to prepare", {
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Today's preparation check is complete. Available copies are preserved."
+      "Finished checking today's stories for full articles."
     )
   }))
 })
@@ -5524,6 +5529,7 @@ testthat::test_that("uploading OPML reports the result and records an event", {
 })
 
 testthat::test_that("OPML import registers feeds before any refresh", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -5995,6 +6001,7 @@ testthat::test_that("queue saves are scoped and do not open the story", {
 
 
 testthat::test_that("folder selection scopes queues and resets when selecting a feed", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6064,6 +6071,7 @@ testthat::test_that("feed management preserves empty Groups after their last fee
 })
 
 testthat::test_that("Group management and combined reading share a single queue state", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6226,6 +6234,7 @@ testthat::test_that("only valid queue transition tokens reach the rendered batch
 })
 
 testthat::test_that("new Group and folder scopes clear an Orientation theme", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   for (navigation in c("group", "groups", "folder", "ungrouped")) {
     config <- rill_config()

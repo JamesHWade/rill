@@ -351,12 +351,12 @@ testthat::test_that("local and external memory changes visibly start a new conve
     testthat::expect_length(messages, 1L)
     testthat::expect_match(
       messages[[1L]],
-      "New conversation for this question",
+      "**New conversation**",
       fixed = TRUE
     )
     testthat::expect_match(
       messages[[1L]],
-      "not passed to the new conversation",
+      "aren't sent to Rill",
       fixed = TRUE
     )
     reader_agent_for(doc, list())
@@ -369,7 +369,7 @@ testthat::test_that("local and external memory changes visibly start a new conve
     testthat::expect_length(messages, 2L)
     testthat::expect_match(
       messages[[2L]],
-      "New conversation for this question",
+      "**New conversation**",
       fixed = TRUE
     )
     reader_agent_for(doc, latest)

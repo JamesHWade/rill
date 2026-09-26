@@ -1,4 +1,5 @@
 testthat::test_that("PostgreSQL isolates Reader Libraries over shared Feeds", {
+  local_three_feed_demo()
   database_url <- Sys.getenv("RILL_TEST_DATABASE_URL", unset = "")
   testthat::skip_if(
     !nzchar(database_url),

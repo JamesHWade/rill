@@ -88,7 +88,7 @@ testthat::test_that("PostgreSQL persists the current Orientation aggregate", {
       entry_id = document$entry_id,
       interpretation = "This story establishes the boundary.",
       why_now = "It is the clearest unread account.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = run$run_id,
     evaluated_at = as.POSIXct("2026-09-02 16:00:00", tz = "UTC")

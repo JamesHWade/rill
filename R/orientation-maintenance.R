@@ -166,7 +166,7 @@ orientation_failure_message <- function(reason) {
     ))
   }
   paste(
-    "Rill couldn't finish evaluating your unread Documents.",
+    "Rill couldn't finish checking your unread stories.",
     "You can keep reading and retry Orientation."
   )
 }
@@ -177,7 +177,11 @@ orientation_failure_reason <- function(error) {
 
 orientation_stop_error <- function(reason) {
   structure(
-    simpleError(paste("The Orientation Agent stopped with reason", reason)),
+    simpleError(paste0(
+      "Orientation stopped before it finished (",
+      reason,
+      ")."
+    )),
     class = c("rill_orientation_agent_stopped", "error", "condition"),
     stop_reason = reason
   )
@@ -203,8 +207,8 @@ assert_orientation_destination_enabled <- function(
   if (!enabled || is.null(destination_id) || !destination_matches) {
     cli::cli_abort(
       paste(
-        "Automatic Orientation is disabled or its Data Destination changed.",
-        "Confirm the current Data Destination before trying again."
+        "Orientation is off, or its model provider changed.",
+        "Confirm the provider in the sidebar before trying again."
       ),
       class = "rill_orientation_destination_disabled"
     )

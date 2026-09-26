@@ -240,7 +240,7 @@ reader_memory_propose <- function(
       )
     } else if (!is.null(document_id) || !is.null(quote)) {
       reader_memory_invalid(
-        "A preference is Reader Context and has no source citation."
+        "Preferences don't cite a passage from a story."
       )
     }
     list(
