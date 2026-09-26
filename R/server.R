@@ -2870,22 +2870,17 @@ rill_server <- function(
       as.list(selected[1, , drop = FALSE])
     })
 
-    # A finished refresh changes every feed's poll results. Keeping those out
-    # of the editable controls stops it from resetting a half-typed name or
-    # unsaved Groups; a reactiveVal only invalidates on a changed value.
+    # A finished refresh can change a feed's poll results, address, and source
+    # title. Rebuilding the controls then would discard a half-typed name or
+    # unsaved Groups, so they are rebuilt only when the manager opens or the
+    # feed, its status, or its kind changes. A reactiveVal only invalidates on
+    # a changed value.
     managed_feed_fields <- shiny::reactiveVal(NULL)
     shiny::observe({
       feed <- managed_feed()
-      editable <- c(
-        "feed_id",
-        "feed_url",
-        "title",
-        "status",
-        "source_kind",
-        "group_ids"
-      )
+      shown <- c("feed_id", "status", "source_kind")
       managed_feed_fields(
-        if (!is.null(feed)) feed[intersect(editable, names(feed))]
+        if (!is.null(feed)) feed[intersect(shown, names(feed))]
       )
     })
     managed_feed_groups <- shiny::reactiveVal(NULL)
@@ -2897,13 +2892,50 @@ rill_server <- function(
       ))
     })
 
+    # The name and Groups the controls were last built with. A newer value
+    # replaces a field only while the field still holds that value.
+    managed_feed_shown <- new.env(parent = emptyenv())
     output$feed_organization_control <- shiny::renderUI({
-      feed <- managed_feed_fields()
-      if (is.null(feed)) {
+      input$manage_feeds
+      if (is.null(managed_feed_fields())) {
         return(feed_organization_control_ui())
       }
+      feed <- shiny::isolate(managed_feed())
+      managed_feed_shown$feed_id <- feed$feed_id
+      managed_feed_shown$title <- feed$title
+      managed_feed_shown$group_ids <- feed_group_ids(feed)
       feed_organization_control_ui(feed, groups = managed_feed_groups())
     })
+    shiny::observe({
+      feed <- managed_feed()
+      if (
+        is.null(feed) || !identical(feed$feed_id, managed_feed_shown$feed_id)
+      ) {
+        return()
+      }
+      if (!identical(feed$title, managed_feed_shown$title)) {
+        if (
+          identical(shiny::isolate(input$feed_title), managed_feed_shown$title)
+        ) {
+          shiny::updateTextInput(session, "feed_title", value = feed$title)
+        }
+        managed_feed_shown$title <- feed$title
+      }
+      group_ids <- feed_group_ids(feed)
+      if (!setequal(group_ids, managed_feed_shown$group_ids)) {
+        chosen <- shiny::isolate(input$feed_groups) %||% character()
+        if (setequal(chosen, managed_feed_shown$group_ids)) {
+          shiny::updateSelectizeInput(
+            session,
+            "feed_groups",
+            selected = group_ids
+          )
+        }
+        managed_feed_shown$group_ids <- group_ids
+      }
+    })
+
+    output$managed_feed_url <- shiny::renderText(managed_feed()$feed_url)
 
     output$managed_feed_status <- shiny::renderUI({
       feed <- managed_feed()
