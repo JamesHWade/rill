@@ -18,3 +18,4 @@ rsconnect/
 tools/defuddle/node_modules/
 
 scripts/browser/node_modules/
+_site/

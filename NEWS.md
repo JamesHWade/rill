@@ -1,5 +1,7 @@
 # rill 0.0.0.9000
 
+* The README is shorter and covers installing Rill and trying the demo. Setup details moved to four website articles: Configuration, Ask Rill and Orientation, Reading copies, and Running Rill for others.
+
 * Manage feeds starts with adding a feed, keeps Done and a close button in view while its body scrolls, makes Retry failed feeds a secondary action, gathers the Group tools under one heading, and asks before deleting a Group (#99).
 
 * Ask Rill shows its greeting again after you open a story. Clearing the conversation for a new story used to remove the greeting until the page reloaded.

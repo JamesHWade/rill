@@ -1,0 +1,107 @@
+---
+title: "Running Rill for others"
+---
+
+On your own machine, Rill trusts whoever runs it and serves one Library.
+Hosting it adds three jobs: signing people in, keeping feeds fresh without
+anyone having the app open, and knowing when something breaks.
+
+## Choosing a host
+
+The repository documents two setups. Both keep all state in PostgreSQL, so the
+app itself can restart or move freely.
+
+- Posit Connect Cloud, with Auth0 sign-in inside the app
+  (`RILL_IDENTITY_MODE=auth0`). The
+  [Connect Cloud runbook](https://github.com/JamesHWade/rill/blob/main/docs/deployment/connect-cloud.md)
+  covers the manifest, the Auth0 application, Neon, and hourly polling from
+  GitHub Actions.
+- A Docker image that runs Rill behind oauth2-proxy
+  (`RILL_IDENTITY_MODE=oidc_proxy`), with a separate cron job for polling. The
+  [Render guide](https://github.com/JamesHWade/rill/blob/main/docs/deployment/render.md)
+  covers the image, a local Docker Compose setup, and the environment.
+
+## Admitting readers
+
+The people listed in `RILL_ALLOWED_OIDC_SUBJECTS` sign in to the Library that
+belongs to `RILL_ACTOR_ID`. When anyone else signs in, Rill records an access
+request, tells them to wait for approval, and shows them nothing else.
+
+The reader who signs in to `RILL_ACTOR_ID`'s Library sees **Access requests**
+in the sidebar and can approve requests there. An operator with the
+deployment's `DATABASE_URL` can do the same from R:
+
+```r
+requests <- rill::list_reader_admissions()
+rill::approve_reader_admission(
+  requests$request_id[[1]],
+  responsible_id = "operator:james"
+)
+```
+
+Each approval creates a new, empty Library, and approving the same request
+again changes nothing. Readers share feed downloads and public article copies.
+Subscriptions, Groups, reading state, captured pages, ratings, and memories
+stay private to each reader. Requests that nobody approves expire 30 days after
+the person's last sign-in.
+
+## Keeping feeds fresh
+
+`poll_feeds()` checks each feed that at least one reader follows once its
+interval has passed (`RILL_POLL_INTERVAL_MINUTES`, 60 by default). It skips the
+run if another poll is still going, records the result for every feed, and
+backs off feeds that keep failing, from one hour up to one day. It exits with
+an error when `RILL_POLL_FAILURE_THRESHOLD` feeds fail (5 by default). After
+polling, it prepares up to 100 recent full articles.
+
+Schedule `Rscript scripts/poll.R` to run it. The repository's **Poll feeds**
+GitHub Actions workflow runs it hourly once you set the repository variable
+`RILL_POLLING_ENABLED` to `true` and store the database URL in the
+`RILL_DATABASE_URL` secret.
+
+Readers can refresh from the app at any time. Set `RILL_REFRESH_ON_START=true`
+to refresh whenever someone opens it.
+
+## Telemetry
+
+Rill sends OpenTelemetry traces and logs to any OTLP endpoint, such as
+Logfire, Grafana Cloud, or Honeycomb. These settings export only Rill's own
+spans and suppress the automatic spans from httr2, ellmer, and deputy, which
+can contain URLs and conversation text:
+
+```text
+OTEL_SERVICE_NAME=rill
+OTEL_RESOURCE_ATTRIBUTES=service.namespace=personal-reader,deployment.environment=production
+OTEL_TRACES_EXPORTER=http
+OTEL_LOGS_EXPORTER=http
+OTEL_METRICS_EXPORTER=none
+OTEL_R_EMIT_SCOPES=rill
+OTEL_R_SUPPRESS_SCOPES=httr2,ellmer,deputy
+OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false
+OTEL_EXPORTER_OTLP_ENDPOINT=https://logfire-us.pydantic.dev
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=your-logfire-write-token
+```
+
+Rill's spans record timings, counts, and error classes. They leave out article
+titles and text, full URLs, reader and story identifiers, and exception
+messages. The traces worth knowing:
+
+- `article.open` follows a story from the click to readable text.
+  `reading.first_text_ms` is measured in the browser.
+- `queue.action` times mark-read, save, and Undo from the click to the update
+  on screen.
+- `article.prepare` covers background extraction: `queue.wait_ms`,
+  `worker.bootstrap_ms`, and an `article.extract.http` span with the HTTP
+  status. A failure carries the same reference that the app shows the reader.
+- `orientation.maintain` covers Orientation updates.
+  `orientation.failure_stage` says where an update failed, and `error.classes`
+  lists up to eight nested error classes.
+
+## Reading history
+
+Rill records reading activity in the `events` table of your database: stories
+opened and where they were opened from, scroll and reading-time milestones,
+stars, saves, read-state changes, Orientation dismissals, captures, and changes
+to feeds and Groups. These records stay in your database. Rill doesn't send
+them to telemetry or to model providers.

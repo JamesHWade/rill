@@ -1,27 +1,25 @@
 #' Create the Rill application
 #'
-#' `rill_app()` creates the Shiny application using configuration read from
-#' environment variables. With no `DATABASE_URL`, it uses bundled demo data.
-#' `RILL_IDENTITY_MODE=auth0` enables an in-app Auth0 gate for hosts such as
-#' Posit Connect Cloud, while `oidc_proxy` keeps the production container's
-#' upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
-#' `sub` pairs to durable internal Readers. Configured
-#' `RILL_ALLOWED_OIDC_SUBJECTS` values bootstrap the private Reader in
-#' `RILL_ACTOR_ID`. Both adapters record one pending admission for a verified
-#' identity without a Reader binding while denying Library access. Email and
-#' other profile claims are mutable metadata, not identity keys. When
-#' `RILL_CAPTURE_TOKEN` is set, the same application binds that credential to
-#' `RILL_ACTOR_ID` and accepts authenticated browser Documents at
-#' `/api/v1/captures`. Captures and reading-copy selection remain private to
-#' that Reader. `RILL_AGENT_MODEL` selects the
-#' [ellmer][ellmer::chat()] model used for source-grounded questions and
-#' Orientation. Its provider credential must also be available.
-#' `RILL_AGENT_BASE_URL` selects a custom provider endpoint and is required
-#' when Rill cannot resolve the effective endpoint itself.
-#' `RILL_ORIENTATION_ENABLED=true` makes automatic Orientation available; each
-#' Reader must still confirm the configured Data Destination in the app before
-#' bounded reading copies are sent. External destinations also require an
-#' inspectable provider-policy link in `RILL_AGENT_POLICY_URL`.
+#' `rill_app()` builds the Rill Shiny app from settings in environment
+#' variables. Without `DATABASE_URL`, it runs an in-memory demo with six
+#' bundled stories.
+#'
+#' @section Configuration:
+#' These settings cover most installations:
+#'
+#' * `DATABASE_URL`: a PostgreSQL connection URL. Rill applies its schema
+#'   migrations when the app starts.
+#' * `RILL_AGENT_MODEL`: the model used by Ask Rill and Orientation, in any
+#'   form that [ellmer::chat()] accepts. Set the provider's API key as well.
+#' * `RILL_IDENTITY_MODE`: `local` (the default) for a single reader, `auth0`
+#'   for sign-in inside the app, or `oidc_proxy` behind an OpenID Connect
+#'   proxy.
+#' * `RILL_CAPTURE_TOKEN`: turns on `POST /api/v1/captures` for pages captured
+#'   in a browser.
+#'
+#' The
+#' [configuration article](https://jameshwade.github.io/rill/articles/configuration.html)
+#' lists every setting.
 #'
 #' @return A `shiny.appobj` object suitable for [shiny::runApp()].
 #' @export
@@ -75,16 +73,18 @@ rill_app <- function() {
 
 #' Prepare today's reading copies
 #'
-#' `prepare_today()` extracts and caches clean reading copies for articles
-#' published during the current local calendar day. Existing documents are
-#' preserved, and failed extractions remain uncached so a later run can retry.
-#' It is intended for interactive use or scheduled jobs.
+#' `prepare_today()` fetches and saves full reading copies for articles
+#' published today, in the R process's time zone. Existing copies are kept.
+#' Articles that fail stay without a full copy, so a later run can retry them.
+#' It needs `DATABASE_URL` and suits interactive use or a scheduled job.
 #'
-#' @return Invisibly, a list with counts for total, cached, prepared, and failed
-#'   Feed Entries, named safe error summaries, and per-Entry `failures` with the
-#'   extraction or storage stage, diagnostic code, HTTP status when available,
-#'   and a reference matching the content-free server log. Raw error messages,
-#'   request URLs, and credentials are not included in diagnostics.
+#' @return Invisibly, a list with the number of `total`, `cached`, `prepared`,
+#'   and `failed` articles; `errors`, a short message for each failed article,
+#'   named by its entry ID; and `failures`, a list with one diagnostic per
+#'   failure. Each diagnostic names the stage (extraction or storage), a
+#'   diagnostic code, the HTTP status when known, and a reference that matches
+#'   the server log. Neither includes raw error messages, request URLs, or
+#'   credentials.
 #' @export
 prepare_today <- function() {
   config <- rill_config()

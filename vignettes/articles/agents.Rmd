@@ -1,0 +1,102 @@
+---
+title: "Ask Rill and Orientation"
+---
+
+Rill has two optional agent features. Ask Rill answers questions about the
+story you are reading. Orientation suggests what to read next. Both work from
+Rill's stored copies of articles and keep the article's own words apart from
+the agent's commentary.
+
+Both use the model named by `RILL_AGENT_MODEL`, through
+[ellmer](https://ellmer.tidyverse.org) and a
+[deputy](https://github.com/JamesHWade/deputy) agent. The agent can read only
+what Rill hands it. It cannot browse the web, read or write files, run shell
+commands, or run R code.
+
+## Ask Rill
+
+Open a story and choose **Ask Rill**. The panel beside the story sends your
+question and the story's stored copy to the provider, and the footer names
+where it goes. The agent reads the copy through a single read-only tool. Its
+answers quote the story for claims the text supports, label interpretation,
+and say when the story doesn't answer the question.
+
+Each question runs with fixed limits: at most 8 model requests, 16 tool calls,
+128,000 tokens, US$2 of estimated cost, and five minutes. You can stop a
+response while it streams and retry one that failed.
+
+The chat panel shows the conversation for the current browser session. Rill
+also keeps a record of each question: the question, the answer, which copy of
+the story it used, and how it ended. **Reopen last answer** in the sidebar
+brings back your latest answer with the copy it was based on. In the demo,
+these records last until R restarts.
+
+## Orientation
+
+With no story open, Rill shows Orientation: up to three unread stories worth
+reading now, each with a short explanation and the passage it is based on.
+**Not for me** removes a pick. The rest of the unread queue is grouped into up
+to five topics, and each topic opens a filtered queue. Opening a pick does not
+mark it as endorsed.
+
+Orientation is off by default because it sends article text to the provider
+without you asking a question. To make it available:
+
+```text
+RILL_AGENT_MODEL=openai
+OPENAI_API_KEY=your-key
+RILL_ORIENTATION_ENABLED=true
+RILL_AGENT_POLICY_URL=https://openai.com/policies/row-privacy-policy/
+```
+
+Each Reader then turns it on from the sidebar. The confirmation names the
+provider and endpoint and links to the policy in `RILL_AGENT_POLICY_URL`.
+Rill remembers the confirmation for that exact endpoint. Changing the endpoint
+turns Orientation off until the Reader confirms again. Upgrading the model at
+the same endpoint does not.
+
+When it updates, Orientation sends the stored text of up to 36 of the newest
+unread stories. That reveals which of those stories are unread. It does not
+send the rest of your Library, your reading history, Reader Memory, or
+credentials. An Ollama server on the same machine counts as part of your
+installation; any other endpoint is external. If Rill can't determine the
+endpoint for a provider, set `RILL_AGENT_BASE_URL`.
+
+Rill checks every quoted passage against the text it supplied and returns
+mismatches to the agent to correct. An update gets 4 model requests, 8 tool
+calls, 64,000 tokens, US$0.50, and two minutes. If you ask a question while
+Orientation is updating, Rill stops the update and answers your question
+first.
+
+When an update fails, Orientation shows the error message, and
+**Error details** shows the full condition and backtrace. These details stay in
+your browser session; Rill does not store them or send them to telemetry.
+
+## Rating answers
+
+You can rate an Orientation or an Ask Rill answer as helpful or not, with
+optional reasons and a comment. Ratings are private to the Reader and keep a
+copy of the rated answer. **My saved ratings** lets you review, change,
+withdraw, or download them.
+
+With the Reader's permission, an operator can read them with
+`list_reader_feedback()`. `reader_feedback_samples()` and
+`evaluate_reader_feedback()` turn ratings into a
+[vitals](https://vitals.tidyverse.org) evaluation for comparing prompt or
+model changes.
+
+## Reader Memory pilot
+
+Set `RILL_READER_MEMORY_ENABLED=true` to try Reader Memory. It lets you save
+preferences, and interpretations tied to an exact passage from a story, for
+Ask Rill to consult later. Nothing is saved until you choose
+**Accept as Reader Memory**; typing, reviewing, and chatting don't save
+anything. You can inspect, correct, archive, and restore saved memories.
+Archiving keeps the record but stops Ask Rill from using it. Accepted memories,
+including their passages, are sent to the provider when Ask Rill consults
+them.
+
+The pilot is off by default because it can't permanently delete a memory yet
+([Graft #48](https://github.com/JamesHWade/graft/issues/48)). Memories are
+stored with [graft](https://github.com/JamesHWade/graft) in PostgreSQL. In
+the demo they last until R restarts.

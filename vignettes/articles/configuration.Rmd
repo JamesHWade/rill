@@ -1,0 +1,95 @@
+---
+title: "Configuration"
+---
+
+Rill reads its settings from environment variables when the app or the poller
+starts. None are required: with no settings, Rill runs the in-memory demo.
+
+For local work, put settings in a project `.Renviron` file and restart R, or
+keep them in `.env` and load it with `readRenviron(".env")`. Git ignores both
+files. The repository's `.env.example` shows a typical single-reader setup.
+
+## Storage
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | unset | PostgreSQL connection URL. Without it, Rill runs the demo and keeps changes in memory. Rill applies its migrations at startup. Hosted databases such as Neon need `sslmode=require`. |
+| `RILL_ACTOR_ID` | `reader` | The Reader who owns the Library. With sign-in enabled, the allowed subjects below sign in as this Reader. |
+
+## Sign-in
+
+`RILL_IDENTITY_MODE` chooses how Rill identifies the person using it.
+
+- `local` (the default) trusts the R process and serves one Library. Use it on
+  your own machine.
+- `auth0` adds an Auth0 sign-in page inside the app. Use it on hosts that
+  serve apps publicly, such as Posit Connect Cloud.
+- `oidc_proxy` trusts identity headers from an
+  [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) that sits in
+  front of Rill, as in the Docker image.
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `RILL_ALLOWED_OIDC_SUBJECTS` | `auth0`, `oidc_proxy` | Comma-separated `sub` claims that may sign in to `RILL_ACTOR_ID`'s Library. Anyone else who signs in is recorded as an access request. |
+| `AUTH0_DOMAIN` | `auth0` | Your Auth0 tenant, such as `your-tenant.us.auth0.com`. |
+| `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET` | `auth0` | Credentials of a Regular Web Application in Auth0. |
+| `AUTH0_REDIRECT_URI` | `auth0` | The app's public URL. It must use HTTPS, except on a loopback address. |
+| `OAUTH2_PROXY_OIDC_ISSUER_URL` | `oidc_proxy` | Issuer that the proxy authenticates against. |
+| `OAUTH2_PROXY_CLIENT_ID` | `oidc_proxy` | Client ID used to build the sign-out link. |
+| `OAUTH2_PROXY_REDIRECT_URL` | `oidc_proxy` | Proxy callback URL. Sign-out returns to its site root. |
+
+Rill stops at startup with a message naming the missing variables when a
+sign-in mode is incomplete. [Running Rill for others](hosting.html) describes
+how to admit more readers.
+
+## Ask Rill and Orientation
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RILL_AGENT_MODEL` | `openai` | Model used by Ask Rill and Orientation, in any form that [`ellmer::chat()`](https://ellmer.tidyverse.org/reference/chat.html) accepts, such as `anthropic` or `openai/gpt-4.1-mini`. |
+| Provider key | unset | The credential that ellmer expects for that provider, such as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. |
+| `RILL_AGENT_BASE_URL` | provider default | Custom endpoint for the provider. Required when Rill cannot work out the endpoint itself. `OPENAI_BASE_URL`, `AZURE_OPENAI_ENDPOINT`, and `OLLAMA_BASE_URL` are used when this is unset. |
+| `RILL_ORIENTATION_ENABLED` | `false` | Allow automatic Orientation. Each Reader still has to turn it on in the app. |
+| `RILL_AGENT_POLICY_URL` | unset | Link to the provider's data-use terms. Orientation can't be turned on for an external provider without it. |
+| `RILL_READER_MEMORY_ENABLED` | `false` | Show the Reader Memory pilot. |
+
+The [Ask Rill and Orientation](agents.html) article explains what each feature
+sends to the provider.
+
+## Reading copies
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DEFUDDLE_BACKEND` | `hosted` | `hosted` sends public article URLs to the Defuddle API. `local` runs a Defuddle command inside your installation. |
+| `DEFUDDLE_COMMAND` | `defuddle` | Command for the `local` backend: `bundled` for the copy shipped with Rill (needs Node.js 18+ or Deno 2+), `defuddle` for a global npm install, or a path to an executable. |
+| `DEFUDDLE_API_KEY` | unset | Optional key for the hosted API. |
+| `DEFUDDLE_BASE_URL` | `https://defuddle.md` | Hosted API address. |
+| `RILL_CAPTURE_TOKEN` | unset | Turns on `POST /api/v1/captures` for pages captured in your browser. Use a long random value. |
+
+See [Reading copies](reading-copies.html) for how preparation and capture work.
+
+## Feed polling
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RILL_POLL_INTERVAL_MINUTES` | `60` | How long `poll_feeds()` waits before checking a feed again. |
+| `RILL_POLL_FAILURE_THRESHOLD` | `5` | Number of failed feeds that makes `poll_feeds()` exit with an error. |
+| `RILL_REFRESH_ON_START` | `false` | Refresh all feeds when someone opens the app. |
+
+## Telemetry
+
+Rill exports OpenTelemetry traces and logs when `OTEL_EXPORTER_OTLP_ENDPOINT`
+is set. The other `OTEL_*` variables follow the OpenTelemetry specification.
+`RILL_ENV` (default `development`) labels the deployment in telemetry. See
+[Running Rill for others](hosting.html#telemetry) for recommended values.
+
+Rill refuses to start when
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` is `true`, because that
+flag would export prompts, answers, and article text.
+
+## Development and deployment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RILL_TEST_DATABASE_URL` | unset | Disposable PostgreSQL database for the PostgreSQL tests. The tests create and drop their own schemas. |
+| `RILL_SHINY_PORT` | `3838` | Port used by the Docker image's web process. |

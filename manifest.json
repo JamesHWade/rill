@@ -2770,13 +2770,13 @@
       "checksum": "b38630ea116d02ff1c8e90bd7437eb56"
     },
     ".Rbuildignore": {
-      "checksum": "30d0992a179a0c1b7fe290c14fff52d4"
+      "checksum": "309820b5cc5e6db0eb9a8e7096aefb23"
     },
     "app.R": {
       "checksum": "64f113371bef2cc057b97c74ed7ba22a"
     },
     "DESCRIPTION": {
-      "checksum": "4fce8780861fec8c51a0cd6e3158a190"
+      "checksum": "3e3c22d8f22926632a37765559923c42"
     },
     "inst/app/_brand.yml": {
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
@@ -2857,7 +2857,7 @@
       "checksum": "9bd3704eb23ec7773637bf17a0207cf7"
     },
     "R/app.R": {
-      "checksum": "d92126e1dd4186d0be593c71948b8062"
+      "checksum": "70ec8578ce969cb2d9afab7e4feb1cc6"
     },
     "R/article-preparation.R": {
       "checksum": "5423493560087c9f2f68ca6e93e2ae96"
@@ -2905,10 +2905,10 @@
       "checksum": "7a36d6f3fc0d869ea8819bf7caf6489f"
     },
     "R/polling.R": {
-      "checksum": "97a3417444f755c2f4f50a69c359c770"
+      "checksum": "c98d99fe0244bd79ea750f1cdff9c52d"
     },
     "R/reader-admissions.R": {
-      "checksum": "a36b28f095430f2cc08d770807fbc478"
+      "checksum": "24039291b14560bee2ba1cd1f1f9fa50"
     },
     "R/rill-package.R": {
       "checksum": "931b381347f39d9a5534f464a6dc8849"
@@ -2932,7 +2932,7 @@
       "checksum": "34bbf3194f462446829880b0e71c10a7"
     },
     "R/reader-feedback.R": {
-      "checksum": "053b0d9fc2498e1b8a711688c906cdf2"
+      "checksum": "82cdcf6e237e65cbea47c28a745ebb13"
     },
     "inst/sql/014_reader_feedback.sql": {
       "checksum": "2905a9af9863e33d94dca74b56de379d"
