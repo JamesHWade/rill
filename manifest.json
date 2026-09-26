@@ -2881,7 +2881,7 @@
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
     },
     "R/feeds.R": {
-      "checksum": "ba484584a3a2eb0a652454323e92e529"
+      "checksum": "c50d25e80ba30bea36bb3824caf6ef9c"
     },
     "R/identity.R": {
       "checksum": "e64c8edd29d09c44f4a256cf598867e2"
@@ -2917,13 +2917,13 @@
       "checksum": "e52d38b2b294c4211b6867c560f152b6"
     },
     "R/server.R": {
-      "checksum": "8291d3c28724cd1e925f98f4d751efbd"
+      "checksum": "4ebe089b9f6ca319481279958102b6c4"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "8b65962cccf0ceb71071ae19318194fb"
+      "checksum": "c076de8bde59904c7a694b1874cdb20f"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

@@ -738,8 +738,11 @@ testthat::test_that("Orientation identifies material boundary changes", {
     orientation_ui(orientation, candidates[2:3])
   )$html
 
-  testthat::expect_match(html, "1 new unread story", fixed = TRUE)
-  testthat::expect_match(html, "1 no longer unread", fixed = TRUE)
+  testthat::expect_match(
+    html,
+    "Since then: 1 story added; 1 removed.",
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("Orientation describes non-membership boundary changes", {
@@ -751,6 +754,20 @@ testthat::test_that("Orientation describes non-membership boundary changes", {
   current <- boundary
   current$hash <- "current"
 
+  testthat::expect_identical(
+    orientation_boundary_change(boundary, current),
+    "Since then: The stories it looked at have changed."
+  )
+
+  boundary$candidates <- list(list(
+    entry_id = "entry-1",
+    document_id = "document-1"
+  ))
+  current$candidates <- list(list(
+    entry_id = "entry-1",
+    document_id = "document-2"
+  ))
+  current$document_ids <- "document-2"
   testthat::expect_identical(
     orientation_boundary_change(boundary, current),
     "Since then: The stories it looked at have changed."

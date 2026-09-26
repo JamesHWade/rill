@@ -56,8 +56,13 @@ feed_body_string <- function(response) {
     content_type,
     regexec("charset=\"?([^;\"[:space:]]+)", content_type, ignore.case = TRUE)
   )[[1L]]
+  bom <- as.integer(utils::head(body, 2L))
   encoding <- if (length(charset)) {
     charset[[2L]]
+  } else if (
+    identical(bom, c(0xFFL, 0xFEL)) || identical(bom, c(0xFEL, 0xFFL))
+  ) {
+    "UTF-16"
   } else {
     prolog <- rawToChar(utils::head(body[body != as.raw(0L)], 200L))
     declared <- regmatches(
@@ -70,9 +75,11 @@ feed_body_string <- function(response) {
     )[[1L]]
     if (length(declared)) declared[[2L]] else "UTF-8"
   }
+  # iconv() reads the raw bytes directly; readBin() would stop at the first
+  # NUL byte, which UTF-16 text contains in nearly every character.
   decode <- function(from) {
     tryCatch(
-      iconv(readBin(body, character()), from = from, to = "UTF-8"),
+      iconv(list(body), from = from, to = "UTF-8"),
       error = \(error) NA_character_
     )
   }
