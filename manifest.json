@@ -2866,7 +2866,7 @@
       "checksum": "abcb82a29dd76278aefe85555c4f369a"
     },
     "R/config.R": {
-      "checksum": "5206d42437e61cd3f411f870321d5871"
+      "checksum": "3f175edde2207f3dd79a7392ba105b02"
     },
     "R/db.R": {
       "checksum": "bd3d408991e865a38c5c858cb0e267fb"
@@ -2890,7 +2890,7 @@
       "checksum": "2673ec178d6be92fa608f505aa42648e"
     },
     "R/orientation-agent.R": {
-      "checksum": "b85b2dab3480b0d0cec5c8954a46c6c2"
+      "checksum": "0366c949c611e0ed4357920843b4feb6"
     },
     "R/orientation-diagnostics.R": {
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
@@ -2917,7 +2917,7 @@
       "checksum": "485e4e9572826ea422dc2fab162a1d62"
     },
     "R/server.R": {
-      "checksum": "ae994a4615c9f1e30639bbe71c8d2f61"
+      "checksum": "81145049861a33cc5bc88f3f600becda"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"

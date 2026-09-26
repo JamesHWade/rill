@@ -1667,6 +1667,61 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
   })
 })
 
+testthat::test_that("a failed resume names its actual cause", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  orientation <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "orientation",
+    request_key = "orientation-before-resume",
+    pinned_inputs = list(boundary_hash = "boundary-before-resume"),
+    worker_id = "orientation-worker"
+  )
+  store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    lease_expires_at = Sys.time() + 120
+  )
+  store_start_prioritized_reader_question(
+    store,
+    reader_id = config$actor_id,
+    request_key = "memory-question",
+    pinned_inputs = list(
+      document_id = document$document_id,
+      question = "What changed?",
+      reader_memory = list()
+    ),
+    worker_id = "departed-session"
+  )
+  store_finish_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    status = "cancelled",
+    terminal_reason = "reader_question"
+  )
+  appended <- character()
+  testthat::local_mocked_bindings(
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+  })
+
+  testthat::expect_match(appended, "couldn't send the preserved", all = FALSE)
+  testthat::expect_no_match(appended, "destination changed")
+})
+
 testthat::test_that("a replacement session resumes a deferred question", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()

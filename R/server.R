@@ -1807,11 +1807,15 @@ rill_server <- function(
           duration = 8
         )
         append_reader_chat(
-          paste(
-            "Rill didn't send the preserved question because its configured",
-            "model destination changed. Ask it again to confirm the current",
-            "destination."
-          ),
+          if (inherits(resumed, "rill_agent_runtime_identity_changed")) {
+            paste(
+              "Rill didn't send the preserved question because its configured",
+              "model destination changed. Ask it again to confirm the current",
+              "destination."
+            )
+          } else {
+            "Rill couldn't send the preserved question. Ask it again."
+          },
           session
         )
       }
