@@ -2917,13 +2917,13 @@
       "checksum": "25b55824b9968b5c011fa3af881c572a"
     },
     "R/server.R": {
-      "checksum": "4ebe089b9f6ca319481279958102b6c4"
+      "checksum": "1cd764fb7627b3d1033dce3ca3aad4ef"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "c076de8bde59904c7a694b1874cdb20f"
+      "checksum": "8659cc2609c5c3807be0fcb6efd490ed"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
