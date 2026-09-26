@@ -1899,6 +1899,118 @@ testthat::test_that("a replacement session keeps a completed answer available wi
   })
 })
 
+testthat::test_that("the load-more button counts the remaining stories", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  entries <- store$memory$entries[rep(1L, 31L), ]
+  entries$entry_id <- paste0("queue-entry-", seq_len(31L))
+  entries$external_id <- entries$entry_id
+  store$memory$entries <- entries
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_match(
+      output$story_list$html,
+      "Show 1 more story<",
+      fixed = TRUE
+    )
+  })
+})
+
+testthat::test_that("state changes and refreshes don't rebuild the open article", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  render_article <- reader_document_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(
+    reader_document_ui = function(...) {
+      renders <<- renders + 1L
+      render_article(...)
+    }
+  )
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+
+    session$setInputs(toggle_star = 1)
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_match(output$reader_header$html, "Starred", fixed = TRUE)
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+  })
+})
+
+testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  render_controls <- feed_organization_control_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(
+    feed_organization_control_ui = function(...) {
+      renders <<- renders + 1L
+      render_controls(...)
+    }
+  )
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(manage_feeds = 1, managed_feed = "sample-posit")
+    testthat::expect_match(output$feed_organization_control$html, "Posit")
+    rendered <- renders
+
+    bump_refresh()
+    session$flushReact()
+    testthat::expect_match(output$feed_organization_control$html, "Posit")
+    testthat::expect_identical(renders, rendered)
+
+    session$setInputs(new_group_name = "Reading list", create_group = 1)
+    testthat::expect_match(
+      output$feed_organization_control$html,
+      "Reading list",
+      fixed = TRUE
+    )
+  })
+})
+
+testthat::test_that("reading actions report store failures without ending the session", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  gone <- store$memory$entries[
+    store$memory$entries$entry_id == "sample-entry-3",
+  ]
+  notices <- character()
+  shiny::testServer(rill_server(config, store), {
+    session$sendNotification <- function(type, message) {
+      notices <<- c(notices, as.character(message$html %||% ""))
+    }
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+
+    store_unsubscribe_feed(store, config$actor_id, gone$feed_id)
+    session$setInputs(select_entry = list(id = gone$entry_id))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+
+    testthat::local_mocked_bindings(
+      store_toggle_state = function(...) stop("database unavailable")
+    )
+    session$setInputs(toggle_star = 1)
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+  })
+
+  testthat::expect_match(notices, "no longer in your Library", all = FALSE)
+  testthat::expect_match(notices, "couldn't star", all = FALSE)
+})
+
 testthat::test_that("deferred session callbacks read reactive state and never throw", {
   session <- shiny::MockShinySession$new()
   value <- shiny::reactiveVal("ready")

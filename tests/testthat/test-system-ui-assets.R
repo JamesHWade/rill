@@ -202,6 +202,31 @@ testthat::test_that("core text colors meet WCAG AA contrast", {
   testthat::expect_gte(min(ratios), 4.5)
 })
 
+testthat::test_that("shortcuts work from view choices but not behind dialogs", {
+  node <- Sys.which("node")
+  testthat::skip_if(
+    !nzchar(node),
+    "Node.js is required for browser logic tests"
+  )
+  log <- withr::local_tempfile()
+
+  status <- system2(
+    node,
+    shQuote(c(
+      testthat::test_path("fixtures", "keyboard-shortcuts.cjs"),
+      rill_package_file("app", "www", "app.js")
+    )),
+    stdout = log,
+    stderr = log
+  )
+
+  testthat::expect_identical(
+    status,
+    0L,
+    info = paste(readLines(log, warn = FALSE), collapse = "\n")
+  )
+})
+
 testthat::test_that("Escape preserves compact Reading before leaving it", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),

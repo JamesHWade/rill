@@ -1,5 +1,13 @@
 # rill 0.0.0.9000
 
+* Opening, starring, saving, or marking stories now reports storage errors, including a story removed from your Library on another device, instead of closing the session.
+
+* The open article no longer rebuilds when you star or save it or when the Library refreshes in the background, so focus, text selection, and the reading-copy details stay put.
+
+* Manage feeds keeps a half-typed feed name and unsaved Group choices when the Library refreshes.
+
+* Keyboard shortcuts keep working after you choose a view, and no longer act on stories behind an open dialog.
+
 * Ask Rill no longer stops the app for every reader when an answer reaches its time limit or when a question waits for Orientation. Stop now interrupts an answer while it streams, and stopping a question that is waiting for Orientation re-enables the chat.
 
 * A fresh visit no longer reopens a story whose question you cancelled or that failed more than ten minutes ago; running answers and recent failures still reopen so Retry stays in view.

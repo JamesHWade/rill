@@ -1343,11 +1343,19 @@
     });
   };
 
+  const choiceInputTypes = ["radio", "checkbox", "button", "submit", "reset"];
+
   function isEditableTarget(target) {
     if (!target || typeof target.closest !== "function") return false;
+    if (target.isContentEditable) return true;
+    const field = target.closest(
+      "input, textarea, select, [contenteditable='true']"
+    );
+    // Letters don't type into choices such as the view radios, so shortcuts
+    // keep working after choosing a view.
     return Boolean(
-      target.isContentEditable ||
-        target.closest("input, textarea, select, [contenteditable='true']")
+      field &&
+        !(field.tagName === "INPUT" && choiceInputTypes.includes(field.type))
     );
   }
 
@@ -1550,6 +1558,8 @@
     const key = event.key.toLowerCase();
     if (isEditableTarget(event.target)) return;
     if (key === "escape" && dialogOwnedEscapeEvents.has(event)) return;
+    // Stories behind an open dialog must not move, open, or change state.
+    if (key !== "escape" && visibleDialogOwnsEscape()) return;
     if (
       key !== "escape" &&
       (askRillReadingTelemetryPaused ||

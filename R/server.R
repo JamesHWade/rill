@@ -311,6 +311,29 @@ rill_server <- function(
       }
     }
 
+    # An error in an observer ends the session, so reading actions report
+    # store failures instead. A story can leave the Library while its queue
+    # is on screen, for example after unsubscribing on another device.
+    attempt_reader_action <- function(action, failure) {
+      tryCatch(action(), error = function(error) {
+        if (inherits(error, "rill_entry_forbidden")) {
+          shiny::showNotification(
+            "That story is no longer in your Library.",
+            type = "warning"
+          )
+        } else {
+          telemetry_log(
+            "warn",
+            "reader.action_failed",
+            list("error.type" = class(error)[[1L]])
+          )
+          shiny::showNotification(failure, type = "error")
+        }
+        bump_refresh()
+        NULL
+      })
+    }
+
     bump_entry_refresh <- function(entry_id) {
       queue_state_tick(shiny::isolate(queue_state_tick()) + 1L)
       if (identical(entry_id, shiny::isolate(selected_id()))) {
@@ -2357,7 +2380,11 @@ rill_server <- function(
 
     selected_document <- shiny::reactive({
       opening_telemetry$activate()
-      entry <- selected_entry()
+      shiny::req(selected_id())
+      # The copy depends on which story is selected, not on its read, star, or
+      # save state. Refreshes therefore don't rebuild the article, which would
+      # lose focus, text selection, and scroll position.
+      entry <- shiny::isolate(selected_entry())
       shiny::req(!is.null(entry))
       document_id <- selected_document_id()
       if (!is.null(document_id)) {
@@ -2818,9 +2845,11 @@ rill_server <- function(
       if (!nrow(selected)) {
         return(feed_organization_control_ui())
       }
+      # Groups change only through feed management, which also invalidates
+      # management_feeds(). Other refreshes would reset half-typed edits.
       feed_organization_control_ui(
         as.list(selected[1, , drop = FALSE]),
-        groups = feed_groups()
+        groups = shiny::isolate(feed_groups())
       )
     })
 
@@ -3078,6 +3107,7 @@ rill_server <- function(
       ))
       request_id <- queue_request_id()
       session$onFlushed(\() queue_telemetry$flushed(request_id), once = TRUE)
+      more <- min(30L, total - nrow(rows))
       shiny::tags$div(
         class = "queue-batch",
         `data-queue-view` = input$view %||% "unread",
@@ -3098,7 +3128,11 @@ rill_server <- function(
             id = "queue_more",
             type = "button",
             class = "btn btn-outline-secondary queue-more",
-            sprintf("Show %d more stories", min(30L, total - nrow(rows)))
+            sprintf(
+              "Show %d more %s",
+              more,
+              if (more == 1L) "story" else "stories"
+            )
           )
         }
       )
@@ -3525,6 +3559,21 @@ rill_server <- function(
           position <- selection$position
           provenance <- selection$provenance
         }
+        if (!identical(surface, "orientation")) {
+          opened <- attempt_reader_action(
+            function() {
+              telemetry_span(
+                "store.mark_opened",
+                store_mark_opened(store, actor_id, entry_id)
+              )
+              TRUE
+            },
+            "Rill couldn't open that story. Try again."
+          )
+          if (is.null(opened)) {
+            return()
+          }
+        }
         if (
           !identical(previous_id, entry_id) ||
             !identical(previous_document_id, pinned_document_id)
@@ -3539,10 +3588,6 @@ rill_server <- function(
         selected_orientation_provenance(provenance)
         selected_position(position)
         if (!identical(surface, "orientation")) {
-          telemetry_span(
-            "store.mark_opened",
-            store_mark_opened(store, actor_id, entry_id)
-          )
           telemetry_span(
             "store.open_event",
             record_event(
@@ -4012,7 +4057,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        value <- store_toggle_state(store, actor_id, entry$entry_id, "starred")
+        value <- attempt_reader_action(
+          \() store_toggle_state(store, actor_id, entry$entry_id, "starred"),
+          "Rill couldn't star that story. Try again."
+        )
+        if (is.null(value)) {
+          return()
+        }
         record_event(
           "star_changed",
           entry$entry_id,
@@ -4028,7 +4079,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        changed <- store_mark_unread(store, actor_id, entry$entry_id)
+        changed <- attempt_reader_action(
+          \() store_mark_unread(store, actor_id, entry$entry_id),
+          "Rill couldn't mark that story unread. Try again."
+        )
+        if (is.null(changed)) {
+          return()
+        }
         if (changed) {
           record_event(
             "read_state_changed",
@@ -4057,7 +4114,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        value <- store_toggle_state(store, actor_id, entry$entry_id, "saved")
+        value <- attempt_reader_action(
+          \() store_toggle_state(store, actor_id, entry$entry_id, "saved"),
+          "Rill couldn't save that story. Try again."
+        )
+        if (is.null(value)) {
+          return()
+        }
         record_event(
           "save_changed",
           entry$entry_id,
@@ -4158,7 +4221,7 @@ rill_server <- function(
           result$feed$title,
           "\u00b7",
           result$added,
-          "stories"
+          if (identical(as.integer(result$added), 1L)) "story" else "stories"
         ))
         shiny::updateTextInput(session, "new_feed_url", value = "")
         record_event(
@@ -4580,17 +4643,25 @@ rill_server <- function(
     )
 
     mark_scope_read <- function(before = NULL, reason) {
-      marked <- store_mark_entries_read(
-        store,
-        actor_id,
-        feed_id = selected_feed(),
-        folder = selected_folder(),
-        group_ids = selected_group_ids(),
-        group_match = selected_group_match(),
-        ungrouped = selected_ungrouped(),
-        before = before,
-        reason = reason
+      marked <- attempt_reader_action(
+        \() {
+          store_mark_entries_read(
+            store,
+            actor_id,
+            feed_id = selected_feed(),
+            folder = selected_folder(),
+            group_ids = selected_group_ids(),
+            group_match = selected_group_match(),
+            ungrouped = selected_ungrouped(),
+            before = before,
+            reason = reason
+          )
+        },
+        "Rill couldn't mark those stories as read. Try again."
       )
+      if (is.null(marked)) {
+        return(invisible(NULL))
+      }
       count <- length(marked)
       if (count) {
         retained_ids(setdiff(retained_ids(), marked))
