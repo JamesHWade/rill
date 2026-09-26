@@ -1979,11 +1979,11 @@ testthat::test_that("queues longer than one page load more stories on request", 
   config <- rill_config()
   config$orientation_enabled <- FALSE
   store <- rill_store(config)
-  entries <- store$memory$entries[rep(1L, 160L), ]
-  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(160L))
+  entries <- store$memory$entries[rep(1L, 620L), ]
+  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(620L))
   entries$external_id <- entries$entry_id
   entries$published_at <- format(
-    Sys.time() - seq_len(160L) * 60,
+    Sys.time() - seq_len(620L) * 60,
     tz = "UTC",
     usetz = TRUE
   )
@@ -1992,13 +1992,13 @@ testthat::test_that("queues longer than one page load more stories on request", 
     session$setInputs(view = "all")
     testthat::expect_match(output$story_count$html, ">150+<", fixed = TRUE)
 
-    for (click in 1:5) {
+    for (click in 1:21) {
       session$setInputs(queue_more = click)
     }
-    testthat::expect_match(output$story_count$html, ">160<", fixed = TRUE)
+    testthat::expect_match(output$story_count$html, ">620<", fixed = TRUE)
     testthat::expect_match(
       output$story_list$html,
-      "queue-entry-160",
+      "queue-entry-620",
       fixed = TRUE
     )
 
