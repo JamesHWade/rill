@@ -2078,6 +2078,18 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
     testthat::expect_match(output$feed_organization_control$html, "Posit")
     testthat::expect_identical(renders, rendered)
 
+    feeds <- store$memory$feeds
+    feeds$poll_status[feeds$feed_id == "sample-posit"] <- "failed"
+    store$memory$feeds <- feeds
+    bump_refresh(feeds_changed = TRUE)
+    session$flushReact()
+    testthat::expect_identical(renders, rendered)
+    testthat::expect_match(
+      output$managed_feed_status$html,
+      "Last check failed",
+      fixed = TRUE
+    )
+
     session$setInputs(new_group_name = "Reading list", create_group = 1)
     testthat::expect_match(
       output$feed_organization_control$html,
