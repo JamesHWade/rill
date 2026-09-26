@@ -3594,10 +3594,14 @@ testthat::test_that("a replacement session cancels a running question", {
   stream_context <- NULL
   interruptions <- character()
   run_id <- NULL
+  first_deadline <- NULL
   terminalizations <- 0L
   finish_agent_run <- store_finish_agent_run
+  # The first session's deadline keeps running after it closes. It must not
+  # fire before the replacement session cancels, even on a slow runner.
+  wall_time <- 8
   testthat::local_mocked_bindings(
-    rill_agent_wall_time_seconds = \() 2,
+    rill_agent_wall_time_seconds = \() wall_time,
     store_finish_agent_run = function(...) {
       finished <- finish_agent_run(...)
       if (!is.null(finished)) {
@@ -3632,6 +3636,7 @@ testthat::test_that("a replacement session cancels a running question", {
     session$flushReact()
     session$setInputs(reader_chat_user_input = "What changed?")
     session$flushReact()
+    first_deadline <<- Sys.time() + wall_time
     run_id <<- active_agent_run()$run_id
     session$close()
   })
@@ -3650,8 +3655,10 @@ testthat::test_that("a replacement session cancels a running question", {
     testthat::expect_identical(interruptions, "reader_cancelled")
     testthat::expect_identical(active_agent_run()$status, "cancelling")
 
-    later::run_now(2.1)
-    session$flushReact()
+    while (Sys.time() < first_deadline + 0.5) {
+      later::run_now(0.1)
+      session$flushReact()
+    }
     testthat::expect_identical(interruptions, "reader_cancelled")
 
     stop_callback(
@@ -4267,7 +4274,10 @@ testthat::test_that("a deadline read error still interrupts and settles", {
     session$flushReact()
 
     testthat::expect_identical(interrupted, "wall_time_limit")
-    testthat::expect_identical(active_agent_run()$status, "running")
+    testthat::expect_identical(state$fail_cancel, FALSE)
+    # The drain heartbeat retries the failed write 0.25 seconds later, which a
+    # slow runner can reach before this point.
+    testthat::expect_in(active_agent_run()$status, c("running", "cancelling"))
     testthat::expect_type(
       rill_question_drain_registry[[running$run_id]]$on_result,
       "closure"
@@ -4287,12 +4297,14 @@ testthat::test_that("a deadline read error still interrupts and settles", {
     )
     testthat::expect_null(draining_agent_run_id())
 
-    for (iteration in seq_len(10)) {
+    # After a retried write the heartbeat backs off for up to five seconds.
+    settle_by <- Sys.time() + 8
+    while (
+      !identical(active_agent_run()$status, "failed") &&
+        Sys.time() < settle_by
+    ) {
       later::run_now(0.25)
       session$flushReact()
-      if (identical(active_agent_run()$status, "failed")) {
-        break
-      }
     }
 
     settled <- active_agent_run()
