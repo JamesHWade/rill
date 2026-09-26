@@ -237,6 +237,9 @@ testthat::test_that("a blank Reader identifier falls back to the local default",
   ))
 
   testthat::expect_identical(rill_config()$actor_id, "reader")
+
+  withr::local_envvar(RILL_ACTOR_ID = " james ")
+  testthat::expect_identical(rill_config()$actor_id, " james ")
 })
 
 testthat::test_that("the private gate requires a stable Reader identifier", {
