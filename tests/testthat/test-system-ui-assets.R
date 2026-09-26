@@ -227,6 +227,24 @@ testthat::test_that("shortcuts work from view choices but not behind dialogs", {
   )
 })
 
+testthat::test_that("re-rendered Library and header keep the Reader's place", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'setInputValue?.("open_feed_groups", open)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'events.on("shiny:value.rillHeaderFocus"',
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("Escape preserves compact Reading before leaving it", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),

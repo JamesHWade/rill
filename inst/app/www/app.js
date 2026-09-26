@@ -304,6 +304,19 @@
         }
       });
     });
+    // The reader header re-renders after Star, Save, and Mark unread. Return
+    // keyboard focus to the same control when it still exists.
+    events.on("shiny:value.rillHeaderFocus", function (event) {
+      if (event.name !== "reader_header") return;
+      const active = document.activeElement;
+      const header = document.getElementById("reader_header");
+      if (!active || !active.id || !header || !header.contains(active)) return;
+      const id = active.id;
+      window.requestAnimationFrame(function () {
+        const control = document.getElementById(id);
+        if (control && focusWasLost()) control.focus({ preventScroll: true });
+      });
+    });
     events.on("shiny:connected.rillSystemStatus", handleShinyConnected);
     events.on("shiny:disconnected.rillSystemStatus", handleShinyDisconnected);
     events.on("shiny:busy.rillSystemStatus", function () {
@@ -2266,6 +2279,15 @@
   document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("click", handleSkipLink);
+  // `toggle` doesn't bubble. The server reads the open Groups when it
+  // re-renders the Library, so expanded Groups survive count updates.
+  document.addEventListener("toggle", function (event) {
+    if (!event.target.matches?.("details[data-group-key]")) return;
+    const open = matchingNodes(document, "details[data-group-key][open]").map(
+      node => node.dataset.groupKey
+    );
+    window.Shiny?.setInputValue?.("open_feed_groups", open);
+  }, true);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
   document.addEventListener("input", function (event) {
     if (

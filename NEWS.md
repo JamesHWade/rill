@@ -1,5 +1,9 @@
 # rill 0.0.0.9000
 
+* The reading queue is no longer capped at 150 stories. Long views show a count such as "150+", and **Show more stories** loads the next page.
+
+* Expanded Groups in the Library stay open when counts update, and keyboard focus returns to Star, Save, or Mark unread after you use them.
+
 * Opening, starring, saving, or marking stories now reports storage errors, including a story removed from your Library on another device, instead of closing the session.
 
 * The open article no longer rebuilds when you star or save it or when the Library refreshes in the background, so focus, text selection, and the reading-copy details stay put.

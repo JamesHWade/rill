@@ -1840,7 +1840,11 @@ rill_server <- function(
       )
     })
 
-    queue_entries <- shiny::reactive({
+    # The queue loads stories in pages. One extra row shows whether more
+    # exist, and asking for more past the loaded page raises the limit.
+    queue_page_size <- 150L
+    queue_limit <- shiny::reactiveVal(queue_page_size)
+    queue_query <- shiny::reactive({
       refresh_tick()
       queue_state_tick()
       calendar <- calendar_window()
@@ -1855,13 +1859,19 @@ rill_server <- function(
         group_ids = selected_group_ids(),
         group_match = selected_group_match(),
         ungrouped = selected_ungrouped(),
-        limit = 150L,
+        limit = queue_limit() + 1L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
         timezone = calendar$timezone,
         include_content = FALSE,
         entry_ids = selected_orientation_theme()$entry_ids
       )
+    })
+    queue_entries <- shiny::reactive({
+      utils::head(queue_query(), queue_limit())
+    })
+    queue_has_more <- shiny::reactive({
+      nrow(queue_query()) > queue_limit()
     })
 
     orientation_destination_status <- shiny::reactive({
@@ -2629,6 +2639,11 @@ rill_server <- function(
       ))
 
       {
+        # Groups the Reader expanded stay open when counts re-render.
+        open_groups <- unlist(
+          shiny::isolate(input$open_feed_groups),
+          use.names = FALSE
+        )
         index <- navigation_groups()
         ids <- index$group_ids
         names <- index$names
@@ -2643,6 +2658,7 @@ rill_server <- function(
             } else {
               selected_ungrouped()
             }
+            group_key <- if (nzchar(id)) id else "ungrouped"
             shiny::tags$div(
               class = "feed-folder",
               shiny::tags$button(
@@ -2657,9 +2673,11 @@ rill_server <- function(
                 shiny::tags$small(index$unread[[i]])
               ),
               shiny::tags$details(
+                `data-group-key` = group_key,
                 open = if (
-                  !is.null(selected_feed()) &&
-                    selected_feed() %in% rows$feed_id
+                  (!is.null(selected_feed()) &&
+                    selected_feed() %in% rows$feed_id) ||
+                    group_key %in% open_groups
                 ) {
                   "open"
                 } else {
@@ -3021,12 +3039,16 @@ rill_server <- function(
 
     output$story_count <- shiny::renderUI({
       count <- nrow(queue_entries())
-      noun <- if (count == 1L) "story" else "stories"
+      label <- if (queue_has_more()) {
+        paste("More than", count, "stories")
+      } else {
+        paste(count, if (count == 1L) "story" else "stories")
+      }
       shiny::tags$span(
         class = "count-pill",
-        title = paste(count, noun),
-        `aria-label` = paste(count, noun),
-        count
+        title = label,
+        `aria-label` = label,
+        if (queue_has_more()) paste0(count, "+") else count
       )
     })
 
@@ -3080,6 +3102,24 @@ rill_server <- function(
       input,
       \() match(selected_id(), entries()$entry_id, nomatch = 0L)
     )
+    queue_limit_context <- NULL
+    shiny::observeEvent(current_context(), {
+      context <- current_context()
+      if (!identical(context, queue_limit_context)) {
+        queue_limit_context <<- context
+        queue_limit(queue_page_size)
+      }
+    })
+    shiny::observeEvent(
+      input$queue_more,
+      {
+        if (queue_has_more() && queue_batch() + 30L > nrow(queue_entries())) {
+          queue_limit(queue_limit() + queue_page_size)
+        }
+      },
+      ignoreInit = TRUE,
+      priority = 10
+    )
     render_queue_cards <- queue_card_renderer()
     output$story_list <- shiny::renderUI({
       queue_telemetry$activate()
@@ -3123,16 +3163,20 @@ rill_server <- function(
           )
         },
         rendered$cards,
-        if (nrow(rows) < total) {
+        if (nrow(rows) < total || queue_has_more()) {
           shiny::tags$button(
             id = "queue_more",
             type = "button",
             class = "btn btn-outline-secondary queue-more",
-            sprintf(
-              "Show %d more %s",
-              more,
-              if (more == 1L) "story" else "stories"
-            )
+            if (more > 0L) {
+              sprintf(
+                "Show %d more %s",
+                more,
+                if (more == 1L) "story" else "stories"
+              )
+            } else {
+              "Show more stories"
+            }
           )
         }
       )

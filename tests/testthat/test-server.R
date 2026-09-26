@@ -1899,6 +1899,59 @@ testthat::test_that("a replacement session keeps a completed answer available wi
   })
 })
 
+testthat::test_that("expanded Groups stay open when the Library re-renders", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  groups <- store_list_groups(store, config$actor_id)
+  community <- groups$group_id[groups$name == "Community"]
+  expanded <- sprintf('data-group-key="%s" open="open"', community)
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_no_match(output$feed_nav$html, expanded, fixed = TRUE)
+
+    session$setInputs(open_feed_groups = list(community))
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_match(output$feed_nav$html, expanded, fixed = TRUE)
+  })
+})
+
+testthat::test_that("queues longer than one page load more stories on request", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  entries <- store$memory$entries[rep(1L, 160L), ]
+  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(160L))
+  entries$external_id <- entries$entry_id
+  entries$published_at <- format(
+    Sys.time() - seq_len(160L) * 60,
+    tz = "UTC",
+    usetz = TRUE
+  )
+  store$memory$entries <- entries
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_match(output$story_count$html, ">150+<", fixed = TRUE)
+
+    for (click in 1:5) {
+      session$setInputs(queue_more = click)
+    }
+    testthat::expect_match(output$story_count$html, ">160<", fixed = TRUE)
+    testthat::expect_match(
+      output$story_list$html,
+      "queue-entry-160",
+      fixed = TRUE
+    )
+
+    session$setInputs(view = "unread")
+    testthat::expect_identical(queue_limit(), 150L)
+  })
+})
+
 testthat::test_that("the load-more button counts the remaining stories", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
