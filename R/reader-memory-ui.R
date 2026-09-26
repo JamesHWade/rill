@@ -28,7 +28,9 @@ reader_memory_server <- function(
     handle <- function(code) {
       tryCatch(code(), error = function(e) {
         status(
-          if (
+          if (inherits(e, "rill_memory_invalid")) {
+            conditionMessage(e)
+          } else if (
             inherits(
               e,
               c(

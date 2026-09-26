@@ -1667,6 +1667,61 @@ testthat::test_that("a Reader question waits for Orientation to stop", {
   })
 })
 
+testthat::test_that("a failed resume names its actual cause", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  store <- rill_store(config)
+  document <- store$memory$documents[[1L]]
+  orientation <- store_start_agent_run(
+    store,
+    reader_id = config$actor_id,
+    kind = "orientation",
+    request_key = "orientation-before-resume",
+    pinned_inputs = list(boundary_hash = "boundary-before-resume"),
+    worker_id = "orientation-worker"
+  )
+  store_claim_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    lease_expires_at = Sys.time() + 120
+  )
+  store_start_prioritized_reader_question(
+    store,
+    reader_id = config$actor_id,
+    request_key = "memory-question",
+    pinned_inputs = list(
+      document_id = document$document_id,
+      question = "What changed?",
+      reader_memory = list()
+    ),
+    worker_id = "departed-session"
+  )
+  store_finish_agent_run(
+    store,
+    reader_id = config$actor_id,
+    run_id = orientation$run_id,
+    worker_id = "orientation-worker",
+    status = "cancelled",
+    terminal_reason = "reader_question"
+  )
+  appended <- character()
+  testthat::local_mocked_bindings(
+    append_reader_chat = function(response, session) {
+      appended <<- c(appended, response)
+      promises::promise_resolve(response)
+    }
+  )
+
+  shiny::testServer(rill_server(config, store), {
+    session$flushReact()
+  })
+
+  testthat::expect_match(appended, "couldn't send the preserved", all = FALSE)
+  testthat::expect_no_match(appended, "destination changed")
+})
+
 testthat::test_that("a replacement session resumes a deferred question", {
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
@@ -1897,6 +1952,256 @@ testthat::test_that("a replacement session keeps a completed answer available wi
       )
     )
   })
+})
+
+testthat::test_that("expanded Groups stay open when the Library re-renders", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  groups <- store_list_groups(store, config$actor_id)
+  community <- groups$group_id[groups$name == "Community"]
+  expanded <- sprintf('data-group-key="%s" open="open"', community)
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_no_match(output$feed_nav$html, expanded, fixed = TRUE)
+
+    session$setInputs(open_feed_groups = list(community))
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_match(output$feed_nav$html, expanded, fixed = TRUE)
+  })
+})
+
+testthat::test_that("queues longer than one page load more stories on request", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  entries <- store$memory$entries[rep(1L, 160L), ]
+  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(160L))
+  entries$external_id <- entries$entry_id
+  entries$published_at <- format(
+    Sys.time() - seq_len(160L) * 60,
+    tz = "UTC",
+    usetz = TRUE
+  )
+  store$memory$entries <- entries
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_match(output$story_count$html, ">150+<", fixed = TRUE)
+
+    for (click in 1:5) {
+      session$setInputs(queue_more = click)
+    }
+    testthat::expect_match(output$story_count$html, ">160<", fixed = TRUE)
+    testthat::expect_match(
+      output$story_list$html,
+      "queue-entry-160",
+      fixed = TRUE
+    )
+
+    session$setInputs(view = "unread")
+    testthat::expect_identical(queue_limit(), 150L)
+  })
+})
+
+testthat::test_that("the load-more button counts the remaining stories", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  entries <- store$memory$entries[rep(1L, 31L), ]
+  entries$entry_id <- paste0("queue-entry-", seq_len(31L))
+  entries$external_id <- entries$entry_id
+  store$memory$entries <- entries
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    testthat::expect_match(
+      output$story_list$html,
+      "Show 1 more story<",
+      fixed = TRUE
+    )
+  })
+})
+
+testthat::test_that("state changes and refreshes don't rebuild the open article", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  render_article <- reader_document_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(
+    reader_document_ui = function(...) {
+      renders <<- renders + 1L
+      render_article(...)
+    }
+  )
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+
+    session$setInputs(toggle_star = 1)
+    bump_refresh()
+    session$flushReact()
+
+    testthat::expect_match(output$reader_header$html, "Starred", fixed = TRUE)
+    testthat::expect_match(output$reader_body$html, "reader-document")
+    testthat::expect_identical(renders, 1L)
+  })
+})
+
+testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  render_controls <- feed_organization_control_ui
+  renders <- 0L
+  testthat::local_mocked_bindings(
+    feed_organization_control_ui = function(...) {
+      renders <<- renders + 1L
+      render_controls(...)
+    }
+  )
+  shiny::testServer(rill_server(config, store), {
+    session$setInputs(manage_feeds = 1, managed_feed = "sample-posit")
+    testthat::expect_match(output$feed_organization_control$html, "Posit")
+    rendered <- renders
+
+    bump_refresh()
+    session$flushReact()
+    testthat::expect_match(output$feed_organization_control$html, "Posit")
+    testthat::expect_identical(renders, rendered)
+
+    feeds <- store$memory$feeds
+    feeds$poll_status[feeds$feed_id == "sample-posit"] <- "failed"
+    store$memory$feeds <- feeds
+    bump_refresh(feeds_changed = TRUE)
+    session$flushReact()
+    testthat::expect_identical(renders, rendered)
+    testthat::expect_match(
+      output$managed_feed_status$html,
+      "Last check failed",
+      fixed = TRUE
+    )
+
+    session$setInputs(new_group_name = "Reading list", create_group = 1)
+    testthat::expect_match(
+      output$feed_organization_control$html,
+      "Reading list",
+      fixed = TRUE
+    )
+  })
+})
+
+testthat::test_that("reading actions report store failures without ending the session", {
+  withr::local_envvar(DATABASE_URL = "")
+  config <- rill_config()
+  config$orientation_enabled <- FALSE
+  store <- rill_store(config)
+  gone <- store$memory$entries[
+    store$memory$entries$entry_id == "sample-entry-3",
+  ]
+  notices <- character()
+  shiny::testServer(rill_server(config, store), {
+    session$sendNotification <- function(type, message) {
+      notices <<- c(notices, as.character(message$html %||% ""))
+    }
+    session$setInputs(view = "all")
+    session$setInputs(select_entry = list(id = "sample-entry-2"))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+
+    store_unsubscribe_feed(store, config$actor_id, gone$feed_id)
+    session$setInputs(select_entry = list(id = gone$entry_id))
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+
+    testthat::local_mocked_bindings(
+      store_toggle_state = function(...) stop("database unavailable")
+    )
+    session$setInputs(toggle_star = 1)
+    testthat::expect_identical(selected_id(), "sample-entry-2")
+  })
+
+  testthat::expect_match(notices, "no longer in your Library", all = FALSE)
+  testthat::expect_match(notices, "couldn't star", all = FALSE)
+})
+
+testthat::test_that("deferred session callbacks read reactive state and never throw", {
+  session <- shiny::MockShinySession$new()
+  value <- shiny::reactiveVal("ready")
+  logged <- character()
+  testthat::local_mocked_bindings(
+    telemetry_log = function(level, event, attributes = list()) {
+      logged <<- c(logged, event)
+    }
+  )
+
+  read <- rill_session_callback(session, function() value())
+  fail <- rill_session_callback(session, function() stop("boom"))
+
+  testthat::expect_identical(read(), "ready")
+  testthat::expect_null(fail())
+  testthat::expect_identical(logged, "session.callback_failed")
+})
+
+testthat::test_that("fresh visits reopen only running or recently failed answers", {
+  withr::local_envvar(DATABASE_URL = "")
+  cases <- list(
+    list(status = "cancelled", finished_at = utc_now(), reopens = FALSE),
+    list(
+      status = "failed",
+      finished_at = format(Sys.time() - 3600, tz = "UTC", usetz = TRUE),
+      reopens = FALSE
+    ),
+    list(status = "failed", finished_at = utc_now(), reopens = TRUE)
+  )
+  for (case in cases) {
+    config <- rill_config()
+    config$orientation_enabled <- FALSE
+    store <- rill_store(config)
+    document <- store$memory$documents[[1L]]
+    run <- store_start_agent_run(
+      store,
+      config$actor_id,
+      "question",
+      paste0("stale-", case$status),
+      pinned_inputs = list(document_id = document$document_id)
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      run$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    if (identical(case$status, "cancelled")) {
+      store_request_agent_run_cancel(store, config$actor_id, run$run_id)
+    }
+    store_finish_agent_run(
+      store,
+      config$actor_id,
+      run$run_id,
+      "worker",
+      case$status,
+      finished_at = case$finished_at
+    )
+
+    shiny::testServer(rill_server(config, store), {
+      session$flushReact()
+      if (case$reopens) {
+        testthat::expect_identical(selected_id(), document$entry_id)
+        testthat::expect_identical(active_agent_run()$run_id, run$run_id)
+      } else {
+        testthat::expect_null(selected_id())
+        testthat::expect_null(active_agent_run())
+      }
+    })
+  }
 })
 
 testthat::test_that("answer recovery is independent of newer failed questions and active work", {

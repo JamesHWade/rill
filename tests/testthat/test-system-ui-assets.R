@@ -202,6 +202,49 @@ testthat::test_that("core text colors meet WCAG AA contrast", {
   testthat::expect_gte(min(ratios), 4.5)
 })
 
+testthat::test_that("shortcuts work from view choices but not behind dialogs", {
+  node <- Sys.which("node")
+  testthat::skip_if(
+    !nzchar(node),
+    "Node.js is required for browser logic tests"
+  )
+  log <- withr::local_tempfile()
+
+  status <- system2(
+    node,
+    shQuote(c(
+      testthat::test_path("fixtures", "keyboard-shortcuts.cjs"),
+      rill_package_file("app", "www", "app.js")
+    )),
+    stdout = log,
+    stderr = log
+  )
+
+  testthat::expect_identical(
+    status,
+    0L,
+    info = paste(readLines(log, warn = FALSE), collapse = "\n")
+  )
+})
+
+testthat::test_that("re-rendered Library and header keep the Reader's place", {
+  javascript <- paste(
+    readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    javascript,
+    'setInputValue?.("open_feed_groups", open)',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    javascript,
+    'events.on("shiny:value.rillHeaderFocus"',
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("Escape preserves compact Reading before leaving it", {
   javascript <- paste(
     readLines(rill_package_file("app", "www", "app.js"), warn = FALSE),

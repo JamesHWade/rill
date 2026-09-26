@@ -288,7 +288,12 @@ rill_config <- function() {
   if (identical(identity_mode, "auth0") && nzchar(auth0_domain)) {
     oidc_issuer <- paste0("https://", auth0_domain, "/")
   }
-  actor_id <- Sys.getenv("RILL_ACTOR_ID", unset = "reader")
+  actor_id <- trimws(Sys.getenv("RILL_ACTOR_ID", unset = "reader"))
+  # The store already treats a blank value as `reader`; identity must agree,
+  # or a blank setting opens a second, empty Library.
+  if (identical(identity_mode, "local") && !nzchar(actor_id)) {
+    actor_id <- "reader"
+  }
   if (
     identical(identity_mode, "oidc_proxy") &&
       (!nzchar(trimws(actor_id)) ||

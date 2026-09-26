@@ -304,6 +304,19 @@
         }
       });
     });
+    // The reader header re-renders after Star, Save, and Mark unread. Return
+    // keyboard focus to the same control when it still exists.
+    events.on("shiny:value.rillHeaderFocus", function (event) {
+      if (event.name !== "reader_header") return;
+      const active = document.activeElement;
+      const header = document.getElementById("reader_header");
+      if (!active || !active.id || !header || !header.contains(active)) return;
+      const id = active.id;
+      window.requestAnimationFrame(function () {
+        const control = document.getElementById(id);
+        if (control && focusWasLost()) control.focus({ preventScroll: true });
+      });
+    });
     events.on("shiny:connected.rillSystemStatus", handleShinyConnected);
     events.on("shiny:disconnected.rillSystemStatus", handleShinyDisconnected);
     events.on("shiny:busy.rillSystemStatus", function () {
@@ -1343,11 +1356,19 @@
     });
   };
 
+  const choiceInputTypes = ["radio", "checkbox", "button", "submit", "reset"];
+
   function isEditableTarget(target) {
     if (!target || typeof target.closest !== "function") return false;
+    if (target.isContentEditable) return true;
+    const field = target.closest(
+      "input, textarea, select, [contenteditable='true']"
+    );
+    // Letters don't type into choices such as the view radios, so shortcuts
+    // keep working after choosing a view.
     return Boolean(
-      target.isContentEditable ||
-        target.closest("input, textarea, select, [contenteditable='true']")
+      field &&
+        !(field.tagName === "INPUT" && choiceInputTypes.includes(field.type))
     );
   }
 
@@ -1550,6 +1571,8 @@
     const key = event.key.toLowerCase();
     if (isEditableTarget(event.target)) return;
     if (key === "escape" && dialogOwnedEscapeEvents.has(event)) return;
+    // Stories behind an open dialog must not move, open, or change state.
+    if (key !== "escape" && visibleDialogOwnsEscape()) return;
     if (
       key !== "escape" &&
       (askRillReadingTelemetryPaused ||
@@ -2256,6 +2279,15 @@
   document.addEventListener("keydown", handleAskRillEscape, true);
   document.addEventListener("keydown", handleShortcut);
   document.addEventListener("click", handleSkipLink);
+  // `toggle` doesn't bubble. The server reads the open Groups when it
+  // re-renders the Library, so expanded Groups survive count updates.
+  document.addEventListener("toggle", function (event) {
+    if (!event.target.matches?.("details[data-group-key]")) return;
+    const open = matchingNodes(document, "details[data-group-key][open]").map(
+      node => node.dataset.groupKey
+    );
+    window.Shiny?.setInputValue?.("open_feed_groups", open);
+  }, true);
   document.addEventListener("change", closeCompactLibraryAfterViewChange);
   document.addEventListener("input", function (event) {
     if (

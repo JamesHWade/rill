@@ -4,6 +4,14 @@ reader_memory_abort <- function(
   cli::cli_abort(message, class = "rill_memory_unavailable")
 }
 
+# Input problems the Reader can fix, reported with their own message.
+reader_memory_invalid <- function(message) {
+  cli::cli_abort(
+    message,
+    class = c("rill_memory_invalid", "rill_memory_unavailable")
+  )
+}
+
 reader_memory_graft_abort <- function(message) {
   cli::cli_abort(message, class = "graft_artifact_error")
 }
@@ -178,7 +186,7 @@ reader_memory_propose <- function(
       length(kind) != 1L ||
       !kind %in% c("preference", "interpretation")
   ) {
-    reader_memory_abort(
+    reader_memory_invalid(
       "Enter a preference or interpretation of at most 8,000 bytes."
     )
   }
@@ -207,7 +215,7 @@ reader_memory_propose <- function(
           !store_scalar_string(quote) ||
           nchar(quote, type = "bytes") > 16000L
       ) {
-        reader_memory_abort(
+        reader_memory_invalid(
           "An interpretation needs an exact passage from the reading copy."
         )
       }
@@ -217,7 +225,7 @@ reader_memory_propose <- function(
       }
       positions <- gregexpr(quote, document$markdown, fixed = TRUE)[[1L]]
       if (length(positions) != 1L || positions[[1L]] < 1L) {
-        reader_memory_abort(
+        reader_memory_invalid(
           "Choose a passage that occurs exactly once in the reading copy."
         )
       }
@@ -231,7 +239,7 @@ reader_memory_propose <- function(
         title = document$title
       )
     } else if (!is.null(document_id) || !is.null(quote)) {
-      reader_memory_abort(
+      reader_memory_invalid(
         "A preference is Reader Context and has no source citation."
       )
     }

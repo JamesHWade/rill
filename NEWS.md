@@ -1,5 +1,27 @@
 # rill 0.0.0.9000
 
+* Orientation rejects evidence quoted from Rill's own truncation notice while the agent can still correct it, instead of failing the update after the agent finishes.
+
+* A blank `RILL_ACTOR_ID` now uses the default Reader instead of opening a second, empty Library, and a question that can't be resumed after a reload reports its actual cause.
+
+* The reading queue is no longer capped at 150 stories. Long views show a count such as "150+", and **Show more stories** loads the next page.
+
+* Expanded Groups in the Library stay open when counts update, and keyboard focus returns to Star, Save, or Mark unread after you use them.
+
+* Opening, starring, saving, or marking stories now reports storage errors, including a story removed from your Library on another device, instead of closing the session.
+
+* The open article no longer rebuilds when you star or save it or when the Library refreshes in the background, so focus, text selection, and the reading-copy details stay put.
+
+* Manage feeds keeps a half-typed feed name and unsaved Group choices when the Library refreshes.
+
+* Keyboard shortcuts keep working after you choose a view, and no longer act on stories behind an open dialog.
+
+* Ask Rill no longer stops the app for every reader when an answer reaches its time limit or when a question waits for Orientation. Stop now interrupts an answer while it streams, and stopping a question that is waiting for Orientation re-enables the chat.
+
+* A fresh visit no longer reopens a story whose question you cancelled or that failed more than ten minutes ago; running answers and recent failures still reopen so Retry stays in view.
+
+* Reader Memory explains problems you can fix, such as a passage that appears more than once in the story, instead of reporting that the memory changed.
+
 * Reading copies now drop HTML comments, `noscript`, and other elements that browsers parse differently from Rill's sanitizer, so feed content can no longer run scripts in the reader.
 
 * Feed fetching never treats a response body or feed field as a URL or file path, checks each redirect before following it, rejects `*.localhost`, carrier-grade NAT, numeric, and IPv6 literal hosts, and no longer waits on `Retry-After` values over ten seconds.

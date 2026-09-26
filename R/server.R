@@ -78,6 +78,28 @@ rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
   invisible(runtime)
 }
 
+# `later` and `onFlushed` callbacks run outside any reactive context, so
+# reading a reactive value there fails, and an uncaught error in a `later`
+# callback stops the R process for every session. Run them in the session's
+# domain, isolated, and log failures instead.
+rill_session_callback <- function(session, callback) {
+  force(session)
+  force(callback)
+  function(...) {
+    tryCatch(
+      shiny::withReactiveDomain(session, shiny::isolate(callback(...))),
+      error = function(error) {
+        telemetry_log(
+          "error",
+          "session.callback_failed",
+          list("error.type" = class(error)[[1L]])
+        )
+        invisible(NULL)
+      }
+    )
+  }
+}
+
 rill_server <- function(
   config,
   store,
@@ -101,6 +123,16 @@ rill_server <- function(
       utc_now(),
       stats::runif(1)
     )
+    in_session <- function(callback) rill_session_callback(session, callback)
+    # An observer that returns a promise makes Shiny hold every later input
+    # from the session, including Stop, until the promise settles. Answers
+    # stream in the background instead; shinychat already reports failures.
+    release_answer_promise <- function(result) {
+      if (promises::is.promise(result)) {
+        promises::catch(result, \(error) NULL)
+      }
+      invisible(NULL)
+    }
     selected_id <- shiny::reactiveVal(NULL)
     orientation_requested <- shiny::reactiveVal(FALSE)
     restored_question <- shiny::reactiveVal(NULL)
@@ -251,7 +283,9 @@ rill_server <- function(
     }
     if (
       !is.null(existing_agent_run) &&
-        identical(existing_agent_run$kind, "question")
+        identical(existing_agent_run$kind, "question") &&
+        (identical(existing_agent_run$status, "completed") ||
+          question_run_reopens(existing_agent_run))
     ) {
       active_agent_run(existing_agent_run)
       if (!identical(existing_agent_run$status, "completed")) {
@@ -275,6 +309,29 @@ rill_server <- function(
       if (feeds_changed) {
         feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
       }
+    }
+
+    # An error in an observer ends the session, so reading actions report
+    # store failures instead. A story can leave the Library while its queue
+    # is on screen, for example after unsubscribing on another device.
+    attempt_reader_action <- function(action, failure) {
+      tryCatch(action(), error = function(error) {
+        if (inherits(error, "rill_entry_forbidden")) {
+          shiny::showNotification(
+            "That story is no longer in your Library.",
+            type = "warning"
+          )
+        } else {
+          telemetry_log(
+            "warn",
+            "reader.action_failed",
+            list("error.type" = class(error)[[1L]])
+          )
+          shiny::showNotification(failure, type = "error")
+        }
+        bump_refresh()
+        NULL
+      })
     }
 
     bump_entry_refresh <- function(entry_id) {
@@ -321,14 +378,14 @@ rill_server <- function(
         return(invisible(NULL))
       }
       orientation_retry_cancel <<- later::later(
-        function() {
+        in_session(function() {
           orientation_retry_cancel <<- NULL
           if (!session$isClosed()) {
             orientation_attempted_boundary(NULL)
             bump_refresh()
           }
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -424,7 +481,7 @@ rill_server <- function(
         return(invisible(NULL))
       }
       visible_agent_run_poll_cancel <<- later::later(
-        function() {
+        in_session(function() {
           visible_agent_run_poll_cancel <<- NULL
           if (session$isClosed()) {
             return(NULL)
@@ -470,7 +527,7 @@ rill_server <- function(
           }
           schedule_visible_agent_run_poll(run_id, delay = 0.25)
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -512,7 +569,7 @@ rill_server <- function(
       if (session$isClosed()) {
         return(invisible(run))
       }
-      visible <- active_agent_run()
+      visible <- shiny::isolate(active_agent_run())
       if (!is.null(visible) && identical(visible$run_id, run$run_id)) {
         active_agent_run(run)
       }
@@ -544,7 +601,7 @@ rill_server <- function(
       )
       if (
         !session$isClosed() &&
-          identical(draining_agent_run_id(), run_id)
+          identical(shiny::isolate(draining_agent_run_id()), run_id)
       ) {
         draining_agent_run_id(NULL)
       }
@@ -704,7 +761,7 @@ rill_server <- function(
       if (is.null(current_read)) {
         retry_cancel <- NULL
         retry_cancel <- later::later(
-          function() {
+          in_session(function() {
             if (
               !identical(
                 agent_run_deadlines[[run$run_id]],
@@ -716,7 +773,7 @@ rill_server <- function(
             agent_run_deadlines[[run$run_id]] <- NULL
             schedule_agent_run_deadline(run, agent, deadline)
             NULL
-          },
+          }),
           delay = 0.25
         )
         agent_run_deadlines[[run$run_id]] <- retry_cancel
@@ -826,7 +883,7 @@ rill_server <- function(
           return(invisible(NULL))
         }
         drain_cancel <<- later::later(
-          function() {
+          in_session(function() {
             drain_cancel <<- NULL
             confirmation <- agent_run_stop_confirmations[[run$run_id]]
             if (!is.null(confirmation)) {
@@ -917,7 +974,7 @@ rill_server <- function(
               request_interrupt(intent)
             }
             NULL
-          },
+          }),
           delay = delay
         )
         invisible(NULL)
@@ -971,7 +1028,7 @@ rill_server <- function(
           return(invisible(NULL))
         }
         state_poll_cancel <<- later::later(
-          function() {
+          in_session(function() {
             state_poll_cancel <<- NULL
             current <- tryCatch(
               store_get_agent_run(store, actor_id, run$run_id),
@@ -1003,7 +1060,7 @@ rill_server <- function(
             }
             schedule_state_poll()
             NULL
-          },
+          }),
           delay = delay
         )
         invisible(NULL)
@@ -1015,7 +1072,7 @@ rill_server <- function(
         as.numeric(difftime(deadline, Sys.time(), units = "secs"))
       )
       agent_run_deadlines[[run$run_id]] <- later::later(
-        function() {
+        in_session(function() {
           agent_run_deadlines[[run$run_id]] <- NULL
           terminal_intent <- agent_run_terminal_intents[[run$run_id]]
           if (!is.null(terminal_intent)) {
@@ -1047,7 +1104,7 @@ rill_server <- function(
           }
           request_interrupt("wall_time_limit")
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(deadline)
@@ -1194,7 +1251,7 @@ rill_server <- function(
       if (!is.null(request_token) && length(request_token)) {
         return(rill_id(prefix, session_id, as.character(request_token)[[1]]))
       }
-      index <- agent_request_index() + 1L
+      index <- shiny::isolate(agent_request_index()) + 1L
       agent_request_index(index)
       rill_id(prefix, session_id, index)
     }
@@ -1209,7 +1266,7 @@ rill_server <- function(
       requested_at = NULL,
       transition_at = NULL
     ) {
-      if (!is.null(draining_agent_run_id())) {
+      if (!is.null(shiny::isolate(draining_agent_run_id()))) {
         cli::cli_abort(
           "The previous response is still stopping. Try again in a moment.",
           class = "rill_agent_run_draining"
@@ -1296,7 +1353,7 @@ rill_server <- function(
             document_id = document$document_id,
             document_content_hash = document$content_hash,
             document_record_hash = document$record_hash,
-            orientation_selection = selected_orientation_provenance(),
+            orientation_selection = shiny::isolate(selected_orientation_provenance()),
             research_scope = list(
               kind = "selected_document",
               document_ids = document$document_id
@@ -1498,7 +1555,7 @@ rill_server <- function(
       poll <- NULL
       poll <- function() {
         pending_reader_question_cancel <<- later::later(
-          function() {
+          in_session(function() {
             pending_reader_question_cancel <<- NULL
             pending <- shiny::isolate(pending_reader_question())
             if (is.null(pending)) {
@@ -1632,7 +1689,7 @@ rill_server <- function(
               poll()
             }
             NULL
-          },
+          }),
           delay = 0.05
         )
         invisible(NULL)
@@ -1663,13 +1720,13 @@ rill_server <- function(
         return(invisible(NULL))
       }
       deferred_reader_question_resume_cancel <<- later::later(
-        function() {
+        in_session(function() {
           deferred_reader_question_resume_cancel <<- NULL
           if (!session$isClosed()) {
             resume_deferred_reader_question()
           }
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -1750,18 +1807,22 @@ rill_server <- function(
           duration = 8
         )
         append_reader_chat(
-          paste(
-            "Rill didn't send the preserved question because its configured",
-            "model destination changed. Ask it again to confirm the current",
-            "destination."
-          ),
+          if (inherits(resumed, "rill_agent_runtime_identity_changed")) {
+            paste(
+              "Rill didn't send the preserved question because its configured",
+              "model destination changed. Ask it again to confirm the current",
+              "destination."
+            )
+          } else {
+            "Rill couldn't send the preserved question. Ask it again."
+          },
           session
         )
       }
       invisible(resumed)
     }
 
-    session$onFlushed(resume_deferred_reader_question, once = TRUE)
+    session$onFlushed(in_session(resume_deferred_reader_question), once = TRUE)
 
     feeds <- shiny::reactive({
       refresh_tick()
@@ -1783,7 +1844,11 @@ rill_server <- function(
       )
     })
 
-    queue_entries <- shiny::reactive({
+    # The queue loads stories in pages. One extra row shows whether more
+    # exist, and asking for more past the loaded page raises the limit.
+    queue_page_size <- 150L
+    queue_limit <- shiny::reactiveVal(queue_page_size)
+    queue_query <- shiny::reactive({
       refresh_tick()
       queue_state_tick()
       calendar <- calendar_window()
@@ -1798,13 +1863,19 @@ rill_server <- function(
         group_ids = selected_group_ids(),
         group_match = selected_group_match(),
         ungrouped = selected_ungrouped(),
-        limit = 150L,
+        limit = queue_limit() + 1L,
         sort = input$story_sort %||% "newest",
         now = calendar$now,
         timezone = calendar$timezone,
         include_content = FALSE,
         entry_ids = selected_orientation_theme()$entry_ids
       )
+    })
+    queue_entries <- shiny::reactive({
+      utils::head(queue_query(), queue_limit())
+    })
+    queue_has_more <- shiny::reactive({
+      nrow(queue_query()) > queue_limit()
     })
 
     orientation_destination_status <- shiny::reactive({
@@ -2323,7 +2394,11 @@ rill_server <- function(
 
     selected_document <- shiny::reactive({
       opening_telemetry$activate()
-      entry <- selected_entry()
+      shiny::req(selected_id())
+      # The copy depends on which story is selected, not on its read, star, or
+      # save state. Refreshes therefore don't rebuild the article, which would
+      # lose focus, text selection, and scroll position.
+      entry <- shiny::isolate(selected_entry())
       shiny::req(!is.null(entry))
       document_id <- selected_document_id()
       if (!is.null(document_id)) {
@@ -2568,6 +2643,11 @@ rill_server <- function(
       ))
 
       {
+        # Groups the Reader expanded stay open when counts re-render.
+        open_groups <- unlist(
+          shiny::isolate(input$open_feed_groups),
+          use.names = FALSE
+        )
         index <- navigation_groups()
         ids <- index$group_ids
         names <- index$names
@@ -2582,6 +2662,7 @@ rill_server <- function(
             } else {
               selected_ungrouped()
             }
+            group_key <- if (nzchar(id)) id else "ungrouped"
             shiny::tags$div(
               class = "feed-folder",
               shiny::tags$button(
@@ -2596,9 +2677,11 @@ rill_server <- function(
                 shiny::tags$small(index$unread[[i]])
               ),
               shiny::tags$details(
+                `data-group-key` = group_key,
                 open = if (
-                  !is.null(selected_feed()) &&
-                    selected_feed() %in% rows$feed_id
+                  (!is.null(selected_feed()) &&
+                    selected_feed() %in% rows$feed_id) ||
+                    group_key %in% open_groups
                 ) {
                   "open"
                 } else {
@@ -2774,20 +2857,57 @@ rill_server <- function(
       if (identical(result$status, "running")) feed_refresh_status_ui(result)
     })
 
-    output$feed_organization_control <- shiny::renderUI({
+    managed_feed <- shiny::reactive({
       feed_id <- management_feed_id()
       if (is.null(feed_id)) {
-        return(feed_organization_control_ui())
+        return(NULL)
       }
       feed_rows <- management_feeds()
       selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
       if (!nrow(selected)) {
+        return(NULL)
+      }
+      as.list(selected[1, , drop = FALSE])
+    })
+
+    # A finished refresh changes every feed's poll results. Keeping those out
+    # of the editable controls stops it from resetting a half-typed name or
+    # unsaved Groups; a reactiveVal only invalidates on a changed value.
+    managed_feed_fields <- shiny::reactiveVal(NULL)
+    shiny::observe({
+      feed <- managed_feed()
+      editable <- c(
+        "feed_id",
+        "feed_url",
+        "title",
+        "status",
+        "source_kind",
+        "group_ids"
+      )
+      managed_feed_fields(
+        if (!is.null(feed)) feed[intersect(editable, names(feed))]
+      )
+    })
+    managed_feed_groups <- shiny::reactiveVal(NULL)
+    shiny::observe({
+      groups <- feed_groups()
+      managed_feed_groups(data.frame(
+        group_id = groups$group_id,
+        name = groups$name
+      ))
+    })
+
+    output$feed_organization_control <- shiny::renderUI({
+      feed <- managed_feed_fields()
+      if (is.null(feed)) {
         return(feed_organization_control_ui())
       }
-      feed_organization_control_ui(
-        as.list(selected[1, , drop = FALSE]),
-        groups = feed_groups()
-      )
+      feed_organization_control_ui(feed, groups = managed_feed_groups())
+    })
+
+    output$managed_feed_status <- shiny::renderUI({
+      feed <- managed_feed()
+      if (!is.null(feed)) feed_poll_status_ui(feed)
     })
 
     output$group_management_control <- shiny::renderUI({
@@ -2958,12 +3078,16 @@ rill_server <- function(
 
     output$story_count <- shiny::renderUI({
       count <- nrow(queue_entries())
-      noun <- if (count == 1L) "story" else "stories"
+      label <- if (queue_has_more()) {
+        paste("More than", count, "stories")
+      } else {
+        paste(count, if (count == 1L) "story" else "stories")
+      }
       shiny::tags$span(
         class = "count-pill",
-        title = paste(count, noun),
-        `aria-label` = paste(count, noun),
-        count
+        title = label,
+        `aria-label` = label,
+        if (queue_has_more()) paste0(count, "+") else count
       )
     })
 
@@ -3017,6 +3141,24 @@ rill_server <- function(
       input,
       \() match(selected_id(), entries()$entry_id, nomatch = 0L)
     )
+    queue_limit_context <- NULL
+    shiny::observeEvent(current_context(), {
+      context <- current_context()
+      if (!identical(context, queue_limit_context)) {
+        queue_limit_context <<- context
+        queue_limit(queue_page_size)
+      }
+    })
+    shiny::observeEvent(
+      input$queue_more,
+      {
+        if (queue_has_more() && queue_batch() + 30L > nrow(queue_entries())) {
+          queue_limit(queue_limit() + queue_page_size)
+        }
+      },
+      ignoreInit = TRUE,
+      priority = 10
+    )
     render_queue_cards <- queue_card_renderer()
     output$story_list <- shiny::renderUI({
       queue_telemetry$activate()
@@ -3044,6 +3186,7 @@ rill_server <- function(
       ))
       request_id <- queue_request_id()
       session$onFlushed(\() queue_telemetry$flushed(request_id), once = TRUE)
+      more <- min(30L, total - nrow(rows))
       shiny::tags$div(
         class = "queue-batch",
         `data-queue-view` = input$view %||% "unread",
@@ -3059,12 +3202,20 @@ rill_server <- function(
           )
         },
         rendered$cards,
-        if (nrow(rows) < total) {
+        if (nrow(rows) < total || queue_has_more()) {
           shiny::tags$button(
             id = "queue_more",
             type = "button",
             class = "btn btn-outline-secondary queue-more",
-            sprintf("Show %d more stories", min(30L, total - nrow(rows)))
+            if (more > 0L) {
+              sprintf(
+                "Show %d more %s",
+                more,
+                if (more == 1L) "story" else "stories"
+              )
+            } else {
+              "Show more stories"
+            }
           )
         }
       )
@@ -3491,6 +3642,21 @@ rill_server <- function(
           position <- selection$position
           provenance <- selection$provenance
         }
+        if (!identical(surface, "orientation")) {
+          opened <- attempt_reader_action(
+            function() {
+              telemetry_span(
+                "store.mark_opened",
+                store_mark_opened(store, actor_id, entry_id)
+              )
+              TRUE
+            },
+            "Rill couldn't open that story. Try again."
+          )
+          if (is.null(opened)) {
+            return()
+          }
+        }
         if (
           !identical(previous_id, entry_id) ||
             !identical(previous_document_id, pinned_document_id)
@@ -3505,10 +3671,6 @@ rill_server <- function(
         selected_orientation_provenance(provenance)
         selected_position(position)
         if (!identical(surface, "orientation")) {
-          telemetry_span(
-            "store.mark_opened",
-            store_mark_opened(store, actor_id, entry_id)
-          )
           telemetry_span(
             "store.open_event",
             record_event(
@@ -3801,7 +3963,7 @@ rill_server <- function(
           return()
         }
 
-        tryCatch(
+        started <- tryCatch(
           run_prioritized_reader_question(
             question,
             document,
@@ -3817,8 +3979,10 @@ rill_server <- function(
               "Rill couldn't start that response. Finish the current response or retry.",
               session
             )
+            NULL
           }
         )
+        release_answer_promise(started)
       },
       ignoreInit = TRUE
     )
@@ -3842,6 +4006,8 @@ rill_server <- function(
             pending$request_key
           )
           pending_reader_question(NULL)
+          # shinychat keeps its composer disabled until a message arrives.
+          append_reader_chat("Stopped before Rill started answering.", session)
           return()
         }
         run <- active_agent_run()
@@ -3948,7 +4114,7 @@ rill_server <- function(
           return()
         }
 
-        tryCatch(
+        started <- tryCatch(
           run_prioritized_reader_question(
             run$pinned_inputs$question,
             document,
@@ -3961,8 +4127,10 @@ rill_server <- function(
               type = "error",
               duration = 8
             )
+            NULL
           }
         )
+        release_answer_promise(started)
       },
       ignoreInit = TRUE
     )
@@ -3972,7 +4140,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        value <- store_toggle_state(store, actor_id, entry$entry_id, "starred")
+        value <- attempt_reader_action(
+          \() store_toggle_state(store, actor_id, entry$entry_id, "starred"),
+          "Rill couldn't star that story. Try again."
+        )
+        if (is.null(value)) {
+          return()
+        }
         record_event(
           "star_changed",
           entry$entry_id,
@@ -3988,7 +4162,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        changed <- store_mark_unread(store, actor_id, entry$entry_id)
+        changed <- attempt_reader_action(
+          \() store_mark_unread(store, actor_id, entry$entry_id),
+          "Rill couldn't mark that story unread. Try again."
+        )
+        if (is.null(changed)) {
+          return()
+        }
         if (changed) {
           record_event(
             "read_state_changed",
@@ -4017,7 +4197,13 @@ rill_server <- function(
       {
         entry <- selected_entry()
         shiny::req(isTRUE(entry$library_access))
-        value <- store_toggle_state(store, actor_id, entry$entry_id, "saved")
+        value <- attempt_reader_action(
+          \() store_toggle_state(store, actor_id, entry$entry_id, "saved"),
+          "Rill couldn't save that story. Try again."
+        )
+        if (is.null(value)) {
+          return()
+        }
         record_event(
           "save_changed",
           entry$entry_id,
@@ -4118,7 +4304,7 @@ rill_server <- function(
           result$feed$title,
           "\u00b7",
           result$added,
-          "stories"
+          if (identical(as.integer(result$added), 1L)) "story" else "stories"
         ))
         shiny::updateTextInput(session, "new_feed_url", value = "")
         record_event(
@@ -4540,17 +4726,25 @@ rill_server <- function(
     )
 
     mark_scope_read <- function(before = NULL, reason) {
-      marked <- store_mark_entries_read(
-        store,
-        actor_id,
-        feed_id = selected_feed(),
-        folder = selected_folder(),
-        group_ids = selected_group_ids(),
-        group_match = selected_group_match(),
-        ungrouped = selected_ungrouped(),
-        before = before,
-        reason = reason
+      marked <- attempt_reader_action(
+        \() {
+          store_mark_entries_read(
+            store,
+            actor_id,
+            feed_id = selected_feed(),
+            folder = selected_folder(),
+            group_ids = selected_group_ids(),
+            group_match = selected_group_match(),
+            ungrouped = selected_ungrouped(),
+            before = before,
+            reason = reason
+          )
+        },
+        "Rill couldn't mark those stories as read. Try again."
       )
+      if (is.null(marked)) {
+        return(invisible(NULL))
+      }
       count <- length(marked)
       if (count) {
         retained_ids(setdiff(retained_ids(), marked))
