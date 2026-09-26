@@ -1,4 +1,5 @@
 testthat::test_that("browser capture reaches the normal document boundary", {
+  local_three_feed_demo()
   store <- rill_store(list(demo_mode = TRUE))
   result <- capture_document(
     store,
@@ -44,6 +45,7 @@ testthat::test_that("browser capture reaches the normal document boundary", {
 })
 
 testthat::test_that("capture sources are not polled as subscriptions", {
+  local_three_feed_demo()
   store <- rill_store(list(demo_mode = TRUE))
   capture_document(store, capture_test_payload(), "reader")
   store_ensure_reader(store, "other-reader")
