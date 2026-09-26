@@ -1983,11 +1983,11 @@ testthat::test_that("queues longer than one page load more stories on request", 
   config <- rill_config()
   config$orientation_enabled <- FALSE
   store <- rill_store(config)
-  entries <- store$memory$entries[rep(1L, 160L), ]
-  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(160L))
+  entries <- store$memory$entries[rep(1L, 620L), ]
+  entries$entry_id <- sprintf("queue-entry-%03d", seq_len(620L))
   entries$external_id <- entries$entry_id
   entries$published_at <- format(
-    Sys.time() - seq_len(160L) * 60,
+    Sys.time() - seq_len(620L) * 60,
     tz = "UTC",
     usetz = TRUE
   )
@@ -1996,13 +1996,13 @@ testthat::test_that("queues longer than one page load more stories on request", 
     session$setInputs(view = "all")
     testthat::expect_match(output$story_count$html, ">150+<", fixed = TRUE)
 
-    for (click in 1:5) {
+    for (click in 1:21) {
       session$setInputs(queue_more = click)
     }
-    testthat::expect_match(output$story_count$html, ">160<", fixed = TRUE)
+    testthat::expect_match(output$story_count$html, ">620<", fixed = TRUE)
     testthat::expect_match(
       output$story_list$html,
-      "queue-entry-160",
+      "queue-entry-620",
       fixed = TRUE
     )
 
@@ -2104,6 +2104,7 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
 })
 
 testthat::test_that("reading actions report store failures without ending the session", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   config$orientation_enabled <- FALSE
@@ -5467,6 +5468,7 @@ testthat::test_that("uploading OPML reports the result and records an event", {
 })
 
 testthat::test_that("OPML import registers feeds before any refresh", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -5938,6 +5940,7 @@ testthat::test_that("queue saves are scoped and do not open the story", {
 
 
 testthat::test_that("folder selection scopes queues and resets when selecting a feed", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6007,6 +6010,7 @@ testthat::test_that("feed management preserves empty Groups after their last fee
 })
 
 testthat::test_that("Group management and combined reading share a single queue state", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   config <- rill_config()
   store <- rill_store(config)
@@ -6182,6 +6186,7 @@ testthat::test_that("only valid queue transition tokens reach the rendered batch
 })
 
 testthat::test_that("new Group and folder scopes clear an Orientation theme", {
+  local_three_feed_demo()
   withr::local_envvar(DATABASE_URL = "")
   for (navigation in c("group", "groups", "folder", "ungrouped")) {
     config <- rill_config()
