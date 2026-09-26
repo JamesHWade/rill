@@ -2,53 +2,53 @@
 
 * Manage feeds starts with adding a feed, keeps Done and a close button in view while its body scrolls, makes Retry failed feeds a secondary action, gathers the Group tools under one heading, and asks before deleting a Group (#99).
 
-* Ask Rill shows its greeting again after you open a story. Clearing the conversation for a new story used to remove the greeting until the page reloaded.
+* Ask Rill shows its greeting again after you open a story. Clearing the conversation for a new story used to remove the greeting until the page reloaded (#112).
 
-* The rating buttons in Orientation and Ask Rill are smaller, and Browse unread stories now comes before Rate this Orientation.
+* The rating buttons in Orientation and Ask Rill are smaller, and Browse unread stories now comes before Rate this Orientation (#112).
 
-* Story cards take a feed's initials from its first two words, skipping "The" ("The R Blog" is RB, not TH), and feed details say when a feed was last checked in words such as "2 hours ago".
+* Story cards take a feed's initials from its first two words, skipping "The" ("The R Blog" is RB, not TH), and feed details say when a feed was last checked in words such as "2 hours ago" (#112).
 
 * On touch screens, a thin strip of the swipe action shows at the edge of each story, hinting that stories can be swiped (#100).
 
-* The demo opens with six short stories that walk through reading, the keyboard, Ask Rill, Orientation, keeping your Library, and browser captures. They replace placeholder articles attributed to R Core, Posit, and CRAN.
+* The demo opens with six short stories that walk through reading, the keyboard, Ask Rill, Orientation, keeping your Library, and browser captures. They replace placeholder articles attributed to R Core, Posit, and CRAN (#111).
 
-* Interface text is shorter and plainer. Ask Rill, Orientation, and the reading-copy details say what they do and what they send in everyday terms, Orientation settings name the environment variable to set when something is missing, and long Orientation quotes end at a word instead of mid-word.
+* Interface text is shorter and plainer. Ask Rill, Orientation, and the reading-copy details say what they do and what they send in everyday terms, Orientation settings name the environment variable to set when something is missing, and long Orientation quotes end at a word instead of mid-word (#111).
 
-* Orientation rejects evidence quoted from Rill's own truncation notice while the agent can still correct it, instead of failing the update after the agent finishes.
+* Orientation rejects evidence quoted from Rill's own truncation notice while the agent can still correct it, instead of failing the update after the agent finishes (#110).
 
-* A blank `RILL_ACTOR_ID` now uses the default Reader instead of opening a second, empty Library, and a question that can't be resumed after a reload reports its actual cause.
+* A blank `RILL_ACTOR_ID` now uses the default Reader instead of opening a second, empty Library, and a question that can't be resumed after a reload reports its actual cause (#110).
 
-* The reading queue is no longer capped at 150 stories. Long views show a count such as "150+", and **Show more stories** loads the next page.
+* The reading queue is no longer capped at 150 stories. Long views show a count such as "150+", and **Show more stories** loads the next page (#110).
 
-* Expanded Groups in the Library stay open when counts update, and keyboard focus returns to Star, Save, or Mark unread after you use them.
+* Expanded Groups in the Library stay open when counts update, and keyboard focus returns to Star, Save, or Mark unread after you use them (#110).
 
-* Opening, starring, saving, or marking stories now reports storage errors, including a story removed from your Library on another device, instead of closing the session.
+* Opening, starring, saving, or marking stories now reports storage errors, including a story removed from your Library on another device, instead of closing the session (#110).
 
-* The open article no longer rebuilds when you star or save it or when the Library refreshes in the background, so focus, text selection, and the reading-copy details stay put.
+* The open article no longer rebuilds when you star or save it or when the Library refreshes in the background, so focus, text selection, and the reading-copy details stay put (#110).
 
-* Manage feeds keeps a half-typed feed name and unsaved Group choices when the Library refreshes.
+* Manage feeds keeps a half-typed feed name and unsaved Group choices when the Library refreshes (#110).
 
-* Keyboard shortcuts keep working after you choose a view, and no longer act on stories behind an open dialog.
+* Keyboard shortcuts keep working after you choose a view, and no longer act on stories behind an open dialog (#110).
 
-* Ask Rill no longer stops the app for every reader when an answer reaches its time limit or when a question waits for Orientation. Stop now interrupts an answer while it streams, and stopping a question that is waiting for Orientation re-enables the chat.
+* Ask Rill no longer stops the app for every reader when an answer reaches its time limit or when a question waits for Orientation. Stop now interrupts an answer while it streams, and stopping a question that is waiting for Orientation re-enables the chat (#110).
 
-* A fresh visit no longer reopens a story whose question you cancelled or that failed more than ten minutes ago; running answers and recent failures still reopen so Retry stays in view.
+* A fresh visit no longer reopens a story whose question you cancelled or that failed more than ten minutes ago; running answers and recent failures still reopen so Retry stays in view (#110).
 
-* Reader Memory explains problems you can fix, such as a passage that appears more than once in the story, instead of reporting that the memory changed.
+* Reader Memory explains problems you can fix, such as a passage that appears more than once in the story, instead of reporting that the memory changed (#110).
 
-* Reading copies now drop HTML comments, `noscript`, and other elements that browsers parse differently from Rill's sanitizer, so feed content can no longer run scripts in the reader.
+* Reading copies now drop HTML comments, `noscript`, and other elements that browsers parse differently from Rill's sanitizer, so feed content can no longer run scripts in the reader (#109).
 
-* Feed fetching never treats a response body or feed field as a URL or file path, checks each redirect before following it, rejects `*.localhost`, carrier-grade NAT, numeric, and IPv6 literal hosts, and no longer waits on `Retry-After` values over ten seconds.
+* Feed fetching never treats a response body or feed field as a URL or file path, checks each redirect before following it, rejects `*.localhost`, carrier-grade NAT, numeric, and IPv6 literal hosts, and no longer waits on `Retry-After` values over ten seconds (#109).
 
-* Feeds keep their full `content:encoded` or Atom `content` when a shorter description comes first, ignore empty Media RSS `content`, read Atom author names without their URL or email, prefer publication dates over update dates, use permalink GUIDs for items without a link, and skip `atom:link` when finding a site's address.
+* Feeds keep their full `content:encoded` or Atom `content` when a shorter description comes first, ignore empty Media RSS `content`, read Atom author names without their URL or email, prefer publication dates over update dates, use permalink GUIDs for items without a link, and skip `atom:link` when finding a site's address (#109).
 
-* RSS publication dates now keep their time zone offsets, such as `-0700`, so stories from feeds outside UTC sort correctly and appear in the right calendar view.
+* RSS publication dates now keep their time zone offsets, such as `-0700`, so stories from feeds outside UTC sort correctly and appear in the right calendar view (#109).
 
-* Feeds that declare their encoding only in the XML prolog, are encoded as UTF-16, or send Windows-1252 text without a charset now refresh instead of failing.
+* Feeds that declare their encoding only in the XML prolog, are encoded as UTF-16, or send Windows-1252 text without a charset now refresh instead of failing (#109).
 
-* Opening a story whose feed item has no readable text now shows a placeholder copy instead of closing the session.
+* Opening a story whose feed item has no readable text now shows a placeholder copy instead of closing the session (#109).
 
-* Mark older than a day as read now works with PostgreSQL storage; it previously ended the session.
+* Mark older than a day as read now works with PostgreSQL storage; it previously ended the session (#109).
 
 * Reader Memory now consumes Graft's public API4 artifact workflow while preserving exact reviewed decisions, retained evidence, and Reader-scoped consultation (JamesHWade/graft#91).
 
