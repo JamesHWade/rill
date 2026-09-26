@@ -211,6 +211,38 @@ testthat::test_that("Source Evidence must be inside the inspected text boundary"
   )
 })
 
+testthat::test_that("Source Evidence cannot quote Rill's truncation marker", {
+  store <- local_orientation_backend_store("memory", "reader-1")
+  candidates <- orientation_candidates(store, "reader-1", limit = 1L)
+  document <- candidates[[1L]]$document
+  candidates[[1L]]$document$markdown <- strrep("visible source text ", 1000L)
+  supplied <- rill_orientation_source_payload(candidates)
+  card <- function(evidence) {
+    list(
+      status = "A source was selected.",
+      question = "What matters?",
+      cards = list(list(
+        document_id = document$document_id,
+        interpretation = "The opening matters.",
+        why_now = "It frames the rest.",
+        evidence = evidence
+      ))
+    )
+  }
+
+  testthat::expect_error(
+    rill_orientation_output_cards(
+      card("[Reading copy truncated at the Orientation source boundary.]"),
+      supplied
+    ),
+    class = "rill_orientation_invalid"
+  )
+  testthat::expect_length(
+    rill_orientation_output_cards(card("visible source text"), supplied),
+    1L
+  )
+})
+
 testthat::test_that("the complete Orientation tool stays below Deputy offload", {
   store <- local_orientation_backend_store("memory", "reader-1")
   candidate <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]

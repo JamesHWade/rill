@@ -14,6 +14,25 @@ completed_response_may_arrive <- function(run) {
     Sys.time() < terminal_at + 2
 }
 
+# A fresh visit reopens the story behind an answer that is still running, or
+# one that failed within the last few minutes so that Retry stays in view after
+# a reload. Cancelled answers and older failures leave Orientation in charge.
+question_run_reopens <- function(run, now = Sys.time(), window = 10 * 60) {
+  if (run$status %in% c("pending", "running", "cancelling")) {
+    return(TRUE)
+  }
+  if (!run$status %in% c("failed", "interrupted")) {
+    return(FALSE)
+  }
+  terminal_at <- tryCatch(
+    as.POSIXct(run$terminal_at %||% NA_character_, tz = "UTC"),
+    error = \(error) as.POSIXct(NA, tz = "UTC")
+  )
+  length(terminal_at) == 1L &&
+    !is.na(terminal_at) &&
+    difftime(now, terminal_at, units = "secs") <= window
+}
+
 
 agent_run_pending_lease_seconds <- function() {
   30

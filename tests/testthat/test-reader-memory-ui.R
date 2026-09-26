@@ -36,6 +36,30 @@ testthat::test_that("Reader Memory requires preview and explicit acceptance", {
   )
 })
 
+testthat::test_that("Reader Memory explains input problems the Reader can fix", {
+  store <- local_orientation_backend_store("memory", "reader")
+  access <- reader_memory_access(store, "reader")
+  document <- store$memory$documents[[1L]]
+  shiny::testServer(
+    reader_memory_server,
+    args = list(access = access, document = function() document),
+    {
+      session$setInputs(
+        text = "The ledger is the important part.",
+        kind = "interpretation",
+        quote = "a passage that is not in the story",
+        selected = ""
+      )
+      session$setInputs(review = 1)
+      testthat::expect_identical(
+        status(),
+        "Choose a passage that occurs exactly once in the reading copy."
+      )
+      testthat::expect_null(pending())
+    }
+  )
+})
+
 testthat::test_that("opening Reader Memory reports lookup failures visibly", {
   store <- local_orientation_backend_store("memory", "reader")
   access <- reader_memory_access(store, "reader")

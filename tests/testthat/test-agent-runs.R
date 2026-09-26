@@ -201,6 +201,35 @@ testthat::test_that("the latest question remains available after interruption", 
   )
 })
 
+testthat::test_that("only running or recently failed answers reopen their story", {
+  now <- as.POSIXct("2026-09-26 12:00:00", tz = "UTC")
+  run <- function(status, minutes_ago = NA) {
+    list(
+      status = status,
+      terminal_at = if (is.na(minutes_ago)) NULL else now - minutes_ago * 60
+    )
+  }
+
+  testthat::expect_identical(question_run_reopens(run("running"), now), TRUE)
+  testthat::expect_identical(question_run_reopens(run("failed", 2), now), TRUE)
+  testthat::expect_identical(
+    question_run_reopens(run("interrupted", 9), now),
+    TRUE
+  )
+  testthat::expect_identical(
+    question_run_reopens(run("failed", 30), now),
+    FALSE
+  )
+  testthat::expect_identical(
+    question_run_reopens(run("cancelled", 1), now),
+    FALSE
+  )
+  testthat::expect_identical(
+    question_run_reopens(run("completed", 1), now),
+    FALSE
+  )
+})
+
 testthat::test_that("the latest completed question is scoped to its Reader and status", {
   for (backend in c("memory", "postgres")) {
     store <- local_orientation_backend_store(backend, "reader-1")

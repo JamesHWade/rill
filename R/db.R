@@ -977,7 +977,7 @@ store_list_entries <- function(
   group_match <- match.arg(group_match, c("any", "all"))
   view <- normalize_entry_view(view)
   sort <- normalize_entry_sort(sort)
-  limit <- max(1L, min(as.integer(limit), 500L))
+  limit <- max(1L, as.integer(limit))
   window <- entry_view_window(view, now, timezone)
 
   if (identical(store$mode, "postgres")) {

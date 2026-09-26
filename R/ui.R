@@ -1809,6 +1809,26 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
   )
 }
 
+feed_poll_status_ui <- function(feed) {
+  shiny::tags$p(
+    role = "status",
+    if (identical(feed$poll_status, "failed")) {
+      paste(
+        "Last check failed. Scheduled retries may be delayed after repeated failures.",
+        "Retry this feed now or check its source URL."
+      )
+    } else if (is.null(feed$last_polled_at) || is.na(feed$last_polled_at)) {
+      "Not checked yet."
+    } else {
+      paste("Last checked:", feed$last_polled_at)
+    }
+  )
+}
+
+feed_group_ids <- function(feed) {
+  unlist(feed$group_ids, use.names = FALSE) %||% character()
+}
+
 feed_organization_control_ui <- function(
   feed = NULL,
   folders = character(),
@@ -1831,24 +1851,13 @@ feed_organization_control_ui <- function(
   }
 
   shiny::tagList(
-    shiny::tags$p(class = "feed-source-url", feed$feed_url),
+    shiny::textOutput(
+      "managed_feed_url",
+      container = \(...) shiny::tags$p(class = "feed-source-url", ...)
+    ),
     if (identical(feed$source_kind %||% "subscription", "subscription")) {
       shiny::tagList(
-        shiny::tags$p(
-          role = "status",
-          if (identical(feed$poll_status, "failed")) {
-            paste(
-              "Last check failed. Scheduled retries may be delayed after repeated failures.",
-              "Retry this feed now or check its source URL."
-            )
-          } else if (
-            is.null(feed$last_polled_at) || is.na(feed$last_polled_at)
-          ) {
-            "Not checked yet."
-          } else {
-            paste("Last checked:", feed$last_polled_at)
-          }
-        ),
+        shiny::uiOutput("managed_feed_status"),
         bslib::input_task_button(
           "refresh_selected_feed",
           "Refresh this feed",
@@ -1876,7 +1885,7 @@ feed_organization_control_ui <- function(
           } else {
             stats::setNames(groups$group_id, groups$name)
           },
-          selected = unlist(feed$group_ids, use.names = FALSE),
+          selected = feed_group_ids(feed),
           multiple = TRUE,
           options = list(closeAfterSelect = TRUE),
           width = "100%"

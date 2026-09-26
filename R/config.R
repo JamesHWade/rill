@@ -289,6 +289,12 @@ rill_config <- function() {
     oidc_issuer <- paste0("https://", auth0_domain, "/")
   }
   actor_id <- Sys.getenv("RILL_ACTOR_ID", unset = "reader")
+  # A blank setting must mean the default Reader, or it opens a second, empty
+  # Library. Other local values stay exactly as set, because existing
+  # Libraries are stored under them.
+  if (identical(identity_mode, "local") && !nzchar(trimws(actor_id))) {
+    actor_id <- "reader"
+  }
   if (
     identical(identity_mode, "oidc_proxy") &&
       (!nzchar(trimws(actor_id)) ||

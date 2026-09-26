@@ -228,6 +228,20 @@ testthat::test_that("the proxy gate requires a safe HTTPS issuer", {
   )
 })
 
+testthat::test_that("a blank Reader identifier falls back to the local default", {
+  withr::local_envvar(c(
+    DATABASE_URL = "",
+    RILL_ACTOR_ID = "  ",
+    RILL_IDENTITY_MODE = "local",
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = NA
+  ))
+
+  testthat::expect_identical(rill_config()$actor_id, "reader")
+
+  withr::local_envvar(RILL_ACTOR_ID = " james ")
+  testthat::expect_identical(rill_config()$actor_id, " james ")
+})
+
 testthat::test_that("the private gate requires a stable Reader identifier", {
   withr::local_envvar(c(
     RILL_ACTOR_ID = "   ",

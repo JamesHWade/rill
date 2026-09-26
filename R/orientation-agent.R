@@ -34,11 +34,15 @@ rill_orientation_bounded_string <- function(value, max_bytes) {
   paste0(substr(value, 1L, low), "\u2026")
 }
 
+rill_orientation_truncation_marker <- function() {
+  "\n\n[Reading copy truncated at the Orientation source boundary.]"
+}
+
 rill_orientation_document_text <- function(markdown, max_bytes = 12000L) {
   if (rill_orientation_json_bytes(markdown) <= max_bytes) {
     return(markdown)
   }
-  suffix <- "\n\n[Reading copy truncated at the Orientation source boundary.]"
+  suffix <- rill_orientation_truncation_marker()
   if (rill_orientation_json_bytes(suffix) > max_bytes) {
     return("")
   }
@@ -447,7 +451,18 @@ rill_orientation_output_cards <- function(output, inspected_payload) {
       orientation_abort("Orientation selected an unchanged dismissed card.")
     }
     evidence <- orientation_string(card$evidence, "card.evidence")
-    if (!grepl(evidence, inspected[[document_id]]$markdown, fixed = TRUE)) {
+    # Evidence must come from the source, not from Rill's truncation marker,
+    # or publication rejects it after the agent has already stopped.
+    source_text <- inspected[[document_id]]$markdown
+    marker <- rill_orientation_truncation_marker()
+    if (endsWith(source_text, marker)) {
+      source_text <- substr(
+        source_text,
+        1L,
+        nchar(source_text) - nchar(marker)
+      )
+    }
+    if (!grepl(evidence, source_text, fixed = TRUE)) {
       orientation_abort(
         "Orientation Source Evidence was not in the inspected source text."
       )
