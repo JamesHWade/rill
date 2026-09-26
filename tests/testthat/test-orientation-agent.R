@@ -323,7 +323,7 @@ testthat::test_that("structured output becomes a validated source-linked Orienta
       frame = "unresolved_question",
       interpretation = "This Document establishes the source boundary.",
       why_now = "It directly tests Rill's source-first model.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     ))
   )
 
@@ -378,7 +378,7 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
       frame = "unresolved_question",
       interpretation = "The source establishes a useful boundary.",
       why_now = "It bears on the current reading question.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     ))
   )
   for (field in c("status", "question")) {
@@ -434,7 +434,7 @@ testthat::test_that("invalid Source Evidence can be corrected before submission 
   testthat::expect_null(state$output)
   testthat::expect_identical(state$submission_calls, 0L)
 
-  output$cards[[1L]]$evidence <- "Rill keeps the source feed"
+  output$cards[[1L]]$evidence <- "This story comes with Rill's demo"
   testthat::expect_identical(do.call(submit, output), "Orientation accepted.")
   testthat::expect_identical(state$submission_attempts, 2L)
   testthat::expect_identical(state$submission_calls, 1L)
@@ -499,7 +499,7 @@ testthat::test_that("ellmer returns a rejected quotation to the model for correc
     )
   }
   rejected <- response("submit_orientation", output, "bad-quote")
-  output$cards[[1L]]$evidence <- "Rill keeps the source feed"
+  output$cards[[1L]]$evidence <- "This story comes with Rill's demo"
   responses <- list(
     response("read_orientation_candidates", id = "read"),
     rejected,
@@ -562,7 +562,7 @@ testthat::test_that("Orientation output themes are bounded to unpicked candidate
       document_id = document$document_id,
       interpretation = "This Document establishes the source boundary.",
       why_now = "Tests Rill's source-first model",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     themes = list(
       list(
@@ -704,7 +704,7 @@ testthat::test_that("compact submissions reject oversized wording and allow corr
       document_id = candidates[[1L]]$document$document_id,
       interpretation = paste(rep("word", 30L), collapse = " "),
       why_now = paste(rep("word", 12L), collapse = " "),
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     themes = list(list(
       name = paste(rep("word", 6L), collapse = " "),

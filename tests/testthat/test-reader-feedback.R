@@ -325,7 +325,7 @@ testthat::test_that("empty Orientation selections do not offer or create ratings
     cards = list(list(document_id = "gone", interpretation = "Hidden claim"))
   )
   html <- as.character(orientation_ui(source, list()))
-  testthat::expect_match(html, "No current Orientation selection", fixed = TRUE)
+  testthat::expect_match(html, "No picks right now", fixed = TRUE)
   testthat::expect_length(
     xml2::xml_find_all(xml2::read_html(html), "//*[@id='rate_orientation']"),
     0L
@@ -912,7 +912,7 @@ testthat::test_that("Orientation feedback freezes visible themes with their sour
             entry_id = entry_ids[[1L]],
             interpretation = "A useful source.",
             why_now = "Useful now",
-            evidence = "Rill keeps the source feed"
+            evidence = "This story comes with Rill's demo"
           ))
         },
         themes = list(

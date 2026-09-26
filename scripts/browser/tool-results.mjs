@@ -21,13 +21,13 @@ try {
   await page.getByText('Source Document', {exact: true}).click();
   const result = page.locator('.rill-document-result');
   await result.waitFor();
-  assert.ok((await result.innerText()).includes('Shiny as a personal information surface'));
+  assert.ok((await result.innerText()).includes('Read faster with the keyboard'));
   await page.getByText('Original tool result (JSON)', {exact: true}).click();
   await fs.mkdir('../../artifacts/ui-followups-responsive', {recursive: true});
   await page.screenshot({path: '../../artifacts/ui-followups-responsive/tool-source-details.png'});
   const original = await result.locator('pre').textContent();
   const pinnedDocument = JSON.parse(original);
-  assert.equal(pinnedDocument.title, 'Shiny as a personal information surface');
+  assert.equal(pinnedDocument.title, 'Read faster with the keyboard');
   const sourceLink = result.getByRole('link', {name: 'Original Source', exact: true});
   assert.equal(await sourceLink.getAttribute('href'), pinnedDocument.source_url);
   assert.equal(await sourceLink.isVisible(), true);

@@ -2803,7 +2803,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "14fd4f1979b25944a50a2281b0e71497"
+      "checksum": "dbfd3106fdcc4e0b0c465323d380ebee"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2851,7 +2851,7 @@
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "fa54e2f15497615f66d21980ec18b3ee"
+      "checksum": "8080751b486c675f0321f6f9e90da184"
     },
     "R/agent.R": {
       "checksum": "0663f98cdea4edef40e6a52a26656997"
@@ -2875,7 +2875,7 @@
       "checksum": "b348c9ff8eee538d9059c17d06e63f65"
     },
     "R/documents.R": {
-      "checksum": "b2f58a853db95c39582d83d1a7fb692f"
+      "checksum": "5dcf49da675db48e2493adc1bad1f409"
     },
     "R/feed-refresh.R": {
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
@@ -2896,13 +2896,13 @@
       "checksum": "3f730e4d0510b5241f73d7c34bf30511"
     },
     "R/orientation-destination.R": {
-      "checksum": "cda4d99a39e7f2e9a9364f4217a1343d"
+      "checksum": "29c52aa7d462b88718c44f2583edfb5b"
     },
     "R/orientation-maintenance.R": {
-      "checksum": "75517954e90b77ff59c6dd22c66aa80b"
+      "checksum": "825c1cda6f10c66ac8b5fd6f3bf8a786"
     },
     "R/orientation.R": {
-      "checksum": "c35fe545dedd9ba3b012d34d08e7235c"
+      "checksum": "7a36d6f3fc0d869ea8819bf7caf6489f"
     },
     "R/polling.R": {
       "checksum": "97a3417444f755c2f4f50a69c359c770"
@@ -2914,16 +2914,16 @@
       "checksum": "931b381347f39d9a5534f464a6dc8849"
     },
     "R/sample_data.R": {
-      "checksum": "485e4e9572826ea422dc2fab162a1d62"
+      "checksum": "e52d38b2b294c4211b6867c560f152b6"
     },
     "R/server.R": {
-      "checksum": "81145049861a33cc5bc88f3f600becda"
+      "checksum": "949e399af7ba87b920199918a0cf547b"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "140f7542dfd8a23881eb695d09f77578"
+      "checksum": "6138941d543a65c46c9caa6120ee49aa"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2944,10 +2944,10 @@
       "checksum": "a135500a8f41ab57343a55c41d77f428"
     },
     "R/reader-memory-ui.R": {
-      "checksum": "2925e66586e615f0ef7a41241ef33993"
+      "checksum": "0ce6e4a5c2fd55c8194174ee0beac423"
     },
     "R/reader-memory.R": {
-      "checksum": "2a48dcdbcb9bd12ad3e01e9f85e204e7"
+      "checksum": "74000998ee1ab1c677db576789b2e926"
     }
   },
   "users": null

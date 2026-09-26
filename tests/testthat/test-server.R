@@ -1718,7 +1718,11 @@ testthat::test_that("a failed resume names its actual cause", {
     session$flushReact()
   })
 
-  testthat::expect_match(appended, "couldn't send the preserved", all = FALSE)
+  testthat::expect_match(
+    appended,
+    "couldn't send your held question",
+    all = FALSE
+  )
   testthat::expect_no_match(appended, "destination changed")
 })
 
@@ -2619,7 +2623,7 @@ testthat::test_that("a deferred question rejects a changed destination", {
     )
     testthat::expect_match(
       appended,
-      "didn't send the preserved question",
+      "didn't send your held question",
       fixed = TRUE
     )
   })
@@ -4366,7 +4370,7 @@ testthat::test_that("asking without a story returns a usable chat response", {
     session$setInputs(reader_chat_user_input = "What does this say?")
     session$flushReact()
 
-    testthat::expect_match(appended, "Choose a story", fixed = TRUE)
+    testthat::expect_match(appended, "Open a story first", fixed = TRUE)
     testthat::expect_null(active_agent_run())
     testthat::expect_length(
       Filter(
@@ -5246,7 +5250,7 @@ testthat::test_that("Today finishes when all stories already have full copies", 
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Today's preparation check is complete. Available copies are preserved."
+      "Finished preparing today's full articles."
     )
     testthat::expect_length(preparation_failures(), 0L)
     testthat::expect_null(article_preparer$state$job)
@@ -5271,7 +5275,7 @@ testthat::test_that("Today finishes when there are no stories to prepare", {
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Today's preparation check is complete. Available copies are preserved."
+      "Finished preparing today's full articles."
     )
   }))
 })

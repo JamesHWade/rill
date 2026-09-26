@@ -184,7 +184,7 @@ confirm_orientation_destination <- function(
   state <- orientation_destination_state(store, reader_id, config)
   if (!isTRUE(state$available)) {
     cli::cli_abort(
-      "Automatic Orientation is unavailable in this installation.",
+      "Orientation is off for this installation.",
       class = "rill_orientation_unavailable"
     )
   }
@@ -192,7 +192,7 @@ confirm_orientation_destination <- function(
   if (!isTRUE(state$endpoint_ready)) {
     cli::cli_abort(
       paste(
-        "Configure an explicit model endpoint before enabling automatic",
+        "Set RILL_AGENT_BASE_URL to the model's endpoint before turning on",
         "Orientation."
       ),
       class = "rill_orientation_endpoint_required"
@@ -201,8 +201,8 @@ confirm_orientation_destination <- function(
   if (!isTRUE(state$policy_ready)) {
     cli::cli_abort(
       paste(
-        "Configure an inspectable provider policy before enabling automatic",
-        "Orientation."
+        "Set RILL_AGENT_POLICY_URL to the provider's data policy before",
+        "turning on Orientation."
       ),
       class = "rill_orientation_policy_required"
     )
@@ -234,7 +234,7 @@ set_orientation_enabled <- function(
   state <- orientation_destination_state(store, reader_id, config)
   if (isTRUE(enabled) && !isTRUE(state$available)) {
     cli::cli_abort(
-      "Automatic Orientation is unavailable in this installation.",
+      "Orientation is off for this installation.",
       class = "rill_orientation_unavailable"
     )
   }
@@ -244,7 +244,7 @@ set_orientation_enabled <- function(
   ) {
     cli::cli_abort(
       paste(
-        "Configure an explicit model endpoint before enabling automatic",
+        "Set RILL_AGENT_BASE_URL to the model's endpoint before turning on",
         "Orientation."
       ),
       class = "rill_orientation_endpoint_required"
@@ -256,8 +256,8 @@ set_orientation_enabled <- function(
   ) {
     cli::cli_abort(
       paste(
-        "Configure an inspectable provider policy before enabling automatic",
-        "Orientation."
+        "Set RILL_AGENT_POLICY_URL to the provider's data policy before",
+        "turning on Orientation."
       ),
       class = "rill_orientation_policy_required"
     )
@@ -268,10 +268,7 @@ set_orientation_enabled <- function(
       !isTRUE(state$confirmed)
   ) {
     cli::cli_abort(
-      paste(
-        "Confirm the external Data Destination before enabling automatic",
-        "Orientation."
-      ),
+      "Confirm the model provider in the sidebar before turning on Orientation.",
       class = "rill_orientation_confirmation_required"
     )
   }

@@ -1,5 +1,9 @@
 # rill 0.0.0.9000
 
+* The demo opens with six short stories that walk through reading, the keyboard, Ask Rill, Orientation, keeping your Library, and browser captures. They replace placeholder articles attributed to R Core, Posit, and CRAN.
+
+* Interface text is shorter and plainer. Ask Rill, Orientation, and the reading-copy details say what they do and what they send in everyday terms, Orientation settings name the environment variable to set when something is missing, and long Orientation quotes end at a word instead of mid-word.
+
 * Orientation rejects evidence quoted from Rill's own truncation notice while the agent can still correct it, instead of failing the update after the agent finishes.
 
 * A blank `RILL_ACTOR_ID` now uses the default Reader instead of opening a second, empty Library, and a question that can't be resumed after a reload reports its actual cause.

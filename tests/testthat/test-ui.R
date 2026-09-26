@@ -32,7 +32,7 @@ testthat::test_that("preparation details escape titles and expose safe recovery"
     "&lt;script&gt;private title&lt;/script&gt;",
     fixed = TRUE
   )
-  testthat::expect_match(html, "Try Prepare again", fixed = TRUE)
+  testthat::expect_match(html, "Choose Prepare to try again", fixed = TRUE)
   testthat::expect_match(html, "reference-123", fixed = TRUE)
   testthat::expect_match(html, "storage", fixed = TRUE)
   testthat::expect_match(
@@ -58,7 +58,7 @@ testthat::test_that("selected story cards expose their current state", {
     paste0('data-entry-id="', entry$entry_id, '"'),
     fixed = TRUE
   )
-  testthat::expect_match(html, "A calmer way to keep up with R", fixed = TRUE)
+  testthat::expect_match(html, "Welcome to Rill", fixed = TRUE)
 })
 
 testthat::test_that("selected read stories explain why they remain in the queue", {
@@ -84,7 +84,7 @@ testthat::test_that("empty queues suggest the relevant next action", {
   month <- htmltools::renderTags(empty_story_list("month"))$html
 
   testthat::expect_match(starred, "No starred stories yet", fixed = TRUE)
-  testthat::expect_match(starred, "Press F", fixed = TRUE)
+  testthat::expect_match(starred, "Star a story", fixed = TRUE)
   testthat::expect_match(
     scoped,
     "No unread stories from The R Blog",
@@ -270,25 +270,29 @@ testthat::test_that("Orientation settings disclose their Data Destination", {
   testthat::expect_match(settings_html, 'id="orientation_enable"', fixed = TRUE)
   testthat::expect_match(
     confirmation_html,
-    "only bounded unread Document reading copies",
-    fixed = TRUE
-  )
-  testthat::expect_match(
-    confirmation_html,
-    "selected copies disclose that those Documents are currently unread",
-    fixed = TRUE
-  )
-  testthat::expect_match(
-    confirmation_html,
     paste(
-      "the rest of your Library, the Reading History event log, Reader",
-      "Memory, or credentials"
+      "the text of up to",
+      orientation_candidate_limit(),
+      "of your newest unread stories"
     ),
     fixed = TRUE
   )
   testthat::expect_match(
     confirmation_html,
-    "cannot enforce its retention, deletion, or training practices",
+    "which of those stories you haven't read",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    confirmation_html,
+    paste(
+      "the rest of your Library, your reading history, Reader Memory, or any",
+      "credentials"
+    ),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    confirmation_html,
+    "can't control whether it keeps or trains on this text",
     fixed = TRUE
   )
   testthat::expect_match(
@@ -339,7 +343,7 @@ testthat::test_that("Orientation settings disclose their Data Destination", {
   )$html
   testthat::expect_match(
     missing_policy_html,
-    "Provider terms required",
+    "Policy link needed",
     fixed = TRUE
   )
   testthat::expect_no_match(
@@ -361,7 +365,7 @@ testthat::test_that("Orientation settings disclose their Data Destination", {
   )$html
   testthat::expect_match(
     missing_endpoint_html,
-    "Endpoint required",
+    "Endpoint needed",
     fixed = TRUE
   )
   testthat::expect_match(
@@ -394,7 +398,7 @@ testthat::test_that("reading status actions explain their scope", {
   testthat::expect_match(html, 'id="mark_all_read"', fixed = TRUE)
   testthat::expect_match(html, 'id="mark_older_read"', fixed = TRUE)
   testthat::expect_match(html, "The R Blog", fixed = TRUE)
-  testthat::expect_match(html, "Open history stays unchanged", fixed = TRUE)
+  testthat::expect_match(html, "in every view", fixed = TRUE)
 })
 
 testthat::test_that("the reader offers an explicit unread action", {
@@ -413,12 +417,11 @@ testthat::test_that("the reader includes source-bounded Ask Rill chat", {
   testthat::expect_match(html, "enable-cancel", fixed = TRUE)
   testthat::expect_match(html, 'id="reader_agent_status"', fixed = TRUE)
   testthat::expect_match(html, 'data-open-mobile="closed"', fixed = TRUE)
-  testthat::expect_match(html, "Ask about the selected story", fixed = TRUE)
-  testthat::expect_match(html, "Source-bound", fixed = TRUE)
+  testthat::expect_match(html, "Ask about this story", fixed = TRUE)
   testthat::expect_match(html, 'id="reader_agent_context"', fixed = TRUE)
   testthat::expect_match(
     html,
-    "question and selected reading copy to OpenAI",
+    "Your question and the story's text go to OpenAI",
     fixed = TRUE
   )
 })
@@ -430,7 +433,7 @@ testthat::test_that("feed copies offer an explicit full-article retry except whe
 
   html <- htmltools::renderTags(reader_article_header_ui(entry, document))$html
   testthat::expect_match(html, "Feed copy", fixed = TRUE)
-  testthat::expect_match(html, "Feed content may be an excerpt", fixed = TRUE)
+  testthat::expect_match(html, "May be an excerpt", fixed = TRUE)
   testthat::expect_match(html, 'id="prepare_article"', fixed = TRUE)
 
   pinned <- htmltools::renderTags(reader_article_header_ui(
@@ -490,8 +493,8 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
   )$html
 
   testthat::expect_match(header_html, "bslib-toolbar", fixed = TRUE)
-  testthat::expect_match(header_html, "Stored reading copy", fixed = TRUE)
-  testthat::expect_match(header_html, "Prepared by rill", fixed = TRUE)
+  testthat::expect_match(header_html, "Demo copy", fixed = TRUE)
+  testthat::expect_match(header_html, "Bundled with Rill", fixed = TRUE)
   testthat::expect_no_match(
     header_html,
     "provenance and limitations below",
@@ -507,15 +510,10 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
   testthat::expect_match(header_html, "Original", fixed = TRUE)
   testthat::expect_match(
     document_html,
-    "About this reading copy",
+    "About this copy",
     fixed = TRUE
   )
   testthat::expect_match(document_html, "reading-provenance", fixed = TRUE)
-  testthat::expect_match(
-    document_html,
-    "remains separate from Ask Rill",
-    fixed = TRUE
-  )
   testthat::expect_match(
     document_html,
     rill_document_limitations(document),
@@ -524,7 +522,7 @@ testthat::test_that("Reading keeps source actions and provenance explicit", {
   testthat::expect_match(document_html, document$document_id, fixed = TRUE)
   testthat::expect_match(
     context_html,
-    "Grounded in this reading copy",
+    "Answers use this story",
     fixed = TRUE
   )
   testthat::expect_match(context_html, document$title, fixed = TRUE)
@@ -543,7 +541,7 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
       entry_id = candidate$entry$entry_id,
       interpretation = paste("Interpretation", index),
       why_now = paste("Why now", index),
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )
   })
   orientation <- new_rill_orientation(
@@ -569,13 +567,13 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
   testthat::expect_match(html, "What must stay separate?", fixed = TRUE)
   testthat::expect_match(html, "Interpretation 1", fixed = TRUE)
   testthat::expect_match(html, "Why now 1", fixed = TRUE)
+  testthat::expect_match(html, "Source passage and details", fixed = TRUE)
+  testthat::expect_match(html, "Rill's interpretation", fixed = TRUE)
   testthat::expect_match(
     html,
-    "Source evidence and provenance [01]",
+    "This story comes with Rill's demo",
     fixed = TRUE
   )
-  testthat::expect_match(html, "Rill interpretation", fixed = TRUE)
-  testthat::expect_match(html, "Rill keeps the source feed", fixed = TRUE)
   testthat::expect_match(
     html,
     orientation$cards[[1L]]$document_id,
@@ -602,15 +600,15 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
     source_links[[1L]]$attribs$rel,
     "noopener noreferrer"
   )
-  testthat::expect_match(html, "Original Source", fixed = TRUE)
-  testthat::expect_match(html, "Acquisition", fixed = TRUE)
+  testthat::expect_match(html, "Original", fixed = TRUE)
+  testthat::expect_match(html, "Demo copy", fixed = TRUE)
   testthat::expect_match(html, "Limitations", fixed = TRUE)
   testthat::expect_match(
     html,
-    "Bundled demo content cannot support real-world claims.",
+    "This demo story ships with Rill",
     fixed = TRUE
   )
-  testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
+  testthat::expect_match(html, "Browse unread stories", fixed = TRUE)
   testthat::expect_match(html, "rillSelectEntry", fixed = TRUE)
   testthat::expect_match(html, "orientation", fixed = TRUE)
   testthat::expect_match(html, "rillDismissOrientation", fixed = TRUE)
@@ -627,11 +625,7 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
     "Produced from bounded reading copies sent to OpenAI",
     fixed = TRUE
   )
-  testthat::expect_match(
-    html,
-    "No material Library changes since this evaluation.",
-    fixed = TRUE
-  )
+  testthat::expect_match(html, "Nothing has changed since then.", fixed = TRUE)
   evaluated_summaries <- query$find(
     ".orientation-evaluated summary"
   )$selectedTags()
@@ -641,13 +635,13 @@ testthat::test_that("Orientation presents a source-grounded reading path", {
   testthat::expect_length(evaluated_summaries, 1L)
   testthat::expect_match(
     evaluated_summaries[[1L]]$children[[1L]],
-    "Evaluated ",
+    "Checked ",
     fixed = TRUE
   )
   testthat::expect_length(evaluated_changes, 1L)
   testthat::expect_identical(
     evaluated_changes[[1L]]$children[[1L]],
-    "No material Library changes since this evaluation."
+    "Nothing has changed since then."
   )
 })
 
@@ -667,8 +661,8 @@ testthat::test_that("Orientation identifies material boundary changes", {
     orientation_ui(orientation, candidates[2:3])
   )$html
 
-  testthat::expect_match(html, "1 new eligible Document", fixed = TRUE)
-  testthat::expect_match(html, "1 no longer eligible", fixed = TRUE)
+  testthat::expect_match(html, "1 new unread story", fixed = TRUE)
+  testthat::expect_match(html, "1 no longer unread", fixed = TRUE)
 })
 
 testthat::test_that("Orientation describes non-membership boundary changes", {
@@ -682,7 +676,7 @@ testthat::test_that("Orientation describes non-membership boundary changes", {
 
   testthat::expect_identical(
     orientation_boundary_change(boundary, current),
-    "Since then: The bounded evaluation inputs changed."
+    "Since then: The stories it looked at have changed."
   )
 })
 
@@ -705,12 +699,8 @@ testthat::test_that("Orientation keeps the last evaluation visible", {
     orientation_evaluated_basis(orientation, current, preparing = TRUE)
   )$html
 
-  testthat::expect_match(due, "Update due · evaluated", fixed = TRUE)
-  testthat::expect_match(
-    reevaluating,
-    "Reevaluating · last evaluated",
-    fixed = TRUE
-  )
+  testthat::expect_match(due, "Out of date · checked", fixed = TRUE)
+  testthat::expect_match(reevaluating, "Updating · last checked", fixed = TRUE)
   testthat::expect_match(
     due,
     'datetime="2026-09-02T16:00:00Z"',
@@ -750,11 +740,7 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
     "Nothing material has cleared the threshold",
     fixed = TRUE
   )
-  testthat::expect_match(
-    html,
-    "No current Orientation selection",
-    fixed = TRUE
-  )
+  testthat::expect_match(html, "No picks right now", fixed = TRUE)
   testthat::expect_match(html, "Browse unread stories", fixed = TRUE)
   testthat::expect_match(
     preparing_html,
@@ -773,7 +759,7 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
     orientation_queue_status_ui(
       orientation,
       list(),
-      processing_note = "Automatic Orientation is on."
+      processing_note = "Orientation is on for OpenAI."
     )
   )$html
   testthat::expect_match(
@@ -786,7 +772,7 @@ testthat::test_that("a quiet Orientation leaves the ordinary queue primary", {
     "Nothing material has cleared the threshold",
     fixed = TRUE
   )
-  testthat::expect_match(queue_html, "evaluated ", fixed = TRUE)
+  testthat::expect_match(queue_html, "checked ", fixed = TRUE)
   testthat::expect_no_match(queue_html, "orientation-step", fixed = TRUE)
 })
 
@@ -926,7 +912,7 @@ testthat::test_that("Orientation failure retains current cards and evidence", {
     fixed = TRUE
   )
   testthat::expect_match(html, "provider rejected", fixed = TRUE)
-  testthat::expect_match(html, "Browse the full unread queue", fixed = TRUE)
+  testthat::expect_match(html, "Browse unread stories", fixed = TRUE)
   testthat::expect_length(query$find("#retry_orientation")$selectedTags(), 1L)
 })
 
@@ -958,7 +944,7 @@ testthat::test_that("queue actions have a named button and explicit state", {
   html <- htmltools::renderTags(story_card(entry, 1L))$html
   testthat::expect_match(
     html,
-    'aria-label="Open A calmer way',
+    'aria-label="Open Welcome to Rill',
     fixed = TRUE
   )
   testthat::expect_match(html, 'data-queue-action="mark_read"', fixed = TRUE)
@@ -1103,15 +1089,15 @@ testthat::test_that("Orientation folds the unpicked queue into themes", {
   html <- htmltools::renderTags(rendered)$html
   query <- htmltools::tagQuery(rendered)
 
-  testthat::expect_match(html, "Also in your unread", fixed = TRUE)
+  testthat::expect_match(html, "More in your unread", fixed = TRUE)
   testthat::expect_match(html, "Shiny surfaces", fixed = TRUE)
   testthat::expect_match(html, "Two Shiny pieces.", fixed = TRUE)
   testthat::expect_match(html, "rillBrowseOrientationTheme", fixed = TRUE)
   testthat::expect_match(html, orientation$themes[[1L]]$theme_id, fixed = TRUE)
-  testthat::expect_match(html, "6 unread in total", fixed = TRUE)
+  testthat::expect_match(html, "6 unread", fixed = TRUE)
   testthat::expect_match(html, "1 picked", fixed = TRUE)
-  testthat::expect_match(html, "2 in themes", fixed = TRUE)
-  testthat::expect_match(html, "2 outside the evaluated window", fixed = TRUE)
+  testthat::expect_match(html, "2 in topics", fixed = TRUE)
+  testthat::expect_match(html, "2 not checked", fixed = TRUE)
   counts <- query$find(".orientation-theme-count")$selectedTags()
   testthat::expect_length(counts, 1L)
   testthat::expect_identical(counts[[1L]]$children[[1L]], 2L)
@@ -1134,7 +1120,10 @@ testthat::test_that("long inline Source Evidence stays a verbatim substring", {
     ". Next sentence."
   )
   lead <- orientation_evidence_lead(evidence)
-  testthat::expect_identical(lead, substr(evidence, 1L, 200L))
+  testthat::expect_identical(
+    lead,
+    paste(c(rep("Exact source words", 10L), "Exact"), collapse = " ")
+  )
   testthat::expect_match(evidence, lead, fixed = TRUE)
   testthat::expect_identical(
     orientation_evidence_lead("First sentence. Second sentence."),
@@ -1148,7 +1137,7 @@ testthat::test_that("enabled memory is disclosed to the named model destination"
   html <- htmltools::renderTags(reader_pane_ui(config))$html
   testthat::expect_match(
     html,
-    "accepted Reader Memory (including retained passages)",
+    "your accepted Reader Memory go to",
     fixed = TRUE
   )
   navigation <- htmltools::renderTags(navigation_sidebar_ui(config))$html

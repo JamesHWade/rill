@@ -190,7 +190,7 @@ reader_memory_server <- function(
           )
         },
         shiny::tags$p(
-          "This may be used as Reader Context in later conversations."
+          "Ask Rill may use this in later conversations."
         ),
         shiny::actionButton(
           session$ns("accept"),
@@ -216,7 +216,7 @@ reader_memory_server <- function(
           if (value$archived) {
             "Archived: excluded from automatic use."
           } else {
-            "Available as Reader Context."
+            "Ask Rill can use this."
           }
         )
       )
