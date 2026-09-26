@@ -2922,12 +2922,44 @@ rill_server <- function(
       },
       ignoreInit = TRUE
     )
+    pending_group_delete <- shiny::reactiveVal(NULL)
     shiny::observeEvent(
       input$delete_group,
       {
         shiny::req(input$managed_group)
+        pending_group_delete(input$managed_group)
+      },
+      ignoreInit = TRUE
+    )
+    # Binding the confirmation's own buttons sends their initial values, so
+    # each reset listens to one input rather than to a list of them.
+    shiny::observeEvent(input$cancel_delete_group, pending_group_delete(NULL))
+    shiny::observeEvent(input$manage_feeds, pending_group_delete(NULL))
+    shiny::observeEvent(
+      input$managed_group,
+      pending_group_delete(NULL),
+      ignoreInit = TRUE
+    )
+    output$group_delete_confirmation <- shiny::renderUI({
+      group_id <- pending_group_delete()
+      if (is.null(group_id)) {
+        return(NULL)
+      }
+      groups <- feed_groups()
+      name <- groups$name[groups$group_id == group_id]
+      if (!length(name)) {
+        return(NULL)
+      }
+      group_delete_confirmation_ui(name[[1L]])
+    })
+    shiny::observeEvent(
+      input$confirm_delete_group,
+      {
+        group_id <- pending_group_delete()
+        shiny::req(group_id)
+        pending_group_delete(NULL)
         change_groups(function() {
-          store_delete_group(store, actor_id, input$managed_group)
+          store_delete_group(store, actor_id, group_id)
         })
       },
       ignoreInit = TRUE

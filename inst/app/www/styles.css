@@ -748,9 +748,52 @@ body:has(#shiny-disconnected-overlay) .rill-system-status {
   color: var(--muted);
 }
 
-.feed-tool-section + .feed-tool-section {
-  padding-top: 12px;
-  border-top: 1px solid var(--sidebar-border);
+.feed-tools > .feed-tool-section + .feed-tool-section,
+.feed-tools > .shiny-html-output > .feed-tool-section {
+  margin-top: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.feed-tools h4 {
+  margin: 0 0 8px;
+  font-family: var(--bs-body-font-family);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.feed-tool-subsection + .feed-tool-subsection {
+  margin-top: 18px;
+}
+
+.feed-tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.modal-content .btn-default.btn-delete-group {
+  border-color: var(--bs-danger);
+  color: var(--bs-danger);
+}
+
+.modal-content .btn-default.btn-delete-group:hover,
+.modal-content .btn-default.btn-delete-group:focus-visible,
+.modal-content .btn-default.btn-delete-group:active {
+  border-color: var(--bs-danger);
+  color: #fff;
+  background-color: var(--bs-danger);
+}
+
+.group-delete-confirmation {
+  margin-top: 10px;
+  padding: 12px 14px 6px;
+  border: 1px solid var(--bs-danger);
+  border-radius: 6px;
+}
+
+.group-delete-confirmation p {
+  margin: 0 0 10px;
 }
 
 .feed-tool-label {
@@ -1156,6 +1199,9 @@ div.story-list.shiny-html-output {
 }
 .story-row.is-swipe-armed .story-swipe-release { display: block; }
 .story-row.is-pending .story-front { opacity: 0.75; }
+@media (hover: none) and (pointer: coarse) {
+  .story-front { margin-right: 3px; }
+}
 #queue_filters { display: block !important; flex: 0 0 auto; padding: 0 20px 12px !important; background: var(--paper); }
 #queue_filters nav { display: flex; flex-wrap: wrap; gap: 6px; }
 .queue-filter {
@@ -2929,7 +2975,9 @@ div.story-list.shiny-html-output {
   .orientation-read,
   .orientation-dismiss,
   .orientation-browse,
-  .orientation-return {
+  .orientation-return,
+  .orientation-meta .btn,
+  .reader-feedback-actions .btn {
     min-height: 44px;
   }
 
@@ -3180,9 +3228,18 @@ div.story-list.shiny-html-output {
 
 .orientation-meta .btn,
 .reader-feedback-actions .btn {
-  color: var(--ink);
-  background-color: var(--agent-background);
-  border-color: var(--green);
+  min-height: 30px;
+  padding: 5px 9px;
+  border-color: var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  background-color: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reader-feedback-actions {
+  font-size: 0.8125rem;
 }
 
 .orientation-meta .btn:hover,
@@ -3191,8 +3248,9 @@ div.story-list.shiny-html-output {
 .reader-feedback-actions .btn:hover,
 .reader-feedback-actions .btn:focus-visible,
 .reader-feedback-actions .btn:active {
-  color: var(--on-primary);
-  background-color: var(--green);
+  border-color: var(--green);
+  color: var(--green-deep);
+  background-color: var(--green-soft);
 }
 
 /* Retained answers and rating choices share the page's text scale. */
