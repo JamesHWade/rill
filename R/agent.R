@@ -530,9 +530,7 @@ append_reader_chat <- function(response, session) {
 }
 
 clear_reader_chat <- function(session) {
-  shinychat::chat_clear(
-    "reader_chat",
-    greeting = TRUE,
-    session = session
-  )
+  # `greeting = TRUE` would also remove the greeting, and Rill has no
+  # chat_server() to send it again.
+  shinychat::chat_clear("reader_chat", session = session)
 }

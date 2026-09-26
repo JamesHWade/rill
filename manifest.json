@@ -2803,7 +2803,7 @@
       "checksum": "0efce38dec762eec522fa9f7312f054a"
     },
     "inst/app/www/styles.css": {
-      "checksum": "dbfd3106fdcc4e0b0c465323d380ebee"
+      "checksum": "3fc12c96bc8fdc2a6be248bbf9d0ad53"
     },
     "inst/sql/001_init.sql": {
       "checksum": "795e0e159626640e97b605a94cde4c5e"
@@ -2854,7 +2854,7 @@
       "checksum": "8080751b486c675f0321f6f9e90da184"
     },
     "R/agent.R": {
-      "checksum": "0663f98cdea4edef40e6a52a26656997"
+      "checksum": "9bd3704eb23ec7773637bf17a0207cf7"
     },
     "R/app.R": {
       "checksum": "d92126e1dd4186d0be593c71948b8062"
@@ -2917,13 +2917,13 @@
       "checksum": "aed40031aef78d50b92a0deefe987722"
     },
     "R/server.R": {
-      "checksum": "929e75159b6e9f0f92ae94c8fb5183f5"
+      "checksum": "d407e6fbce13c2f68ed9a1687e08d60e"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "26b4b3b3f13bb524620beee04a6bd251"
+      "checksum": "8659cc2609c5c3807be0fcb6efd490ed"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"

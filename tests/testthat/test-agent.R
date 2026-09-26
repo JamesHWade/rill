@@ -362,3 +362,16 @@ testthat::test_that("source display makes missing metadata explicit without chan
   )
   testthat::expect_identical(result@value, value)
 })
+
+testthat::test_that("clearing the reader chat keeps its greeting", {
+  sent <- list()
+  session <- list(
+    ns = shiny::NS(NULL),
+    sendCustomMessage = function(type, message) {
+      sent[[length(sent) + 1L]] <<- message
+    }
+  )
+  clear_reader_chat(session)
+  testthat::expect_length(sent, 1L)
+  testthat::expect_identical(sent[[1L]]$action, list(type = "clear"))
+})

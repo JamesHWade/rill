@@ -14,7 +14,7 @@ three_feed_sample <- function(sample) {
 local_three_feed_demo <- function(env = parent.frame()) {
   sample <- sample_rill_data
   testthat::local_mocked_bindings(
-    sample_rill_data = function() three_feed_sample(sample()),
+    sample_rill_data = \() three_feed_sample(sample()),
     .env = env
   )
 }

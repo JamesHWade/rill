@@ -133,6 +133,29 @@ testthat::test_that("system styles cover reflow and user display preferences", {
   testthat::expect_match(styles, "env(safe-area-inset-bottom)", fixed = TRUE)
 })
 
+testthat::test_that("rating controls keep 44px touch targets on small screens", {
+  styles <- paste(
+    readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
+    collapse = "\n"
+  )
+  compact <- regexpr(
+    ".orientation-meta .btn,\n.reader-feedback-actions .btn {\n  min-height: 30px;",
+    styles,
+    fixed = TRUE
+  )
+  touch <- regexpr(
+    paste0(
+      "@media (max-width: 767.98px) {\n  .orientation-meta .btn,\n",
+      "  .reader-feedback-actions .btn {\n    min-height: 44px;"
+    ),
+    styles,
+    fixed = TRUE
+  )
+
+  testthat::expect_gt(compact, 0)
+  testthat::expect_gt(touch, compact)
+})
+
 testthat::test_that("reading typography keeps titles and separators compact", {
   styles <- paste(
     readLines(rill_package_file("app", "www", "styles.css"), warn = FALSE),
