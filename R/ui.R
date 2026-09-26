@@ -1062,8 +1062,8 @@ reading_copy_label <- function(document) {
     document$acquisition_method %||% "",
     feed_fallback = list(label = "Feed copy", detail = "May be an excerpt"),
     web_extraction = list(
-      label = "Full article",
-      detail = paste("Extracted with", producer)
+      label = "Extracted copy",
+      detail = paste("Made with", producer)
     ),
     browser_capture = list(
       label = "Captured copy",
@@ -1438,29 +1438,38 @@ orientation_browse_button <- function(label) {
   )
 }
 
+orientation_boundary_entry_ids <- function(boundary) {
+  candidates <- boundary$candidates %||% list()
+  if (!length(candidates) && isTRUE(boundary$candidate_count > 0L)) {
+    return(NULL)
+  }
+  vapply(
+    candidates,
+    \(candidate) as.character(candidate$entry_id %||% NA_character_),
+    character(1)
+  )
+}
+
 orientation_boundary_change <- function(evaluated, current) {
   if (identical(evaluated$hash, current$hash)) {
     return("Nothing has changed since then.")
   }
 
-  evaluated_ids <- as.character(evaluated$document_ids %||% character())
-  current_ids <- as.character(current$document_ids %||% character())
+  # Compare stories, not copies: a story that gets a new reading copy keeps
+  # its entry ID but changes its document ID.
+  evaluated_ids <- orientation_boundary_entry_ids(evaluated)
+  current_ids <- orientation_boundary_entry_ids(current)
+  if (is.null(evaluated_ids) || is.null(current_ids)) {
+    return("Since then: The stories it looked at have changed.")
+  }
   added <- length(setdiff(current_ids, evaluated_ids))
   removed <- length(setdiff(evaluated_ids, current_ids))
-  changes <- character()
-  if (added) {
-    changes <- c(
-      changes,
-      paste(
-        added,
-        "new unread",
-        if (added == 1L) "story" else "stories"
-      )
-    )
-  }
-  if (removed) {
-    changes <- c(changes, paste(removed, "no longer unread"))
-  }
+  changes <- c(
+    if (added) {
+      paste(added, if (added == 1L) "story added" else "stories added")
+    },
+    if (removed) paste(removed, "removed")
+  )
   if (!length(changes)) {
     changes <- "The stories it looked at have changed"
   }
@@ -1853,6 +1862,26 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
   )
 }
 
+feed_poll_status_ui <- function(feed) {
+  shiny::tags$p(
+    role = "status",
+    if (identical(feed$poll_status, "failed")) {
+      paste(
+        "The last check failed, and automatic retries slow down after",
+        "repeated failures. Refresh this feed to try now, or check its",
+        "address."
+      )
+    } else {
+      checked <- format_checked_time(feed$last_polled_at)
+      if (is.null(checked)) {
+        "Not checked yet."
+      } else {
+        paste("Last checked", checked)
+      }
+    }
+  )
+}
+
 feed_organization_control_ui <- function(
   feed = NULL,
   folders = character(),
@@ -1878,23 +1907,7 @@ feed_organization_control_ui <- function(
     shiny::tags$p(class = "feed-source-url", feed$feed_url),
     if (identical(feed$source_kind %||% "subscription", "subscription")) {
       shiny::tagList(
-        shiny::tags$p(
-          role = "status",
-          if (identical(feed$poll_status, "failed")) {
-            paste(
-              "The last check failed, and automatic retries slow down after",
-              "repeated failures. Refresh this feed to try now, or check its",
-              "address."
-            )
-          } else {
-            checked <- format_checked_time(feed$last_polled_at)
-            if (is.null(checked)) {
-              "Not checked yet."
-            } else {
-              paste("Last checked", checked)
-            }
-          }
-        ),
+        shiny::uiOutput("managed_feed_status"),
         bslib::input_task_button(
           "refresh_selected_feed",
           "Refresh this feed",

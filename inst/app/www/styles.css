@@ -2975,9 +2975,7 @@ div.story-list.shiny-html-output {
   .orientation-read,
   .orientation-dismiss,
   .orientation-browse,
-  .orientation-return,
-  .orientation-meta .btn,
-  .reader-feedback-actions .btn {
+  .orientation-return {
     min-height: 44px;
   }
 
@@ -3251,6 +3249,14 @@ div.story-list.shiny-html-output {
   border-color: var(--green);
   color: var(--green-deep);
   background-color: var(--green-soft);
+}
+
+/* Declared after the compact size so touch screens keep a 44px target. */
+@media (max-width: 767.98px) {
+  .orientation-meta .btn,
+  .reader-feedback-actions .btn {
+    min-height: 44px;
+  }
 }
 
 /* Retained answers and rating choices share the page's text scale. */

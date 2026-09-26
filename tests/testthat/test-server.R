@@ -2082,6 +2082,18 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
     testthat::expect_match(output$feed_organization_control$html, "Posit")
     testthat::expect_identical(renders, rendered)
 
+    feeds <- store$memory$feeds
+    feeds$poll_status[feeds$feed_id == "sample-posit"] <- "failed"
+    store$memory$feeds <- feeds
+    bump_refresh(feeds_changed = TRUE)
+    session$flushReact()
+    testthat::expect_identical(renders, rendered)
+    testthat::expect_match(
+      output$managed_feed_status$html,
+      "The last check failed",
+      fixed = TRUE
+    )
+
     session$setInputs(new_group_name = "Reading list", create_group = 1)
     testthat::expect_match(
       output$feed_organization_control$html,
@@ -5250,7 +5262,7 @@ testthat::test_that("Today finishes when all stories already have full copies", 
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Finished preparing today's full articles."
+      "Finished checking today's stories for full articles."
     )
     testthat::expect_length(preparation_failures(), 0L)
     testthat::expect_null(article_preparer$state$job)
@@ -5275,7 +5287,7 @@ testthat::test_that("Today finishes when there are no stories to prepare", {
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Finished preparing today's full articles."
+      "Finished checking today's stories for full articles."
     )
   }))
 })
