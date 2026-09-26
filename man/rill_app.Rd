@@ -30,7 +30,7 @@ in a browser.
 }
 
 The
-\href{https://jameshwade.github.io/rill/articles/configuration.html}{configuration article}
+\href{https://github.com/JamesHWade/rill/blob/main/vignettes/articles/configuration.Rmd}{configuration article}
 lists every setting.
 }
 

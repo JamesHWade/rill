@@ -18,7 +18,7 @@
 #'   in a browser.
 #'
 #' The
-#' [configuration article](https://jameshwade.github.io/rill/articles/configuration.html)
+#' [configuration article](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/configuration.Rmd)
 #' lists every setting.
 #'
 #' @return A `shiny.appobj` object suitable for [shiny::runApp()].

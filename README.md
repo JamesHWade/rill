@@ -71,18 +71,18 @@ RILL_AGENT_MODEL=openai
 OPENAI_API_KEY=your-key
 ```
 
-The [configuration article](https://jameshwade.github.io/rill/articles/configuration.html)
+The [configuration article](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/configuration.Rmd)
 lists every setting.
 
 ## Learn more
 
-- [Configuration](https://jameshwade.github.io/rill/articles/configuration.html):
+- [Configuration](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/configuration.Rmd):
   every environment variable, grouped by feature.
-- [Ask Rill and Orientation](https://jameshwade.github.io/rill/articles/agents.html):
+- [Ask Rill and Orientation](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/agents.Rmd):
   what the model features do and what they send to your provider.
-- [Reading copies](https://jameshwade.github.io/rill/articles/reading-copies.html):
+- [Reading copies](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/reading-copies.Rmd):
   how Rill prepares full articles and accepts pages captured in your browser.
-- [Running Rill for others](https://jameshwade.github.io/rill/articles/hosting.html):
+- [Running Rill for others](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/hosting.Rmd):
   sign-in, scheduled polling, admitting readers, and telemetry.
 
 ## Development

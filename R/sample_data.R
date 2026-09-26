@@ -31,21 +31,19 @@ sample_rill_data <- function() {
     stringsAsFactors = FALSE
   )
 
-  readme <- "https://github.com/JamesHWade/rill"
+  repo <- "https://github.com/JamesHWade/rill"
+  articles <- paste0(repo, "/blob/main/vignettes/articles/")
   entries <- data.frame(
     entry_id = paste0("sample-entry-", 1:6),
     feed_id = "sample-rill",
     external_id = paste0("sample-", 1:6),
-    url = paste0(
-      readme,
-      c(
-        "",
-        "#run-in-demo-mode",
-        "#ask-rill-about-a-story",
-        "#maintain-orientation",
-        "#add-neon",
-        "#browser-capture"
-      )
+    url = c(
+      repo,
+      paste0(repo, "#features"),
+      paste0(articles, "agents.Rmd"),
+      paste0(articles, "agents.Rmd#orientation"),
+      paste0(articles, "configuration.Rmd#storage"),
+      paste0(articles, "reading-copies.Rmd#capturing-pages-from-your-browser")
     ),
     canonical_url = NA_character_,
     title = c(
@@ -173,8 +171,9 @@ sample_rill_data <- function() {
         "database such as Neon works well."
       ),
       paste(
-        "To run Rill for other people, see the",
-        "[deployment guides](https://github.com/JamesHWade/rill/tree/main/docs/deployment)."
+        "To run Rill for other people, see",
+        "[Running Rill for others](https://github.com/JamesHWade/rill/blob/main/vignettes/articles/hosting.Rmd),",
+        "which covers sign-in, scheduled feed polling, and approving new readers."
       ),
       sep = "\n\n"
     ),
