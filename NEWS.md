@@ -1,5 +1,11 @@
 # rill 0.0.0.9000
 
+* Ask Rill no longer stops the app for every reader when an answer reaches its time limit or when a question waits for Orientation. Stop now interrupts an answer while it streams, and stopping a question that is waiting for Orientation re-enables the chat.
+
+* A fresh visit no longer reopens a story whose question you cancelled or that failed more than ten minutes ago; running answers and recent failures still reopen so Retry stays in view.
+
+* Reader Memory explains problems you can fix, such as a passage that appears more than once in the story, instead of reporting that the memory changed.
+
 * Reading copies now drop HTML comments, `noscript`, and other elements that browsers parse differently from Rill's sanitizer, so feed content can no longer run scripts in the reader.
 
 * Feed fetching never treats a response body or feed field as a URL or file path, checks each redirect before following it, rejects `*.localhost`, carrier-grade NAT, numeric, and IPv6 literal hosts, and no longer waits on `Retry-After` values over ten seconds.

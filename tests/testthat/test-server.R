@@ -1899,6 +1899,79 @@ testthat::test_that("a replacement session keeps a completed answer available wi
   })
 })
 
+testthat::test_that("deferred session callbacks read reactive state and never throw", {
+  session <- shiny::MockShinySession$new()
+  value <- shiny::reactiveVal("ready")
+  logged <- character()
+  testthat::local_mocked_bindings(
+    telemetry_log = function(level, event, attributes = list()) {
+      logged <<- c(logged, event)
+    }
+  )
+
+  read <- rill_session_callback(session, function() value())
+  fail <- rill_session_callback(session, function() stop("boom"))
+
+  testthat::expect_identical(read(), "ready")
+  testthat::expect_null(fail())
+  testthat::expect_identical(logged, "session.callback_failed")
+})
+
+testthat::test_that("fresh visits reopen only running or recently failed answers", {
+  withr::local_envvar(DATABASE_URL = "")
+  cases <- list(
+    list(status = "cancelled", finished_at = utc_now(), reopens = FALSE),
+    list(
+      status = "failed",
+      finished_at = format(Sys.time() - 3600, tz = "UTC", usetz = TRUE),
+      reopens = FALSE
+    ),
+    list(status = "failed", finished_at = utc_now(), reopens = TRUE)
+  )
+  for (case in cases) {
+    config <- rill_config()
+    config$orientation_enabled <- FALSE
+    store <- rill_store(config)
+    document <- store$memory$documents[[1L]]
+    run <- store_start_agent_run(
+      store,
+      config$actor_id,
+      "question",
+      paste0("stale-", case$status),
+      pinned_inputs = list(document_id = document$document_id)
+    )
+    store_claim_agent_run(
+      store,
+      config$actor_id,
+      run$run_id,
+      "worker",
+      lease_expires_at = Sys.time() + 120
+    )
+    if (identical(case$status, "cancelled")) {
+      store_request_agent_run_cancel(store, config$actor_id, run$run_id)
+    }
+    store_finish_agent_run(
+      store,
+      config$actor_id,
+      run$run_id,
+      "worker",
+      case$status,
+      finished_at = case$finished_at
+    )
+
+    shiny::testServer(rill_server(config, store), {
+      session$flushReact()
+      if (case$reopens) {
+        testthat::expect_identical(selected_id(), document$entry_id)
+        testthat::expect_identical(active_agent_run()$run_id, run$run_id)
+      } else {
+        testthat::expect_null(selected_id())
+        testthat::expect_null(active_agent_run())
+      }
+    })
+  }
+})
+
 testthat::test_that("answer recovery is independent of newer failed questions and active work", {
   withr::local_envvar(DATABASE_URL = "")
   for (newer in c("failed", "cancelled", "orientation", "question")) {

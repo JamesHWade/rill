@@ -78,6 +78,28 @@ rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
   invisible(runtime)
 }
 
+# `later` and `onFlushed` callbacks run outside any reactive context, so
+# reading a reactive value there fails, and an uncaught error in a `later`
+# callback stops the R process for every session. Run them in the session's
+# domain, isolated, and log failures instead.
+rill_session_callback <- function(session, callback) {
+  force(session)
+  force(callback)
+  function(...) {
+    tryCatch(
+      shiny::withReactiveDomain(session, shiny::isolate(callback(...))),
+      error = function(error) {
+        telemetry_log(
+          "error",
+          "session.callback_failed",
+          list("error.type" = class(error)[[1L]])
+        )
+        invisible(NULL)
+      }
+    )
+  }
+}
+
 rill_server <- function(
   config,
   store,
@@ -101,6 +123,16 @@ rill_server <- function(
       utc_now(),
       stats::runif(1)
     )
+    in_session <- function(callback) rill_session_callback(session, callback)
+    # An observer that returns a promise makes Shiny hold every later input
+    # from the session, including Stop, until the promise settles. Answers
+    # stream in the background instead; shinychat already reports failures.
+    release_answer_promise <- function(result) {
+      if (promises::is.promise(result)) {
+        promises::catch(result, \(error) NULL)
+      }
+      invisible(NULL)
+    }
     selected_id <- shiny::reactiveVal(NULL)
     orientation_requested <- shiny::reactiveVal(FALSE)
     restored_question <- shiny::reactiveVal(NULL)
@@ -251,7 +283,9 @@ rill_server <- function(
     }
     if (
       !is.null(existing_agent_run) &&
-        identical(existing_agent_run$kind, "question")
+        identical(existing_agent_run$kind, "question") &&
+        (identical(existing_agent_run$status, "completed") ||
+          question_run_reopens(existing_agent_run))
     ) {
       active_agent_run(existing_agent_run)
       if (!identical(existing_agent_run$status, "completed")) {
@@ -321,14 +355,14 @@ rill_server <- function(
         return(invisible(NULL))
       }
       orientation_retry_cancel <<- later::later(
-        function() {
+        in_session(function() {
           orientation_retry_cancel <<- NULL
           if (!session$isClosed()) {
             orientation_attempted_boundary(NULL)
             bump_refresh()
           }
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -424,7 +458,7 @@ rill_server <- function(
         return(invisible(NULL))
       }
       visible_agent_run_poll_cancel <<- later::later(
-        function() {
+        in_session(function() {
           visible_agent_run_poll_cancel <<- NULL
           if (session$isClosed()) {
             return(NULL)
@@ -470,7 +504,7 @@ rill_server <- function(
           }
           schedule_visible_agent_run_poll(run_id, delay = 0.25)
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -512,7 +546,7 @@ rill_server <- function(
       if (session$isClosed()) {
         return(invisible(run))
       }
-      visible <- active_agent_run()
+      visible <- shiny::isolate(active_agent_run())
       if (!is.null(visible) && identical(visible$run_id, run$run_id)) {
         active_agent_run(run)
       }
@@ -544,7 +578,7 @@ rill_server <- function(
       )
       if (
         !session$isClosed() &&
-          identical(draining_agent_run_id(), run_id)
+          identical(shiny::isolate(draining_agent_run_id()), run_id)
       ) {
         draining_agent_run_id(NULL)
       }
@@ -704,7 +738,7 @@ rill_server <- function(
       if (is.null(current_read)) {
         retry_cancel <- NULL
         retry_cancel <- later::later(
-          function() {
+          in_session(function() {
             if (
               !identical(
                 agent_run_deadlines[[run$run_id]],
@@ -716,7 +750,7 @@ rill_server <- function(
             agent_run_deadlines[[run$run_id]] <- NULL
             schedule_agent_run_deadline(run, agent, deadline)
             NULL
-          },
+          }),
           delay = 0.25
         )
         agent_run_deadlines[[run$run_id]] <- retry_cancel
@@ -826,7 +860,7 @@ rill_server <- function(
           return(invisible(NULL))
         }
         drain_cancel <<- later::later(
-          function() {
+          in_session(function() {
             drain_cancel <<- NULL
             confirmation <- agent_run_stop_confirmations[[run$run_id]]
             if (!is.null(confirmation)) {
@@ -917,7 +951,7 @@ rill_server <- function(
               request_interrupt(intent)
             }
             NULL
-          },
+          }),
           delay = delay
         )
         invisible(NULL)
@@ -971,7 +1005,7 @@ rill_server <- function(
           return(invisible(NULL))
         }
         state_poll_cancel <<- later::later(
-          function() {
+          in_session(function() {
             state_poll_cancel <<- NULL
             current <- tryCatch(
               store_get_agent_run(store, actor_id, run$run_id),
@@ -1003,7 +1037,7 @@ rill_server <- function(
             }
             schedule_state_poll()
             NULL
-          },
+          }),
           delay = delay
         )
         invisible(NULL)
@@ -1015,7 +1049,7 @@ rill_server <- function(
         as.numeric(difftime(deadline, Sys.time(), units = "secs"))
       )
       agent_run_deadlines[[run$run_id]] <- later::later(
-        function() {
+        in_session(function() {
           agent_run_deadlines[[run$run_id]] <- NULL
           terminal_intent <- agent_run_terminal_intents[[run$run_id]]
           if (!is.null(terminal_intent)) {
@@ -1047,7 +1081,7 @@ rill_server <- function(
           }
           request_interrupt("wall_time_limit")
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(deadline)
@@ -1194,7 +1228,7 @@ rill_server <- function(
       if (!is.null(request_token) && length(request_token)) {
         return(rill_id(prefix, session_id, as.character(request_token)[[1]]))
       }
-      index <- agent_request_index() + 1L
+      index <- shiny::isolate(agent_request_index()) + 1L
       agent_request_index(index)
       rill_id(prefix, session_id, index)
     }
@@ -1209,7 +1243,7 @@ rill_server <- function(
       requested_at = NULL,
       transition_at = NULL
     ) {
-      if (!is.null(draining_agent_run_id())) {
+      if (!is.null(shiny::isolate(draining_agent_run_id()))) {
         cli::cli_abort(
           "The previous response is still stopping. Try again in a moment.",
           class = "rill_agent_run_draining"
@@ -1296,7 +1330,7 @@ rill_server <- function(
             document_id = document$document_id,
             document_content_hash = document$content_hash,
             document_record_hash = document$record_hash,
-            orientation_selection = selected_orientation_provenance(),
+            orientation_selection = shiny::isolate(selected_orientation_provenance()),
             research_scope = list(
               kind = "selected_document",
               document_ids = document$document_id
@@ -1498,7 +1532,7 @@ rill_server <- function(
       poll <- NULL
       poll <- function() {
         pending_reader_question_cancel <<- later::later(
-          function() {
+          in_session(function() {
             pending_reader_question_cancel <<- NULL
             pending <- shiny::isolate(pending_reader_question())
             if (is.null(pending)) {
@@ -1632,7 +1666,7 @@ rill_server <- function(
               poll()
             }
             NULL
-          },
+          }),
           delay = 0.05
         )
         invisible(NULL)
@@ -1663,13 +1697,13 @@ rill_server <- function(
         return(invisible(NULL))
       }
       deferred_reader_question_resume_cancel <<- later::later(
-        function() {
+        in_session(function() {
           deferred_reader_question_resume_cancel <<- NULL
           if (!session$isClosed()) {
             resume_deferred_reader_question()
           }
           NULL
-        },
+        }),
         delay = delay
       )
       invisible(NULL)
@@ -1761,7 +1795,7 @@ rill_server <- function(
       invisible(resumed)
     }
 
-    session$onFlushed(resume_deferred_reader_question, once = TRUE)
+    session$onFlushed(in_session(resume_deferred_reader_question), once = TRUE)
 
     feeds <- shiny::reactive({
       refresh_tick()
@@ -3801,7 +3835,7 @@ rill_server <- function(
           return()
         }
 
-        tryCatch(
+        started <- tryCatch(
           run_prioritized_reader_question(
             question,
             document,
@@ -3817,8 +3851,10 @@ rill_server <- function(
               "Rill couldn't start that response. Finish the current response or retry.",
               session
             )
+            NULL
           }
         )
+        release_answer_promise(started)
       },
       ignoreInit = TRUE
     )
@@ -3842,6 +3878,8 @@ rill_server <- function(
             pending$request_key
           )
           pending_reader_question(NULL)
+          # shinychat keeps its composer disabled until a message arrives.
+          append_reader_chat("Stopped before Rill started answering.", session)
           return()
         }
         run <- active_agent_run()
@@ -3948,7 +3986,7 @@ rill_server <- function(
           return()
         }
 
-        tryCatch(
+        started <- tryCatch(
           run_prioritized_reader_question(
             run$pinned_inputs$question,
             document,
@@ -3961,8 +3999,10 @@ rill_server <- function(
               type = "error",
               duration = 8
             )
+            NULL
           }
         )
+        release_answer_promise(started)
       },
       ignoreInit = TRUE
     )
