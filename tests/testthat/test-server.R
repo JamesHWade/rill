@@ -2187,7 +2187,7 @@ testthat::test_that("reading actions report store failures without ending the se
     testthat::expect_identical(selected_id(), "sample-entry-2")
 
     testthat::local_mocked_bindings(
-      store_toggle_state = function(...) stop("database unavailable")
+      store_toggle_state = \(...) stop("database unavailable")
     )
     session$setInputs(toggle_star = 1)
     testthat::expect_identical(selected_id(), "sample-entry-2")
@@ -2207,8 +2207,8 @@ testthat::test_that("deferred session callbacks read reactive state and never th
     }
   )
 
-  read <- rill_session_callback(session, function() value())
-  fail <- rill_session_callback(session, function() stop("boom"))
+  read <- rill_session_callback(session, \() value())
+  fail <- rill_session_callback(session, \() stop("boom"))
 
   testthat::expect_identical(read(), "ready")
   testthat::expect_null(fail())
