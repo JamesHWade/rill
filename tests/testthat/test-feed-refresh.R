@@ -20,6 +20,33 @@ testthat::test_that("a real worker records feed failures and cleans up its resou
   testthat::expect_identical(dir.exists(job$directory), FALSE)
 })
 
+testthat::test_that("worker directories are removed once Windows releases their files", {
+  failures <- 2L
+  calls <- 0L
+  testthat::local_mocked_bindings(unlink_directory = function(directory) {
+    calls <<- calls + 1L
+    if (calls > failures) {
+      unlink(directory, recursive = TRUE)
+    }
+  })
+  directory <- withr::local_tempdir()
+  testthat::expect_identical(
+    remove_worker_directory(directory, pause = 0),
+    TRUE
+  )
+  testthat::expect_identical(calls, 3L)
+  testthat::expect_identical(dir.exists(directory), FALSE)
+
+  failures <- 10L
+  calls <- 0L
+  dir.create(directory)
+  testthat::expect_identical(
+    remove_worker_directory(directory, attempts = 3L, pause = 0),
+    FALSE
+  )
+  testthat::expect_identical(calls, 3L)
+})
+
 testthat::test_that("worker acquisition merges without replacing concurrent Reader changes", {
   withr::local_envvar(DATABASE_URL = "")
   gate <- withr::local_tempfile()

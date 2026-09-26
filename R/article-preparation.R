@@ -525,7 +525,7 @@ close_article_preparation <- function(
   if (is.function(job$end_span)) {
     job$end_span(status, attributes)
   }
-  unlink(job$directory, recursive = TRUE)
+  remove_worker_directory(job$directory)
   invisible(NULL)
 }
 
