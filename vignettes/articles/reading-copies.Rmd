@@ -8,15 +8,16 @@ and how it was made. Copies don't change once saved. A newer copy is added
 alongside the old one, and Ask Rill and Orientation always know which copy
 they read.
 
-A story can have three kinds of copy:
+A story can have three kinds of copy, and the reader labels each one:
 
-- A feed copy, made from the content in the feed itself. Rill makes one the
+- A feed copy is made from the content in the feed itself. Rill makes one the
   first time you open a story, so the story appears straight away. It keeps
   paragraphs, images, links, and lists, but many feeds only include an
   excerpt.
-- A prepared copy of the full article, extracted from the public page with
-  [Defuddle](https://github.com/kepano/defuddle).
-- A captured copy, sent from your own browser. Use this for pages Rill can't
+- An extracted copy is the full article, taken from the public page with
+  [Defuddle](https://github.com/kepano/defuddle). Extraction can leave out or
+  reorder parts of a page.
+- A captured copy is sent from your own browser. Use it for pages Rill can't
   fetch itself, such as articles behind a login.
 
 ## Preparing full articles
