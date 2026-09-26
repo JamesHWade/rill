@@ -42,7 +42,7 @@ testthat::test_that("Reader Memory explains input problems the Reader can fix", 
   document <- store$memory$documents[[1L]]
   shiny::testServer(
     reader_memory_server,
-    args = list(access = access, document = function() document),
+    args = list(access = access, document = \() document),
     {
       session$setInputs(
         text = "The ledger is the important part.",

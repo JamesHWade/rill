@@ -123,7 +123,7 @@ rill_server <- function(
       utc_now(),
       stats::runif(1)
     )
-    in_session <- function(callback) rill_session_callback(session, callback)
+    in_session <- \(callback) rill_session_callback(session, callback)
     # An observer that returns a promise makes Shiny hold every later input
     # from the session, including Stop, until the promise settles. Answers
     # stream in the background instead; shinychat already reports failures.

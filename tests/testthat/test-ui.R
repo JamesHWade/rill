@@ -102,7 +102,7 @@ testthat::test_that("invalid story times render without a label", {
 
 testthat::test_that("feed check times read as elapsed time", {
   now <- as.POSIXct("2026-09-26 12:00:00", tz = "UTC")
-  checked <- function(value) format_checked_time(value, now = now)
+  checked <- \(value) format_checked_time(value, now = now)
 
   testthat::expect_identical(checked("2026-09-26 11:59:40"), "just now")
   testthat::expect_identical(checked("2026-09-26 11:59:00"), "1 minute ago")
