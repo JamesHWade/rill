@@ -456,7 +456,7 @@ testthat::test_that("manual refresh retries failed feeds and respects polling ov
   testthat::expect_identical(none$due_count, 0L)
   testthat::expect_identical(
     feed_refresh_summary(none),
-    "No feeds need checking in this selection."
+    "There are no feeds to check here."
   )
   testthat::expect_identical(
     feed_refresh_summary(list(status = "error")),

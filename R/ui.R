@@ -278,13 +278,13 @@ navigation_sidebar_ui <- function(config) {
 orientation_destination_settings_ui <- function(state) {
   destination <- state$destination
   status <- if (isTRUE(state$demo_mode)) {
-    "Demo Orientation"
+    "Demo sample"
   } else if (!isTRUE(state$available)) {
-    "Orientation unavailable"
+    "Orientation off"
   } else if (isTRUE(state$needs_endpoint_configuration)) {
-    "Endpoint required"
+    "Endpoint needed"
   } else if (isTRUE(state$needs_configuration)) {
-    "Provider terms required"
+    "Policy link needed"
   } else if (isTRUE(state$enabled)) {
     "Orientation on"
   } else if (isTRUE(state$needs_confirmation)) {
@@ -293,9 +293,13 @@ orientation_destination_settings_ui <- function(state) {
     "Orientation off"
   }
   locality <- if (identical(destination$kind, "installation")) {
-    "Runs within this Rill installation."
+    "Runs inside this Rill installation."
   } else {
-    paste(destination$label, "is external to this Rill installation.")
+    paste0(
+      "Sends story text to ",
+      destination$label,
+      ", outside this installation."
+    )
   }
 
   shiny::tags$details(
@@ -317,24 +321,21 @@ orientation_destination_settings_ui <- function(state) {
       class = "orientation-destination-body",
       shiny::tags$p(
         if (isTRUE(state$demo_mode)) {
-          paste(
-            "Bundled demo Orientation uses local sample content; no reading",
-            "copies are sent to a model."
-          )
+          "The demo shows a fixed sample. No story text is sent to a model."
         } else if (!isTRUE(state$available)) {
           paste(
-            "This installation has automatic Orientation turned off.",
-            "Reading and Ask Rill remain available."
+            "This installation hasn't turned on Orientation.",
+            "Reading and Ask Rill still work."
           )
         } else if (isTRUE(state$needs_endpoint_configuration)) {
           paste(
-            "Automatic Orientation needs an explicit model endpoint in",
-            "RILL_AGENT_BASE_URL before it can be enabled."
+            "Set RILL_AGENT_BASE_URL to the model's endpoint before turning",
+            "on Orientation."
           )
         } else if (isTRUE(state$needs_configuration)) {
           paste(
-            "Automatic Orientation needs an inspectable provider-policy",
-            "link before it can be enabled."
+            "Set RILL_AGENT_POLICY_URL to the provider's data policy before",
+            "turning on Orientation."
           )
         } else {
           locality
@@ -354,8 +355,8 @@ orientation_destination_settings_ui <- function(state) {
         shiny::tags$p(
           class = "orientation-destination-caveat",
           paste(
-            "Your provider agreement controls retention, deletion, and",
-            "training practices."
+            "Your agreement with the provider decides whether it keeps or",
+            "trains on that text."
           )
         )
       },
@@ -364,12 +365,12 @@ orientation_destination_settings_ui <- function(state) {
           href = destination$policy_url,
           target = "_blank",
           rel = "noopener noreferrer",
-          `aria-label` = paste(
-            "Review provider terms for",
+          `aria-label` = paste0(
+            "Read ",
             destination$name,
-            "(opens in a new tab)"
+            "'s data policy (opens in a new tab)"
           ),
-          "Review provider terms"
+          "Read the provider's data policy"
         )
       },
       if (!isTRUE(state$available) || isTRUE(state$demo_mode)) {
@@ -379,13 +380,13 @@ orientation_destination_settings_ui <- function(state) {
       } else if (isTRUE(state$enabled)) {
         shiny::actionButton(
           "orientation_disable",
-          "Disable automatic Orientation",
+          "Turn off Orientation",
           class = "btn-sm btn-outline-secondary"
         )
       } else {
         shiny::actionButton(
           "orientation_enable",
-          "Enable automatic Orientation",
+          "Turn on Orientation",
           class = "btn-sm btn-outline-secondary"
         )
       }
@@ -397,7 +398,7 @@ orientation_destination_confirmation_ui <- function(state) {
   destination <- state$destination
   if (!isTRUE(state$policy_ready) || is.na(destination$policy_url)) {
     cli::cli_abort(
-      "Automatic Orientation requires an inspectable provider-policy link.",
+      "Orientation needs a link to the provider's data policy.",
       class = "rill_orientation_policy_required"
     )
   }
@@ -405,22 +406,24 @@ orientation_destination_confirmation_ui <- function(state) {
   modal <- shiny::modalDialog(
     title = shiny::tags$span(
       id = title_id,
-      "Enable automatic Orientation?"
+      "Turn on Orientation?"
     ),
     easyClose = TRUE,
     size = "m",
     shiny::tags$p(
-      paste(
-        "Rill will send only bounded unread Document reading copies needed",
-        "for each Orientation to",
-        paste0(destination$label, ".")
+      paste0(
+        "Each time Orientation updates, Rill sends ",
+        destination$label,
+        " the text of up to ",
+        orientation_candidate_limit(),
+        " of your newest unread stories."
       )
     ),
     shiny::tags$p(
       paste(
-        "The selected copies disclose that those Documents are currently",
-        "unread. Rill will not send the rest of your Library, the Reading",
-        "History event log, Reader Memory, or credentials."
+        "That tells the provider which of those stories you haven't read.",
+        "Rill doesn't send the rest of your Library, your reading history,",
+        "Reader Memory, or any credentials."
       )
     ),
     shiny::tags$p(
@@ -428,27 +431,28 @@ orientation_destination_confirmation_ui <- function(state) {
         href = destination$policy_url,
         target = "_blank",
         rel = "noopener noreferrer",
-        `aria-label` = paste(
-          "Review provider terms for",
+        `aria-label` = paste0(
+          "Read ",
           destination$name,
-          "(opens in a new tab)"
+          "'s data policy (opens in a new tab)"
         ),
-        "Review the governing provider terms (opens in a new tab)"
+        "Read the provider's data policy (opens in a new tab)"
       )
     ),
     shiny::tags$p(
       paste0(
         destination$name,
-        " is external to this Rill installation. Rill cannot enforce its ",
-        "retention, deletion, or training practices; your provider ",
-        "agreement controls them."
+        " runs outside this Rill installation, so Rill can't control whether ",
+        "it keeps or trains on this text. Your agreement with ",
+        destination$name,
+        " does."
       )
     ),
     footer = shiny::tagList(
       shiny::modalButton("Not now"),
       shiny::actionButton(
         "orientation_confirm",
-        paste("Confirm", destination$name, "and enable"),
+        paste("Turn on with", destination$name),
         class = "btn-primary"
       )
     )
@@ -568,9 +572,9 @@ preparation_failures_ui <- function(failures) {
     title = shiny::tags$span(id = title_id, "Preparation details"),
     easyClose = TRUE,
     shiny::tags$p(
-      "Your saved copies are preserved. Try Prepare again to retry missing copies, ",
-      "or open a story's original. If a failure continues, share its reference ",
-      "with the operator so they can find the matching server log."
+      "Stories keep the copies they already have. Choose Prepare to try again, ",
+      "or open a story's original. If a failure keeps happening, send its ",
+      "reference to whoever runs this Rill; it matches an entry in the server log."
     ),
     shiny::tags$ul(lapply(failures, function(failure) {
       shiny::tags$li(
@@ -606,7 +610,7 @@ read_actions_ui <- function(feed_title = NULL) {
       class = "read-actions-menu",
       shiny::tags$p(
         class = "read-actions-scope",
-        paste("Applies to", scope, "across all views.")
+        paste("Applies to", scope, "in every view.")
       ),
       shiny::actionButton(
         "mark_all_read",
@@ -617,10 +621,6 @@ read_actions_ui <- function(feed_title = NULL) {
         "mark_older_read",
         "Mark older than a day as read",
         class = "btn-read-action"
-      ),
-      shiny::tags$p(
-        class = "read-actions-help",
-        "Open history stays unchanged."
       )
     )
   )
@@ -688,12 +688,11 @@ reader_pane_ui <- function(config) {
         reader_focus_controls(),
         shiny::tags$div(
           class = "reader-agent-kicker",
-          shiny::tags$p(class = "eyebrow", "Ask Rill"),
-          shiny::tags$span(class = "reader-agent-badge", "Source-bound")
+          shiny::tags$p(class = "eyebrow", "Ask Rill")
         ),
         shiny::tags$h2(
           id = "reader-agent-title",
-          "Ask about the selected story"
+          "Ask about this story"
         ),
         shiny::uiOutput(
           "reader_agent_context",
@@ -710,27 +709,27 @@ reader_pane_ui <- function(config) {
         "reader_chat",
         greeting = shinychat::chat_greeting(
           paste(
-            "I answer from the selected reading copy and label inference",
-            "as interpretation. Ask for a summary, a key claim, or a",
-            "connection."
+            "I answer from this story's text and say when I go beyond it.",
+            "Try asking for a summary, the main argument, or the evidence",
+            "behind a claim."
           )
         ),
-        placeholder = "Ask about the selected story\u2026",
+        placeholder = "Ask about this story\u2026",
         height = "100%",
         fill = TRUE,
         enable_cancel = TRUE,
         footer = shiny::tags$span(
-          paste(
+          paste0(
             if (isTRUE(config$reader_memory_enabled)) {
-              "Sends your question, selected reading copy, and accepted Reader Memory (including retained passages) to"
+              "Your question, the story's text, and your accepted Reader Memory go to "
             } else {
-              "Sends your question and selected reading copy to"
+              "Your question and the story's text go to "
             },
             rill_agent_data_destination(
               config$agent_model,
               config$agent_base_url %||% ""
             ),
-            "\u00b7 interpretation stays labeled"
+            "."
           )
         )
       ),
@@ -775,6 +774,7 @@ reader_article_header_ui <- function(
     source_url <- entry$url
   }
 
+  copy <- reading_copy_label(document)
   actions <- htmltools::tagQuery(
     bslib::toolbar(
       shiny::tags$button(
@@ -908,31 +908,24 @@ reader_article_header_ui <- function(
     ),
     shiny::tags$div(
       class = "article-copy-status",
-      `aria-label` = paste(
-        if (is_fallback) {
-          "Feed copy prepared by"
-        } else {
-          "Stored reading copy prepared by"
-        },
-        document$producer %||% "feed fallback",
-        "with details below"
+      `aria-label` = paste0(
+        copy$label,
+        ". Details about this copy are at the end of the story."
       ),
       bsicons::bs_icon("file-earmark-text"),
-      shiny::tags$strong(
-        if (is_fallback) "Feed copy" else "Stored reading copy"
-      ),
+      shiny::tags$strong(copy$label),
       shiny::tags$span(
         class = "article-copy-producer",
         if (is_fallback) {
           switch(
             preparation,
-            ready = "Full article ready; your current copy is unchanged",
-            running = "Preparing full article in the background",
-            waiting = "Full article unavailable for now; retry later or open Original",
-            "Feed content may be an excerpt"
+            ready = "Full article ready",
+            running = "Fetching the full article\u2026",
+            waiting = "Full article unavailable for now",
+            copy$detail
           )
         } else {
-          paste("Prepared by", document$producer %||% "feed fallback")
+          copy$detail
         }
       ),
       if (is_fallback && isTRUE(can_prepare) && isTRUE(entry$library_access)) {
@@ -950,7 +943,11 @@ reader_article_header_ui <- function(
           icon = bsicons::bs_icon("cloud-arrow-down"),
           class = "btn-prepare-today",
           disabled = preparation %in% c("running", "waiting"),
-          title = "Prepare in the background, then choose when to load the full copy."
+          title = if (identical(preparation, "ready")) {
+            "Replace the feed copy with the full article"
+          } else {
+            "Fetch the full article in the background"
+          }
         )
       }
     )
@@ -969,25 +966,13 @@ reader_document_ui <- function(
     "%Y-%m-%d %H:%M UTC",
     tz = "UTC"
   )
-  acquisition <- gsub(
-    "_",
-    " ",
-    document$acquisition_method %||% "unknown",
-    fixed = TRUE
-  )
+  copy <- reading_copy_label(document)
 
   provenance <- bslib::accordion(
     bslib::accordion_panel(
       shiny::tagList(
         bsicons::bs_icon("info-circle"),
-        "About this reading copy"
-      ),
-      shiny::tags$p(
-        class = "reading-copy-boundary",
-        paste(
-          "This stored source copy remains separate from Ask Rill's",
-          "interpretation."
-        )
+        "About this copy"
       ),
       shiny::tags$p(
         class = "reading-copy-limitations",
@@ -1008,14 +993,12 @@ reader_document_ui <- function(
             "Unavailable"
           }
         ),
-        shiny::tags$dt("Reading copy"),
-        shiny::tags$dd(shiny::tags$code(document$document_id)),
-        shiny::tags$dt("Prepared"),
-        shiny::tags$dd(
-          paste(document$producer %||% "feed fallback", "via", acquisition)
-        ),
-        shiny::tags$dt("Captured"),
-        shiny::tags$dd(captured_at)
+        shiny::tags$dt("Copy"),
+        shiny::tags$dd(paste(copy$label, "\u00b7", copy$detail)),
+        shiny::tags$dt("Saved"),
+        shiny::tags$dd(captured_at),
+        shiny::tags$dt("Copy ID"),
+        shiny::tags$dd(shiny::tags$code(document$document_id))
       ),
       value = "reading-copy-provenance"
     ),
@@ -1042,9 +1025,27 @@ reader_agent_context_ui <- function(entry, document) {
   shiny::tags$div(
     id = "reader-agent-context",
     class = "reader-agent-context",
-    shiny::tags$span("Grounded in this reading copy"),
+    shiny::tags$span("Answers use this story"),
     shiny::tags$strong(document$title %||% entry$title),
     shiny::tags$small(document$site %||% entry$feed_title)
+  )
+}
+
+reading_copy_label <- function(document) {
+  producer <- document$producer %||% "an unknown tool"
+  switch(
+    document$acquisition_method %||% "",
+    feed_fallback = list(label = "Feed copy", detail = "May be an excerpt"),
+    web_extraction = list(
+      label = "Extracted copy",
+      detail = paste("Made with", producer)
+    ),
+    browser_capture = list(
+      label = "Captured copy",
+      detail = paste("Sent by", producer)
+    ),
+    sample = list(label = "Demo copy", detail = "Bundled with Rill"),
+    list(label = "Saved copy", detail = paste("Made by", producer))
   )
 }
 
@@ -1068,10 +1069,9 @@ orientation_ui <- function(
       shiny::tags$h1("Choose something worth reading"),
       orientation_failure_ui(
         if (preparing) {
-          "Evaluating the current unread Documents\u2026"
+          "Checking your unread stories\u2026"
         } else {
-          failure %||%
-            "Orientation will appear after Rill evaluates your unread Documents."
+          failure %||% "No picks yet."
         }
       ),
       orientation_retry_button(failure, "retry_orientation"),
@@ -1103,7 +1103,7 @@ orientation_ui <- function(
       class = "orientation-canvas orientation-quiet",
       rill_reading_otter("welcome-otter"),
       shiny::tags$p(class = "eyebrow", "Orientation"),
-      shiny::tags$h1("No current Orientation selection"),
+      shiny::tags$h1("No picks right now"),
       shiny::tags$p(
         class = "orientation-status",
         role = "status",
@@ -1153,7 +1153,7 @@ orientation_ui <- function(
       class = "orientation-header",
       shiny::tags$p(
         class = "eyebrow",
-        "Orientation \u00b7 Rill-guided reading"
+        "Orientation"
       ),
       shiny::tags$h1(
         id = "orientation-title",
@@ -1176,7 +1176,7 @@ orientation_ui <- function(
             feedback_token
           )
         },
-        orientation_browse_button("Browse the full unread queue")
+        orientation_browse_button("Browse unread stories")
       )
     ),
     shiny::tags$div(
@@ -1225,11 +1225,11 @@ orientation_themes_ui <- function(themes, candidates) {
   shiny::tags$section(
     class = "orientation-themes",
     `aria-labelledby` = "orientation-themes-title",
-    shiny::tags$h2(id = "orientation-themes-title", "Also in your unread"),
+    shiny::tags$h2(id = "orientation-themes-title", "More in your unread"),
     shiny::tags$p(
       class = "orientation-themes-note",
-      "Rill groups the rest by title and opening. Theme names and notes are",
-      "Interpretation, not Source Evidence. Counts are exact."
+      "Rill grouped the rest by their titles and opening lines. The topic",
+      "names and notes are its interpretation."
     ),
     lapply(themes, function(theme) {
       count <- length(theme$entry_ids)
@@ -1274,13 +1274,10 @@ orientation_totals_ui <- function(unread_total, picked, themes, evaluated) {
   themed <- sum(vapply(themes, \(theme) length(theme$entry_ids), integer(1)))
   outside <- max(0L, unread_total - as.integer(evaluated))
   parts <- c(
-    paste(
-      unread_total,
-      if (unread_total == 1L) "unread" else "unread in total"
-    ),
+    paste(unread_total, "unread"),
     paste(picked, "picked"),
-    paste(themed, "in themes"),
-    if (outside) paste(outside, "outside the evaluated window")
+    paste(themed, "in topics"),
+    if (outside) paste(outside, "not checked")
   )
   shiny::tags$p(
     class = "orientation-totals",
@@ -1289,16 +1286,20 @@ orientation_totals_ui <- function(unread_total, picked, themes, evaluated) {
       type = "button",
       class = "orientation-totals-link",
       onclick = "rillBrowseQueue()",
-      "Everything unread"
+      "Browse unread stories"
     )
   )
 }
 
-orientation_evidence_lead <- function(evidence) {
+orientation_evidence_sentence <- function(evidence) {
   parts <- strsplit(evidence, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
-  lead <- trimws(parts[[1L]] %||% evidence)
+  trimws(parts[[1L]] %||% evidence)
+}
+
+orientation_evidence_lead <- function(evidence) {
+  lead <- orientation_evidence_sentence(evidence)
   if (nchar(lead) > 220L) {
-    lead <- substr(lead, 1L, 200L)
+    lead <- sub("\\s+\\S*$", "", substr(lead, 1L, 200L))
   }
   lead
 }
@@ -1339,10 +1340,9 @@ orientation_queue_status_ui <- function(
 
   status <- if (is.null(orientation)) {
     if (preparing) {
-      "Evaluating the current unread Documents\u2026"
+      "Checking your unread stories\u2026"
     } else {
-      failure %||%
-        "Orientation will appear after Rill evaluates your unread Documents."
+      failure %||% "No picks yet."
     }
   } else {
     orientation$status
@@ -1413,31 +1413,40 @@ orientation_browse_button <- function(label) {
   )
 }
 
+orientation_boundary_entry_ids <- function(boundary) {
+  candidates <- boundary$candidates %||% list()
+  if (!length(candidates) && isTRUE(boundary$candidate_count > 0L)) {
+    return(NULL)
+  }
+  vapply(
+    candidates,
+    \(candidate) as.character(candidate$entry_id %||% NA_character_),
+    character(1)
+  )
+}
+
 orientation_boundary_change <- function(evaluated, current) {
   if (identical(evaluated$hash, current$hash)) {
-    return("No material Library changes since this evaluation.")
+    return("Nothing has changed since then.")
   }
 
-  evaluated_ids <- as.character(evaluated$document_ids %||% character())
-  current_ids <- as.character(current$document_ids %||% character())
+  # Compare stories, not copies: a story that gets a new reading copy keeps
+  # its entry ID but changes its document ID.
+  evaluated_ids <- orientation_boundary_entry_ids(evaluated)
+  current_ids <- orientation_boundary_entry_ids(current)
+  if (is.null(evaluated_ids) || is.null(current_ids)) {
+    return("Since then: The stories it looked at have changed.")
+  }
   added <- length(setdiff(current_ids, evaluated_ids))
   removed <- length(setdiff(evaluated_ids, current_ids))
-  changes <- character()
-  if (added) {
-    changes <- c(
-      changes,
-      paste(
-        added,
-        "new eligible",
-        if (added == 1L) "Document" else "Documents"
-      )
-    )
-  }
-  if (removed) {
-    changes <- c(changes, paste(removed, "no longer eligible"))
-  }
+  changes <- c(
+    if (added) {
+      paste(added, if (added == 1L) "story added" else "stories added")
+    },
+    if (removed) paste(removed, "removed")
+  )
   if (!length(changes)) {
-    changes <- "The bounded evaluation inputs changed"
+    changes <- "The stories it looked at have changed"
   }
   paste0("Since then: ", paste(changes, collapse = "; "), ".")
 }
@@ -1448,7 +1457,7 @@ orientation_evaluated_basis <- function(
   preparing = FALSE
 ) {
   count <- as.integer(orientation$boundary$candidate_count %||% 0L)
-  noun <- if (count == 1L) "unread Document" else "unread Documents"
+  noun <- if (count == 1L) "unread story" else "unread stories"
   evaluated <- gsub(
     " +",
     " ",
@@ -1464,11 +1473,11 @@ orientation_evaluated_basis <- function(
     tz = "UTC"
   )
   prefix <- if (preparing) {
-    "Reevaluating \u00b7 last evaluated "
+    "Updating \u00b7 last checked "
   } else if (!identical(orientation$boundary$hash, current_boundary$hash)) {
-    "Update due \u00b7 evaluated "
+    "Out of date \u00b7 checked "
   } else {
-    "Evaluated "
+    "Checked "
   }
   shiny::tags$details(
     class = "orientation-evaluated",
@@ -1490,7 +1499,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
   document <- candidate$document
   entry <- candidate$entry
   original_source_url <- rill_document_original_source_url(document)
-  number <- sprintf("%02d", index)
+  copy <- reading_copy_label(document)
   title <- document$title %||% entry$title
   select <- sprintf(
     "rillSelectEntry(%s, %d, 'orientation', %s)",
@@ -1538,7 +1547,7 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
         class = "orientation-interpretation",
         shiny::tags$span(
           class = "orientation-interpretation-label",
-          "Rill interpretation"
+          "Rill's interpretation"
         ),
         card$interpretation
       ),
@@ -1548,20 +1557,25 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
         card$why_now
       ),
       shiny::tags$blockquote(
-        class = "orientation-evidence-lead",
+        class = c(
+          "orientation-evidence-lead",
+          if (
+            nchar(lead) < nchar(orientation_evidence_sentence(card$evidence))
+          ) {
+            "is-truncated"
+          }
+        ),
         lead
       ),
       shiny::tags$details(
         class = "orientation-evidence",
-        shiny::tags$summary(
-          paste0("Source evidence and provenance [", number, "]")
-        ),
+        shiny::tags$summary("Source passage and details"),
         shiny::tags$blockquote(card$evidence),
         shiny::tags$dl(
           class = "orientation-evidence-metadata",
-          shiny::tags$dt("Document"),
+          shiny::tags$dt("Copy ID"),
           shiny::tags$dd(shiny::tags$code(document$document_id)),
-          shiny::tags$dt("Original Source"),
+          shiny::tags$dt("Original"),
           shiny::tags$dd(
             shiny::tags$a(
               href = original_source_url,
@@ -1570,13 +1584,13 @@ orientation_card_ui <- function(card, candidate, index, orientation) {
               original_source_url
             )
           ),
-          shiny::tags$dt("Acquisition"),
+          shiny::tags$dt("Copy"),
           shiny::tags$dd(
             paste(
-              gsub("_", " ", document$acquisition_method, fixed = TRUE),
-              "by",
-              document$producer,
-              "\u00b7 captured",
+              copy$label,
+              "\u00b7",
+              copy$detail,
+              "\u00b7 saved",
               format(
                 as.POSIXct(document$captured_at, tz = "UTC"),
                 "%Y-%m-%d %H:%M UTC",
@@ -1658,7 +1672,7 @@ appearance_control_ui <- function() {
 
 feed_refresh_status_ui <- function(result) {
   if (is.null(result)) {
-    return(shiny::tags$p("Refresh checks for new stories in your Library."))
+    return(shiny::tags$p("Check your feeds for new stories."))
   }
   if (!identical(result$status, "running")) {
     return(shiny::tags$p(role = "status", feed_refresh_summary(result)))
@@ -1915,7 +1929,7 @@ feed_refresh_summary <- function(result) {
     return("Another refresh is running. Try again shortly.")
   }
   if (!result$due_count) {
-    return("No feeds need checking in this selection.")
+    return("There are no feeds to check here.")
   }
   added <- sum(vapply(result$outcomes, \(x) x$added_count, integer(1)))
   paste0(
@@ -2207,11 +2221,11 @@ empty_story_list <- function(view, feed_title = NULL) {
     ),
     starred = list(
       title = "No starred stories yet",
-      body = "Press F while reading to keep favorites close."
+      body = "Star a story to keep it here."
     ),
     saved = list(
       title = "Nothing saved yet",
-      body = "Press S while reading to build a return-later list."
+      body = "Save a story to come back to it later."
     ),
     today = list(
       title = "Nothing published today",
@@ -2239,7 +2253,11 @@ empty_story_list <- function(view, feed_title = NULL) {
     ),
     list(
       title = "No stories yet",
-      body = "Add a feed to start your reading queue."
+      body = if (scoped_feed) {
+        paste0("There are no stories from ", feed_title, " yet.")
+      } else {
+        "Add a feed from Manage feeds to start reading."
+      }
     )
   )
 
@@ -2259,7 +2277,7 @@ reader_agent_status_ui <- function(run, pending = NULL) {
       role = "status",
       `aria-live` = "polite",
       bsicons::bs_icon("hourglass-split"),
-      "Stopping Orientation before answering\u2026"
+      "Pausing Orientation to answer your question\u2026"
     ))
   }
   if (is.null(run) || identical(run$status, "completed")) {
@@ -2271,7 +2289,7 @@ reader_agent_status_ui <- function(run, pending = NULL) {
       role = "status",
       `aria-live` = "polite",
       bsicons::bs_icon("stars"),
-      "Reading the selected source\u2026"
+      "Reading the story\u2026"
     ))
   }
   if (identical(run$status, "cancelling")) {
@@ -2287,7 +2305,7 @@ reader_agent_status_ui <- function(run, pending = NULL) {
   shiny::tags$div(
     class = "reader-agent-retry",
     role = "alert",
-    shiny::tags$p("That response stopped before it completed."),
+    shiny::tags$p("The answer stopped before it finished."),
     shiny::actionButton(
       "retry_agent_run",
       "Retry",

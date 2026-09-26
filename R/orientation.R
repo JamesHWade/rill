@@ -60,13 +60,13 @@ new_rill_orientation <- function(
       paste(
         length(cards),
         if (length(cards) == 1L) {
-          "source-grounded selection is ready."
+          "pick is ready."
         } else {
-          "source-grounded selections are ready."
+          "picks are ready."
         }
       )
     } else {
-      "Nothing material has cleared the Orientation threshold."
+      "Nothing stands out right now."
     }
   structure(
     list(
@@ -420,13 +420,13 @@ orientation_status <- function(
       paste(
         count,
         if (count == 1L) {
-          "source-grounded selection remains current."
+          "pick is still current."
         } else {
-          "source-grounded selections remain current."
+          "picks are still current."
         }
       )
     } else {
-      "No current Orientation selection remains."
+      "None of the picks are current anymore."
     }
     if (count) {
       orientation$question <- "What still deserves attention?"
@@ -472,7 +472,7 @@ orientation_processing_note <- function(
 ) {
   if (isTRUE(config$demo_mode)) {
     return(
-      "Bundled demo Orientation \u00b7 no reading copies were sent to a model."
+      "Demo sample \u00b7 no story text was sent to a model."
     )
   }
 
@@ -481,10 +481,7 @@ orientation_processing_note <- function(
     config$agent_base_url %||% ""
   )
   if (isTRUE(preparing)) {
-    return(paste(
-      "Evaluating bounded reading copies with",
-      paste0(destination, ".")
-    ))
+    return(paste0("Checking your unread stories with ", destination, "."))
   }
   if (!is.null(orientation)) {
     run <- store_get_agent_run(
@@ -494,34 +491,25 @@ orientation_processing_note <- function(
     )
     produced_by <- run$pinned_inputs$data_destination %||% NULL
     if (!is.null(produced_by)) {
-      return(paste(
-        "Produced from bounded reading copies sent to",
-        paste0(produced_by, ".")
-      ))
+      return(paste0("Picked by ", produced_by, "."))
     }
   }
   destination_state <- destination_state %||%
     orientation_destination_state(store, config$actor_id, config)
   if (isTRUE(destination_state$enabled)) {
-    return(paste(
-      "Automatic Orientation is enabled for",
-      paste0(destination, ".")
-    ))
+    return(paste0("Orientation is on for ", destination, "."))
   }
   if (!isTRUE(destination_state$available)) {
-    return("Automatic Orientation is unavailable in this installation.")
+    return("Orientation is off for this installation.")
   }
   if (isTRUE(destination_state$needs_confirmation)) {
-    return(paste(
-      "Automatic Orientation is off \u00b7 confirm",
+    return(paste0(
+      "Orientation is off until you confirm ",
       destination,
-      "as its external Data Destination."
+      " in the sidebar."
     ))
   }
-  paste(
-    "Automatic Orientation is off for",
-    paste0(destination, ".")
-  )
+  paste0("Orientation is off for ", destination, ".")
 }
 
 store_save_orientation <- function(store, orientation) {

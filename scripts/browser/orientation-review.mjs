@@ -30,11 +30,11 @@ try {
     await page.screenshot({path: new URL(`${width}-orientation.png`, output).pathname, fullPage: true});
     await page.getByRole('button', {name: 'Rate this Orientation', exact: true}).click();
     await page.getByRole('dialog').waitFor();
-    assert.match(await page.locator('.feedback-output').innerText(), /Digests and releases/);
+    assert.match(await page.locator('.feedback-output').innerText(), /The agent features/);
     await page.getByRole('radio', {name: 'Helpful', exact: true}).check();
     await page.getByRole('button', {name: 'Save rating', exact: true}).click();
     await page.getByRole('dialog').waitFor({state: 'hidden'});
-    await page.getByRole('button', {name: 'Digests and releases (2 unread stories)', exact: true}).click();
+    await page.getByRole('button', {name: 'The agent features (2 unread stories)', exact: true}).click();
     await page.waitForFunction(() => document.querySelectorAll('.story-card').length === 2);
     if (width < 1000) await page.locator('.compact-library-trigger').click();
     await page.locator('#feed_nav button').filter({hasText: /^\s*R\s*4\s*$/}).click();
@@ -49,7 +49,7 @@ try {
     await page.getByRole('button', {name: 'Rate this Orientation', exact: true}).click();
     await page.getByRole('dialog').waitFor();
     const preview = await page.locator('.feedback-output').innerText();
-    assert.match(preview, /Digests and releases/);
+    assert.match(preview, /The agent features/);
     assert.match(preview, /2 unread stories/);
     assert.match(preview, /Source Document/);
     await page.getByRole('radio', {name: 'Helpful', exact: true}).check();

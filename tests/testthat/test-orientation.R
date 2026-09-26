@@ -48,7 +48,7 @@ testthat::test_that("the memory store keeps one current Orientation per Reader",
       entry_id = document$entry_id,
       interpretation = "This story establishes the boundary.",
       why_now = "It is the clearest unread account.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "run-1",
     evaluated_at = evaluated_at
@@ -80,7 +80,7 @@ testthat::test_that("an Orientation is bound to its Reader's producing run", {
       entry_id = document$entry_id,
       interpretation = "This is the anchor.",
       why_now = "It establishes the boundary.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "missing-run"
   )
@@ -121,7 +121,7 @@ testthat::test_that("Orientation JSON preserves one-card record collections", {
       entry_id = candidate$entry$entry_id,
       interpretation = "This is the anchor.",
       why_now = "It establishes the boundary.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "run-1",
     dismissals = list(list(
@@ -317,7 +317,7 @@ testthat::test_that("dismissed bases do not consume the candidate bound", {
       entry_id = first$entry$entry_id,
       interpretation = "This is the first candidate.",
       why_now = "It is currently unread.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "run-1"
   )
@@ -354,7 +354,7 @@ testthat::test_that("invalid Orientation cards disappear without discarding vali
       entry_id = candidate$entry$entry_id,
       interpretation = paste("Interpretation", index),
       why_now = paste("Why now", index),
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )
   })
   orientation <- new_rill_orientation(
@@ -520,7 +520,7 @@ testthat::test_that("dismissing an Orientation card suppresses its unchanged bas
       entry_id = candidate$entry$entry_id,
       interpretation = paste("Interpretation", index),
       why_now = paste("Why now", index),
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )
   })
   orientation <- new_rill_orientation(
@@ -568,7 +568,7 @@ testthat::test_that("dismissal is pinned to the visible Orientation revision", {
     entry_id = candidate$entry$entry_id,
     interpretation = "The earlier interpretation.",
     why_now = "It was the earlier rationale.",
-    evidence = "Rill keeps the source feed"
+    evidence = "This story comes with Rill's demo"
   )
   earlier <- new_rill_orientation(
     reader_id = reader_id,
@@ -628,7 +628,7 @@ testthat::test_that("a newly read card cannot be dismissed from stale UI", {
       entry_id = candidate$entry$entry_id,
       interpretation = "This is the current candidate.",
       why_now = "It is currently unread.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "run-1"
   )
@@ -666,7 +666,7 @@ testthat::test_that("a dismissal and its Reading History event are atomic", {
       entry_id = candidate$entry$entry_id,
       interpretation = "This is the current candidate.",
       why_now = "It is currently unread.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = "run-1"
   )
@@ -740,7 +740,7 @@ testthat::test_that("publishing Orientation completes its owned Agent Run", {
       entry_id = document$entry_id,
       interpretation = "This story establishes the boundary.",
       why_now = "It is the clearest unread account.",
-      evidence = "Rill keeps the source feed"
+      evidence = "This story comes with Rill's demo"
     )),
     agent_run_id = run$run_id
   )
@@ -876,7 +876,7 @@ testthat::test_that("Orientation themes stay inside the evaluated boundary", {
     entry_id = candidates[[1L]]$entry$entry_id,
     interpretation = "Interpretation 1",
     why_now = "Why now 1",
-    evidence = "Rill keeps the source feed"
+    evidence = "This story comes with Rill's demo"
   )
   entry_ids <- vapply(
     candidates[2:3],

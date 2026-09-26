@@ -18,22 +18,17 @@ testthat::test_that("Document disclosure uses the canonical Original Source", {
 
 testthat::test_that("Document limitations describe each acquisition method", {
   expected <- c(
-    sample = "Bundled demo content cannot support real-world claims.",
-    feed_fallback = paste(
-      "This reading copy contains stored feed content and may be incomplete."
-    ),
+    sample = "This demo story ships with Rill; it isn't from a real feed.",
+    feed_fallback = "This copy comes from the feed and may be an excerpt.",
     web_extraction = paste(
-      "Automated extraction may omit or reorder material from the",
-      "Original Source."
+      "Automatic extraction can leave out or reorder parts of the original",
+      "page."
     ),
     browser_capture = paste(
-      "This browser capture reflects the Original Source at capture time",
-      "and may omit unavailable or interactive content."
+      "This is the page as your browser captured it. The original may have",
+      "changed since, and interactive content isn't included."
     ),
-    unknown = paste(
-      "This reading copy may not include all material from the",
-      "Original Source."
-    )
+    unknown = "This copy may not include everything on the original page."
   )
 
   actual <- vapply(

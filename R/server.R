@@ -69,8 +69,8 @@ rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
   if (!identical(expected, actual)) {
     cli::cli_abort(
       c(
-        "The configured model destination changed before Rill could answer.",
-        "i" = "Ask the question again to confirm the current destination."
+        "Rill's model changed before it could answer.",
+        "i" = "Ask again to send your question to the new model."
       ),
       class = "rill_agent_runtime_identity_changed"
     )
@@ -1231,10 +1231,10 @@ rill_server <- function(
         if (reader_memory_context_notice()) {
           append_reader_chat(
             paste0(
-              "**New conversation for this question**\n\n",
-              "Reader Memory changed. This question starts a new conversation ",
-              "using the current memory. Earlier messages remain here for ",
-              "reference and are not passed to the new conversation."
+              "**New conversation**\n\n",
+              "Reader Memory changed, so this question starts a new ",
+              "conversation. Earlier messages stay here but aren't sent to ",
+              "Rill."
             ),
             session
           )
@@ -1809,12 +1809,11 @@ rill_server <- function(
         append_reader_chat(
           if (inherits(resumed, "rill_agent_runtime_identity_changed")) {
             paste(
-              "Rill didn't send the preserved question because its configured",
-              "model destination changed. Ask it again to confirm the current",
-              "destination."
+              "Rill didn't send your held question because its model changed.",
+              "Ask again to send it to the new model."
             )
           } else {
-            "Rill couldn't send the preserved question. Ask it again."
+            "Rill couldn't send your held question. Ask it again."
           },
           session
         )
@@ -2212,7 +2211,7 @@ rill_server <- function(
         state <- shiny::isolate(orientation_destination_status())
         if (!isTRUE(state$available)) {
           shiny::showNotification(
-            "Automatic Orientation is unavailable in this installation.",
+            "Orientation is off for this installation.",
             type = "warning"
           )
           return()
@@ -2220,13 +2219,13 @@ rill_server <- function(
         if (isTRUE(state$needs_configuration)) {
           message <- if (isTRUE(state$needs_endpoint_configuration)) {
             paste(
-              "Automatic Orientation needs an explicit model endpoint in",
-              "RILL_AGENT_BASE_URL."
+              "Set RILL_AGENT_BASE_URL to the model's endpoint before turning",
+              "on Orientation."
             )
           } else {
             paste(
-              "Automatic Orientation needs an inspectable provider-policy",
-              "link from this installation."
+              "Set RILL_AGENT_POLICY_URL to the provider's data policy before",
+              "turning on Orientation."
             )
           }
           shiny::showNotification(
@@ -2463,7 +2462,7 @@ rill_server <- function(
               ))
               status_kind("warning")
               status_text(
-                "Some full articles aren't available yet. Feed copies are preserved."
+                "Some full articles aren't ready. You can still read their feed copies."
               )
             } else if (!is.null(result) && !length(preparation_failures())) {
               status_kind("success")
@@ -2485,7 +2484,7 @@ rill_server <- function(
               if (!length(preparation_failures())) {
                 status_kind("success")
                 status_text(
-                  "Today's preparation check is complete. Available copies are preserved."
+                  "Finished checking today's stories for full articles."
                 )
               }
             }
@@ -3619,7 +3618,7 @@ rill_server <- function(
               if (stale) {
                 "That Orientation selection is no longer current."
               } else {
-                "Rill could not record this opening. Please try again."
+                "Rill couldn't open that story. Try again."
               },
               type = "warning"
             )
@@ -3943,7 +3942,7 @@ rill_server <- function(
         }
         if (is.null(selected_id())) {
           append_reader_chat(
-            "Choose a story first, then ask about its selected reading copy.",
+            "Open a story first, then ask about it.",
             session
           )
           return()
@@ -4108,7 +4107,7 @@ rill_server <- function(
         )
         if (is.null(document)) {
           shiny::showNotification(
-            "The pinned reading copy is no longer available.",
+            "The story copy this question used is no longer available.",
             type = "error"
           )
           return()
@@ -4452,7 +4451,9 @@ rill_server <- function(
           clear_selection(force = TRUE)
         }
         status_kind("success")
-        status_text("Unsubscribed. Reading state was preserved.")
+        status_text(
+          "Unsubscribed. Rill keeps its reading state in case you restore it."
+        )
         record_event(
           "feed_unsubscribed",
           surface = "sidebar",
@@ -4606,7 +4607,7 @@ rill_server <- function(
           return()
         }
         status_kind("success")
-        status_text("Subscription restored with its folder and reading state.")
+        status_text("Feed restored with its Groups and reading state.")
         shiny::showNotification(status_text())
         record_event(
           "feed_restored",
@@ -4705,7 +4706,7 @@ rill_server <- function(
           failure <- preparation_failure(entries, "library", config)
           preparation_failures(list(failure))
           status_kind("error")
-          status_text("Today's reading copies couldn't be queued")
+          status_text("Rill couldn't start preparing today's full articles.")
           return(invisible(NULL))
         }
         preparation_failures(list())
