@@ -1,6 +1,9 @@
 validate_public_http_url <- function(url) {
   if (!is.character(url) || length(url) != 1L || is.na(url)) {
-    cli::cli_abort("{.arg url} must be a single string.")
+    cli::cli_abort(
+      "{.arg url} must be a single string.",
+      class = "rill_url_invalid"
+    )
   }
 
   parsed <- tryCatch(
@@ -9,7 +12,8 @@ validate_public_http_url <- function(url) {
   )
   if (is.null(parsed)) {
     cli::cli_abort(
-      "{.arg url} must be a complete {.code http://} or {.code https://} URL."
+      "{.arg url} must be a complete {.code http://} or {.code https://} URL.",
+      class = "rill_url_invalid"
     )
   }
   host <- tolower(parsed$hostname %||% "")
@@ -17,45 +21,127 @@ validate_public_http_url <- function(url) {
 
   if (!scheme %in% c("http", "https") || !nzchar(host)) {
     cli::cli_abort(
-      "{.arg url} must be a complete {.code http://} or {.code https://} URL."
+      "{.arg url} must be a complete {.code http://} or {.code https://} URL.",
+      class = "rill_url_invalid"
     )
   }
 
+  # curl resolves every `*.localhost` name to loopback and accepts numeric
+  # hosts such as `2130706433` or `0x7f.1`, so numeric hosts must be canonical
+  # public IPv4 addresses. IPv6 literals are refused outright.
+  numeric_host <- grepl(
+    "^(0x[0-9a-f]*|[0-9]+)([.](0x[0-9a-f]*|[0-9]+)){0,3}[.]?$",
+    host
+  )
   blocked <- host %in%
-    c("localhost", "localhost.localdomain", "0.0.0.0") ||
-    grepl("(^|\\.)local$", host) ||
-    grepl("^127\\.", host) ||
-    grepl("^10\\.", host) ||
-    grepl("^192\\.168\\.", host) ||
-    grepl("^169\\.254\\.", host) ||
-    grepl("^172\\.(1[6-9]|2[0-9]|3[01])\\.", host) ||
-    host %in% c("::1", "[::1]")
+    c("localhost", "localhost.localdomain") ||
+    grepl("(^|\\.)(local|localhost)\\.?$", host) ||
+    grepl(":|^\\[", host) ||
+    (numeric_host && !queue_preview_public_ipv4(host))
 
   if (blocked) {
-    cli::cli_abort("{.arg url} must not refer to a private or local network.")
+    cli::cli_abort(
+      "{.arg url} must not refer to a private or local network.",
+      class = "rill_url_invalid"
+    )
   }
   httr2::url_build(parsed)
 }
 
-feed_request <- function(url, etag = NULL, last_modified = NULL) {
-  request <- httr2::request(validate_public_http_url(url)) |>
-    httr2::req_user_agent(rill_user_agent()) |>
-    httr2::req_timeout(20) |>
-    httr2::req_retry(max_tries = 2)
-
-  if (!is.null(etag) && !is.na(etag) && nzchar(etag)) {
-    request <- httr2::req_headers(request, `If-None-Match` = etag)
-  }
-  if (
-    !is.null(last_modified) && !is.na(last_modified) && nzchar(last_modified)
+# Many feeds declare their encoding only in the XML prolog, which httr2 ignores.
+feed_body_string <- function(response) {
+  body <- httr2::resp_body_raw(response)
+  content_type <- httr2::resp_header(response, "content-type") %||% ""
+  charset <- regmatches(
+    content_type,
+    regexec("charset=\"?([^;\"[:space:]]+)", content_type, ignore.case = TRUE)
+  )[[1L]]
+  bom <- as.integer(utils::head(body, 2L))
+  encoding <- if (length(charset)) {
+    charset[[2L]]
+  } else if (
+    identical(bom, c(0xFFL, 0xFEL)) || identical(bom, c(0xFEL, 0xFFL))
   ) {
-    request <- httr2::req_headers(request, `If-Modified-Since` = last_modified)
+    "UTF-16"
+  } else {
+    prolog <- rawToChar(utils::head(body[body != as.raw(0L)], 200L))
+    declared <- regmatches(
+      prolog,
+      regexec(
+        "^[^<]*<[?]xml[^>]*encoding=[\"']([A-Za-z0-9._-]+)",
+        prolog,
+        useBytes = TRUE
+      )
+    )[[1L]]
+    if (length(declared)) declared[[2L]] else "UTF-8"
   }
+  # iconv() reads the raw bytes directly; readBin() would stop at the first
+  # NUL byte, which UTF-16 text contains in nearly every character.
+  decode <- function(from) {
+    tryCatch(
+      iconv(list(body), from = from, to = "UTF-8"),
+      error = \(error) NA_character_
+    )
+  }
+  text <- decode(encoding)
+  if (is.na(text) && !length(charset)) {
+    text <- decode("windows-1252")
+  }
+  if (is.na(text)) {
+    cli::cli_abort(
+      "The feed is not valid {encoding} text.",
+      class = "rill_feed_encoding_invalid"
+    )
+  }
+  text
+}
 
-  response <- httr2::req_perform(request)
-  final_url <- httr2::resp_url(response)
-  validate_public_http_url(final_url)
-  response
+# Retry only when the server asks for a short wait: httr2 otherwise sleeps for
+# the full `Retry-After`, which would stall the app or hold the polling lock.
+feed_retry_is_transient <- function(response) {
+  status <- httr2::resp_status(response)
+  after <- httr2::resp_retry_after(response)
+  status %in% c(429L, 503L) && (is.na(after) || after <= 10)
+}
+
+feed_request <- function(
+  url,
+  etag = NULL,
+  last_modified = NULL,
+  max_redirects = 5L
+) {
+  # Follow redirects one hop at a time so that every destination is checked
+  # before Rill requests it.
+  for (hop in 0:max_redirects) {
+    request <- httr2::request(validate_public_http_url(url)) |>
+      httr2::req_user_agent(rill_user_agent()) |>
+      httr2::req_timeout(20) |>
+      httr2::req_options(followlocation = FALSE) |>
+      httr2::req_retry(max_tries = 2, is_transient = feed_retry_is_transient)
+
+    if (!is.null(etag) && !is.na(etag) && nzchar(etag)) {
+      request <- httr2::req_headers(request, `If-None-Match` = etag)
+    }
+    if (
+      !is.null(last_modified) && !is.na(last_modified) && nzchar(last_modified)
+    ) {
+      request <- httr2::req_headers(
+        request,
+        `If-Modified-Since` = last_modified
+      )
+    }
+
+    response <- httr2::req_perform(request)
+    location <- httr2::resp_header(response, "location")
+    if (
+      !httr2::resp_status(response) %in% c(301L, 302L, 303L, 307L, 308L) ||
+        is.null(location)
+    ) {
+      return(response)
+    }
+    url <- xml2::url_absolute(location, httr2::resp_url(response))
+  }
+  cli::cli_abort("The feed redirected more than {max_redirects} times.")
 }
 
 looks_like_feed <- function(response, body) {
@@ -80,9 +166,20 @@ looks_like_feed <- function(response, body) {
   )
 }
 
+# xml2 treats a string without `<` or `>` as a URL or file path and reads it.
+# Response bodies and feed fields are untrusted, so always parse them as text.
+read_markup <- function(text, as_html = FALSE) {
+  bytes <- charToRaw(enc2utf8(text))
+  if (as_html) {
+    xml2::read_html(bytes, encoding = "UTF-8")
+  } else {
+    xml2::read_xml(bytes, encoding = "UTF-8")
+  }
+}
+
 read_feed_xml <- function(xml) {
   tryCatch(
-    xml2::read_xml(xml),
+    if (is.character(xml)) read_markup(xml) else xml2::read_xml(xml),
     error = function(error) {
       can_repair <- is.character(xml) &&
         length(xml) == 1L &&
@@ -94,7 +191,7 @@ read_feed_xml <- function(xml) {
 
       repaired_xml <- escape_text_terminators(xml)
       tryCatch(
-        xml2::read_xml(repaired_xml),
+        read_markup(repaired_xml),
         error = function(repair_error) stop(error)
       )
     }
@@ -131,7 +228,7 @@ escape_text_terminators <- function(xml) {
 }
 
 discover_feed_url <- function(page_url, html) {
-  document <- xml2::read_html(html)
+  document <- read_markup(html, as_html = TRUE)
   link <- xml2::xml_find_first(
     document,
     paste0(
@@ -159,6 +256,18 @@ xml_first_text <- function(node, xpath) {
   if (nzchar(value)) value else NA_character_
 }
 
+# XPath unions return nodes in document order, not in the order written, so
+# preferred fields are looked up one expression at a time.
+xml_first_text_of <- function(node, xpaths) {
+  for (xpath in xpaths) {
+    value <- xml_first_text(node, xpath)
+    if (!is.na(value)) {
+      return(value)
+    }
+  }
+  NA_character_
+}
+
 xml_first_attr <- function(node, xpath, attribute) {
   match <- xml2::xml_find_first(node, xpath)
   if (inherits(match, "xml_missing")) {
@@ -184,15 +293,76 @@ plain_summary <- function(value, max_chars = 360L) {
   }
 }
 
+rfc822_zone_minutes <- function(zone) {
+  if (grepl("^[+-][0-9]{4}$", zone)) {
+    sign <- if (startsWith(zone, "-")) -1L else 1L
+    hours <- as.integer(substr(zone, 2L, 3L))
+    minutes <- as.integer(substr(zone, 4L, 5L))
+    return(sign * (hours * 60L + minutes))
+  }
+  zones <- c(
+    GMT = 0L,
+    UT = 0L,
+    UTC = 0L,
+    Z = 0L,
+    EST = -300L,
+    EDT = -240L,
+    CST = -360L,
+    CDT = -300L,
+    MST = -420L,
+    MDT = -360L,
+    PST = -480L,
+    PDT = -420L
+  )
+  if (!nzchar(zone)) 0L else unname(zones[zone])
+}
+
+# parsedate ignores RFC 822 offsets such as `-0700`, which RSS pubDates use.
+parse_rfc822_date <- function(value) {
+  pattern <- paste0(
+    "^\\s*(?:[A-Za-z]+,?\\s+)?([0-9]{1,2})\\s+([A-Za-z]{3})[A-Za-z]*\\.?\\s+",
+    "([0-9]{4}|[0-9]{2})\\s+([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?",
+    "\\s*([+-][0-9]{4}|[A-Za-z]{1,3})?\\s*$"
+  )
+  parts <- regmatches(value, regexec(pattern, value, perl = TRUE))[[1L]]
+  missing <- as.POSIXct(NA_real_, tz = "UTC")
+  if (!length(parts)) {
+    return(missing)
+  }
+  month <- match(tolower(parts[[3L]]), tolower(month.abb))
+  offset <- rfc822_zone_minutes(toupper(parts[[8L]]))
+  if (is.na(month) || is.na(offset)) {
+    return(missing)
+  }
+  year <- as.integer(parts[[4L]])
+  if (year < 100L) {
+    year <- year + if (year < 50L) 2000L else 1900L
+  }
+  local <- ISOdatetime(
+    year,
+    month,
+    as.integer(parts[[2L]]),
+    as.integer(parts[[5L]]),
+    as.integer(parts[[6L]]),
+    if (nzchar(parts[[7L]])) as.integer(parts[[7L]]) else 0L,
+    tz = "UTC"
+  )
+  local - offset * 60
+}
+
 parse_feed_date <- function(value) {
   if (is.null(value) || length(value) == 0L || is.na(value) || !nzchar(value)) {
     return(NA_character_)
   }
-  parsed <- suppressWarnings(parsedate::parse_date(value))
+  parsed <- parse_rfc822_date(value)
+  if (is.na(parsed)) {
+    parsed <- suppressWarnings(parsedate::parse_date(value))
+  }
   if (is.na(parsed)) {
     return(NA_character_)
   }
-  format(parsed, tz = "UTC", usetz = TRUE)
+  # An explicit time keeps midnight values from parsing as bare dates.
+  format(parsed, "%Y-%m-%d %H:%M:%S", tz = "UTC", usetz = TRUE)
 }
 
 empty_entries <- function() {
@@ -214,6 +384,12 @@ empty_entries <- function() {
     stringsAsFactors = FALSE
   )
 }
+
+# RSS channels often carry an `atom:link rel="self"` before their `<link>`.
+rss_link_xpath <- paste0(
+  "./*[local-name()='link' and ",
+  "namespace-uri()!='http://www.w3.org/2005/Atom'][1]"
+)
 
 parse_feed_document <- function(
   xml,
@@ -266,10 +442,7 @@ parse_feed_document <- function(
       "href"
     )
   } else {
-    xml_first_text(
-      channel,
-      "./*[local-name()='link'][1]"
-    )
+    xml_first_text(channel, rss_link_xpath)
   }
   if (!is.na(site_url)) {
     site_url <- xml2::url_absolute(site_url, feed_url)
@@ -285,7 +458,14 @@ parse_feed_document <- function(
         "href"
       )
     } else {
-      xml_first_text(item, "./*[local-name()='link'][1]")
+      xml_first_text(item, rss_link_xpath) %||%
+        xml_first_text(
+          item,
+          paste0(
+            "./*[local-name()='guid'][not(@isPermaLink='false')]",
+            "[starts-with(normalize-space(.), 'http')][1]"
+          )
+        )
     }
     if (!is.na(url)) {
       url <- xml2::url_absolute(url, feed_url)
@@ -301,17 +481,35 @@ parse_feed_document <- function(
         "./@*[local-name()='about' and namespace-uri()='http://www.w3.org/1999/02/22-rdf-syntax-ns#']"
       )
     }
-    published_raw <- xml_first_text(
+    published_raw <- xml_first_text_of(
       item,
-      "./*[local-name()='pubDate' or local-name()='published' or local-name()='updated' or local-name()='date'][1]"
+      c(
+        "./*[local-name()='pubDate'][1]",
+        "./*[local-name()='published'][1]",
+        "./*[local-name()='updated'][1]",
+        "./*[local-name()='date'][1]"
+      )
     )
-    author <- xml_first_text(
+    author <- xml_first_text_of(
       item,
-      "./*[local-name()='author']/*[local-name()='name'][1] | ./*[local-name()='creator'][1] | ./*[local-name()='author'][1]"
+      c(
+        "./*[local-name()='author']/*[local-name()='name'][1]",
+        "./*[local-name()='creator'][1]",
+        "./*[local-name()='author'][not(*)][1]"
+      )
     )
-    content <- xml_first_text(
+    # Media RSS also uses `content`, but carries no text.
+    content <- xml_first_text_of(
       item,
-      "./*[local-name()='encoded'][1] | ./*[local-name()='content'][1] | ./*[local-name()='description'][1] | ./*[local-name()='summary'][1]"
+      c(
+        "./*[local-name()='encoded'][1]",
+        paste0(
+          "./*[local-name()='content' and ",
+          "namespace-uri()!='http://search.yahoo.com/mrss/'][1]"
+        ),
+        "./*[local-name()='description'][1]",
+        "./*[local-name()='summary'][1]"
+      )
     )
 
     if (is.na(url) || !nzchar(url)) {
@@ -379,12 +577,12 @@ fetch_feed <- function(
     return(list(not_modified = TRUE))
   }
 
-  body <- httr2::resp_body_string(response)
+  body <- feed_body_string(response)
   final_url <- httr2::resp_url(response)
   if (!looks_like_feed(response, body)) {
     discovered_url <- discover_feed_url(final_url, body)
     response <- feed_request(discovered_url)
-    body <- httr2::resp_body_string(response)
+    body <- feed_body_string(response)
     final_url <- httr2::resp_url(response)
     if (!looks_like_feed(response, body)) {
       cli::cli_abort("The discovered URL did not return RSS or Atom XML.")

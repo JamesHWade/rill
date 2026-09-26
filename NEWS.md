@@ -1,5 +1,19 @@
 # rill 0.0.0.9000
 
+* Reading copies now drop HTML comments, `noscript`, and other elements that browsers parse differently from Rill's sanitizer, so feed content can no longer run scripts in the reader.
+
+* Feed fetching never treats a response body or feed field as a URL or file path, checks each redirect before following it, rejects `*.localhost`, carrier-grade NAT, numeric, and IPv6 literal hosts, and no longer waits on `Retry-After` values over ten seconds.
+
+* Feeds keep their full `content:encoded` or Atom `content` when a shorter description comes first, ignore empty Media RSS `content`, read Atom author names without their URL or email, prefer publication dates over update dates, use permalink GUIDs for items without a link, and skip `atom:link` when finding a site's address.
+
+* RSS publication dates now keep their time zone offsets, such as `-0700`, so stories from feeds outside UTC sort correctly and appear in the right calendar view.
+
+* Feeds that declare their encoding only in the XML prolog, are encoded as UTF-16, or send Windows-1252 text without a charset now refresh instead of failing.
+
+* Opening a story whose feed item has no readable text now shows a placeholder copy instead of closing the session.
+
+* Mark older than a day as read now works with PostgreSQL storage; it previously ended the session.
+
 * Reader Memory now consumes Graft's public API4 artifact workflow while preserving exact reviewed decisions, retained evidence, and Reader-scoped consultation (JamesHWade/graft#91).
 
 * Rill now requires R 4.3.0 or later, matching its Graft dependency (#104).

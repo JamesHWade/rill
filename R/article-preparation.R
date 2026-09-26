@@ -30,7 +30,19 @@ reading_document <- function(store, reader_id, entry) {
     }
     return(current)
   }
-  fallback <- telemetry_span("article.feed_copy", document_fallback(entry))
+  fallback <- telemetry_span(
+    "article.feed_copy",
+    tryCatch(
+      document_fallback(entry),
+      # Items such as podcast episodes may carry only unsupported embeds.
+      rill_document_invalid = function(error) {
+        document_fallback(utils::modifyList(
+          entry,
+          list(feed_content = NA_character_, summary = NA_character_)
+        ))
+      }
+    )
+  )
   telemetry_span(
     "store.reading_copy.save",
     store_save_document_if_missing_head(store, reader_id, fallback)$document

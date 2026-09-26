@@ -2749,7 +2749,7 @@
       "checksum": "b88820d576e88ba1f164a08246588a37"
     },
     "R/entry-preview.R": {
-      "checksum": "2075563a3dc66349e16b9bc8cd491968"
+      "checksum": "7b59ff21b6590637368d34f849fe4ad8"
     },
     "R/queue-actions.R": {
       "checksum": "c61ef6ca3db518fb115af70b62f78f84"
@@ -2860,7 +2860,7 @@
       "checksum": "d92126e1dd4186d0be593c71948b8062"
     },
     "R/article-preparation.R": {
-      "checksum": "8e38dce7aa6ffd121c776efd8e69b81b"
+      "checksum": "5423493560087c9f2f68ca6e93e2ae96"
     },
     "R/capture.R": {
       "checksum": "abcb82a29dd76278aefe85555c4f369a"
@@ -2869,10 +2869,10 @@
       "checksum": "5206d42437e61cd3f411f870321d5871"
     },
     "R/db.R": {
-      "checksum": "774b02c3744941ede23a737878ded331"
+      "checksum": "bd3d408991e865a38c5c858cb0e267fb"
     },
     "R/defuddle.R": {
-      "checksum": "9505dbe74bc45c843d29fe2ef3302b84"
+      "checksum": "b348c9ff8eee538d9059c17d06e63f65"
     },
     "R/documents.R": {
       "checksum": "b2f58a853db95c39582d83d1a7fb692f"
@@ -2881,7 +2881,7 @@
       "checksum": "e764a79aa13995b9e483c25c4c2720dc"
     },
     "R/feeds.R": {
-      "checksum": "bfa2a6dae097c98c92d7aa439dbced1a"
+      "checksum": "c50d25e80ba30bea36bb3824caf6ef9c"
     },
     "R/identity.R": {
       "checksum": "e64c8edd29d09c44f4a256cf598867e2"

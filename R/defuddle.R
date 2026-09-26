@@ -867,6 +867,16 @@ sanitize_rendered_html <- function(html) {
   ))
   root <- xml2::xml_find_first(parsed, "//*[@id='rill-sanitizer-root']")
 
+  # Browsers and libxml2 disagree about where comments end (`<!-->`), so a
+  # comment can hide markup that only becomes live in the browser.
+  inert <- xml2::xml_find_all(
+    root,
+    ".//comment() | .//processing-instruction()"
+  )
+  if (length(inert)) {
+    xml2::xml_remove(inert)
+  }
+
   video_images <- xml2::xml_find_all(root, ".//img[@src]")
   for (node in video_images) {
     embed_url <- video_embed_url(xml2::xml_attr(node, "src"))
@@ -887,15 +897,21 @@ sanitize_rendered_html <- function(html) {
     if (is.na(embed_url)) {
       xml2::xml_remove(node)
     } else {
+      xml2::xml_remove(xml2::xml_contents(node))
       standardize_video_iframe(node, embed_url)
     }
   }
 
+  # Elements whose contents browsers parse as raw text are dropped whole,
+  # because their serialized children could close the element early.
   blocked <- xml2::xml_find_all(
     root,
     paste(
       ".//script | .//style | .//object | .//embed | .//form | .//input |",
-      ".//button | .//svg | .//math | .//link | .//meta | .//base"
+      ".//button | .//svg | .//math | .//link | .//meta | .//base |",
+      ".//noscript | .//noembed | .//noframes | .//template | .//xmp |",
+      ".//plaintext | .//textarea | .//title | .//select | .//frame |",
+      ".//frameset | .//applet"
     )
   )
   if (length(blocked)) {
