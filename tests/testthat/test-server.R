@@ -5262,7 +5262,7 @@ testthat::test_that("Today finishes when all stories already have full copies", 
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Finished preparing today's full articles."
+      "Finished checking today's stories for full articles."
     )
     testthat::expect_length(preparation_failures(), 0L)
     testthat::expect_null(article_preparer$state$job)
@@ -5287,7 +5287,7 @@ testthat::test_that("Today finishes when there are no stories to prepare", {
     testthat::expect_identical(status_kind(), "success")
     testthat::expect_identical(
       status_text(),
-      "Finished preparing today's full articles."
+      "Finished checking today's stories for full articles."
     )
   }))
 })

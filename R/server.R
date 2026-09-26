@@ -2484,7 +2484,7 @@ rill_server <- function(
               if (!length(preparation_failures())) {
                 status_kind("success")
                 status_text(
-                  "Finished preparing today's full articles."
+                  "Finished checking today's stories for full articles."
                 )
               }
             }
