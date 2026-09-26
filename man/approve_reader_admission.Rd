@@ -23,8 +23,7 @@ Invisibly, a list containing the request ID, Reader ID, approval
 status, and mutable profile metadata.
 }
 \description{
-\code{approve_reader_admission()} attaches the authenticated external identity
-behind a request to a new, isolated Reader. Repeating an approval is
-idempotent and keeps the existing Reader binding. The approval is recorded
-in the Reader Identity audit log.
+\code{approve_reader_admission()} gives the person behind a request a new, empty
+Library of their own. Approving the same request again keeps that Library.
+Each approval is written to the identity audit log.
 }

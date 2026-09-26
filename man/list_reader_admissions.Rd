@@ -15,9 +15,9 @@ A data frame with request, profile, status, and timing metadata. It
 does not expose external identity subjects.
 }
 \description{
-\code{list_reader_admissions()} lists access requests recorded when an
-authenticated person opens Hosted Rill without an attached Reader. The
-returned request ID is safe to use with \code{\link[=approve_reader_admission]{approve_reader_admission()}}
-without copying the provider's external subject identifier.
-Unlinked requests expire 30 days after their most recent sign-in.
+\code{list_reader_admissions()} lists the access requests Rill records when
+someone signs in without a Library of their own. Pass a request's ID to
+\code{\link[=approve_reader_admission]{approve_reader_admission()}}; the provider's account identifier is never
+shown. Requests that nobody approves expire 30 days after the person's last
+sign-in. It needs \code{DATABASE_URL}.
 }

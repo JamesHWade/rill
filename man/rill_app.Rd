@@ -10,29 +10,30 @@ rill_app()
 A \code{shiny.appobj} object suitable for \code{\link[shiny:runApp]{shiny::runApp()}}.
 }
 \description{
-\code{rill_app()} creates the Shiny application using configuration read from
-environment variables. With no \code{DATABASE_URL}, it uses bundled demo data.
-\code{RILL_IDENTITY_MODE=auth0} enables an in-app Auth0 gate for hosts such as
-Posit Connect Cloud, while \code{oidc_proxy} keeps the production container's
-upstream proxy gate. Both Reader Identity adapters resolve exact issuer and
-\code{sub} pairs to durable internal Readers. Configured
-\code{RILL_ALLOWED_OIDC_SUBJECTS} values bootstrap the private Reader in
-\code{RILL_ACTOR_ID}. Both adapters record one pending admission for a verified
-identity without a Reader binding while denying Library access. Email and
-other profile claims are mutable metadata, not identity keys. When
-\code{RILL_CAPTURE_TOKEN} is set, the same application binds that credential to
-\code{RILL_ACTOR_ID} and accepts authenticated browser Documents at
-\verb{/api/v1/captures}. Captures and reading-copy selection remain private to
-that Reader. \code{RILL_AGENT_MODEL} selects the
-\link[ellmer:chat]{ellmer} model used for source-grounded questions and
-Orientation. Its provider credential must also be available.
-\code{RILL_AGENT_BASE_URL} selects a custom provider endpoint and is required
-when Rill cannot resolve the effective endpoint itself.
-\code{RILL_ORIENTATION_ENABLED=true} makes automatic Orientation available; each
-Reader must still confirm the configured Data Destination in the app before
-bounded reading copies are sent. External destinations also require an
-inspectable provider-policy link in \code{RILL_AGENT_POLICY_URL}.
+\code{rill_app()} builds the Rill Shiny app from settings in environment
+variables. Without \code{DATABASE_URL}, it runs an in-memory demo with six
+bundled stories.
 }
+\section{Configuration}{
+
+These settings cover most installations:
+\itemize{
+\item \code{DATABASE_URL}: a PostgreSQL connection URL. Rill applies its schema
+migrations when the app starts.
+\item \code{RILL_AGENT_MODEL}: the model used by Ask Rill and Orientation, in any
+form that \code{\link[ellmer:chat]{ellmer::chat()}} accepts. Set the provider's API key as well.
+\item \code{RILL_IDENTITY_MODE}: \code{local} (the default) for a single reader, \code{auth0}
+for sign-in inside the app, or \code{oidc_proxy} behind an OpenID Connect
+proxy.
+\item \code{RILL_CAPTURE_TOKEN}: turns on \code{POST /api/v1/captures} for pages captured
+in a browser.
+}
+
+The
+\href{https://jameshwade.github.io/rill/articles/configuration.html}{configuration article}
+lists every setting.
+}
+
 \examples{
 if (interactive()) {
   shiny::runApp(rill_app())

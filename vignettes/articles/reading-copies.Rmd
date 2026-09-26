@@ -1,0 +1,126 @@
+---
+title: "Reading copies"
+---
+
+Rill never shows you a live web page. It shows a stored reading copy: a
+cleaned Markdown version of the article, saved with where it came from, when,
+and how it was made. Copies don't change once saved. A newer copy is added
+alongside the old one, and Ask Rill and Orientation always know which copy
+they read.
+
+A story can have three kinds of copy:
+
+- A feed copy, made from the content in the feed itself. Rill makes one the
+  first time you open a story, so the story appears straight away. It keeps
+  paragraphs, images, links, and lists, but many feeds only include an
+  excerpt.
+- A prepared copy of the full article, extracted from the public page with
+  [Defuddle](https://github.com/kepano/defuddle).
+- A captured copy, sent from your own browser. Use this for pages Rill can't
+  fetch itself, such as articles behind a login.
+
+## Preparing full articles
+
+Rill prepares full articles in a separate background process, so reading
+never waits on it:
+
+- after each feed refresh, for public articles from the past seven days that
+  don't have a copy yet;
+- after each scheduled `poll_feeds()` run, for up to 100 articles or ten
+  minutes of work;
+- when you choose **Prepare full article** on a story, or **Prepare** in the
+  Today view.
+
+When a full copy is ready for the story you're reading, Rill offers
+**Load full article** rather than swapping the text under you. Copies you
+captured in your browser are never replaced.
+
+Failed attempts are retried after 5, 10, 20, 40, and then 80 minutes. After
+five failures Rill stops retrying on its own, but you can still retry from the
+story once the last wait has passed. Some publishers block extraction. Those stories stay readable
+from the feed copy, and **Original** opens the publisher's page.
+
+Only public article URLs from your subscriptions are sent for extraction,
+never captured pages or anything about your reading. Rill keeps YouTube and
+Vimeo embeds, using their privacy-enhanced players in a sandbox, and removes
+other embedded frames and scripts.
+
+## Choosing an extractor
+
+By default Rill sends article URLs to the hosted Defuddle API at
+`defuddle.md`, which fetches and extracts the page. Set `DEFUDDLE_API_KEY` if
+you have a key.
+
+To keep extraction inside your installation, use the copy of the Defuddle
+command-line tool that ships with Rill. It needs Node.js 18 or later, or
+Deno 2 or later (Posit Connect Cloud provides Deno), and downloads nothing at
+run time:
+
+```text
+DEFUDDLE_BACKEND=local
+DEFUDDLE_COMMAND=bundled
+```
+
+To use your own installation instead, run `npm install -g defuddle` and set
+`DEFUDDLE_COMMAND=defuddle`, or set `DEFUDDLE_COMMAND` to the path of the
+executable. Rill runs `defuddle parse <url> --md --frontmatter` and applies
+the same public-URL check as the hosted backend.
+
+## Capturing pages from your browser
+
+When `RILL_CAPTURE_TOKEN` is set, the app accepts captured pages at
+`POST /api/v1/captures`. A browser extension or bookmarklet extracts the page
+in your signed-in browser and sends Rill the Markdown. Rill never sees your
+browser's cookies or passwords.
+
+```json
+{
+  "capture_id": "3f87de90-4302-4f3e-9e84-2f5d4c966abd",
+  "source_url": "https://example.com/article",
+  "canonical_url": "https://example.com/article",
+  "title": "An article worth keeping",
+  "author": "Ada Lovelace",
+  "site": "Example",
+  "published_at": "2026-08-29T12:30:00Z",
+  "markdown": "# An article worth keeping\n\nExact captured text.",
+  "captured_at": "2026-08-30T22:15:00Z",
+  "producer": "my-rill-clipper",
+  "producer_version": "1.0.0",
+  "metadata": {
+    "extraction_mode": "article"
+  }
+}
+```
+
+```sh
+curl --request POST "https://your-rill.example/api/v1/captures" \
+  --header "Authorization: Bearer $RILL_CAPTURE_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data @capture.json
+```
+
+`capture_id`, `source_url`, `title`, `markdown`, `captured_at`, and `producer`
+are required. `source_url` must be a public HTTP or HTTPS address, and the
+request body can be at most 5 MiB.
+
+Rill responds with `201` and the new entry and document IDs. Sending the same
+capture again returns `200` with the original IDs, so retries are safe.
+Reusing a `capture_id` with different content returns `409`.
+
+If the URL matches a story already in your Library, the capture becomes that
+story's reading copy. Otherwise Rill adds an unread story under
+**Local captures**. Captures belong to the Reader who owns the token: nobody
+else sees them, and they never replace another Reader's copy. Rill stores
+only a hash of the token.
+
+## Preparing copies from R
+
+`prepare_today()` prepares copies for everything published today, in the time
+zone of the R process. It needs `DATABASE_URL` and uses the same settings as
+the app. Each failure comes with a reference that matches an entry in the
+server log:
+
+```r
+result <- rill::prepare_today()
+result$failures
+```

@@ -1,23 +1,26 @@
-#' Poll due Feeds
+#' Poll feeds that are due
 #'
-#' `poll_feeds()` refreshes each shared Feed with at least one active
-#' Subscription when its polling interval has elapsed. Each run and per-Feed
-#' outcome is recorded in the durable store. Concurrent runs are skipped, and
-#' isolated Feed failures are tolerated until `RILL_POLL_FAILURE_THRESHOLD` is
-#' reached.
-#' After releasing the Feed lock, the poller prepares missing public article
-#' copies from the past seven days, up to 100 articles or ten minutes per run.
-#' Preparation runs even when Feed failures reach the threshold, before the
-#' poller signals the failure. Extraction failures are isolated and retried
-#' with durable backoff. Run logs include failure counts by condition class;
-#' source URLs and native error messages remain in the durable store.
+#' `poll_feeds()` refreshes each feed that at least one active reader follows
+#' once its polling interval has passed, then prepares recent full articles.
+#' Schedule it with `Rscript scripts/poll.R`. It needs `DATABASE_URL`.
 #'
-#' The due interval defaults to 60 minutes and can be changed with
-#' `RILL_POLL_INTERVAL_MINUTES`. The failure threshold defaults to five Feeds.
-#' Repeated failures back off from one hour to at most one day, without
-#' shortening the configured interval. Manual refresh bypasses this delay.
+#' Only one poll runs at a time: a call made while another is running returns
+#' without polling. Each feed's outcome is saved in the database. Feeds that
+#' keep failing are retried less often, from hourly up to daily; a manual
+#' refresh in the app still checks them straight away. After polling, Rill
+#' prepares up to 100 missing article copies from the past seven days, for at
+#' most ten minutes, even when feeds failed.
 #'
-#' @return Invisibly, a polling-run summary with per-Feed outcomes.
+#' Two environment variables control polling:
+#'
+#' * `RILL_POLL_INTERVAL_MINUTES` (default 60): minutes before a feed is
+#'   checked again.
+#' * `RILL_POLL_FAILURE_THRESHOLD` (default 5): the number of failed feeds
+#'   that makes the run signal an error.
+#'
+#' @return Invisibly, a summary of the run with one outcome per feed. When
+#'   failures reach the threshold, `poll_feeds()` signals an error of class
+#'   `rill_feed_poll_failure_threshold` instead, after preparing articles.
 #' @export
 poll_feeds <- function() {
   config <- rill_config()
