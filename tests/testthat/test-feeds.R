@@ -381,6 +381,42 @@ testthat::test_that("feeds decode the encoding declared in their XML prolog", {
   testthat::expect_identical(result$entries$title, "Crème brûlée")
 })
 
+testthat::test_that("UTF-16 feeds decode in full", {
+  rss <- paste0(
+    "<?xml version='1.0' encoding='UTF-16'?>",
+    "<rss version='2.0'><channel><title>Café</title>",
+    "<item><title>Crème brûlée</title>",
+    "<link>https://example.com/1</link></item></channel></rss>"
+  )
+  little_endian <- c(
+    as.raw(c(0xFF, 0xFE)),
+    iconv(rss, from = "UTF-8", to = "UTF-16LE", toRaw = TRUE)[[1L]]
+  )
+  big_endian <- c(
+    as.raw(c(0xFE, 0xFF)),
+    iconv(rss, from = "UTF-8", to = "UTF-16BE", toRaw = TRUE)[[1L]]
+  )
+  fetch <- function(body, content_type) {
+    httr2::local_mocked_responses(function(req) {
+      httr2::response(
+        200L,
+        req$url,
+        headers = list(`Content-Type` = content_type),
+        body = body
+      )
+    })
+    fetch_feed("https://example.com/feed.xml")
+  }
+
+  declared <- fetch(little_endian, "application/rss+xml; charset=UTF-16")
+  sniffed <- fetch(big_endian, "application/rss+xml")
+
+  testthat::expect_identical(declared$feed$title, "Café")
+  testthat::expect_identical(declared$entries$title, "Crème brûlée")
+  testthat::expect_identical(sniffed$feed$title, "Café")
+  testthat::expect_identical(sniffed$entries$title, "Crème brûlée")
+})
+
 testthat::test_that("feed retries only honour short Retry-After waits", {
   short <- httr2::response(503L, headers = list(`Retry-After` = "5"))
   long <- httr2::response(503L, headers = list(`Retry-After` = "86400"))
