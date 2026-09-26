@@ -2090,7 +2090,7 @@ testthat::test_that("library refreshes keep unsaved feed edits in Manage feeds",
     testthat::expect_identical(renders, rendered)
     testthat::expect_match(
       output$managed_feed_status$html,
-      "Last check failed",
+      "The last check failed",
       fixed = TRUE
     )
 
@@ -6007,6 +6007,8 @@ testthat::test_that("Group management and combined reading share a single queue 
       remove_feed_groups = NULL,
       apply_reading_groups = NULL,
       delete_group = NULL,
+      confirm_delete_group = NULL,
+      cancel_delete_group = NULL,
       rename_group = NULL
     )
     session$setInputs(new_group_name = "AI", create_group = 1L)
@@ -6045,6 +6047,17 @@ testthat::test_that("Group management and combined reading share a single queue 
     )
     testthat::expect_match(selected_feed_title(), "Software", fixed = TRUE)
     session$setInputs(delete_group = 1L)
+    testthat::expect_contains(feed_groups()$group_id, engineering)
+    testthat::expect_match(
+      output$group_delete_confirmation$html,
+      "Delete Software?",
+      fixed = TRUE
+    )
+    session$setInputs(cancel_delete_group = 1L)
+    testthat::expect_null(pending_group_delete())
+    session$setInputs(delete_group = 2L)
+    session$setInputs(confirm_delete_group = 1L)
+    testthat::expect_disjoint(feed_groups()$group_id, engineering)
     testthat::expect_identical(selected_group_ids(), ai)
     testthat::expect_setequal(queue_entries()$feed_id, ids[1:2])
     session$setInputs(

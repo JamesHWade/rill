@@ -1,5 +1,15 @@
 # rill 0.0.0.9000
 
+* Manage feeds starts with adding a feed, keeps Done and a close button in view while its body scrolls, makes Retry failed feeds a secondary action, gathers the Group tools under one heading, and asks before deleting a Group (#99).
+
+* Ask Rill shows its greeting again after you open a story. Clearing the conversation for a new story used to remove the greeting until the page reloaded.
+
+* The rating buttons in Orientation and Ask Rill are smaller, and Browse unread stories now comes before Rate this Orientation.
+
+* Story cards take a feed's initials from its first two words, skipping "The" ("The R Blog" is RB, not TH), and feed details say when a feed was last checked in words such as "2 hours ago".
+
+* On touch screens, a thin strip of the swipe action shows at the edge of each story, hinting that stories can be swiped (#100).
+
 * The demo opens with six short stories that walk through reading, the keyboard, Ask Rill, Orientation, keeping your Library, and browser captures. They replace placeholder articles attributed to R Core, Posit, and CRAN.
 
 * Interface text is shorter and plainer. Ask Rill, Orientation, and the reading-copy details say what they do and what they send in everyday terms, Orientation settings name the environment variable to set when something is missing, and long Orientation quotes end at a word instead of mid-word.

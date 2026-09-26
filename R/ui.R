@@ -74,6 +74,31 @@ rill_ui <- function(config) {
   )
 }
 
+rill_modal_dialog <- function(title, ..., id = "rill-modal") {
+  title_id <- paste0(id, "-title")
+  modal <- shiny::modalDialog(
+    title = shiny::tags$span(id = title_id, title),
+    ...
+  )
+  modal <- htmltools::tagQuery(modal)$find(".modal-dialog")$addClass(
+    "modal-dialog-scrollable"
+  )$reset()$find(".modal-header")$append(
+    shiny::tags$button(
+      type = "button",
+      class = "btn-close",
+      `data-bs-dismiss` = "modal",
+      `data-dismiss` = "modal",
+      `aria-label` = "Close"
+    )
+  )$allTags()
+  htmltools::tagAppendAttributes(
+    modal,
+    role = "dialog",
+    `aria-modal` = "true",
+    `aria-labelledby` = title_id
+  )
+}
+
 rill_skip_link_ui <- function() {
   shiny::tags$a(
     class = "rill-skip-link",
@@ -1169,14 +1194,14 @@ orientation_ui <- function(
         orientation_failure_ui(failure),
         orientation_retry_button(failure, "retry_orientation"),
         orientation_processing_ui(processing_note),
+        orientation_browse_button("Browse unread stories"),
         if (store_scalar_string(feedback_token)) {
           feedback_action_button(
             "rate_orientation",
             "Rate this Orientation",
             feedback_token
           )
-        },
-        orientation_browse_button("Browse unread stories")
+        }
       )
     ),
     shiny::tags$div(
@@ -1729,9 +1754,10 @@ feed_manager_choices <- function(feeds) {
 }
 
 feed_manager_ui <- function(feeds, selected = NULL) {
-  shiny::modalDialog(
+  rill_modal_dialog(
     title = "Manage feeds",
     feed_tools_ui(feeds, selected),
+    id = "feed-manager",
     size = "l",
     easyClose = TRUE,
     footer = shiny::modalButton("Done")
@@ -1739,31 +1765,89 @@ feed_manager_ui <- function(feeds, selected = NULL) {
 }
 
 feed_tools_ui <- function(feeds = NULL, selected = NULL) {
-  bslib::layout_columns(
-    col_widths = c(12, 12, 6, 6),
-    fill = FALSE,
+  shiny::tags$div(
     class = "feed-tools",
-    shiny::tags$div(
+    bslib::layout_columns(
+      col_widths = c(6, 6),
+      fill = FALSE,
       class = "feed-tool-section",
-      shiny::tags$h3("Refresh your Library"),
-      shiny::uiOutput("feed_refresh_status"),
-      bslib::input_task_button(
-        "refresh_library",
-        "Refresh all feeds",
-        auto_reset = FALSE
+      shiny::tags$div(
+        shiny::tags$h3("Add a feed"),
+        shiny::tags$label(
+          class = "visually-hidden",
+          `for` = "new_feed_url",
+          "Feed or website URL"
+        ),
+        shiny::textInput(
+          "new_feed_url",
+          label = NULL,
+          placeholder = "Feed or website URL"
+        ),
+        bslib::input_task_button(
+          "add_feed",
+          "Add feed",
+          class = "btn-add-feed"
+        )
       ),
-      bslib::input_task_button(
-        "retry_failed_feeds",
-        "Retry failed feeds",
-        auto_reset = FALSE
+      shiny::tags$div(
+        class = "opml-tools",
+        shiny::tags$h3("Import and export"),
+        shiny::tags$div(
+          class = "opml-actions",
+          shiny::tags$div(
+            class = "opml-upload",
+            shiny::fileInput(
+              "import_opml",
+              label = NULL,
+              accept = c(".opml", ".xml", "text/x-opml", "application/xml"),
+              buttonLabel = shiny::tagList(
+                bsicons::bs_icon("upload"),
+                "Import OPML"
+              ),
+              placeholder = "No file selected"
+            )
+          ),
+          shiny::downloadButton(
+            "export_opml",
+            "Export OPML",
+            icon = bsicons::bs_icon("download"),
+            class = "btn-opml-export"
+          )
+        ),
+        shiny::tags$p(
+          class = "feed-tool-help",
+          paste(
+            "Exports keep every Group a feed belongs to. Other readers may",
+            "keep only one per feed."
+          )
+        )
       )
     ),
-    shiny::tags$div(
+    shiny::tags$section(
+      class = "feed-tool-section",
+      shiny::tags$h3("Check for new stories"),
+      shiny::uiOutput("feed_refresh_status"),
+      shiny::tags$div(
+        class = "feed-tool-actions",
+        bslib::input_task_button(
+          "refresh_library",
+          "Refresh all feeds",
+          auto_reset = FALSE
+        ),
+        bslib::input_task_button(
+          "retry_failed_feeds",
+          "Retry failed feeds",
+          type = "default",
+          auto_reset = FALSE
+        )
+      )
+    ),
+    shiny::tags$section(
       class = "feed-tool-section rename-feed-tools",
-      shiny::tags$h3("Find and organize a feed"),
+      shiny::tags$h3("Edit a feed"),
       shiny::selectizeInput(
         "managed_feed",
-        "Search by feed name or Group",
+        "Feed",
         choices = if (is.null(feeds)) {
           c("Choose a feed" = "")
         } else {
@@ -1772,54 +1856,9 @@ feed_tools_ui <- function(feeds = NULL, selected = NULL) {
         selected = selected %||% "",
         width = "100%"
       ),
-      shiny::uiOutput("feed_organization_control"),
-      shiny::uiOutput("group_management_control")
+      shiny::uiOutput("feed_organization_control")
     ),
-    shiny::tags$div(
-      class = "feed-tool-section",
-      shiny::tags$h3("Add a feed"),
-      shiny::tags$label(
-        class = "visually-hidden",
-        `for` = "new_feed_url",
-        "Feed or website URL"
-      ),
-      shiny::textInput(
-        "new_feed_url",
-        label = NULL,
-        placeholder = "Feed or website URL"
-      ),
-      bslib::input_task_button("add_feed", "Add feed", class = "btn-add-feed")
-    ),
-    shiny::tags$div(
-      class = "feed-tool-section opml-tools",
-      shiny::tags$h3("Import and export"),
-      shiny::tags$div(
-        class = "opml-actions",
-        shiny::tags$div(
-          class = "opml-upload",
-          shiny::fileInput(
-            "import_opml",
-            label = NULL,
-            accept = c(".opml", ".xml", "text/x-opml", "application/xml"),
-            buttonLabel = shiny::tagList(
-              bsicons::bs_icon("upload"),
-              "Import OPML"
-            ),
-            placeholder = "No file selected"
-          )
-        ),
-        shiny::downloadButton(
-          "export_opml",
-          "Export OPML",
-          icon = bsicons::bs_icon("download"),
-          class = "btn-opml-export"
-        )
-      ),
-      shiny::tags$p(
-        class = "feed-tool-help",
-        "Rill preserves all Groups on export and import. Other readers may keep only one Group per feed."
-      )
-    )
+    shiny::uiOutput("group_management_control")
   )
 }
 
@@ -1828,13 +1867,17 @@ feed_poll_status_ui <- function(feed) {
     role = "status",
     if (identical(feed$poll_status, "failed")) {
       paste(
-        "Last check failed. Scheduled retries may be delayed after repeated failures.",
-        "Retry this feed now or check its source URL."
+        "The last check failed, and automatic retries slow down after",
+        "repeated failures. Refresh this feed to try now, or check its",
+        "address."
       )
-    } else if (is.null(feed$last_polled_at) || is.na(feed$last_polled_at)) {
-      "Not checked yet."
     } else {
-      paste("Last checked:", feed$last_polled_at)
+      checked <- format_checked_time(feed$last_polled_at)
+      if (is.null(checked)) {
+        "Not checked yet."
+      } else {
+        paste("Last checked", checked)
+      }
     }
   )
 }
@@ -1911,11 +1954,11 @@ feed_organization_control_ui <- function(
       class = "feed-tool-help",
       if (identical(feed$source_kind %||% "subscription", "subscription")) {
         paste(
-          "The source stays shared. Unsubscribing hides it from this Library",
-          "but preserves reading state for restoration."
+          "Unsubscribing hides the feed and keeps your reading state, so you",
+          "can restore it later."
         )
       } else {
-        "Captured items are Reader-owned and cannot be unsubscribed as a Feed."
+        "Pages you captured stay in your Library and can't be unsubscribed."
       }
     )
   )
@@ -1959,6 +2002,30 @@ parse_story_time <- function(value) {
   )
 }
 
+format_checked_time <- function(value, now = Sys.time()) {
+  parsed <- parse_story_time(value)
+  if (length(parsed) == 0L || is.na(parsed)) {
+    return(NULL)
+  }
+  minutes <- floor(as.numeric(difftime(now, parsed, units = "mins")))
+  ago <- function(count, unit) {
+    paste(count, if (count == 1) unit else paste0(unit, "s"), "ago")
+  }
+  if (minutes < 1) {
+    return("just now")
+  }
+  if (minutes < 60) {
+    return(ago(minutes, "minute"))
+  }
+  if (minutes < 1440) {
+    return(ago(floor(minutes / 60), "hour"))
+  }
+  if (minutes < 10080) {
+    return(ago(floor(minutes / 1440), "day"))
+  }
+  paste("on", gsub(" +", " ", format(parsed, "%b %e, %Y")))
+}
+
 format_story_time <- function(value, now = Sys.time()) {
   parsed <- parse_story_time(value)
   if (length(parsed) == 0L || is.na(parsed)) {
@@ -1977,6 +2044,22 @@ format_story_time <- function(value, now = Sys.time()) {
   format(parsed, "%b %e")
 }
 
+source_initials <- function(source) {
+  words <- strsplit(source, "[^\\p{L}\\p{N}]+", perl = TRUE)[[1L]]
+  words <- words[nzchar(words)]
+  names <- words[!tolower(words) %in% c("a", "an", "the")]
+  if (length(names)) {
+    words <- names
+  }
+  if (!length(words)) {
+    return(toupper(substr(source, 1L, 2L)))
+  }
+  if (length(words) == 1L) {
+    return(toupper(substr(words[[1L]], 1L, 2L)))
+  }
+  toupper(paste0(substr(words[[1L]], 1L, 1L), substr(words[[2L]], 1L, 1L)))
+}
+
 story_card <- function(
   entry,
   index,
@@ -1993,7 +2076,7 @@ story_card <- function(
   } else {
     "Source"
   }
-  initials <- toupper(substr(source, 1L, 2L))
+  initials <- source_initials(source)
   author <- if (store_scalar_string(entry$author)) entry$author else NULL
   byline <- paste(
     c(author, time_label),
@@ -2322,45 +2405,86 @@ group_management_ui <- function(feeds, groups) {
     drop = FALSE
   ]
   choices <- stats::setNames(groups$group_id, groups$name)
-  shiny::tagList(
-    shiny::tags$hr(),
-    shiny::tags$h3("Organize several feeds"),
-    shiny::selectizeInput(
-      "bulk_group_feeds",
-      "Search feeds by name or Group",
-      choices = feed_manager_choices(active)[-1],
-      multiple = TRUE,
-      options = list(closeAfterSelect = TRUE),
-      width = "100%"
+  shiny::tags$section(
+    class = "feed-tool-section group-tools",
+    shiny::tags$h3("Groups"),
+    shiny::tags$div(
+      class = "feed-tool-subsection",
+      shiny::tags$h4("Change Groups for several feeds"),
+      shiny::selectizeInput(
+        "bulk_group_feeds",
+        "Feeds",
+        choices = feed_manager_choices(active)[-1],
+        multiple = TRUE,
+        options = list(closeAfterSelect = TRUE),
+        width = "100%"
+      ),
+      shiny::selectizeInput(
+        "bulk_groups",
+        "Groups",
+        choices = choices,
+        multiple = TRUE,
+        options = list(closeAfterSelect = TRUE),
+        width = "100%"
+      ),
+      shiny::tags$div(
+        class = "feed-tool-actions",
+        shiny::actionButton("add_feed_groups", "Add to Groups"),
+        shiny::actionButton("remove_feed_groups", "Remove from Groups")
+      )
     ),
-    shiny::selectizeInput(
-      "bulk_groups",
-      "Groups to add or remove",
-      choices = choices,
-      multiple = TRUE,
-      options = list(closeAfterSelect = TRUE),
-      width = "100%"
+    shiny::tags$div(
+      class = "feed-tool-subsection",
+      shiny::tags$h4("Create a Group"),
+      shiny::textInput("new_group_name", "Name"),
+      shiny::actionButton("create_group", "Create Group")
     ),
-    shiny::actionButton("add_feed_groups", "Add Groups"),
-    shiny::actionButton("remove_feed_groups", "Remove Groups"),
-    shiny::tags$h3("Manage Groups"),
-    shiny::textInput("new_group_name", "New Group name"),
-    shiny::actionButton("create_group", "Create Group"),
-    shiny::selectInput(
-      "managed_group",
-      "Group",
-      choices = c("Choose a Group" = "", choices)
-    ),
-    shiny::textInput("group_name", "New name"),
-    shiny::actionButton("rename_group", "Rename Group"),
-    shiny::tags$p(
-      class = "feed-tool-help",
-      "Deleting a Group removes its memberships. Your feeds and reading state are kept."
-    ),
-    shiny::actionButton("delete_group", "Delete Group")
+    shiny::tags$div(
+      class = "feed-tool-subsection",
+      shiny::tags$h4("Rename or delete a Group"),
+      shiny::selectInput(
+        "managed_group",
+        "Group",
+        choices = c("Choose a Group" = "", choices)
+      ),
+      shiny::textInput("group_name", "New name"),
+      shiny::tags$div(
+        class = "feed-tool-actions",
+        shiny::actionButton("rename_group", "Rename Group"),
+        shiny::actionButton(
+          "delete_group",
+          "Delete Group",
+          class = "btn-delete-group"
+        )
+      ),
+      shiny::uiOutput("group_delete_confirmation")
+    )
   )
 }
 
+group_delete_confirmation_ui <- function(name) {
+  shiny::tags$div(
+    class = "group-delete-confirmation",
+    role = "alert",
+    shiny::tags$p(
+      paste0(
+        "Delete ",
+        name,
+        "? Its feeds leave the Group but stay in your Library with their ",
+        "reading state."
+      )
+    ),
+    shiny::tags$div(
+      class = "feed-tool-actions",
+      shiny::actionButton(
+        "confirm_delete_group",
+        paste("Delete", name),
+        class = "btn-delete-group"
+      ),
+      shiny::actionButton("cancel_delete_group", "Cancel")
+    )
+  )
+}
 
 group_reading_control_ui <- function() {
   shiny::tags$details(

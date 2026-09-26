@@ -100,6 +100,83 @@ testthat::test_that("invalid story times render without a label", {
   testthat::expect_identical(format_story_time("not-a-time"), "")
 })
 
+testthat::test_that("feed check times read as elapsed time", {
+  now <- as.POSIXct("2026-09-26 12:00:00", tz = "UTC")
+  checked <- function(value) format_checked_time(value, now = now)
+
+  testthat::expect_identical(checked("2026-09-26 11:59:40"), "just now")
+  testthat::expect_identical(checked("2026-09-26 11:59:00"), "1 minute ago")
+  testthat::expect_identical(checked("2026-09-26 09:30:00"), "2 hours ago")
+  testthat::expect_identical(checked("2026-09-23 12:00:00"), "3 days ago")
+  testthat::expect_identical(checked("2026-08-02 12:00:00"), "on Aug 2, 2026")
+  testthat::expect_null(checked(NA_character_))
+})
+
+testthat::test_that("source initials skip articles and use two words", {
+  testthat::expect_identical(source_initials("The R Blog"), "RB")
+  testthat::expect_identical(source_initials("Posit Blog"), "PB")
+  testthat::expect_identical(source_initials("R-bloggers"), "RB")
+  testthat::expect_identical(source_initials("The Verge"), "VE")
+  testthat::expect_identical(source_initials("xkcd"), "XK")
+  testthat::expect_identical(source_initials("\u00c9lan Vital"), "\u00c9V")
+})
+
+testthat::test_that("Manage feeds scrolls inside a closable dialog", {
+  dialog <- feed_manager_ui(NULL)
+  html <- htmltools::renderTags(dialog)$html
+
+  testthat::expect_match(html, "modal-dialog-scrollable", fixed = TRUE)
+  testthat::expect_match(html, 'class="btn-close"', fixed = TRUE)
+  testthat::expect_identical(
+    dialog$attribs$`aria-labelledby`,
+    "feed-manager-title"
+  )
+  testthat::expect_match(html, 'id="feed-manager-title"', fixed = TRUE)
+  headings <- xml2::xml_text(xml2::xml_find_all(
+    xml2::read_html(html),
+    "//h3"
+  ))
+  testthat::expect_identical(
+    headings,
+    c("Add a feed", "Import and export", "Check for new stories", "Edit a feed")
+  )
+})
+
+testthat::test_that("deleting a Group is a separate, confirmed step", {
+  groups <- data.frame(group_id = "group-1", name = "Research")
+  feeds <- data.frame(
+    feed_id = "feed",
+    title = "R Weekly",
+    folder = "Unsorted",
+    source_kind = "subscription",
+    status = "active",
+    poll_status = "new"
+  )
+  feeds$groups <- list("Research")
+  html <- htmltools::renderTags(group_management_ui(feeds, groups))$html
+  button <- xml2::xml_find_first(
+    xml2::read_html(html),
+    "//button[@id='delete_group']"
+  )
+  testthat::expect_match(
+    xml2::xml_attr(button, "class"),
+    "btn-delete-group",
+    fixed = TRUE
+  )
+  testthat::expect_match(html, 'id="group_delete_confirmation"', fixed = TRUE)
+
+  confirmation <- htmltools::renderTags(
+    group_delete_confirmation_ui("Research")
+  )$html
+  testthat::expect_match(confirmation, "Delete Research?", fixed = TRUE)
+  testthat::expect_match(
+    confirmation,
+    'id="confirm_delete_group"',
+    fixed = TRUE
+  )
+  testthat::expect_match(confirmation, 'id="cancel_delete_group"', fixed = TRUE)
+})
+
 testthat::test_that("feed management exposes OPML import and export", {
   html <- htmltools::renderTags(feed_tools_ui())$html
 
@@ -968,6 +1045,7 @@ testthat::test_that("queue actions have a named button and explicit state", {
   testthat::expect_no_match(html, 'class="story-actions" hidden', fixed = TRUE)
   testthat::expect_match(html, 'aria-pressed="true"', fixed = TRUE)
   testthat::expect_match(html, '>Saved</span>', fixed = TRUE)
+  testthat::expect_match(html, ">RB</span>", fixed = TRUE)
 })
 
 testthat::test_that("agent states announce progress and expose recovery", {
