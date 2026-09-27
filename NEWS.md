@@ -2,6 +2,8 @@
 
 * Orientation keeps its bounded candidate Documents inline for the agent, so large unread windows no longer exhaust the request budget while fetching tool-result chunks.
 
+* Orientation updates get more room: 6 model requests, 160,000 tokens, and three minutes, so an update with many unread stories can still correct a rejected quote and finish (#116).
+
 * Manage feeds starts with adding a feed, keeps Done and a close button in view while its body scrolls, makes Retry failed feeds a secondary action, gathers the Group tools under one heading, and asks before deleting a Group (#99).
 
 * Ask Rill shows its greeting again after you open a story. Clearing the conversation for a new story used to remove the greeting until the page reloaded (#112).
