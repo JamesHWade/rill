@@ -106,6 +106,7 @@ testthat::test_that("Orientation maintenance is deterministic and source-pinned"
     run$pinned_inputs$limits,
     rill_orientation_run_limits()
   )
+  testthat::expect_identical(run$pinned_inputs$source_tool_format, "json-v1")
   roundtrip <- jsonlite::fromJSON(
     agent_run_json(run$pinned_inputs),
     simplifyVector = TRUE
@@ -331,7 +332,10 @@ testthat::test_that("Orientation publishes an accepted correction after rejected
     state <<- rill_orientation_tool_state()
     attr(agent, "rill_orientation_tool_state") <- state
     agent$run_async <- function(...) {
-      source <- rill_orientation_source_tool(candidates, state)()
+      source <- jsonlite::fromJSON(
+        rill_orientation_source_tool(candidates, state)(),
+        simplifyVector = FALSE
+      )
       submit <- rill_orientation_submit_tool(state)
       cards <- list(list(
         document_id = source[[1L]]$document_id,

@@ -187,13 +187,20 @@ rill_orientation_agent_tool_state <- function(agent) {
 
 rill_orientation_source_tool <- function(candidates, state = NULL) {
   supplied <- rill_orientation_source_payload(candidates)
+  supplied_json <- as.character(jsonlite::toJSON(
+    supplied,
+    auto_unbox = TRUE,
+    null = "null",
+    na = "null",
+    digits = NA
+  ))
   ellmer::tool(
     fun = function() {
       if (!is.null(state)) {
         state$source_calls <- state$source_calls + 1L
         state$source_payload <- supplied
       }
-      supplied
+      supplied_json
     },
     name = "read_orientation_candidates",
     description = paste(

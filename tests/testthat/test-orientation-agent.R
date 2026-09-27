@@ -3,7 +3,7 @@ testthat::test_that("the Orientation Agent receives only bounded candidate Docum
   candidates <- orientation_candidates(store, "reader-1", limit = 3L)
 
   source_tool <- rill_orientation_source_tool(candidates)
-  supplied <- source_tool()
+  supplied <- jsonlite::fromJSON(source_tool(), simplifyVector = FALSE)
   prompt <- rill_orientation_system_prompt()
   permissions <- rill_orientation_permissions()
   limits <- rill_orientation_usage_limits()
@@ -159,7 +159,10 @@ testthat::test_that("Orientation bounds long reading copies before model use", {
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   candidates[[1L]]$document$markdown <- strrep("source ", 3000L)
 
-  supplied <- rill_orientation_source_tool(candidates)()
+  supplied <- jsonlite::fromJSON(
+    rill_orientation_source_tool(candidates)(),
+    simplifyVector = FALSE
+  )
 
   testthat::expect_lte(
     rill_orientation_json_bytes(supplied[[1L]]$markdown),
@@ -246,7 +249,7 @@ testthat::test_that("Source Evidence cannot quote Rill's truncation marker", {
 testthat::test_that("the complete Orientation tool stays below Deputy offload", {
   store <- local_orientation_backend_store("memory", "reader-1")
   candidate <- orientation_candidates(store, "reader-1", limit = 1L)[[1L]]
-  candidates <- lapply(seq_len(12L), function(index) {
+  candidates <- lapply(seq_len(36L), function(index) {
     copy <- candidate
     copy$entry$entry_id <- paste0("entry-", index)
     copy$document$entry_id <- copy$entry$entry_id
@@ -255,14 +258,33 @@ testthat::test_that("the complete Orientation tool stays below Deputy offload", 
     copy
   })
 
-  payload <- rill_orientation_source_tool(candidates)()
-  bytes <- nchar(
-    orientation_json(payload),
-    type = "bytes"
+  payload <- rill_orientation_source_payload(candidates)
+  result <- rill_orientation_source_tool(candidates)()
+  bytes <- rill_orientation_json_bytes(payload)
+  serialized_bytes <- length(serialize(result, NULL, version = 3L))
+  chat <- ellmer::chat_openai(
+    credentials = \() "test-key",
+    model = "gpt-5.6-terra"
+  )
+  agent <- rill_orientation_agent(
+    candidates = candidates,
+    reader_id = "reader-1",
+    session_id = "orientation-worker-1",
+    boundary_hash = "test-boundary",
+    chat = chat
   )
 
   testthat::expect_lt(bytes, 65536L)
   testthat::expect_lte(bytes, 60000L)
+  testthat::expect_type(result, "character")
+  testthat::expect_identical(
+    jsonlite::fromJSON(result, simplifyVector = FALSE),
+    jsonlite::fromJSON(orientation_json(payload), simplifyVector = FALSE)
+  )
+  testthat::expect_lte(
+    serialized_bytes,
+    agent$context_policy$max_tool_result_bytes
+  )
 })
 
 testthat::test_that("Orientation uses Deputy's governed asynchronous path", {
@@ -367,7 +389,10 @@ testthat::test_that("invalid editorial content stays correctable before acceptan
   store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   state <- rill_orientation_tool_state()
-  source <- rill_orientation_source_tool(candidates, state)()
+  source <- jsonlite::fromJSON(
+    rill_orientation_source_tool(candidates, state)(),
+    simplifyVector = FALSE
+  )
   submit <- rill_orientation_submit_tool(state)
   output <- list(
     status = "One source deserves attention.",
@@ -413,7 +438,10 @@ testthat::test_that("invalid Source Evidence can be corrected before submission 
   store <- local_orientation_backend_store("memory", "reader-1")
   candidates <- orientation_candidates(store, "reader-1", limit = 1L)
   state <- rill_orientation_tool_state()
-  source <- rill_orientation_source_tool(candidates, state)()
+  source <- jsonlite::fromJSON(
+    rill_orientation_source_tool(candidates, state)(),
+    simplifyVector = FALSE
+  )
   submit <- rill_orientation_submit_tool(state)
   output <- list(
     status = "One source deserves attention.",
