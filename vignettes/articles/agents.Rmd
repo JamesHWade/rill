@@ -63,8 +63,9 @@ installation; any other endpoint is external. If Rill can't determine the
 endpoint for a provider, set `RILL_AGENT_BASE_URL`.
 
 Rill checks every quoted passage against the text it supplied and returns
-mismatches to the agent to correct. An update gets 4 model requests, 8 tool
-calls, 64,000 tokens, US$0.50, and two minutes. If you ask a question while
+mismatches to the agent to correct. An update gets 6 model requests, 8 tool
+calls, 160,000 tokens, US$0.50, and three minutes. A typical update uses 3
+requests; the rest leaves room to correct quotes. If you ask a question while
 Orientation is updating, Rill stops the update and answers your question
 first.
 

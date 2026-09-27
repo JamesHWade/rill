@@ -313,18 +313,21 @@ rill_orientation_permissions <- function() {
   )
 }
 
+# Deputy counts these across the whole run, and every request after the first
+# resends the candidate list (up to about 60 KB). A normal update takes three
+# requests; the headroom lets the agent correct rejected quotes twice.
 rill_orientation_usage_limits <- function() {
   deputy::UsageLimits(
-    max_requests = 4L,
+    max_requests = 6L,
     max_tool_calls = 8L,
-    max_total_tokens = 64000L,
-    max_output_tokens = 4000L,
+    max_total_tokens = 160000L,
+    max_output_tokens = 16000L,
     max_cost_usd = 0.5
   )
 }
 
 rill_orientation_wall_time_seconds <- function() {
-  2 * 60
+  3 * 60
 }
 
 rill_orientation_run_limits <- function() {
