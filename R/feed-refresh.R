@@ -246,10 +246,30 @@ close_feed_refresh <- function(job) {
   if (job$process$is_alive()) {
     job$process$kill()
   }
-  unlink(job$directory, recursive = TRUE)
+  remove_worker_directory(job$directory)
   if (identical(job$store$mode, "memory")) {
     job$store$memory$feed_poll_locked <- FALSE
   }
   job$closed <- TRUE
   invisible(NULL)
+}
+
+# Windows removes a deleted file, and so the directory holding it, only once
+# every handle to the file is closed. A worker that was just stopped, or a virus
+# scanner reading its logs, can hold one for a moment, so keep trying briefly.
+remove_worker_directory <- function(directory, attempts = 10L, pause = 0.05) {
+  for (attempt in seq_len(attempts)) {
+    if (attempt > 1L) {
+      Sys.sleep(pause)
+    }
+    unlink_directory(directory)
+    if (!dir.exists(directory)) {
+      return(invisible(TRUE))
+    }
+  }
+  invisible(FALSE)
+}
+
+unlink_directory <- function(directory) {
+  unlink(directory, recursive = TRUE)
 }
