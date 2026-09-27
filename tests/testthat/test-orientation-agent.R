@@ -99,12 +99,12 @@ testthat::test_that("the Orientation Agent receives only bounded candidate Docum
     permissions$tool_allowlist,
     c("read_orientation_candidates", "submit_orientation")
   )
-  testthat::expect_identical(limits$max_requests, 4L)
+  testthat::expect_identical(limits$max_requests, 6L)
   testthat::expect_identical(limits$max_tool_calls, 8L)
-  testthat::expect_identical(limits$max_total_tokens, 64000L)
-  testthat::expect_identical(limits$max_output_tokens, 4000L)
+  testthat::expect_identical(limits$max_total_tokens, 160000L)
+  testthat::expect_identical(limits$max_output_tokens, 16000L)
   testthat::expect_identical(limits$max_cost_usd, 0.5)
-  testthat::expect_identical(rill_orientation_wall_time_seconds(), 2 * 60)
+  testthat::expect_identical(rill_orientation_wall_time_seconds(), 3 * 60)
 })
 
 testthat::test_that("Orientation submission is typed, ordered, and singular", {
