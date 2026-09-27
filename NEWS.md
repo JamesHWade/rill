@@ -1,6 +1,6 @@
 # rill 0.0.0.9000
 
-* Orientation keeps its bounded candidate Documents inline for the agent, so large unread windows no longer exhaust the request budget while fetching tool-result chunks.
+* Orientation finishes again when you have many unread stories. Its list of stories was being split into pieces, and fetching them used up the update's requests before it could make picks (#115).
 
 * Orientation updates get more room: 6 model requests, 160,000 tokens, and three minutes, so an update with many unread stories can still correct a rejected quote and finish (#116).
 
