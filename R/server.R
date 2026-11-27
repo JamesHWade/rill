@@ -1,86 +1,3 @@
-rill_question_interrupt_registry <- new.env(parent = emptyenv())
-rill_question_terminal_intents <- new.env(parent = emptyenv())
-rill_question_drain_registry <- new.env(parent = emptyenv())
-
-rill_register_question_interrupt <- function(run_id, interrupt) {
-  rill_question_interrupt_registry[[run_id]] <- interrupt
-  invisible(NULL)
-}
-
-rill_unregister_question_interrupt <- function(run_id) {
-  rill_question_interrupt_registry[[run_id]] <- NULL
-  drain <- rill_question_drain_registry[[run_id]]
-  if (!is.null(drain) && is.function(drain$cancel)) {
-    try(drain$cancel(), silent = TRUE)
-  }
-  rill_question_drain_registry[[run_id]] <- NULL
-  invisible(NULL)
-}
-
-rill_register_question_drain <- function(run_id, on_result, cancel) {
-  rill_question_drain_registry[[run_id]] <- list(
-    on_result = on_result,
-    cancel = cancel
-  )
-  invisible(NULL)
-}
-
-rill_signal_question_interrupt <- function(run_id, reason, fallback = NULL) {
-  interrupt <- rill_question_interrupt_registry[[run_id]]
-  if (!is.function(interrupt)) {
-    interrupt <- fallback
-  }
-  result <- if (is.function(interrupt)) {
-    tryCatch(interrupt(reason), error = \(error) NA)
-  } else {
-    NULL
-  }
-  drain <- rill_question_drain_registry[[run_id]]
-  if (!is.null(drain) && is.function(drain$on_result)) {
-    drain$on_result(reason, result)
-  }
-  result
-}
-
-rill_question_cancellation_confirmed <- function(
-  reason,
-  requested_reason = NULL
-) {
-  is.character(reason) &&
-    length(reason) == 1L &&
-    !is.na(reason) &&
-    reason %in% unique(c("cancelled", "reader_cancelled", requested_reason))
-}
-
-rill_assert_question_runtime_identity <- function(pinned_inputs, runtime) {
-  if (is.null(pinned_inputs)) {
-    return(invisible(runtime))
-  }
-  expected <- list(
-    model = pinned_inputs$model %||% NULL,
-    data_destination = pinned_inputs$data_destination %||% NULL,
-    data_destination_id = pinned_inputs$data_destination_id %||% NULL
-  )
-  actual <- list(
-    model = runtime$model %||% NULL,
-    data_destination = runtime$data_destination %||% NULL,
-    data_destination_id = runtime$data_destination_id %||% NULL
-  )
-  if (!identical(expected, actual)) {
-    cli::cli_abort(
-      c(
-        "Rill's model changed before it could answer.",
-        "i" = "Ask again to send your question to the new model."
-      ),
-      class = "rill_agent_runtime_identity_changed"
-    )
-  }
-  invisible(runtime)
-}
-
-# `later` and `onFlushed` callbacks run outside any reactive context, so
-# reading a reactive value there fails, and an uncaught error in a `later`
-# callback stops the R process for every session. Run them in the session's
 # domain, isolated, and log failures instead.
 rill_session_callback <- function(session, callback) {
   force(session)
@@ -193,15 +110,9 @@ rill_server <- function(
       feed_management_tick()
       store_list_groups(store, actor_id)
     })
-    orientation_preparing <- shiny::reactiveVal(FALSE)
     orientation_control <- shiny::reactiveVal(NULL)
-    orientation_failure <- shiny::reactiveVal(NULL)
     orientation_attempted_boundary <- shiny::reactiveVal(NULL)
-    orientation_destination_tick <- shiny::reactiveVal(0L)
-    orientation_destination_poll_token <- NULL
     browse_queue_pending <- shiny::reactiveVal(FALSE)
-    orientation_poll_token <- NULL
-    orientation_retry_cancel <- NULL
     retained_ids <- shiny::reactiveVal(character())
     retained_context <- shiny::reactiveVal(NULL)
     refresh_tick <- shiny::reactiveVal(0L)
@@ -371,24 +282,6 @@ rill_server <- function(
         \() session$sendCustomMessage("rill-browse-queue-ready", list()),
         once = TRUE
       )
-    }
-
-    schedule_orientation_retry <- function(delay = 2) {
-      if (is.function(orientation_retry_cancel)) {
-        return(invisible(NULL))
-      }
-      orientation_retry_cancel <<- later::later(
-        in_session(function() {
-          orientation_retry_cancel <<- NULL
-          if (!session$isClosed()) {
-            orientation_attempted_boundary(NULL)
-            bump_refresh()
-          }
-          NULL
-        }),
-        delay = delay
-      )
-      invisible(NULL)
     }
 
     current_context <- function() {
@@ -1877,421 +1770,19 @@ rill_server <- function(
       nrow(queue_query()) > queue_limit()
     })
 
-    orientation_destination_status <- shiny::reactive({
-      orientation_destination_tick()
-      state <- orientation_destination_state(store, actor_id, config)
-      orientation_destination_poll_token <<-
-        orientation_destination_state_token(state)
-      state
-    })
-
-    orientation_display_failure <- shiny::reactive({
-      if (isTRUE(orientation_destination_status()$enabled)) {
-        orientation_failure()
-      }
-    })
-
-    focus_orientation_destination <- function() {
-      session$onFlushed(
-        \() {
-          session$sendCustomMessage(
-            "rill-focus-orientation-destination",
-            list()
-          )
-        },
-        once = TRUE
-      )
-    }
-
-    cancel_active_orientation <- function(reason) {
-      active <- store_get_active_agent_run(store, actor_id)
-      if (is.null(active) || !identical(active$kind, "orientation")) {
-        return(invisible(NULL))
-      }
-      cancelling <- store_request_agent_run_cancel(
-        store,
-        reader_id = actor_id,
-        run_id = active$run_id
-      )
-      signalled <- if (
-        !is.null(cancelling) &&
-          identical(cancelling$status, "cancelling")
-      ) {
-        rill_signal_orientation_interrupt(cancelling$run_id, reason)
-      } else {
-        FALSE
-      }
-      control <- shiny::isolate(orientation_control())
-      if (
-        !isTRUE(signalled) &&
-          !is.null(control) &&
-          identical(control$run$run_id %||% NULL, active$run_id)
-      ) {
-        try(control$interrupt(reason), silent = TRUE)
-      }
-      invisible(cancelling)
-    }
-
-    shiny::observe({
-      shiny::invalidateLater(rill_session_poll_interval_ms, session)
-      state <- tryCatch(
-        orientation_destination_state(store, actor_id, config),
-        error = \(error) NULL
-      )
-      if (is.null(state)) {
-        return()
-      }
-      token <- orientation_destination_state_token(state)
-      previous <- orientation_destination_poll_token
-      orientation_destination_poll_token <<- token
-      if (!is.null(previous) && !identical(token, previous)) {
-        if (!isTRUE(state$enabled)) {
-          cancel_active_orientation("orientation_disabled")
-        }
-        orientation_destination_tick(
-          shiny::isolate(orientation_destination_tick()) + 1L
-        )
-        bump_refresh()
-      }
-    })
-
-    orientation_state <- shiny::reactive({
-      refresh_tick()
-      library_state_tick()
-      polled <- store_orientation_polled_state(store, actor_id)
-      orientation_poll_token <<- polled$token
-      polled$state
-    })
-
-    shiny::observe({
-      shiny::invalidateLater(rill_session_poll_interval_ms, session)
-      token <- tryCatch(
-        store_orientation_poll_token(store, actor_id),
-        error = \(error) NULL
-      )
-      if (is.null(token)) {
-        return()
-      }
-      previous <- orientation_poll_token
-      orientation_poll_token <<- token
-      if (!is.null(previous) && !identical(token, previous)) {
-        bump_refresh()
-      }
-    })
-
-    start_orientation_maintenance <- function(
-      retry_id = orientation_automatic_retry_id()
-    ) {
-      destination <- tryCatch(
-        orientation_destination_state(store, actor_id, config),
-        error = \(error) NULL
-      )
-      if (is.null(destination) || !isTRUE(destination$enabled)) {
-        return(invisible(NULL))
-      }
-      current_control <- shiny::isolate(orientation_control())
-      if (
-        !is.null(current_control) &&
-          identical(current_control$status, "running")
-      ) {
-        return(invisible(current_control))
-      }
-      prepared <- tryCatch(
-        prepare_orientation_documents(store, actor_id),
-        error = \(error) error
-      )
-      if (inherits(prepared, "error")) {
-        orientation_failure(prepared)
-        telemetry_log(
-          "warn",
-          "orientation.preparation_failed",
-          list("error.type" = class(prepared)[[1L]])
-        )
-        return(invisible(NULL))
-      }
-      state <- orientation_status(store, actor_id)
-      boundary_hash <- state$boundary$hash
-      if (!isTRUE(state$due)) {
-        orientation_failure(NULL)
-        return(invisible(NULL))
-      }
-      if (identical(orientation_attempted_boundary(), boundary_hash)) {
-        return(invisible(NULL))
-      }
-
-      orientation_attempted_boundary(boundary_hash)
-      orientation_preparing(TRUE)
-      orientation_failure(NULL)
-      span <- telemetry_start(
-        "orientation.maintain",
-        list(
-          "orientation.candidate_count" = state$boundary$candidate_count,
-          "orientation.explicit_retry" = !identical(
-            retry_id,
-            orientation_automatic_retry_id()
-          )
-        )
-      )
-      finish_trace <- telemetry_finalizer(span)
-      diagnostics <- orientation_diagnostics()
-      control <- tryCatch(
-        maintain_orientation_async(
-          store = store,
-          reader_id = actor_id,
-          worker_id = session_id,
-          model = config$agent_model,
-          base_url = config$agent_base_url %||% "",
-          destination_check = \() {
-            orientation_destination_state(store, actor_id, config)
-          },
-          retry_id = retry_id,
-          diagnostics = diagnostics
-        ),
-        error = \(error) error
-      )
-      if (inherits(control, "error")) {
-        orientation_failure(diagnostics$error() %||% control)
-        finish_trace(
-          "error",
-          c(
-            list("orientation.outcome" = "start_failed"),
-            diagnostics$attributes(control)
-          )
-        )
-        orientation_preparing(FALSE)
-        telemetry_log(
-          "warn",
-          "orientation.start_failed",
-          diagnostics$attributes(control)
-        )
-        return(invisible(NULL))
-      }
-      control$session_token <- rill_id(
-        "orientation-control",
-        session_id,
-        control$run$run_id %||% boundary_hash,
-        stats::runif(1)
-      )
-      orientation_control(control)
-      if (!identical(control$status, "running") || is.null(control$promise)) {
-        if (control$status %in% c("failed", "cancelled", "interrupted")) {
-          orientation_failure(orientation_failure_message(
-            control$run$terminal_reason %||% control$status
-          ))
-        }
-        finish_trace(
-          attributes = list(
-            "orientation.outcome" = control$status,
-            "orientation.execution_started" = FALSE
-          )
-        )
-        orientation_preparing(FALSE)
-        orientation_control(NULL)
-        if (control$status %in% c("busy", "running")) {
-          schedule_orientation_retry()
-        } else if (identical(control$status, "boundary_changed")) {
-          schedule_orientation_retry(delay = 0)
-        }
-        return(invisible(control))
-      }
-
-      settle <- function(value = NULL, error = NULL) {
-        run_status <- value$run$status %||% "stopped"
-        outcome <- if (!is.null(error)) {
-          "failed"
-        } else if (run_status %in% c("failed", "cancelled", "interrupted")) {
-          run_status
-        } else if (
-          identical(run_status, "completed") &&
-            identical(value$run$run_id, control$run$run_id) &&
-            identical(value$orientation$agent_run_id, control$run$run_id)
-        ) {
-          "published"
-        } else {
-          "stopped"
-        }
-        finish_trace(
-          status = if (identical(outcome, "failed")) "error" else "ok",
-          attributes = c(
-            list(
-              "orientation.outcome" = outcome,
-              "orientation.execution_started" = TRUE,
-              "orientation.card_count" = if (identical(outcome, "published")) {
-                length(value$orientation$cards)
-              }
-            ),
-            diagnostics$attributes(error)
-          )
-        )
-        if (session$isClosed()) {
-          return(value)
-        }
-        current_control <- shiny::isolate(orientation_control())
-        if (
-          is.null(current_control) ||
-            !identical(
-              current_control$session_token,
-              control$session_token
-            )
-        ) {
-          return(value)
-        }
-        orientation_preparing(FALSE)
-        orientation_control(NULL)
-        if (outcome %in% c("failed", "cancelled", "interrupted")) {
-          orientation_failure(
-            diagnostics$error() %||%
-              error %||%
-              orientation_failure_message(
-                value$run$terminal_reason %||% outcome
-              )
-          )
-        } else {
-          orientation_failure(NULL)
-        }
-        bump_refresh()
-        value
-      }
-      promises::then(
-        control$promise,
-        onFulfilled = settle,
-        onRejected = function(error) {
-          telemetry_log(
-            "warn",
-            "orientation.maintenance_failed",
-            diagnostics$attributes(error)
-          )
-          settle(NULL, error = error)
-        }
-      )
-      invisible(control)
-    }
-
-    retry_orientation <- function() {
-      if (is.null(shiny::isolate(orientation_failure()))) {
-        return(invisible(NULL))
-      }
-      orientation_attempted_boundary(NULL)
-      start_orientation_maintenance(
-        retry_id = rill_id(
-          "orientation-reader-retry",
-          session_id,
-          utc_now(),
-          stats::runif(1)
-        )
-      )
-    }
-    shiny::observeEvent(
-      input$retry_orientation,
-      retry_orientation(),
-      ignoreInit = TRUE
-    )
-    shiny::observeEvent(
-      input$retry_orientation_queue,
-      retry_orientation(),
-      ignoreInit = TRUE
-    )
-
-    if (!isTRUE(config$demo_mode)) {
-      shiny::observe({
-        if (!is.null(selected_id())) {
-          return()
-        }
-        destination <- orientation_destination_status()
-        orientation_state()
-        if (isTRUE(destination$enabled)) {
-          start_orientation_maintenance()
-        }
-      })
-    }
-
-    shiny::observeEvent(
-      input$orientation_enable,
-      {
-        state <- shiny::isolate(orientation_destination_status())
-        if (!isTRUE(state$available)) {
-          shiny::showNotification(
-            "Orientation is off for this installation.",
-            type = "warning"
-          )
-          return()
-        }
-        if (isTRUE(state$needs_configuration)) {
-          message <- if (isTRUE(state$needs_endpoint_configuration)) {
-            paste(
-              "Set RILL_AGENT_BASE_URL to the model's endpoint before turning",
-              "on Orientation."
-            )
-          } else {
-            paste(
-              "Set RILL_AGENT_POLICY_URL to the provider's data policy before",
-              "turning on Orientation."
-            )
-          }
-          shiny::showNotification(
-            message,
-            type = "warning"
-          )
-          return()
-        }
-        if (isTRUE(state$needs_confirmation)) {
-          shiny::showModal(orientation_destination_confirmation_ui(state))
-          return()
-        }
-        set_orientation_enabled(
-          store,
-          actor_id,
-          enabled = TRUE,
-          config = config
-        )
-        orientation_destination_tick(orientation_destination_tick() + 1L)
-        bump_refresh()
-        focus_orientation_destination()
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$orientation_confirm,
-      {
-        confirmed <- tryCatch(
-          confirm_orientation_destination(store, actor_id, config),
-          error = function(error) {
-            shiny::showNotification(
-              conditionMessage(error),
-              type = "error",
-              duration = 8
-            )
-            NULL
-          }
-        )
-        if (is.null(confirmed)) {
-          return()
-        }
-        shiny::removeModal()
-        orientation_destination_tick(orientation_destination_tick() + 1L)
-        orientation_attempted_boundary(NULL)
-        bump_refresh()
-        focus_orientation_destination()
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$orientation_disable,
-      {
-        set_orientation_enabled(
-          store,
-          actor_id,
-          enabled = FALSE,
-          config = config
-        )
-        orientation_destination_tick(orientation_destination_tick() + 1L)
-        cancel_active_orientation("orientation_disabled")
-        bump_refresh()
-        focus_orientation_destination()
-      },
-      ignoreInit = TRUE
+    orientation_session <- orientation_server(
+      input,
+      session,
+      config,
+      store,
+      actor_id,
+      session_id,
+      selected_id,
+      refresh_tick,
+      library_state_tick,
+      bump_refresh,
+      orientation_control,
+      orientation_attempted_boundary
     )
 
     entries <- shiny::reactive({
@@ -2516,109 +2007,24 @@ rill_server <- function(
       ignoreNULL = TRUE
     )
 
-    refresh_result <- shiny::reactiveVal(NULL)
-    refresh_job <- NULL
-    shiny::observe({
-      busy <- identical(refresh_result()$status, "running")
-      buttons <- c(
-        "refresh_library",
-        "retry_failed_feeds",
-        "refresh_selected_feed"
-      )
-      buttons <- buttons[vapply(
-        buttons,
-        \(id) !is.null(input[[id]]),
-        logical(1)
-      )]
-      for (id in buttons) {
-        bslib::update_task_button(
-          id,
-          state = if (busy) "busy" else "ready",
-          session = session
-        )
+    feed_refresh <- feed_refresh_server(
+      input,
+      session,
+      config,
+      store,
+      actor_id,
+      status_kind,
+      status_text,
+      record_event,
+      bump_refresh,
+      request_preparation = function() {
+        article_preparer$request(preparation_candidates(
+          store,
+          actor_id,
+          backend = config$defuddle_backend
+        ))
       }
-    })
-    finish_refresh <- function(result) {
-      refresh_result(result)
-      if (identical(result$status, "error")) {
-        status_kind("error")
-        status_text("Refresh stopped. Please try again.")
-        shiny::showNotification(status_text(), type = "error")
-        bump_refresh(feeds_changed = TRUE)
-        return(invisible(NULL))
-      }
-      status_text(feed_refresh_summary(result))
-      if (identical(result$status, "skipped_overlap")) {
-        status_kind("info")
-        shiny::showNotification(status_text(), type = "default", duration = 8)
-        return(invisible(result))
-      }
-      status_kind(if (result$failed_count) "warning" else "success")
-      shiny::showNotification(
-        status_text(),
-        type = if (result$failed_count) "warning" else "message",
-        duration = 8
-      )
-      record_event(
-        "feeds_refreshed",
-        surface = "sidebar",
-        payload = list(
-          failures = result$failed_count,
-          checked = result$due_count,
-          status = result$status
-        )
-      )
-      bump_refresh(feeds_changed = TRUE)
-      article_preparer$request(preparation_candidates(
-        store,
-        actor_id,
-        backend = config$defuddle_backend
-      ))
-      invisible(result)
-    }
-    poll_refresh <- function() {
-      result <- tryCatch(
-        poll_feed_refresh(refresh_job),
-        error = function(error) {
-          close_feed_refresh(refresh_job)
-          list(status = "error")
-        }
-      )
-      if (identical(result$status, "running")) {
-        if (!session$isClosed()) {
-          shiny::withReactiveDomain(
-            session,
-            shiny::isolate(refresh_result(result))
-          )
-        }
-        shiny::withReactiveDomain(NULL, later::later(poll_refresh, 0.25))
-      } else {
-        refresh_job <<- NULL
-        if (!session$isClosed()) {
-          shiny::withReactiveDomain(
-            session,
-            shiny::isolate(finish_refresh(result))
-          )
-        }
-      }
-      invisible(NULL)
-    }
-    refresh_feeds_now <- function(feed_ids = NULL, failed_only = FALSE) {
-      if (!is.null(refresh_job)) {
-        return(invisible(NULL))
-      }
-      refresh_job <<- tryCatch(
-        start_feed_refresh(config, store, actor_id, feed_ids, failed_only),
-        error = \(error) NULL
-      )
-      if (is.null(refresh_job)) {
-        finish_refresh(list(status = "error"))
-        return(invisible(NULL))
-      }
-      refresh_result(list(status = "running"))
-      shiny::withReactiveDomain(NULL, later::later(poll_refresh, 0))
-      invisible(NULL)
-    }
+    )
 
     navigation_groups <- shiny::reactive({
       group_navigation_index(feeds(), feed_groups())
@@ -2626,118 +2032,15 @@ rill_server <- function(
 
     output$feed_nav <- shiny::renderUI({
       telemetry_local_span("navigation.render")
-      feed_rows <- feeds()
-      all_unread <- sum(feed_rows$unread_count, na.rm = TRUE)
-      all_active <- is.null(selected_feed()) &&
-        !length(selected_group_ids()) &&
-        !selected_ungrouped() &&
-        is.null(selected_folder())
-      links <- list(shiny::tags$button(
-        type = "button",
-        class = paste("feed-link", if (all_active) "is-active"),
-        `aria-current` = if (all_active) "true" else NULL,
-        onclick = "rillSelectFeed(null)",
-        shiny::tags$span("All feeds"),
-        shiny::tags$small(all_unread)
-      ))
-
-      {
-        # Groups the Reader expanded stay open when counts re-render.
-        open_groups <- unlist(
-          shiny::isolate(input$open_feed_groups),
-          use.names = FALSE
-        )
-        index <- navigation_groups()
-        ids <- index$group_ids
-        names <- index$names
-        links <- c(
-          links,
-          lapply(seq_along(ids), function(i) {
-            id <- ids[[i]]
-            folder <- names[[i]]
-            rows <- feed_rows[index$rows[[i]], , drop = FALSE]
-            active <- if (nzchar(id)) {
-              id %in% selected_group_ids()
-            } else {
-              selected_ungrouped()
-            }
-            group_key <- if (nzchar(id)) id else "ungrouped"
-            shiny::tags$div(
-              class = "feed-folder",
-              shiny::tags$button(
-                type = "button",
-                class = paste("feed-link", if (active) "is-active"),
-                `aria-current` = if (active) "true" else NULL,
-                onclick = sprintf(
-                  "rillSelectGroup(%s)",
-                  jsonlite::toJSON(id, auto_unbox = TRUE)
-                ),
-                shiny::tags$span(folder),
-                shiny::tags$small(index$unread[[i]])
-              ),
-              shiny::tags$details(
-                `data-group-key` = group_key,
-                open = if (
-                  (!is.null(selected_feed()) &&
-                    selected_feed() %in% rows$feed_id) ||
-                    group_key %in% open_groups
-                ) {
-                  "open"
-                } else {
-                  NULL
-                },
-                shiny::tags$summary(paste(
-                  nrow(rows),
-                  if (nrow(rows) == 1L) "feed in" else "feeds in",
-                  folder
-                )),
-                lapply(seq_len(nrow(rows)), function(index) {
-                  feed <- rows[index, , drop = FALSE]
-                  active <- identical(
-                    selected_feed(),
-                    as.character(feed$feed_id)
-                  )
-                  shiny::tags$button(
-                    type = "button",
-                    class = paste("feed-link", if (active) "is-active"),
-                    `aria-current` = if (active) "true" else NULL,
-                    onclick = sprintf(
-                      "rillSelectFeed(%s)",
-                      jsonlite::toJSON(
-                        as.character(feed$feed_id),
-                        auto_unbox = TRUE
-                      )
-                    ),
-                    title = feed$title,
-                    shiny::tags$span(feed$title),
-                    shiny::tags$small(feed$unread_count)
-                  )
-                })
-              )
-            )
-          })
-        )
-      }
-      captures <- feed_rows[feed_rows$source_kind == "capture", , drop = FALSE]
-      links <- c(
-        links,
-        lapply(seq_len(nrow(captures)), function(i) {
-          feed <- captures[i, , drop = FALSE]
-          active <- identical(selected_feed(), feed$feed_id[[1]])
-          shiny::tags$button(
-            type = "button",
-            class = paste("feed-link", if (active) "is-active"),
-            `aria-current` = if (active) "true" else NULL,
-            onclick = sprintf(
-              "rillSelectFeed(%s)",
-              jsonlite::toJSON(feed$feed_id[[1]], auto_unbox = TRUE)
-            ),
-            shiny::tags$span(feed$title),
-            shiny::tags$small(feed$unread_count)
-          )
-        })
+      feed_navigation_ui(
+        feeds(),
+        navigation_groups,
+        selected_feed,
+        selected_group_ids,
+        selected_ungrouped,
+        selected_folder,
+        \() shiny::isolate(input$open_feed_groups)
       )
-      shiny::tagList(links)
     })
 
     reading_group_choices <- NULL
@@ -2776,311 +2079,24 @@ rill_server <- function(
       )
     })
 
-    management_feed_id <- shiny::reactive({
-      if (is.null(input$managed_feed)) selected_feed() else input$managed_feed
-    })
-
-    management_feeds <- shiny::reactive({
-      feed_management_tick()
-      store_list_feeds(store, actor_id, active_only = FALSE)
-    })
-
-    shiny::observeEvent(
-      input$manage_feeds,
-      {
-        feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
-        shiny::showModal(feed_manager_ui(
-          management_feeds(),
-          management_feed_id()
-        ))
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      feed_management_tick(),
-      {
-        shiny::req(input$manage_feeds)
-        rows <- management_feeds()
-        shiny::updateSelectizeInput(
-          session,
-          "managed_feed",
-          choices = feed_manager_choices(rows),
-          selected = management_feed_id() %||% ""
-        )
-        groups <- feed_groups()
-        group_choices <- stats::setNames(groups$group_id, groups$name)
-        active <- rows[
-          rows$status == "active" & rows$source_kind == "subscription",
-          ,
-          drop = FALSE
-        ]
-        shiny::updateSelectizeInput(
-          session,
-          "bulk_group_feeds",
-          choices = feed_manager_choices(active)[-1],
-          selected = intersect(
-            input$bulk_group_feeds %||% character(),
-            active$feed_id
-          )
-        )
-        shiny::updateSelectizeInput(
-          session,
-          "bulk_groups",
-          choices = group_choices,
-          selected = intersect(
-            input$bulk_groups %||% character(),
-            groups$group_id
-          )
-        )
-        shiny::updateSelectInput(
-          session,
-          "managed_group",
-          choices = c("Choose a Group" = "", group_choices),
-          selected = if ((input$managed_group %||% "") %in% groups$group_id) {
-            input$managed_group
-          } else {
-            ""
-          }
-        )
-      },
-      ignoreInit = TRUE
-    )
-
-    output$feed_refresh_status <- shiny::renderUI({
-      feed_refresh_status_ui(refresh_result())
-    })
-
-    output$feed_refresh_activity <- shiny::renderUI({
-      result <- refresh_result()
-      if (identical(result$status, "running")) feed_refresh_status_ui(result)
-    })
-
-    managed_feed <- shiny::reactive({
-      feed_id <- management_feed_id()
-      if (is.null(feed_id)) {
-        return(NULL)
-      }
-      feed_rows <- management_feeds()
-      selected <- feed_rows[feed_rows$feed_id == feed_id, , drop = FALSE]
-      if (!nrow(selected)) {
-        return(NULL)
-      }
-      as.list(selected[1, , drop = FALSE])
-    })
-
-    # A finished refresh can change a feed's poll results, address, and source
-    # title. Rebuilding the controls then would discard a half-typed name or
-    # unsaved Groups, so they are rebuilt only when the manager opens or the
-    # feed, its status, or its kind changes. A reactiveVal only invalidates on
-    # a changed value.
-    managed_feed_fields <- shiny::reactiveVal(NULL)
-    shiny::observe({
-      feed <- managed_feed()
-      shown <- c("feed_id", "status", "source_kind")
-      managed_feed_fields(
-        if (!is.null(feed)) feed[intersect(shown, names(feed))]
-      )
-    })
-    managed_feed_groups <- shiny::reactiveVal(NULL)
-    shiny::observe({
-      groups <- feed_groups()
-      managed_feed_groups(data.frame(
-        group_id = groups$group_id,
-        name = groups$name
-      ))
-    })
-
-    # The name and Groups the controls were last built with. A newer value
-    # replaces a field only while the field still holds that value.
-    managed_feed_shown <- new.env(parent = emptyenv())
-    output$feed_organization_control <- shiny::renderUI({
-      input$manage_feeds
-      if (is.null(managed_feed_fields())) {
-        return(feed_organization_control_ui())
-      }
-      feed <- shiny::isolate(managed_feed())
-      managed_feed_shown$feed_id <- feed$feed_id
-      managed_feed_shown$title <- feed$title
-      managed_feed_shown$group_ids <- feed_group_ids(feed)
-      feed_organization_control_ui(feed, groups = managed_feed_groups())
-    })
-    shiny::observe({
-      feed <- managed_feed()
-      if (
-        is.null(feed) || !identical(feed$feed_id, managed_feed_shown$feed_id)
-      ) {
-        return()
-      }
-      if (!identical(feed$title, managed_feed_shown$title)) {
-        if (
-          identical(shiny::isolate(input$feed_title), managed_feed_shown$title)
-        ) {
-          shiny::updateTextInput(session, "feed_title", value = feed$title)
-        }
-        managed_feed_shown$title <- feed$title
-      }
-      group_ids <- feed_group_ids(feed)
-      if (!setequal(group_ids, managed_feed_shown$group_ids)) {
-        chosen <- shiny::isolate(input$feed_groups) %||% character()
-        if (setequal(chosen, managed_feed_shown$group_ids)) {
-          shiny::updateSelectizeInput(
-            session,
-            "feed_groups",
-            selected = group_ids
-          )
-        }
-        managed_feed_shown$group_ids <- group_ids
-      }
-    })
-
-    output$managed_feed_url <- shiny::renderText(managed_feed()$feed_url)
-
-    output$managed_feed_status <- shiny::renderUI({
-      feed <- managed_feed()
-      if (!is.null(feed)) feed_poll_status_ui(feed)
-    })
-
-    output$group_management_control <- shiny::renderUI({
-      input$manage_feeds
-      shiny::isolate(group_management_ui(management_feeds(), feed_groups()))
-    })
-
-    change_groups <- function(action) {
-      result <- tryCatch(
-        {
-          action()
-          NULL
-        },
-        error = identity
-      )
-      if (inherits(result, "error")) {
-        shiny::showNotification(conditionMessage(result), type = "error")
-        return(invisible(NULL))
-      }
-      feed_management_tick(shiny::isolate(feed_management_tick()) + 1L)
-      bump_refresh()
-      record_event("groups_updated", surface = "feed_manager")
-      status_kind("success")
-      status_text("Groups updated")
-      shiny::showNotification("Groups updated", type = "message")
-    }
-    shiny::observeEvent(
-      input$create_group,
-      {
-        change_groups(function() {
-          store_create_group(store, actor_id, input$new_group_name)
-        })
-      },
-      ignoreInit = TRUE
-    )
-    shiny::observeEvent(
-      input$rename_group,
-      {
-        shiny::req(input$managed_group)
-        change_groups(function() {
-          store_rename_group(
-            store,
-            actor_id,
-            input$managed_group,
-            input$group_name
-          )
-        })
-      },
-      ignoreInit = TRUE
-    )
-    pending_group_delete <- shiny::reactiveVal(NULL)
-    shiny::observeEvent(
-      input$delete_group,
-      {
-        shiny::req(input$managed_group)
-        pending_group_delete(input$managed_group)
-      },
-      ignoreInit = TRUE
-    )
-    # Binding the confirmation's own buttons sends their initial values, so
-    # each reset listens to one input rather than to a list of them.
-    shiny::observeEvent(input$cancel_delete_group, pending_group_delete(NULL))
-    shiny::observeEvent(input$manage_feeds, pending_group_delete(NULL))
-    shiny::observeEvent(
-      input$managed_group,
-      pending_group_delete(NULL),
-      ignoreInit = TRUE
-    )
-    output$group_delete_confirmation <- shiny::renderUI({
-      group_id <- pending_group_delete()
-      if (is.null(group_id)) {
-        return(NULL)
-      }
-      groups <- feed_groups()
-      name <- groups$name[groups$group_id == group_id]
-      if (!length(name)) {
-        return(NULL)
-      }
-      group_delete_confirmation_ui(name[[1L]])
-    })
-    shiny::observeEvent(
-      input$confirm_delete_group,
-      {
-        group_id <- pending_group_delete()
-        shiny::req(group_id)
-        pending_group_delete(NULL)
-        change_groups(function() {
-          store_delete_group(store, actor_id, group_id)
-        })
-      },
-      ignoreInit = TRUE
-    )
-    shiny::observeEvent(
-      input$save_feed_groups,
-      {
-        shiny::req(management_feed_id())
-        change_groups(function() {
-          store_update_group_memberships(
-            store,
-            actor_id,
-            management_feed_id(),
-            input$feed_groups %||% character()
-          )
-        })
-      },
-      ignoreInit = TRUE
-    )
-    shiny::observeEvent(
-      input$add_feed_groups,
-      {
-        shiny::req(input$bulk_group_feeds, input$bulk_groups)
-        change_groups(function() {
-          store_update_group_memberships(
-            store,
-            actor_id,
-            input$bulk_group_feeds,
-            input$bulk_groups,
-            "add"
-          )
-        })
-      },
-      ignoreInit = TRUE
-    )
-    shiny::observeEvent(
-      input$remove_feed_groups,
-      {
-        shiny::req(input$bulk_group_feeds, input$bulk_groups)
-        change_groups(function() {
-          store_update_group_memberships(
-            store,
-            actor_id,
-            input$bulk_group_feeds,
-            input$bulk_groups,
-            "remove"
-          )
-        })
-      },
-      ignoreInit = TRUE
+    feed_management <- feed_management_server(
+      input,
+      output,
+      session,
+      store,
+      actor_id,
+      selected_feed,
+      feed_groups,
+      feed_management_tick,
+      bump_refresh,
+      record_event,
+      status_kind,
+      status_text,
+      feed_refresh
     )
 
     output$orientation_destination_settings <- shiny::renderUI({
-      orientation_destination_settings_ui(orientation_destination_status())
+      orientation_destination_settings_ui(orientation_session$destination())
     })
 
     output$list_title <- shiny::renderUI({
@@ -3158,18 +2174,18 @@ rill_server <- function(
       if (!is.null(selected_id())) {
         return(NULL)
       }
-      state <- orientation_state()
+      state <- orientation_session$state()
       orientation_queue_status_ui(
         state$orientation,
         state$candidates,
-        preparing = orientation_preparing(),
-        failure = orientation_display_failure(),
+        preparing = orientation_session$preparing(),
+        failure = orientation_session$display_failure(),
         processing_note = orientation_processing_note(
           store,
           state$orientation,
           config,
-          destination_state = orientation_destination_status(),
-          preparing = orientation_preparing()
+          destination_state = orientation_session$destination(),
+          preparing = orientation_session$preparing()
         )
       )
     })
@@ -3287,7 +2303,7 @@ rill_server <- function(
     output$reader_header <- shiny::renderUI({
       telemetry_local_span("article.header.render")
       if (is.null(selected_id())) {
-        state <- orientation_state()
+        state <- orientation_session$state()
         feedback_token <- feedback_controller$set_orientation(
           state$orientation,
           state$candidates
@@ -3296,14 +2312,14 @@ rill_server <- function(
           state$orientation,
           state$candidates,
           feedback_token = feedback_token,
-          preparing = orientation_preparing(),
-          failure = orientation_display_failure(),
+          preparing = orientation_session$preparing(),
+          failure = orientation_session$display_failure(),
           processing_note = orientation_processing_note(
             store,
             state$orientation,
             config,
-            destination_state = orientation_destination_status(),
-            preparing = orientation_preparing()
+            destination_state = orientation_session$destination(),
+            preparing = orientation_session$preparing()
           )
         )
         if (isTRUE(orientation_requested())) {
@@ -3576,7 +2592,7 @@ rill_server <- function(
       input$browse_orientation_theme,
       {
         theme_id <- input$browse_orientation_theme$theme_id %||% NULL
-        state <- shiny::isolate(orientation_state())
+        state <- shiny::isolate(orientation_session$state())
         themes <- Filter(
           \(theme) identical(theme$theme_id, theme_id),
           state$orientation$themes %||% list()
@@ -4309,378 +3325,21 @@ rill_server <- function(
       ignoreInit = TRUE
     )
 
-    shiny::observeEvent(
-      input$add_feed,
-      {
-        url <- trimws(input$new_feed_url %||% "")
-        if (!nzchar(url)) {
-          status_kind("error")
-          status_text("Enter a feed or website URL.")
-          session$sendCustomMessage(
-            "rill-input-validity",
-            list(
-              id = "new_feed_url",
-              invalid = TRUE,
-              message = "Enter a feed or website URL."
-            )
-          )
-          shiny::showNotification(
-            "Enter a feed or website URL.",
-            type = "warning"
-          )
-          return()
-        }
-        session$sendCustomMessage(
-          "rill-input-validity",
-          list(id = "new_feed_url", invalid = FALSE)
-        )
-
-        result <- tryCatch(
-          shiny::withProgress(
-            message = "Finding and reading the feed",
-            value = 0.5,
-            {
-              ingest_feed_url(store, actor_id, url)
-            }
-          ),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          telemetry_log(
-            "warn",
-            "feed.add_failed",
-            list("error.type" = class(result)[[1]])
-          )
-          status_kind("error")
-          status_text(conditionMessage(result))
-          shiny::showNotification(
-            conditionMessage(result),
-            type = "error",
-            duration = 8
-          )
-          return()
-        }
-
-        status_kind("success")
-        status_text(paste(
-          "Added",
-          result$feed$title,
-          "\u00b7",
-          result$added,
-          if (identical(as.integer(result$added), 1L)) "story" else "stories"
-        ))
-        shiny::updateTextInput(session, "new_feed_url", value = "")
-        record_event(
-          "feed_added",
-          surface = "sidebar",
-          payload = list(feed_id = result$feed$feed_id)
-        )
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$rename_feed,
-      {
-        feed_id <- management_feed_id()
-        title <- trimws(input$feed_title %||% "")
-        if (is.null(feed_id) || !nzchar(title)) {
-          status_kind("error")
-          status_text("Select a feed and enter a name.")
-          session$sendCustomMessage(
-            "rill-input-validity",
-            list(
-              id = "feed_title",
-              invalid = TRUE,
-              message = "Enter a name for the selected feed."
-            )
-          )
-          shiny::showNotification(
-            "Select a feed and enter a name.",
-            type = "warning"
-          )
-          return()
-        }
-        session$sendCustomMessage(
-          "rill-input-validity",
-          list(id = "feed_title", invalid = FALSE)
-        )
-
-        result <- tryCatch(
-          store_rename_feed(store, actor_id, feed_id, title),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          status_kind("error")
-          status_text(conditionMessage(result))
-          shiny::showNotification(
-            conditionMessage(result),
-            type = "error"
-          )
-          return()
-        }
-
-        status_kind("success")
-        status_text(paste("Renamed feed to", title))
-        record_event(
-          "feed_renamed",
-          surface = "sidebar",
-          payload = list(feed_id = feed_id, title = title)
-        )
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$move_feed,
-      {
-        feed_id <- management_feed_id()
-        folder <- trimws(input$feed_folder %||% "")
-        if (is.null(feed_id) || !nzchar(folder)) {
-          status_kind("error")
-          status_text("Select a feed and enter a folder.")
-          session$sendCustomMessage(
-            "rill-input-validity",
-            list(
-              id = "feed_folder",
-              invalid = TRUE,
-              message = "Enter a folder for the selected feed."
-            )
-          )
-          shiny::showNotification(
-            "Select a feed and enter a folder.",
-            type = "warning"
-          )
-          return()
-        }
-        session$sendCustomMessage(
-          "rill-input-validity",
-          list(id = "feed_folder", invalid = FALSE)
-        )
-
-        result <- tryCatch(
-          store_move_feed(store, actor_id, feed_id, folder),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          status_kind("error")
-          status_text(conditionMessage(result))
-          shiny::showNotification(
-            conditionMessage(result),
-            type = "error"
-          )
-          return()
-        }
-
-        status_kind("success")
-        status_text(paste("Moved feed to", folder))
-        record_event(
-          "feed_moved",
-          surface = "sidebar",
-          payload = list(feed_id = feed_id, folder = folder)
-        )
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$unsubscribe_feed,
-      {
-        feed_id <- management_feed_id()
-        if (is.null(feed_id)) {
-          return()
-        }
-        entry <- tryCatch(selected_entry(), error = function(error) NULL)
-        result <- tryCatch(
-          store_unsubscribe_feed(store, actor_id, feed_id),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          status_kind("error")
-          status_text(conditionMessage(result))
-          shiny::showNotification(
-            conditionMessage(result),
-            type = "error"
-          )
-          return()
-        }
-
-        if (identical(selected_feed(), feed_id)) {
-          selected_feed(NULL)
-        }
-        if (identical(entry$feed_id, feed_id)) {
-          clear_selection(force = TRUE)
-        }
-        status_kind("success")
-        status_text(
-          "Unsubscribed. Rill keeps its reading state in case you restore it."
-        )
-        record_event(
-          "feed_unsubscribed",
-          surface = "sidebar",
-          payload = list(feed_id = feed_id)
-        )
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$import_opml,
-      {
-        upload <- input$import_opml
-        if (is.null(upload) || !nrow(upload)) {
-          return()
-        }
-
-        subscriptions <- tryCatch(
-          read_opml(upload$datapath[[1]]),
-          error = function(error) error
-        )
-        if (inherits(subscriptions, "error")) {
-          status_kind("error")
-          status_text(paste(
-            "Couldn't import OPML:",
-            conditionMessage(subscriptions)
-          ))
-          shiny::showNotification(
-            "That file could not be read as OPML.",
-            type = "error",
-            duration = 8
-          )
-          session$sendCustomMessage("rill-reset-file", "import_opml")
-          return()
-        }
-
-        result <- shiny::withProgress(
-          message = "Importing subscriptions",
-          value = 0,
-          {
-            import_opml_subscriptions(
-              store,
-              actor_id,
-              subscriptions,
-              refresh = FALSE,
-              progress = function(index, total, title) {
-                shiny::setProgress(
-                  value = index / total,
-                  detail = title
-                )
-              }
-            )
-          }
-        )
-        status_kind(
-          if (result$total == 0L) {
-            "warning"
-          } else if (result$failed > 0L || result$refresh_failed > 0L) {
-            if (result$imported > 0L) "warning" else "error"
-          } else {
-            "success"
-          }
-        )
-        import_status <- format_opml_import_status(
-          result,
-          demo_mode = config$demo_mode,
-          refresh_hint = TRUE
-        )
-        status_text(import_status)
-        shiny::showNotification(
-          import_status,
-          type = switch(
-            status_kind(),
-            error = "error",
-            warning = "warning",
-            "message"
-          ),
-          duration = 8
-        )
-        record_event(
-          "opml_imported",
-          surface = "sidebar",
-          payload = list(
-            total = result$total,
-            imported = result$imported,
-            added = result$added,
-            updated = result$updated,
-            stories = result$stories,
-            refresh_failed = result$refresh_failed,
-            failed = result$failed
-          )
-        )
-        session$sendCustomMessage("rill-reset-file", "import_opml")
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$refresh_feeds,
-      {
-        refresh_feeds_now()
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$refresh_library,
-      {
-        refresh_feeds_now()
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$refresh_selected_feed,
-      {
-        shiny::req(nzchar(management_feed_id() %||% ""))
-        refresh_feeds_now(feed_ids = management_feed_id())
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$retry_failed_feeds,
-      {
-        refresh_feeds_now(failed_only = TRUE)
-      },
-      ignoreInit = TRUE
-    )
-
-    shiny::observeEvent(
-      input$restore_feed,
-      {
-        rows <- management_feeds()
-        feed_id <- management_feed_id()
-        restorable <- rows$feed_id[
-          rows$status == "inactive" & rows$source_kind == "subscription"
-        ]
-        shiny::req(feed_id %in% restorable)
-        result <- tryCatch(
-          store_subscribe_feed(store, actor_id, feed_id),
-          error = function(error) error
-        )
-        if (inherits(result, "error")) {
-          shiny::showNotification(
-            "Couldn't restore this subscription. Try again.",
-            type = "error"
-          )
-          return()
-        }
-        status_kind("success")
-        status_text("Feed restored with its Groups and reading state.")
-        shiny::showNotification(status_text())
-        record_event(
-          "feed_restored",
-          surface = "sidebar",
-          payload = list(feed_id = feed_id)
-        )
-        bump_refresh(feeds_changed = TRUE)
-      },
-      ignoreInit = TRUE
+    register_feed_actions(
+      input,
+      session,
+      config,
+      store,
+      actor_id,
+      selected_feed,
+      selected_entry,
+      clear_selection,
+      status_kind,
+      status_text,
+      record_event,
+      bump_refresh,
+      feed_management,
+      feed_refresh
     )
 
     shiny::observeEvent(
@@ -4894,10 +3553,7 @@ rill_server <- function(
         try(deferred_reader_question_resume_cancel(), silent = TRUE)
         deferred_reader_question_resume_cancel <<- NULL
       }
-      if (is.function(orientation_retry_cancel)) {
-        try(orientation_retry_cancel(), silent = TRUE)
-        orientation_retry_cancel <<- NULL
-      }
+      orientation_session$close()
       if (is.function(visible_agent_run_poll_cancel)) {
         try(visible_agent_run_poll_cancel(), silent = TRUE)
         visible_agent_run_poll_cancel <<- NULL
@@ -4905,7 +3561,7 @@ rill_server <- function(
     })
 
     if (isTRUE(config$refresh_on_start)) {
-      session$onFlushed(function() refresh_feeds_now(), once = TRUE)
+      session$onFlushed(function() feed_refresh$start(), once = TRUE)
     }
   }
 }

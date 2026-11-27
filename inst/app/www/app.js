@@ -408,6 +408,14 @@
     inputValidityRegistered = true;
   }
 
+  function registerDynamicIntegrations() {
+    registerFileReset();
+    registerQueueBrowse();
+    registerOrientationActionMessages();
+    registerChatSubmissionIds();
+    registerAgentSidebarControls();
+  }
+
   window.rillRecoverConnection = function () {
     window.location.reload();
   };
@@ -2153,23 +2161,19 @@
     }
   }
 
-  if (typeof systemDarkMode.addEventListener === "function") {
-    systemDarkMode.addEventListener("change", handleSystemThemeChange);
-  } else {
-    systemDarkMode.addListener(handleSystemThemeChange);
+  function listenForMediaQueryChange(mediaQuery, listener) {
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", listener);
+    } else {
+      mediaQuery.addListener(listener);
+    }
   }
 
-  if (typeof desktopReaderMode.addEventListener === "function") {
-    desktopReaderMode.addEventListener("change", handleResponsiveLayoutChange);
-    mediumReaderMode.addEventListener("change", handleResponsiveLayoutChange);
-    wideReaderMode.addEventListener("change", handleResponsiveLayoutChange);
-    overlaidAgentMode.addEventListener("change", handleAgentLayoutChange);
-  } else {
-    desktopReaderMode.addListener(handleResponsiveLayoutChange);
-    mediumReaderMode.addListener(handleResponsiveLayoutChange);
-    wideReaderMode.addListener(handleResponsiveLayoutChange);
-    overlaidAgentMode.addListener(handleAgentLayoutChange);
-  }
+  listenForMediaQueryChange(systemDarkMode, handleSystemThemeChange);
+  listenForMediaQueryChange(desktopReaderMode, handleResponsiveLayoutChange);
+  listenForMediaQueryChange(mediumReaderMode, handleResponsiveLayoutChange);
+  listenForMediaQueryChange(wideReaderMode, handleResponsiveLayoutChange);
+  listenForMediaQueryChange(overlaidAgentMode, handleAgentLayoutChange);
 
   window.addEventListener("storage", function (event) {
     if (event.key === themeStorageKey) {
@@ -2184,11 +2188,7 @@
     window.setTimeout(syncReader, 200);
     watchScroll();
     syncReader();
-    registerFileReset();
-    registerQueueBrowse();
-    registerOrientationActionMessages();
-    registerChatSubmissionIds();
-    registerAgentSidebarControls();
+    registerDynamicIntegrations();
     registerSystemEvents();
     registerInputValidity();
     enhanceNativeFeedback();
@@ -2251,11 +2251,7 @@
   });
 
   document.addEventListener("shiny:connected", function () {
-    registerFileReset();
-    registerQueueBrowse();
-    registerOrientationActionMessages();
-    registerChatSubmissionIds();
-    registerAgentSidebarControls();
+    registerDynamicIntegrations();
     registerInputValidity();
   });
 

@@ -124,6 +124,22 @@ run_due_feed_polling <- function(
   )
 }
 
+select_reader_feeds <- function(
+  store,
+  reader_id,
+  feed_ids = NULL,
+  failed_only = FALSE
+) {
+  feeds <- store_list_feeds(store, reader_id, source_kind = "subscription")
+  if (!is.null(feed_ids)) {
+    feeds <- feeds[feeds$feed_id %in% feed_ids, , drop = FALSE]
+  }
+  if (failed_only) {
+    feeds <- feeds[feeds$poll_status %in% "failed", , drop = FALSE]
+  }
+  feeds
+}
+
 refresh_reader_feeds <- function(
   store,
   reader_id,
@@ -135,14 +151,7 @@ refresh_reader_feeds <- function(
   run_feed_polling(
     store,
     select_feeds = function() {
-      feeds <- store_list_feeds(store, reader_id, source_kind = "subscription")
-      if (!is.null(feed_ids)) {
-        feeds <- feeds[feeds$feed_id %in% feed_ids, , drop = FALSE]
-      }
-      if (failed_only) {
-        feeds <- feeds[feeds$poll_status %in% "failed", , drop = FALSE]
-      }
-      feeds
+      select_reader_feeds(store, reader_id, feed_ids, failed_only)
     },
     failure_threshold = 1L,
     refresh = refresh,

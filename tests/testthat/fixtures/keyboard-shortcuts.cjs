@@ -1,7 +1,9 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
 const vm = require("node:vm");
-const javascript = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
+const sourcePath = process.argv[2] ?? path.resolve(__dirname, "../../../inst/app/www/app.js");
+const javascript = fs.readFileSync(sourcePath, "utf8").replace(/\r\n/g, "\n");
 const extract = pattern => {
   const match = javascript.match(pattern);
   assert.ok(match, `Missing ${pattern}`);
@@ -14,6 +16,7 @@ const source = [
 ].join("\n");
 
 const moves = [];
+const actions = [];
 let dialogOpen = false;
 const context = vm.createContext({
   dialogOwnedEscapeEvents: new Set(),
@@ -23,8 +26,8 @@ const context = vm.createContext({
   activeEntryId: null,
   visibleDialogOwnsEscape: () => dialogOpen,
   moveStory: direction => moves.push(direction) || true,
-  openOriginal: () => false,
-  toggleReaderAction: () => false,
+  openOriginal: () => actions.push("original") || true,
+  toggleReaderAction: id => actions.push(id) || true,
   document: { querySelector: () => null },
   window: {}
 });
@@ -60,3 +63,11 @@ assert.equal(press("k", field("INPUT", "text")), false, "Typing never moves stor
 dialogOpen = true;
 assert.equal(press("j"), false, "Stories behind a dialog stay put");
 assert.deepEqual(moves, [1]);
+
+dialogOpen = false;
+assert.equal(press("k"), true);
+assert.deepEqual(moves, [1, -1]);
+assert.equal(press("o"), true);
+assert.equal(press("s"), true);
+assert.equal(press("f"), true);
+assert.deepEqual(actions, ["original", "toggle_save", "toggle_star"]);

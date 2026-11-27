@@ -49,7 +49,7 @@ try {
 
   await page.goto(url);
   await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
-  await page.getByRole('button', {name: 'Read the anchor source', exact: true}).click();
+  await page.locator('.orientation-read').first().click();
   await page.waitForSelector('#reader-document');
   for (const id of ['navigation_sidebar', 'story_sidebar']) {
     const resize = page.locator(
