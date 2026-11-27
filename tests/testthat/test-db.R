@@ -338,7 +338,10 @@ testthat::test_that("calendar views use local calendar boundaries", {
     format(month$before, tz = "America/Detroit"),
     "2026-09-01"
   )
-  testthat::expect_null(entry_view_since("all", now, "America/Detroit"))
+  testthat::expect_identical(
+    entry_view_window("all", now, "America/Detroit"),
+    list(since = NULL, before = NULL)
+  )
 })
 
 testthat::test_that("browser time zones are validated without changing the process zone", {

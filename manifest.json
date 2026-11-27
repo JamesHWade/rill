@@ -2782,7 +2782,7 @@
       "checksum": "1afd0db45a0676258b38f0e2a2420b43"
     },
     "inst/app/www/app.js": {
-      "checksum": "b0a21f9128bee91e9c1a43966226df0b"
+      "checksum": "eafef7f68db7d5ec6a28b85984688e8c"
     },
     "inst/app/www/apple-touch-icon.png": {
       "checksum": "49113cbf55e669392e29faf10c853d84"
@@ -2851,7 +2851,7 @@
       "checksum": "44d9368fe028d40cd29a131b67dca8c8"
     },
     "R/agent-runs.R": {
-      "checksum": "8080751b486c675f0321f6f9e90da184"
+      "checksum": "663670a2ea2a4d68b5725dfa06b36654"
     },
     "R/agent.R": {
       "checksum": "9bd3704eb23ec7773637bf17a0207cf7"
@@ -2869,22 +2869,22 @@
       "checksum": "e6af9935a176a2750d29f9372071f22e"
     },
     "R/db.R": {
-      "checksum": "9443dfe78134a3ad23921af01b32d60f"
+      "checksum": "1e4c517fca8371e50fbc80429f17db71"
     },
     "R/defuddle.R": {
-      "checksum": "b348c9ff8eee538d9059c17d06e63f65"
+      "checksum": "d7d6b04971b3b5966d7877512075986e"
     },
     "R/documents.R": {
       "checksum": "5dcf49da675db48e2493adc1bad1f409"
     },
     "R/feed-refresh.R": {
-      "checksum": "0bd49bdc81a92aa8011c1def0bd1e973"
+      "checksum": "81e1e386920c06463f3b2a07d3e97828"
     },
     "R/feeds.R": {
       "checksum": "c50d25e80ba30bea36bb3824caf6ef9c"
     },
     "R/identity.R": {
-      "checksum": "e64c8edd29d09c44f4a256cf598867e2"
+      "checksum": "3cb6ff9a438e518f076858e058daf854"
     },
     "R/opml.R": {
       "checksum": "2673ec178d6be92fa608f505aa42648e"
@@ -2905,7 +2905,7 @@
       "checksum": "7a36d6f3fc0d869ea8819bf7caf6489f"
     },
     "R/polling.R": {
-      "checksum": "c98d99fe0244bd79ea750f1cdff9c52d"
+      "checksum": "599132a6452d7746598ad8c31b546e8a"
     },
     "R/reader-admissions.R": {
       "checksum": "24039291b14560bee2ba1cd1f1f9fa50"
@@ -2917,13 +2917,13 @@
       "checksum": "25b55824b9968b5c011fa3af881c572a"
     },
     "R/server.R": {
-      "checksum": "d407e6fbce13c2f68ed9a1687e08d60e"
+      "checksum": "0aae3629b6f4e431021ade4dd72207c6"
     },
     "R/telemetry.R": {
       "checksum": "c40125b295232328e6a16d2a6e9b407b"
     },
     "R/ui.R": {
-      "checksum": "8659cc2609c5c3807be0fcb6efd490ed"
+      "checksum": "d1d606a7dc06d7ffea5df9ae36814a1b"
     },
     "R/groups.R": {
       "checksum": "518bbf18f5d78808d5ae4748c836a632"
@@ -2948,6 +2948,66 @@
     },
     "R/reader-memory.R": {
       "checksum": "74000998ee1ab1c677db576789b2e926"
+    },
+    "R/agent-run-deferred.R": {
+      "checksum": "29d3cab8b9900686b5be35a5caa3ba1a"
+    },
+    "R/agent-run-storage.R": {
+      "checksum": "641428965c83359a3db0f8671735364d"
+    },
+    "R/agent-run-terminalization.R": {
+      "checksum": "3b7378f95728ea31427c039c7b0f8165"
+    },
+    "R/db-documents.R": {
+      "checksum": "06c36dbcccf8b4d1925567d620447130"
+    },
+    "R/db-entries.R": {
+      "checksum": "029cf794102a971ba95013ae792390c9"
+    },
+    "R/db-feeds.R": {
+      "checksum": "74745e6e2e6d3e37f5a75dc3f91e3788"
+    },
+    "R/db-migrations.R": {
+      "checksum": "96c433d483006a1542934e81bf0f7174"
+    },
+    "R/db-state.R": {
+      "checksum": "d37178044a0a7c17b49bc97a95e6a3b9"
+    },
+    "R/document-render.R": {
+      "checksum": "ba0efb8a7ea5682e81c5e48c1685c296"
+    },
+    "R/question-runtime.R": {
+      "checksum": "cc1dfea3adb254eb87df4d198030e41b"
+    },
+    "R/server-library.R": {
+      "checksum": "f20c2f663e8462e4400f487b49fe9a33"
+    },
+    "R/server-orientation.R": {
+      "checksum": "026405d53d9a36ab33e9d48350e0717f"
+    },
+    "R/ui-groups.R": {
+      "checksum": "edbee3f53df7249e6949da21bf1f8a4c"
+    },
+    "R/ui-library.R": {
+      "checksum": "9d6c598e5a7da1dc2ffe33dcd87a670b"
+    },
+    "R/ui-orientation.R": {
+      "checksum": "b7b60bc4c77f19d9ea95b5de664c4043"
+    },
+    "R/ui-queue.R": {
+      "checksum": "6687058cddc9eb478790d3562439b10a"
+    },
+    "R/ui-reader.R": {
+      "checksum": "0339e076b0ffeb682b807fe2c168f3fb"
+    },
+    "R/ui-shell.R": {
+      "checksum": "1cf10f5626f15fa729ab861ebd692074"
+    },
+    "R/identity-admissions.R": {
+      "checksum": "6bd019d4eb31546f6db211c4e3c41639"
+    },
+    "R/identity-readers.R": {
+      "checksum": "a7a99c8c8e1559df2c9a21d920deb620"
     }
   },
   "users": null

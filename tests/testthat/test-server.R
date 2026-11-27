@@ -363,18 +363,25 @@ testthat::test_that("successful feed refresh queues recent public article prepar
   config <- rill_config()
   store <- preparation_test_store()
   store$memory$entries$published_at[[1]] <- utc_now()
-  shiny::testServer(rill_server(config, store), {
-    finish_refresh(list(
-      status = "succeeded",
-      due_count = 1L,
-      failed_count = 0L,
-      succeeded_count = 1L
-    ))
+  testthat::local_mocked_bindings(
+    start_feed_refresh = function(...) list(),
+    poll_feed_refresh = function(...) {
+      list(
+        status = "succeeded",
+        due_count = 1L,
+        failed_count = 0L,
+        succeeded_count = 1L
+      )
+    }
+  )
+  later::with_temp_loop(shiny::testServer(rill_server(config, store), {
+    feed_refresh$start()
+    later::run_now(0)
     testthat::expect_identical(
       article_preparer$state$queue,
       store$memory$entries$entry_id[[1]]
     )
-  })
+  }))
 })
 
 testthat::test_that("selecting a story records the open and updates the queue", {
@@ -443,7 +450,7 @@ testthat::test_that("Orientation opens and dismisses Documents with provenance",
   testthat::expect_length(orientation$cards, 3L)
   extracted <- FALSE
   testthat::local_mocked_bindings(
-    get_or_extract_document = function(...) {
+    document_from_defuddle = function(...) {
       extracted <<- TRUE
       stop("Orientation must open its pinned Document.")
     }
@@ -453,7 +460,7 @@ testthat::test_that("Orientation opens and dismisses Documents with provenance",
     session$setInputs(select_entry = NULL, dismiss_orientation_card = NULL)
     session$flushReact()
 
-    current <- orientation_state()
+    current <- orientation_session$state()
     testthat::expect_identical(current$due, FALSE)
     testthat::expect_length(current$candidates, 6L)
 
@@ -799,7 +806,7 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
 
   shiny::testServer(rill_server(config, store), {
     session$flushReact()
-    initial <- orientation_state()
+    initial <- orientation_session$state()
     initial_tick <- refresh_tick()
     session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
@@ -818,7 +825,7 @@ testthat::test_that("Orientation polling sees another session's dismissal", {
     session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
-    current <- orientation_state()
+    current <- orientation_session$state()
     testthat::expect_length(current$orientation$cards, 2L)
     testthat::expect_gt(refresh_tick(), initial_tick)
   })
@@ -926,7 +933,7 @@ testthat::test_that("durable Orientation is prepared and launched only when enab
       vapply(store$memory$documents, `[[`, character(1), "producer"),
       "orientation-feed-copy"
     )
-    testthat::expect_identical(orientation_preparing(), FALSE)
+    testthat::expect_identical(orientation_session$preparing(), FALSE)
   })
 })
 
@@ -1130,7 +1137,7 @@ testthat::test_that("confirming the Data Destination starts Orientation", {
     session$flushReact()
     testthat::expect_identical(calls, 0L)
     testthat::expect_identical(
-      orientation_destination_status()$needs_confirmation,
+      orientation_session$destination()$needs_confirmation,
       TRUE
     )
 
@@ -1138,7 +1145,7 @@ testthat::test_that("confirming the Data Destination starts Orientation", {
     session$flushReact()
     testthat::expect_identical(calls, 1L)
     testthat::expect_identical(
-      orientation_destination_status()$enabled,
+      orientation_session$destination()$enabled,
       TRUE
     )
   })
@@ -1182,7 +1189,7 @@ testthat::test_that("disabling Orientation cooperatively cancels active work", {
     session$flushReact()
 
     testthat::expect_identical(
-      orientation_destination_status()$enabled,
+      orientation_session$destination()$enabled,
       FALSE
     )
     cancelling <- store_get_agent_run(store, config$actor_id, active$run_id)
@@ -1214,7 +1221,7 @@ testthat::test_that("a session observes an external Orientation disable", {
   shiny::testServer(rill_server(config, store), {
     selected_id(store$memory$documents[[1L]]$entry_id)
     session$flushReact()
-    testthat::expect_identical(orientation_destination_status()$enabled, TRUE)
+    testthat::expect_identical(orientation_session$destination()$enabled, TRUE)
 
     set_orientation_enabled(
       store,
@@ -1225,7 +1232,7 @@ testthat::test_that("a session observes an external Orientation disable", {
     session$elapse(rill_session_poll_interval_ms)
     session$flushReact()
 
-    testthat::expect_identical(orientation_destination_status()$enabled, FALSE)
+    testthat::expect_identical(orientation_session$destination()$enabled, FALSE)
     selected_id(NULL)
     session$flushReact()
     testthat::expect_identical(calls, 0L)
@@ -1298,13 +1305,13 @@ testthat::test_that("preparation failure leaves the current Orientation usable",
   shiny::testServer(rill_server(config, store), {
     session$flushReact()
 
-    current <- orientation_state()
+    current <- orientation_session$state()
     testthat::expect_identical(
       current$orientation$revision_id,
       expected$revision_id
     )
     testthat::expect_identical(calls, 0L)
-    testthat::expect_identical(orientation_preparing(), FALSE)
+    testthat::expect_identical(orientation_session$preparing(), FALSE)
   })
 })
 
@@ -1342,10 +1349,10 @@ testthat::test_that("busy Orientation maintenance remains retryable", {
     )
 
     orientation_attempted_boundary(NULL)
-    start_orientation_maintenance()
+    session$flushReact()
 
     testthat::expect_identical(calls, 2L)
-    testthat::expect_identical(orientation_preparing(), FALSE)
+    testthat::expect_identical(orientation_session$preparing(), FALSE)
   })
 })
 
@@ -1384,9 +1391,9 @@ testthat::test_that("a late Orientation settlement cannot clear its successor", 
     testthat::expect_identical(calls, 1L)
 
     orientation_control(NULL)
-    orientation_preparing(FALSE)
     orientation_attempted_boundary(NULL)
-    start_orientation_maintenance()
+    bump_refresh()
+    session$flushReact()
     second <- orientation_control()
     testthat::expect_identical(calls, 2L)
     testthat::expect_identical(
@@ -1401,7 +1408,7 @@ testthat::test_that("a late Orientation settlement cannot clear its successor", 
       orientation_control()$session_token,
       second$session_token
     )
-    testthat::expect_identical(orientation_preparing(), TRUE)
+    testthat::expect_identical(orientation_session$preparing(), TRUE)
     resolvers[[2L]](list())
     later::run_now(0.01)
   })
@@ -2136,9 +2143,10 @@ testthat::test_that("Manage feeds updates untouched fields and keeps drafts", {
     }
     session$setInputs(manage_feeds = 1, managed_feed = "sample-posit")
     rendered <- renders
+    feeds <- store_list_feeds(store, config$actor_id)
     session$setInputs(
       feed_title = "Posit Blog",
-      feed_groups = feed_group_ids(managed_feed())
+      feed_groups = feed_group_ids(feeds[feeds$feed_id == "sample-posit", ])
     )
 
     change_feed("Posit News", "https://posit.co/blog/feed.xml", groups)
@@ -4770,11 +4778,11 @@ testthat::test_that("overlapping refreshes do not claim success or change Librar
     refresh_before <- refresh_tick()
     management_before <- feed_management_tick()
 
-    refresh_feeds_now()
+    feed_refresh$start()
     later::run_now(0)
     session$flushReact()
 
-    testthat::expect_identical(refresh_result()$status, "skipped_overlap")
+    testthat::expect_identical(feed_refresh$result()$status, "skipped_overlap")
     testthat::expect_identical(status_kind(), "info")
     testthat::expect_identical(
       status_text(),
@@ -4824,8 +4832,8 @@ testthat::test_that("feed management keeps browsing separate and restores subscr
     )
 
     session$setInputs(refresh_selected_feed = 1L)
-    testthat::expect_identical(refresh_result()$status, "running")
-    current_job <- \() environment(refresh_feeds_now)$refresh_job
+    testthat::expect_identical(feed_refresh$result()$status, "running")
+    current_job <- \() environment(feed_refresh$start)$refresh_job
     worker_pid <- current_job()$process$get_pid()
     session$setInputs(refresh_selected_feed = 2L)
     testthat::expect_identical(current_job()$process$get_pid(), worker_pid)
@@ -4880,8 +4888,8 @@ testthat::test_that("background refresh finishes after its Shiny session closes"
   config <- rill_config()
   store <- rill_store(config)
   shiny::testServer(rill_server(config, store), {
-    refresh_feeds_now(feed_ids = store$memory$feeds$feed_id[[1L]])
-    testthat::expect_identical(refresh_result()$status, "running")
+    feed_refresh$start(feed_ids = store$memory$feeds$feed_id[[1L]])
+    testthat::expect_identical(feed_refresh$result()$status, "running")
     session$close()
   })
   file.create(gate)
@@ -5658,7 +5666,7 @@ testthat::test_that("a current Orientation clears an earlier maintenance failure
       orientation_status(store, config$actor_id)$due,
       FALSE
     )
-    testthat::expect_null(orientation_failure())
+    testthat::expect_null(orientation_session$failure())
     testthat::expect_no_match(output$reader_header$html, "Retry Orientation")
     testthat::expect_identical(calls, 1L)
   }))
@@ -5710,7 +5718,7 @@ testthat::test_that("stopped Orientation attempts do not trace retained cards as
           session$flushReact()
           resolve_outcome(pending_result)
           deadline <- Sys.time() + 2
-          while (orientation_preparing() && Sys.time() < deadline) {
+          while (orientation_session$preparing() && Sys.time() < deadline) {
             later::run_now(0.01)
             session$flushReact()
           }
@@ -5804,7 +5812,7 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
         shiny::testServer(rill_server(config, store), {
           session$flushReact()
           deadline <- Sys.time() + 2
-          while (orientation_preparing() && Sys.time() < deadline) {
+          while (orientation_session$preparing() && Sys.time() < deadline) {
             later::run_now(0.01)
             session$flushReact()
           }
@@ -5842,7 +5850,7 @@ testthat::test_that("Orientation exposes provider rejection and permits one expl
             testthat::expect_identical(provider_calls, 3L)
             resolve_retry(orientation_test_agent_result())
             deadline <- Sys.time() + 2
-            while (orientation_preparing() && Sys.time() < deadline) {
+            while (orientation_session$preparing() && Sys.time() < deadline) {
               later::run_now(0.01)
               session$flushReact()
             }
@@ -5921,12 +5929,12 @@ testthat::test_that("Orientation exports nested failure diagnostics on its span 
     later::with_temp_loop(shiny::testServer(rill_server(config, store), {
       session$flushReact()
       deadline <- Sys.time() + 2
-      while (orientation_preparing() && Sys.time() < deadline) {
+      while (orientation_session$preparing() && Sys.time() < deadline) {
         later::run_now(0.01)
         session$flushReact()
       }
       testthat::expect_match(output$reader_header$html, "Retry Orientation")
-      testthat::expect_s3_class(orientation_failure(), "rlib_error_3_0")
+      testthat::expect_s3_class(orientation_session$failure(), "rlib_error_3_0")
       testthat::expect_match(output$reader_header$html, "Private source text")
       testthat::expect_match(output$reader_header$html, "Caused by error")
       testthat::expect_match(output$reader_header$html, "Error details")
@@ -6131,7 +6139,7 @@ testthat::test_that("Group management and combined reading share a single queue 
       fixed = TRUE
     )
     session$setInputs(cancel_delete_group = 1L)
-    testthat::expect_null(pending_group_delete())
+    testthat::expect_null(output$group_delete_confirmation)
     session$setInputs(delete_group = 2L)
     session$setInputs(confirm_delete_group = 1L)
     testthat::expect_disjoint(feed_groups()$group_id, engineering)

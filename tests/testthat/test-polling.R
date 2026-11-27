@@ -417,6 +417,28 @@ testthat::test_that("manual refresh checks only active feeds in this Library", {
   testthat::expect_match(feed$last_polled_at, "UTC", fixed = TRUE)
 })
 
+testthat::test_that("Reader feed selection applies scope and failure filters", {
+  local_three_feed_demo()
+  store <- rill_store(list(demo_mode = TRUE, actor_id = "reader-one"))
+  ids <- store_list_feeds(store, "reader-one")$feed_id
+  store$memory$feeds$poll_status[
+    match(ids[[1L]], store$memory$feeds$feed_id)
+  ] <- "failed"
+
+  selected <- select_reader_feeds(
+    store,
+    "reader-one",
+    feed_ids = ids,
+    failed_only = TRUE
+  )
+
+  testthat::expect_identical(selected$feed_id, ids[[1L]])
+  testthat::expect_identical(
+    select_reader_feeds(store, "reader-one", feed_ids = "unowned")$feed_id,
+    character()
+  )
+})
+
 testthat::test_that("manual refresh retries failed feeds and respects polling overlap", {
   store <- rill_store(list(demo_mode = TRUE, actor_id = "reader"))
   ids <- store_list_feeds(store, "reader")$feed_id

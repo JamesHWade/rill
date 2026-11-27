@@ -13,7 +13,7 @@ try {
   });
   await page.goto(`${url}?tools=fixture`);
   await page.waitForFunction(() => window.rillUiAudit?.().appBusy === 'false');
-  await page.getByRole('button', {name: 'Read the anchor source', exact: true}).click();
+  await page.locator('.orientation-read').first().click();
   await page.getByRole('button', {name: 'Focus Ask Rill', exact: true}).first().click();
   await page.waitForFunction(() =>
     document.getElementById('reader_agent_sidebar').getBoundingClientRect().width >= innerWidth - 1);

@@ -360,7 +360,7 @@ testthat::test_that("Ask Rill overlays Reading until both panes fit", {
   )
   testthat::expect_match(
     javascript,
-    'overlaidAgentMode.addEventListener("change", handleAgentLayoutChange)',
+    "listenForMediaQueryChange(overlaidAgentMode, handleAgentLayoutChange)",
     fixed = TRUE
   )
   testthat::expect_match(
